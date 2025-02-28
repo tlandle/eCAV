@@ -1,2 +1,0 @@
-/usr/bin/ar qc libecloud_grpc_proto.a CMakeFiles/ecloud_grpc_proto.dir/ecloud.grpc.pb.cc.o CMakeFiles/ecloud_grpc_proto.dir/ecloud.pb.cc.o
-/usr/bin/ranlib libecloud_grpc_proto.a
