@@ -4,6 +4,10 @@ description: |-
 
 # Carla server settings
 
+distributed: false
+define: &perception_is_active true
+perception_active: *perception_is_active
+
 world:
   sync_mode: true
   client_host: &host localhost
@@ -16,8 +20,8 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_3
   num_actors: 2
-  configFile: './opencda/scenario_testing/scenarios/scenario_3.xml'
-  additionalScenario: '/home/ucdavis/Desktop/OpenCDA/opencda/scenario_testing/scenarios/scenario_3.py'
+  configFile: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_3.xml'
+  additionalScenario: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_3.py'
 
   host: *host
   port: *port
@@ -52,13 +56,28 @@ scenario:
         enabled: false
       behavior:
         local_planner:
-          debug_trajectory: false
-          debug: false
+          debug_trajectory: true
+          debug: true
+  rsu_list:
+    - name: rsu1
+      spawn_position: [-88.0, 140, 3.0]
+
+rsu_base: &rsu_base
+  sensing:
+    activate: true
 
 vehicle_base: &vehicle_base
   sensing: &base_sensing
 #    edge: true
     perception: &base_perception
+      activate: true
+        #camera:
+        #visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        #num: 0 # how many cameras are mounted on the vehicle. 
+        #positions:  # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+          #- [2.5, 0, 1.0, 0]
+          #- [0.0, 0.3, 1.8, 100]
+          #- [0.0, -0.3, 1.8, -100]
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         visualize: true # whether to visualize lidar points using open3d
   behavior: &base_behavior

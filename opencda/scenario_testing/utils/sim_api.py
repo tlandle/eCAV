@@ -513,8 +513,10 @@ class ScenarioManager:
         elif 'edge_list' in scenario_params['scenario']:
             # TODO: support multiple edges...
             self.is_edge = True
-            self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['vehicles'])
-            self.rsu_count = len(scenario_params['scenario']['edge_list'][0]['rsus'])
+            if 'vehicles' in scenario_params['scenario']['edge_list'][0]:
+                self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['vehicles'])
+            if 'rsus' in scenario_params['scenario']['edge_list'][0]:
+                self.rsu_count = len(scenario_params['scenario']['edge_list'][0]['rsus'])
 
         elif 'single_cav_list' in scenario_params['scenario']:
             self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
@@ -684,6 +686,60 @@ class ScenarioManager:
             single_cav_list.append(vehicle_manager)
 
         return single_cav_list
+    
+    def create_vehicle_manager_from_scenario_runner(self, vehicle):
+        """
+        Create a single CAV with a loaded ego vehicle from SR.
+        Different from the create_vehicle_manager API creating Carla vehicle from scratch,
+        SR creates on its own only supports 'single' vehicle.
+        Parameters
+        ----------
+        vehicle:
+            The Carla ego vehicle created by ScenarioRunner.
+        Returns
+        -------
+        single_cav_list : list
+            A list contains the singla CAV derived from the ego vehicle.
+        """
+        data_dump = False
+        map_helper = None
+        single_cav_params = self.scenario_params['scenario']['single_cav_list']
+        if len(single_cav_params) != 1:
+            raise ValueError('Only support one ego vehicle for ScenarioRunner')
+
+        cav_config = single_cav_params[0]
+        platoon_base = OmegaConf.create(
+            {'platoon': self.scenario_params.get('platoon_base', {})})
+        cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
+                                     platoon_base,
+                                     cav_config)
+        #vehicle_manager = VehicleManager(
+            #vehicle, self.scenario_params, ['single'], self.carla_map, self.cav_world)
+
+        vehicle_manager = VehicleManager(
+                vehicle=vehicle, vehicle_index=0, carla_world=self.world,
+                config_yaml=self.scenario_params, application=['single'],
+                carla_map=self.carla_map, cav_world=self.cav_world,
+                current_time=self.scenario_params['current_time'],
+                data_dumping=data_dump, map_helper=map_helper,
+                location_type=self.ecloud_config.get_location_type(),
+                perception_active=self.apply_ml)
+
+
+        self.world.tick()
+
+        vehicle_manager.v2x_manager.set_platoon(None)
+
+        destination = carla.Location(x=cav_config['destination'][0],
+                                     y=cav_config['destination'][1],
+                                     z=cav_config['destination'][2])
+        vehicle_manager.update_info()
+        vehicle_manager.set_destination(
+            vehicle_manager.vehicle.get_location(),
+            destination,
+            clean=True)
+
+        return [vehicle_manager]
 
     def create_platoon_manager(self, map_helper=None, data_dump=False):
         """
@@ -1148,51 +1204,53 @@ class ScenarioManager:
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
             edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'])
-            for index, cav in enumerate(edge['rsus']):
-                rsu_manager = RSUManager(self.world, cav,
-                                   self.carla_map,
-                                   self.cav_world,
-                                   self.scenario_params['current_time'],
-                                   data_dump)
-                edge_manager.add_rsu(rsu_manager)
-                self.rsu_managers[index] = rsu_manager
-            for index, cav in enumerate(edge['vehicles']): 
-                logger.debug("Creating VehiceManagerProxy for vehicle %s", index)
-                # create vehicle manager for each cav
-                #vehicle_manager = VehicleManagerProxy(
-                #      vehicle_index=index, config_yaml=config_yaml, application=application,
-                #      carla_world=self.world,
-                #      carla_map=self.carla_map, cav_world=self.cav_world,
-                #      current_time=self.scenario_params['current_time'],
-                #      data_dumping=data_dump, carla_version=self.carla_version)
-                vehicle_manager = VehicleManager(
-                      vehicle_index=index, config_yaml=config_yaml, application=application,
-                      carla_world=self.world,
-                      carla_map=self.carla_map, cav_world=self.cav_world,
-                      current_time=self.scenario_params['current_time'],
-                      data_dumping=data_dump, is_edge=True, map_helper=map_helper,
-                      location_type = self.ecloud_config.get_location_type(),
-                      perception_active=self.apply_ml)
+            if 'rsus' in edge:
+                for index, cav in enumerate(edge['rsus']):
+                    rsu_manager = RSUManager(self.world, cav,
+                                       self.carla_map,
+                                       self.cav_world,
+                                       self.scenario_params['current_time'],
+                                       data_dump)
+                    edge_manager.add_rsu(rsu_manager)
+                    self.rsu_managers[index] = rsu_manager
+            if 'vehicles' in edge:
+                for index, cav in enumerate(edge['vehicles']): 
+                    logger.debug("Creating VehiceManagerProxy for vehicle %s", index)
+                    # create vehicle manager for each cav
+                    #vehicle_manager = VehicleManagerProxy(
+                    #      vehicle_index=index, config_yaml=config_yaml, application=application,
+                    #      carla_world=self.world,
+                    #      carla_map=self.carla_map, cav_world=self.cav_world,
+                    #      current_time=self.scenario_params['current_time'],
+                    #      data_dumping=data_dump, carla_version=self.carla_version)
+                    vehicle_manager = VehicleManager(
+                          vehicle_index=index, config_yaml=config_yaml, application=application,
+                          carla_world=self.world,
+                          carla_map=self.carla_map, cav_world=self.cav_world,
+                          current_time=self.scenario_params['current_time'],
+                          data_dumping=data_dump, is_edge=True, map_helper=map_helper,
+                          location_type = self.ecloud_config.get_location_type(),
+                          perception_active=self.apply_ml)
 
-                logger.debug("finished creating VehiceManagerProxy")
+                    logger.debug("finished creating VehiceManagerProxy")
 
-                self.world.tick()
+                    self.world.tick()
 
-                # send gRPC with START info
-                self.application = application
+                    # send gRPC with START info
+                    self.application = application
 
-                #vehicle_manager.start_vehicle()
-                vehicle_manager.v2x_manager.set_platoon(None)
+                    #vehicle_manager.start_vehicle()
+                    vehicle_manager.v2x_manager.set_platoon(None)
 
-                # add the vehicle manager to platoon
-                edge_manager.add_member(vehicle_manager)
-                self.vehicle_managers[index] = vehicle_manager
+                    # add the vehicle manager to platoon
+                    edge_manager.add_member(vehicle_manager)
+                    self.vehicle_managers[index] = vehicle_manager
 
-                vehicle_manager.update_info()
-                vehicle_manager.set_destination(
-                  vehicle_manager.vehicle.get_location(),
-                  vehicle_manager.destination_location,
-                  clean=True)
+                    vehicle_manager.update_info()
+                    vehicle_manager.set_destination(
+                      vehicle_manager.vehicle.get_location(),
+                      vehicle_manager.destination_location,
+                      clean=True)
 
 
             try:

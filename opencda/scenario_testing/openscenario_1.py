@@ -9,8 +9,9 @@ from opencda.core.common.cav_world import CavWorld
 import time
 from multiprocessing import Process
 import psutil
-
-import scenario_runner as sr
+from opencda.scenario_testing.utils.yaml_utils import add_current_time
+import scenario_runner.scenario_runner as sr
+#from scenario_runner import ScenarioRunner
 
 
 def exec_scenario_runner(scenario_params):
@@ -24,6 +25,7 @@ def exec_scenario_runner(scenario_params):
     Returns
     -------
     """
+    #print(help(scenario_runner))
     scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
     scenario_runner.run()
     scenario_runner.destroy()
@@ -35,6 +37,8 @@ def run_scenario(opt, scenario_params):
     scenario_manager = None
 
     try:
+        scenario_params = add_current_time(scenario_params)
+
         # Create CAV world
         cav_world = CavWorld(opt.apply_ml)
         # Create scenario manager
@@ -42,7 +46,8 @@ def run_scenario(opt, scenario_params):
                                                    opt.apply_ml,
                                                    opt.version,
                                                    town=scenario_params.scenario_runner.town,
-                                                   cav_world=cav_world)
+                                                   cav_world=cav_world,
+                                                   distributed=False)
 
         # Create a background process to init and execute scenario runner
         sr_process = Process(target=exec_scenario_runner,

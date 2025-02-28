@@ -20,3 +20,5 @@ ortools==9.3.10497
 grpcio-tools
 shapely==1.8.4
 omegaconf
+torch
+torchvision

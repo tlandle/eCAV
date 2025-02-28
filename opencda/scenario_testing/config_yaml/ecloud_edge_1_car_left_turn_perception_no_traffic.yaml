@@ -5,7 +5,7 @@ description: |-
            at Town12 using CARLA
 
 distributed: false
-define: &perception_is_active false
+define: &perception_is_active true
 perception_active: *perception_is_active
 
 # define carla simulation setting
@@ -128,9 +128,9 @@ vehicle_base: &vehicle_base
 rsu_base: &rsu_base
   sensing:
     perception:
-      activate: false # when not activated, objects positions will be retrieved from server directly
+      activate: true # when not activated, objects positions will be retrieved from server directly
       camera:
-        visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
         # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
         positions:
@@ -237,29 +237,29 @@ scenario:
             <<: *base_local_planner
             debug_trajectory: true
             debug: true
-      - <<: *vehicle_base
-        spawn_position: [-131, -118, 0.3, 0, 90, 0]
-        destination: [-131, 115, 0.3]
-        sensing:
-          <<: *base_sensing
-          perception:
-            <<: *base_perception
-          localization:
-            <<: *base_localize
-            debug_helper:
-              <<: *loc_debug_helper
-              show_animation: false
-        v2x:
-          <<: *base_v2x
-          communication_range: 35
-        behavior:
-          <<: *base_behavior
-          max_speed: 50
-          overtake_allowed: true
-          local_planner:
-            <<: *base_local_planner
-            debug_trajectory: false
-            debug: false
+#      - <<: *vehicle_base
+#        spawn_position: [-131, -118, 0.3, 0, 90, 0]
+#        destination: [-131, 115, 0.3]
+#        sensing:
+#          <<: *base_sensing
+#          perception:
+#            <<: *base_perception
+#          localization:
+#            <<: *base_localize
+#            debug_helper:
+#              <<: *loc_debug_helper
+#              show_animation: false
+#        v2x:
+#          <<: *base_v2x
+#          communication_range: 35
+#        behavior:
+#          <<: *base_behavior
+#          max_speed: 50
+#          overtake_allowed: true
+#          local_planner:
+#            <<: *base_local_planner
+#            debug_trajectory: true
+#            debug: true
 #      - <<: *vehicle_base
 #        spawn_position: [-128, -118, 0.3, 0, 90, 0]
 #        destination: [-128, 115, 0.3]
@@ -281,33 +281,33 @@ scenario:
 #          overtake_allowed: true
 #          local_planner:
 #            <<: *base_local_planner
-#            debug_trajectory: false
-#            debug: false
-      - <<: *vehicle_base
-        spawn_position: [-131, -112, 0.3, 0, 90, 0]
-        destination: [-131, 115, 0.3]
-        sensing:
-          <<: *base_sensing
-          perception:
-            <<: *base_perception
-          localization:
-            <<: *base_localize
-            debug_helper:
-              <<: *loc_debug_helper
-              show_animation: false
-        v2x:
-          <<: *base_v2x
-          communication_range: 35
-        behavior:
-          <<: *base_behavior
-          max_speed: 50
-          overtake_allowed: true
-          local_planner:
-            <<: *base_local_planner
-            debug_trajectory: true
-            debug: true
+#            debug_trajectory: true
+#            debug: true
 #      - <<: *vehicle_base
-#        spawn_position: [-128, -111, 0.3, 0, 90, 0]
+#        spawn_position: [-131, -112, 0.3, 0, 90, 0]
+#        destination: [-131, 115, 0.3]
+#        sensing:
+#          <<: *base_sensing
+#          perception:
+#            <<: *base_perception
+#          localization:
+#            <<: *base_localize
+#            debug_helper:
+#              <<: *loc_debug_helper
+#              show_animation: false
+#        v2x:
+#          <<: *base_v2x
+#          communication_range: 35
+#        behavior:
+#          <<: *base_behavior
+#          max_speed: 50
+#          overtake_allowed: true
+#          local_planner:
+#            <<: *base_local_planner
+#            debug_trajectory: true
+#            debug: true
+#      - <<: *vehicle_base
+#        spawn_position: [-128, -112, 0.3, 0, 90, 0]
 #        destination: [-128, 115, 0.3]
 #        sensing:
 #          <<: *base_sensing
@@ -329,29 +329,29 @@ scenario:
 #            <<: *base_local_planner
 #            debug_trajectory: true
 #            debug: true
-      - <<: *vehicle_base
-        spawn_position: [-131, -124, 0.3, 0, 90, 0]
-        destination: [-131, 115, 0.3]
-        sensing:
-          <<: *base_sensing
-          perception:
-            <<: *base_perception
-          localization:
-            <<: *base_localize
-            debug_helper:
-              <<: *loc_debug_helper
-              show_animation: false
-        v2x:
-          <<: *base_v2x
-          communication_range: 35
-        behavior:
-          <<: *base_behavior
-          max_speed: 50
-          overtake_allowed: true
-          local_planner:
-            <<: *base_local_planner
-            debug_trajectory: false
-            debug: false
+#      - <<: *vehicle_base
+#        spawn_position: [-131, -124, 0.3, 0, 90, 0]
+#        destination: [-131, 115, 0.3]
+#        sensing:
+#          <<: *base_sensing
+#          perception:
+#            <<: *base_perception
+#          localization:
+#            <<: *base_localize
+#            debug_helper:
+#              <<: *loc_debug_helper
+#              show_animation: false
+#        v2x:
+#          <<: *base_v2x
+#          communication_range: 35
+#        behavior:
+#          <<: *base_behavior
+#          max_speed: 50
+#          overtake_allowed: true
+#          local_planner:
+#            <<: *base_local_planner
+#            debug_trajectory: false
+#            debug: false
 #      - <<: *vehicle_base
 #        spawn_position: [-128, -124, 0.3, 0, 90, 0]
 #        destination: [-128, 115, 0.3]

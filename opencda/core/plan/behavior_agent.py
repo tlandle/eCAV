@@ -24,6 +24,7 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -354,6 +355,7 @@ class BehaviorAgent(object):
         destination = spawn_points[0].location if \
             spawn_points[0].location != new_start else spawn_points[1].location
         logger.debug("New destination: " + str(destination))
+        #input("New Destination set - why?")
 
         self.set_destination(new_start, destination)
 
@@ -466,11 +468,13 @@ class BehaviorAgent(object):
         min_distance = 1000
         target_vehicle = None
 
+        print(adjacent_check)
+
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
-                adjacent_check=adjacent_check)
+                adjacent_check=adjacent_check, world=self.vehicle.get_world())
             logger.debug("Collision Free: %s" %collision_free)
             if not collision_free:
                 vehicle_state = True
@@ -482,22 +486,22 @@ class BehaviorAgent(object):
                 if distance < min_distance:
                     min_distance = distance
                     target_vehicle = vehicle
-        for obstacle in self.static_obstacles:
-            collision_free = self._collision_check.collision_circle_check(
-                rx, ry, ryaw, obstacle, self._ego_speed / 3.6, self._map,
-                adjacent_check=adjacent_check)
-            logger.debug("Collision Free: %s" %collision_free)
-            if not collision_free:
-                vehicle_state = True
-
-                # the vehicle length is typical 3 meters,
-                # so we need to consider that when calculating the distance
-                distance = positive(dist(obstacle))
-
-                if distance < min_distance:
-                    min_distance = distance
-                    target_vehicle = obstacle
-
+#        for obstacle in self.static_obstacles:
+#            collision_free = self._collision_check.collision_circle_check(
+#                rx, ry, ryaw, obstacle, self._ego_speed / 3.6, self._map,
+#                adjacent_check=adjacent_check)
+#            logger.debug("Collision Free: %s" %collision_free)
+#            if not collision_free:
+#                vehicle_state = True
+#
+#                # the vehicle length is typical 3 meters,
+#                # so we need to consider that when calculating the distance
+#                distance = positive(dist(obstacle))
+#
+#                if distance < min_distance:
+#                    min_distance = distance
+#                    target_vehicle = obstacle
+#
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -556,6 +560,7 @@ class BehaviorAgent(object):
                     next_wpt.transform.location,
                     clean=True,
                     end_reset=False)
+                #input("Left overtake reset global plan")
                 return vehicle_state
 
         if (right_turn == carla.LaneChange.Right or right_turn ==
@@ -587,6 +592,7 @@ class BehaviorAgent(object):
                     next_wpt.transform.location,
                     clean=True,
                     end_reset=False)
+                #input("Destination Reset due to right turn or overtake")
                 return vehicle_state
 
         return True
@@ -694,7 +700,9 @@ class BehaviorAgent(object):
             for wpt, _ in waypoint_buffer:
                 distance = \
                     tl.get_location().distance(wpt.transform.location)
+                print(distance)
                 if distance < 20:
+                    print("is Intersection")
                     return True
         return False
 
@@ -886,8 +894,10 @@ class BehaviorAgent(object):
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
         if is_intersection:
+            logger.debug("Overake not allowed because of intersection")
             self.overtake_allowed = False
         else:
+            logger.debug("Overtake is allowed because not in intersection")
             self.overtake_allowed = True and self.overtake_allowed_origin
 
         start_time = time.time()
@@ -928,6 +938,7 @@ class BehaviorAgent(object):
         end_time_7 = start_time
         end_time_8 = start_time
         end_time_9 = start_time
+        print("Hazard: %s" %(is_hazard))
         if not self.lane_change_allowed and \
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \
@@ -942,6 +953,7 @@ class BehaviorAgent(object):
                 reset_target.transform.location,
                 clean=True,
                 end_reset=False)
+            #input("Doing lane change as planned but found vehicle blocking other lane")
             rx, ry, rk, ryaw = self._local_planner.generate_path()
             end_time_7 = time.time()
 
@@ -949,8 +961,12 @@ class BehaviorAgent(object):
         # allowed or it is doing overtaking the second condition is to
         # prevent successive overtaking
         elif is_hazard and (not self.overtake_allowed or
-                            self.overtake_counter > 0
-                            or self.get_local_planner().potential_curved_road):
+                self.overtake_counter > 0):
+                            #or self.get_local_planner().potential_curved_road): #TL - Why is this logic here?
+            print("Vehicle is blocking in front or overtake is not allowed")
+            print("Overtake Allowed: %s" %self.overtake_allowed)
+            print("Overtake Counter: %s" %self.overtake_counter)
+            print("Curved Road: %s" %self.get_local_planner().potential_curved_road)
             car_following_flag = True
             end_time_8 = time.time()
         # 9. overtake handeling
@@ -961,6 +977,8 @@ class BehaviorAgent(object):
             obstacle_lane_id = self._map.get_waypoint(obstacle_vehicle.get_location()).lane_id
             ego_lane_id = self._map.get_waypoint(
                 self._ego_pos.location).lane_id
+            print("Ego Lane Id: %s" %ego_lane_id)
+            print("Obstacle Lane ID: %s" %obstacle_lane_id)
             # overtake the obstacle vehicle only when speed is bigger and the
             # lane id is the same
             if ego_lane_id == obstacle_lane_id:
@@ -987,6 +1005,7 @@ class BehaviorAgent(object):
         start_time = time.time()
         if car_following_flag:
             if distance < max(self.break_distance, 3):
+                print("Car Following Somehow")
                 end_time = time.time()
                 self.debug_helper.update_agent_step_list(10, end_time-start_time)
                 self.debug_helper.update_agent_step_list(11, 0)
@@ -997,12 +1016,12 @@ class BehaviorAgent(object):
                 rx, ry, rk, target_speed=target_speed)
             end_time = time.time()
             self.debug_helper.update_agent_step_list(10, end_time-start_time)
+            logger.debug("step 10 complete - following and exiting")
             self.debug_helper.update_agent_step_list(11, 0)
             return target_speed, target_loc
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(10, end_time-start_time)
-        logger.debug("step 10 complete")
-
+        #self.debug_helper.update_agent_step_list(10, end_time-start_time)
+        
         # 11. Normal behavior
         start_time = time.time()
         target_speed, target_loc = self._local_planner.run_step(

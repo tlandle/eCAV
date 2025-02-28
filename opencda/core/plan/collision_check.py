@@ -184,7 +184,8 @@ class CollisionChecker:
             obstacle_vehicle,
             speed,
             carla_map,
-            adjacent_check=False):
+            adjacent_check=False,
+            world=None):
         """
         Use circled collision check to see whether potential hazard on
         the forwarding path.
@@ -208,6 +209,7 @@ class CollisionChecker:
         distance_check = min(max(int(self.time_ahead * speed / 0.1), 90),
                              len(path_x)) \
             if not adjacent_check else len(path_x)
+        #print("Path x Length: %s" %len(path_x))
         #print(distance_check)
 
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
@@ -215,6 +217,8 @@ class CollisionChecker:
         #print("Self Location (%s, %s, %s)" %(
         obstacle_vehicle_yaw = \
             carla_map.get_waypoint(obstacle_vehicle_loc).transform.rotation.yaw
+
+        print("Obstacle_Vehicle Yaw: %s" %obstacle_vehicle_yaw)
 
         # every step is 0.1m, so we check every 10 points
         for i in range(0, distance_check, 10):
@@ -225,7 +229,8 @@ class CollisionChecker:
             circle_locations[:, 0] = ptx + circle_offsets * cos(yaw)
             circle_locations[:, 1] = pty + circle_offsets * sin(yaw)
 
-            #world.debug.draw_point(carla.Location(x=circle_locations[:,0], y = circle_locationss[:, -1], z=.5), size=3, life_time=2.0)
+            for circle_location in circle_locations:
+                world.debug.draw_point(carla.Location(x=circle_location[0], y = circle_location[1], z=.5), color=carla.Color(255,255,255), size=.1, life_time=2.0)
 
             # calculate bbx coords under world coordinate system
             corrected_extent_x = obstacle_vehicle.bounding_box.extent.x * \
@@ -261,9 +266,10 @@ class CollisionChecker:
 
             collision_dists = np.subtract(collision_dists, self._circle_radius)
             collision_free = collision_free and not np.any(collision_dists < 0)
-            #print(collision_dists)
+            print(collision_dists)
 
             if not collision_free:
+                world.debug.draw_point(obstacle_vehicle_loc, size=1, life_time=1.0)
                 #print(collision_dists)
                 break
 

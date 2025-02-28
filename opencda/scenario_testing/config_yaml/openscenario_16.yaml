@@ -2,6 +2,14 @@ description: |-
   Author: Wei Shao <phdweishao@gmail.com>
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
 
+
+
+
+distributed: false
+define: &perception_is_active false
+perception_active: *perception_is_active
+
+
 # Carla server settings
 
 world:
@@ -16,8 +24,8 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_16
   num_actors: 2
-  configFile: './opencda/scenario_testing/scenarios/scenario_16.xml'
-  additionalScenario: '/home/ucdavis/Desktop/OpenCDA/opencda/scenario_testing/scenarios/scenario_16.py'
+  configFile: '/HDD/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_16.xml'
+  additionalScenario: '/HDD/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_16.py'
 
   # The following shows how to configure a A-to-B simple scenario
 #  : AtoB_1

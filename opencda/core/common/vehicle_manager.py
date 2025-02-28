@@ -126,7 +126,7 @@ class VehicleManager(object):
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
-        #print(config_yaml)
+        self.vehicle = vehicle
         self.vehicle_index = vehicle_index
         self.location_type = location_type
         self.run_distributed = run_distributed
@@ -138,6 +138,7 @@ class VehicleManager(object):
         self.edge_objects = {}
         # set random seed if stated
         seed = time.time()
+        print(config_yaml)
         if 'seed' in config_yaml['world']:
             seed = config_yaml['world']['seed']
 
@@ -149,6 +150,7 @@ class VehicleManager(object):
         random.seed(seed)
 
         edge_sets_destination = False
+        print(vehicle_index)
         if not is_edge:
             cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0] 
@@ -204,15 +206,18 @@ class VehicleManager(object):
                     self.spawn_transform = map_helper(self.carla_version,
                                              *cav_config['spawn_special'])
                 elif location_type == eLocationType.EXPLICIT:
-                    self.spawn_transform = carla.Transform(
-                    carla.Location(
-                        x=cav_config['spawn_position'][0],
-                        y=cav_config['spawn_position'][1],
-                        z=cav_config['spawn_position'][2]),
-                    carla.Rotation(
-                        pitch=cav_config['spawn_position'][5],
-                        yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))
+                    if 'spawn_position' in cav_config:
+                        self.spawn_transform = carla.Transform(
+                        carla.Location(
+                            x=cav_config['spawn_position'][0],
+                            y=cav_config['spawn_position'][1],
+                            z=cav_config['spawn_position'][2]),
+                        carla.Rotation(
+                            pitch=cav_config['spawn_position'][5],
+                            yaw=cav_config['spawn_position'][4],
+                            roll=cav_config['spawn_position'][3]))
+                    else:
+                        break
 
                     self.destination = {}
                     if edge_sets_destination:
@@ -238,6 +243,10 @@ class VehicleManager(object):
                             x=self.spawn_transform.location.x,
                             y=self.spawn_transform.location.y,
                             z=self.spawn_transform.location.z)
+
+                else:
+                    print("No spawn location specified")
+                    break
 
                 # By default, we use lincoln as our cav model.
                 default_model = 'vehicle.lincoln.mkz2017' \
@@ -433,11 +442,11 @@ class VehicleManager(object):
                 round(actor_location.y, 3),
                 round(actor_location.z, 3)))
 
-        for obj in self.agent.objects['vehicles']:
-            print("Identified Vehicle at (%s, %s, %s)" %(obj.get_location().x, obj.get_location().y, obj.get_location().z))
+        #for obj in self.agent.objects['vehicles']:
+            #print("Identified Vehicle at (%s, %s, %s)" %(obj.get_location().x, obj.get_location().y, obj.get_location().z))
 
-        for obj in self.agent.objects['static']:
-            print("Identified Static Object at (%s, %s, %s)" %(obj.get_location().x, obj.get_location().y, obj.get_location().z))
+        #for obj in self.agent.objects['static']:
+            #print("Identified Static Object at (%s, %s, %s)" %(obj.get_location().x, obj.get_location().y, obj.get_location().z))
 
         #input()
         #print(self.agent.objects)

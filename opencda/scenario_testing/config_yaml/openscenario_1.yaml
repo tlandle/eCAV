@@ -2,6 +2,11 @@ description: |-
   Author: Wei Shao <phdweishao@gmail.com>
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
 
+
+distributed: false
+define: &perception_is_active true
+perception_active: *perception_is_active
+
 # Carla server settings
 
 world:
@@ -16,8 +21,8 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_1
   num_actors: 2
-  configFile: './opencda/scenario_testing/scenarios/scenario_1.xml'
-  additionalScenario: '/home/ucdavis/Desktop/OpenCDA/opencda/scenario_testing/scenarios/scenario_1.py'
+  configFile: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_1.xml'
+  additionalScenario: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_1.py'
 
 
   host: *host
@@ -52,13 +57,20 @@ scenario:
       v2x:
         enabled: false
       behavior:
+        max_speed: 20
         local_planner:
-          debug_trajectory: false
-          debug: false
+          debug_trajectory: true
+          debug: true
 
 vehicle_base: &vehicle_base
   sensing: &base_sensing
 #    edge: true
     perception: &base_perception
+      activate: true
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         visualize: true # whether to visualize lidar points using open3d
+    local_planner:
+      debug: true
+      debug_trajectory: true
+    behavior:
+      max_speed: 20 # km/h

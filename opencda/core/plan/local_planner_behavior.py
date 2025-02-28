@@ -664,6 +664,13 @@ class LocalPlanner(object):
                                   size=0.1,
                                   color=carla.Color(255, 0, 255),
                                   lt=0.2)
+            draw_trajetory_points(self._vehicle.get_world(),
+                                  self.waypoints_queue,
+                                  z=0.1,
+                                  size=0.3,
+                                  color=carla.Color(255, 0, 0),
+                                  lt=0.2)
+
 
         return self._target_speed, \
                self.target_waypoint.transform.location if hasattr(

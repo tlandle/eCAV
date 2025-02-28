@@ -351,7 +351,7 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
     """
 
 
-    print("Input PC Len: %s" %len(point_cloud))
+    #print("Input PC Len: %s" %len(point_cloud))
     # Lidar intensity array of shape (p_cloud_size,) but, for now, let's
     # focus on the 3D points.
     intensity = np.array(point_cloud[:, 3])

@@ -77,8 +77,10 @@ class EdgeManager(object):
         #self.target_speed = config_yaml['target_speed'] # kph
         #self.traffic_velocity = self.target_speed * 0.277778 # convert to m/s! NOT kph
         print(config_yaml)
-        self.numcars = len(config_yaml['vehicles']) # TODO - set edge_index
-        self.numrsus = len(config_yaml['rsus'])
+        if 'vehicles' in config_yaml:
+            self.numcars = len(config_yaml['vehicles']) # TODO - set edge_index
+        if 'rsus' in config_yaml:
+            self.numrsus = len(config_yaml['rsus'])
         self.activate = config_yaml["mode"]
         #self.locations = []
         self.destination = None

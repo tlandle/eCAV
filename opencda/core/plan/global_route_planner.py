@@ -15,7 +15,7 @@ import networkx as nx
 import carla
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.common.misc import vector
-
+from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
 
 class GlobalRoutePlanner(object):
     """
