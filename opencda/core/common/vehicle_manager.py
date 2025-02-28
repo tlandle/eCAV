@@ -12,10 +12,12 @@ import opencda.logging_ecloud
 import logging
 import time
 import random
+import weakref
 
 import carla
 import numpy as np
-
+from omegaconf import OmegaConf
+from omegaconf.listconfig import ListConfig
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.actuation.control_manager \
     import ControlManager
@@ -27,14 +29,16 @@ from opencda.core.sensing.localization.localization_manager \
     import LocalizationManager
 from opencda.core.sensing.perception.perception_manager \
     import PerceptionManager
+from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent \
     import BehaviorAgent
+from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.common.misc import compute_distance
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.core.common.ecloud_config import eLocationType
-from opencda.core.common.traffic_event import TrafficEvent
+from opencda.core.common.traffic_event import TrafficEvent, TrafficEventType
 
 import coloredlogs, logging
 logger = logging.getLogger(__name__)
@@ -71,10 +75,10 @@ class VehicleManager(object):
         The CARLA simulation map.
 
     cav_world : opencda object
-        CAV World.
+        CAV World. This is used for V2X communication simulation.
 
     current_time : str
-        Timestamp of the simulation beginning.
+        Timestamp of the simulation beginning, used for data dumping.
 
     data_dumping : bool
         Indicates whether to dump sensor data during simulation.
@@ -110,7 +114,7 @@ class VehicleManager(object):
             carla_world=None,
             carla_map=None,
             cav_world=None,
-            carla_version='0.9.12',
+            carla_version='0.9.15',
             current_time='',
             data_dumping=False,
             location_type=eLocationType.EXPLICIT,
@@ -122,15 +126,19 @@ class VehicleManager(object):
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
 
+        self.vehicle = vehicle
         self.vehicle_index = vehicle_index
         self.location_type = location_type
         self.run_distributed = run_distributed
         self.scenario_params = config_yaml
         self.carla_version = carla_version
         self.perception_active = perception_active
+        self.rsu_manager = None
 
+        self.edge_objects = {}
         # set random seed if stated
         seed = time.time()
+        print(config_yaml)
         if 'seed' in config_yaml['world']:
             seed = config_yaml['world']['seed']
 
@@ -142,17 +150,35 @@ class VehicleManager(object):
         random.seed(seed)
 
         edge_sets_destination = False
+        print(vehicle_index)
         if not is_edge:
             cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
-                        else self.scenario_params['scenario']['single_cav_list'][0]
+                        else self.scenario_params['scenario']['single_cav_list'][0] 
+            cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
+                                         cav_config)
+        #print(cav_config)
 
         # ORIGINAL FLOW
+
+        
 
         if run_distributed == False:
             assert( carla_world is not None )
             self.world = carla_world
-            self.carla_map = carla_map
+            self.carla_map = self.world.get_map()
 
+            if is_edge:
+                assert('edge_list' in self.scenario_params['scenario'])
+                # TODO: support multiple edges...
+                cav_config = self.scenario_params['scenario']['edge_list'][0]['vehicles'][vehicle_index]
+                logger.debug(cav_config)
+                edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
+                    if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
+
+            else:
+                assert(False, "no known vehicle indexing format found")
+
+ 
         # eCLOUD BEGIN
 
         else: # run_distributed == True
@@ -165,7 +191,7 @@ class VehicleManager(object):
             if is_edge:
                 assert('edge_list' in self.scenario_params['scenario'])
                 # TODO: support multiple edges...
-                cav_config = self.scenario_params['scenario']['edge_list'][0]['members'][vehicle_index]
+                cav_config = self.scenario_params['scenario']['edge_list'][0]['vehicles'][vehicle_index]
                 logger.debug(cav_config)
                 edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
                     if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
@@ -180,15 +206,18 @@ class VehicleManager(object):
                     self.spawn_transform = map_helper(self.carla_version,
                                              *cav_config['spawn_special'])
                 elif location_type == eLocationType.EXPLICIT:
-                    self.spawn_transform = carla.Transform(
-                    carla.Location(
-                        x=cav_config['spawn_position'][0],
-                        y=cav_config['spawn_position'][1],
-                        z=cav_config['spawn_position'][2]),
-                    carla.Rotation(
-                        pitch=cav_config['spawn_position'][5],
-                        yaw=cav_config['spawn_position'][4],
-                        roll=cav_config['spawn_position'][3]))
+                    if 'spawn_position' in cav_config:
+                        self.spawn_transform = carla.Transform(
+                        carla.Location(
+                            x=cav_config['spawn_position'][0],
+                            y=cav_config['spawn_position'][1],
+                            z=cav_config['spawn_position'][2]),
+                        carla.Rotation(
+                            pitch=cav_config['spawn_position'][5],
+                            yaw=cav_config['spawn_position'][4],
+                            roll=cav_config['spawn_position'][3]))
+                    else:
+                        break
 
                     self.destination = {}
                     if edge_sets_destination:
@@ -199,6 +228,8 @@ class VehicleManager(object):
                         self.destination['x'] = cav_config['destination'][0]
                         self.destination['y'] = cav_config['destination'][1]
                         self.destination['z'] = cav_config['destination'][2]
+
+                    #print("Destination: (%s, %s, %s)" %(self.destination['x'], self.destination['y'], self.destination['z']))
 
                     self.destination_location = carla.Location(
                             x=self.destination['x'],
@@ -212,6 +243,10 @@ class VehicleManager(object):
                             x=self.spawn_transform.location.x,
                             y=self.spawn_transform.location.y,
                             z=self.spawn_transform.location.z)
+
+                else:
+                    print("No spawn location specified")
+                    break
 
                 # By default, we use lincoln as our cav model.
                 default_model = 'vehicle.lincoln.mkz2017' \
@@ -264,6 +299,7 @@ class VehicleManager(object):
         self.debug_helper = ClientDebugHelper(0)
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']
+        map_config = cav_config['map_manager']
         behavior_config = cav_config['behavior']
         control_config = cav_config['controller']
         v2x_config = cav_config['v2x']
@@ -285,6 +321,14 @@ class VehicleManager(object):
             data_dumping)
         logger.debug("PerceptionManager created")
 
+        # map manager
+        self.map_manager = MapManager(self.vehicle,
+                                      self.carla_map,
+                                      map_config)
+        # safety manager
+        self.safety_manager = SafetyManager(vehicle=self.vehicle,
+                                            params=cav_config['safety_manager'],
+                                            logger=logger)
         # behavior agent
         self.agent = None
         if 'platooning' in application:
@@ -323,22 +367,25 @@ class VehicleManager(object):
         cav_world.update_vehicle_manager(self)
         logger.debug("VehicleManager __init__ complete")
 
+    def set_rsu_manager(self, rsu_manager):
+      self.rsu_manager = rsu_manager
+      #print(self.rsu_manager)
+
     
     @staticmethod
     def _count_lane_invasion(weak_self, event):
         """
         Callback to update lane invasion count
         """
-        print("lane Invasion") 
+        logger.warning("Lane Invasion") 
+
         self = weak_self()
         if not self:
+            logger.error("Lane Invasion - no weak self ref")
             return
 
-
-        print("LAne Invasion")
         actor_location = self.vehicle.get_location()
-
-        lane_invasion_event = TrafficEvent(event_type=actor_type)
+        lane_invasion_event = TrafficEvent(event_type=TrafficEventType.LANE_INVASION)
         lane_invasion_event.set_dict({
             'x': actor_location.x,
             'y': actor_location.y,
@@ -352,11 +399,11 @@ class VehicleManager(object):
         Callback to update collision count
         """
 
-        print("Collision\n")
-        exit(1)
+        logger.warning("Collision\n")
 
         self = weak_self()
         if not self:
+            logger.error("Collision - no weak self ref")
             return
 
         
@@ -386,6 +433,23 @@ class VehicleManager(object):
                 round(actor_location.x, 3),
                 round(actor_location.y, 3),
                 round(actor_location.z, 3)))
+
+        print(
+            "Agent collided against object with type={} and id={} at (x={}, y={}, z={})".format(
+                event.other_actor.type_id,
+                event.other_actor.id,
+                round(actor_location.x, 3),
+                round(actor_location.y, 3),
+                round(actor_location.z, 3)))
+
+        #for obj in self.agent.objects['vehicles']:
+            #print("Identified Vehicle at (%s, %s, %s)" %(obj.get_location().x, obj.get_location().y, obj.get_location().z))
+
+        #for obj in self.agent.objects['static']:
+            #print("Identified Static Object at (%s, %s, %s)" %(obj.get_location().x, obj.get_location().y, obj.get_location().z))
+
+        #input()
+        #print(self.agent.objects)
 
         self.debug_helper.update_collision(collision_event)
 
@@ -447,6 +511,9 @@ class VehicleManager(object):
         self.agent.set_destination(
             start_location, end_location, clean, end_reset)
 
+        #self.world.debug.draw_point(start_location, size=.1, life_time=1000)
+        #self.world.debug.draw_point(end_location, size=.1, life_time=1000)
+
     def update_info(self):
         """
         Call perception and localization module to
@@ -465,9 +532,46 @@ class VehicleManager(object):
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
+        print("Objects", objects)
+        #objects = {**objects ,  **self.edge_objects}
+        if 'vehicles' in self.edge_objects:
+            if 'vehicles' in objects:
+                objects['vehicles'].extend(self.edge_objects['vehicles'])
+            else:
+                objects['vehicles'] = self.edge_objects['vehicles']
+
+        if 'traffic_lights' in self.edge_objects:
+            if 'traffic_lights' in objects:
+                objects['traffic_lights'].extend(self.edge_objects['traffic_lights'])
+            else:
+                objects['traffic_lights'] = self.edge_objects['traffic_lights']
+
+        if 'static' in self.edge_objects:
+            if 'static' in objects:
+                objects['static'].extend(self.edge_objects['static'])
+            else:
+                objects['static'] = self.edge_objects['static']
+
+        print("Edge Objects", self.edge_objects)
+ 
+       # if self.rsu_manager:
+          #objects = {**objects ,  **self.rsu_manager.perception_manager.detect(ego_pos, self.vehicle.id)}
+        print("Combined Objects: " , objects)
         end_time = time.time()
         logger.debug("Perception time: %s" %(end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)
+
+        # update the ego pose for map manager
+        self.map_manager.update_information(ego_pos)
+
+        # this is required by safety manager
+        safety_input = {'ego_pos': ego_pos,
+                        'ego_speed': ego_spd,
+                        'objects': objects,
+                        'carla_map': self.carla_map,
+                        'world': self.vehicle.get_world(),
+                        'static_bev': self.map_manager.static_bev}
+        self.safety_manager.update_info(safety_input)
 
         # update ego position and speed to v2x manager,
         # and then v2x manager will search the nearby cavs
@@ -502,8 +606,11 @@ class VehicleManager(object):
         pre_vehicle_step_time = time.time()
         try:
             target_speed, target_pos = self.agent.run_step(target_speed)
+            # visualize the bev map if needed
+            self.map_manager.run_step()
+
         except Exception as e:
-            logger.warning("can't successfully complete agent.run_step; setting to done.")
+            logger.warning("can't successfully complete agent.run_step; setting to done. Error: %s" %(e))
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location
@@ -542,3 +649,4 @@ class VehicleManager(object):
         self.perception_manager.destroy()
         self.localizer.destroy()
         self.vehicle.destroy()
+        self.map_manager.destroy()

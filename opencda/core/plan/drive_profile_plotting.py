@@ -7,6 +7,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import json
 
 
 def draw_velocity_profile_single_plot(velocity_list):
@@ -130,15 +131,60 @@ def draw_algorithm_time_profile_single_plot(time_list):
     """
 
     for i, v in enumerate(time_list):
-        x_s = np.arange(len(v)) * 0.05
+        x_s = np.arange(len(v)) * 0.21 # TODO: data drive - edge DT
         plt.plot(x_s, v)
 
     plt.xlabel("Time (s)")
-    plt.ylabel("Algorithm Latency (ms)")
+    plt.ylabel("Latency (ms)")
+    #plt.ylim([0.0, 2000])
+    plt.tight_layout()
+    fig = plt.gcf()
+    fig.set_size_inches(11, 8.5)
+
+def draw_deviation_from_target_velocity(vel_dict):
+    # TODO: make this smarter...
+    vel_dic_edge = None
+    try:
+        with open('velocity_list_edge.txt', 'r') as f:
+            vel_dic_edge = json.loads(f'{f.read()}')
+    except:
+        return
+
+    vel_dic_ego = None
+    try:
+        with open('velocity_list_ego.txt', 'r') as f:
+            vel_dic_ego = json.loads(f'{f.read()}')
+    except:
+        return
+
+    #print(vel_dic_edge)
+
+    time_steps = []
+    edge_vel_err = []
+    for tick, v_list in vel_dic_edge.items():
+        time_step = int(tick) * 0.03 # TODO: data drive
+        time_steps.append(time_step)
+
+        v_err_kph = 75 - ( np.mean(v_list) * 3.6 ) # TODO: data drive
+        edge_vel_err.append(v_err_kph)
+        #print(f'v_err_kph: {v_err_kph}')
+
+    ego_vel_err = []
+    for _, v_list in vel_dic_ego.items():
+        v_err_kph = 75 - ( np.mean(v_list) * 3.6 ) # TODO: data drive
+        ego_vel_err.append(v_err_kph)
+        #print(f'v_err_kph: {v_err_kph}')
+    
+    plt.plot(time_steps, edge_vel_err, label="edge control")
+    plt.plot(time_steps, ego_vel_err, label="greedy approach")
+
+    plt.xlabel("Time (s)")
+    plt.ylabel("Error (kph)")
+    plt.legend()
+    plt.tight_layout()
     #plt.ylim([0.0, 2000])
     fig = plt.gcf()
-    fig.set_size_inches(11, 5)
-
+    fig.set_size_inches(11, 8.5)
 
 def draw_world_tick_time_profile_single_plot(time_list):
     """

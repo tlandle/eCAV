@@ -101,10 +101,14 @@ using ecloud::ClientDebugHelper;
 using ecloud::Timestamps;
 using ecloud::WaypointRequest;
 using ecloud::EdgeWaypoints;
+using ecloud::ObjectBuffer;
+using ecloud::EdgeObstacleObject;
+using ecloud::ObjectRequest;
 
-volatile std::atomic<int16_t> numCompletedVehicles_;
-volatile std::atomic<int16_t> numRepliedVehicles_;
-volatile std::atomic<int32_t> tickId_;
+std::atomic<int16_t> numCompletedVehicles_;
+std::atomic<int16_t> numRepliedVehicles_;
+std::atomic<int32_t> tickId_;
+std::atomic<bool> pushedTick_;
 
 bool repliedCars_[MAX_CARS];
 std::string carNames_[MAX_CARS];
@@ -122,6 +126,8 @@ VehicleState vehState_;
 Command command_;
 
 std::vector<std::pair<int16_t, std::string>> serializedEdgeWaypoints_; // vehicleIdx, serializedWPBuffer
+std::vector<std::pair<int16_t, std::string>> serializedEdgeObjects_; // vehicleIdx, serializedObjBuffer
+
 
 absl::Mutex mu_;
 
@@ -143,7 +149,7 @@ class PushClient
             LOG_IF(INFO, command == Command::END) << "pushing END";
 
             tick.set_last_client_duration_ns(lastClientDurationNS);
-
+            
             grpc::ClientContext context;
             Empty empty;
 
@@ -261,9 +267,7 @@ public:
             }
         }
 
-        repliedCars_[request->vehicle_index()] = true;
-
-        DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
+        repliedCars_[request->vehicle_index()] = true; // DEBUGGING
 
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
         {
@@ -279,19 +283,17 @@ public:
             numCompletedVehicles_++;
             DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
         }
-
-        // BEGIN PUSH
-        const int16_t replies_ = numRepliedVehicles_.load();
-        const int16_t completions_ = numCompletedVehicles_.load();
-        const bool complete_ = ( replies_ + completions_ ) == numCars_;
-
-        LOG_IF(INFO, complete_ ) << "tick " << request->tick_id() << " COMPLETE";
-        if ( complete_ )
+    
+        const bool complete = ( numRepliedVehicles_.load() + numCompletedVehicles_.load() ) == numCars_;
+        if ( complete && !pushedTick_ )
         {
+            pushedTick_ = true;
             const int64_t lastClientDurationNS = request->duration_ns();
             simAPIClient_->PushTick( request->tick_id(), command_, lastClientDurationNS );
+            LOG(INFO) << "tick " << request->tick_id() << " COMPLETE";
         }
-
+        DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
+        
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
@@ -302,13 +304,13 @@ public:
                                const WaypointRequest* request,
                                WaypointBuffer* buffer) override {
 
-        for ( int i = 0; i < serializedEdgeWaypoints_.size(); i++ )
+        for ( int i = 0; i < serializedEdgeObjects_.size(); i++ )
         {
             const std::pair<int16_t, std::string > wpPair = serializedEdgeWaypoints_[i];
             if ( wpPair.first == request->vehicle_index() )
             {
                 buffer->set_vehicle_index(request->vehicle_index());
-                WaypointBuffer wpBuf;
+                WaypointBuffer waypointBuf;
                 //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
                 const std::string buf = wpPair.second;
                 wpBuf.ParseFromString(buf);
@@ -330,6 +332,42 @@ public:
         reactor->Finish(Status::OK);
         return reactor;
     }
+
+    //
+    // Clients grab objects before tick. 
+    //
+    ServerUnaryReactor* Client_GetObjects(CallbackServerContext* context,
+                               const ObjectRequest* request,
+                               ObjectBuffer* buffer) override {
+
+        for ( int i = 0; i < serializedEdgeObjects_.size(); i++ )
+        {
+            const std::pair<int16_t, std::string > objPair = serializedEdgeObjects_[i];
+            if ( objPair.first == request->vehicle_id() )
+            {
+                buffer->set_vehicle_id(request->vehicle_id());
+                ObjectBuffer objBuf;
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                const std::string buf = objPair.second;
+                objBuf.ParseFromString(buf);
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
+                for ( EdgeObstacleObject obj : objBuf.object())
+                {
+                    EdgeObstacleObject *p = buffer->add_object();
+                    p->CopyFrom(obj);
+                    //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
+                }
+                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
+                break;
+            }
+        }
+        //LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    } 
 
     ServerUnaryReactor* Client_RegisterVehicle(CallbackServerContext* context,
                                const RegistrationInfo* request,
@@ -378,16 +416,16 @@ public:
             assert(false);
         }
 
-        const int16_t replies_ = numRepliedVehicles_.load();
+        const int16_t replies = numRepliedVehicles_.load();
         LOG(INFO) << "received " << numRegisteredVehicles_.load() << " registrations";
-        LOG(INFO) << "received " << replies_ << " replies with Carla data";
-        const bool complete_ = ( replies_ == numCars_ );
+        LOG(INFO) << "received " << replies << " replies with Carla data";
+        const bool complete = ( replies == numCars_ );
 
-        LOG_IF(INFO, complete_ ) << "REGISTRATION COMPLETE";
-        if ( complete_ )
+        LOG_IF(INFO, complete ) << "REGISTRATION COMPLETE";
+        if ( complete )
         {
-            assert( vehState_ == VehicleState::REGISTERING && replies_ == pendingReplies_.size() );
-            simAPIClient_->PushTick( TICK_ID_INVALID, command_, INVALID_TIME);
+            assert( vehState_ == VehicleState::REGISTERING && replies == pendingReplies_.size() );
+            simAPIClient_->PushTick( TICK_ID_INVALID, command_, INVALID_TIME );
         }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -401,6 +439,7 @@ public:
         for ( int i = 0; i < numCars_; i++ )
             repliedCars_[i] = false;
 
+        pushedTick_ = false;
         numRepliedVehicles_ = 0;
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
@@ -423,6 +462,7 @@ public:
         return reactor;
     }
 
+
     ServerUnaryReactor* Server_PushEdgeWaypoints(CallbackServerContext* context,
                                const EdgeWaypoints* edgeWaypoints,
                                Empty* empty) override {
@@ -443,6 +483,27 @@ public:
         reactor->Finish(Status::OK);
         return reactor;
     }
+
+    ServerUnaryReactor* Server_PushEdgeObjects(CallbackServerContext* context,
+                               const EdgeObstacleObjects* edgeObjects,
+                               Empty* empty) override {
+        serializedEdgObjects_.clear();
+
+        //LOG(INFO) << "updated waypoints received";
+        for ( ObjectBuffer objBuf : edgeObjects->all_objects() )
+        {   
+            std::string serializedObjs;
+            objBuf.SerializeToString(&serializedObjs);
+            const std::pair< int16_t, std::string > objPair = std::make_pair( objBuf.vehicle_id(), serializedObjs );
+            serializedEdgeWaypoints_.push_back(wpPair);
+            //LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
+        }
+        //LOG(INFO) << "updated waypoints processed";
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    } 
 
     ServerUnaryReactor* Server_StartScenario(CallbackServerContext* context,
                                const SimulationInfo* request,

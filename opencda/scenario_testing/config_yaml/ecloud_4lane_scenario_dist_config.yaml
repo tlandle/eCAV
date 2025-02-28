@@ -113,6 +113,24 @@ vehicle_base: &vehicle_base
     yaw_noise: 0.0
     speed_noise: 0.0
     lag: 0
+  map_manager:
+    pixels_per_meter: 2 # rasterization map resolution
+    raster_size: [224, 224] # the rasterize map size (pixel)
+    lane_sample_resolution: 0.1 # for every 0.1m, we draw a point of lane
+    visualize: false # whether to visualize the rasteraization map
+    activate: false # whether activate the map manager
+  safety_manager: # used to watch the safety status of the cav
+    print_message: true # whether to print the message if hazard happens
+    collision_sensor:
+      history_size: 30
+      col_thresh: 1
+    stuck_dector:
+      len_thresh: 500
+      speed_thresh: 0.5
+    offroad_dector: [ ]
+    traffic_light_detector: # whether the vehicle violate the traffic light
+      light_dist_thresh: 20
+
 
 # define the background traffic control by carla
 carla_traffic_manager:
@@ -132,7 +150,7 @@ carla_traffic_manager:
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   ecloud: 
-    num_cars: 4
+    num_cars: 16
     location_type: random # random || explicit - applies to spawn & destination
     done_behavior: control # destroy || control
   single_cav_list: # this is for merging vehicle or single cav without v2x
@@ -142,9 +160,23 @@ scenario:
         perception:
           <<: *base_perception
           activate: false
-          camera_visualize: 0
-          camera_num: 3
-          lidar_visualize: false
+          camera:
+            visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+            num: 1 # how many cameras are mounted on the vehicle.
+            positions:  # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+              - [2.5, 0, 1.0, 0]
+          lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+            visualize: false
+            channels: 32
+            range: 50
+            points_per_second: 100000
+            rotation_frequency: 20 # the simulation is 20 fps
+            upper_fov: 10.0
+            lower_fov: -30.0
+            dropoff_general_rate: 0.0
+            dropoff_intensity_limit: 1.0
+            dropoff_zero_intensity: 0.0
+            noise_stddev: 0.0
         localization:
           <<: *base_localize
           debug_helper:
@@ -162,3 +194,4 @@ scenario:
           <<: *base_local_planner
           debug_trajectory: true
           debug: true
+      

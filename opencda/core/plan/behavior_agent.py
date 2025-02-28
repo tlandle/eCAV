@@ -15,6 +15,7 @@ import logging
 import opencda.logging_ecloud
 import numpy as np
 import carla
+import coloredlogs
 
 from opencda.core.common.misc import get_speed, positive, cal_distance_angle
 from opencda.core.plan.collision_check import CollisionChecker
@@ -22,8 +23,11 @@ from opencda.core.plan.local_planner_behavior import LocalPlanner
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
+from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
 
 logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
 
 SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
@@ -144,10 +148,14 @@ class BehaviorAgent(object):
         # obstacles
         self.white_list = []
         self.obstacle_vehicles = []
+        self.static_obstacles = []
         self.objects = {}
 
         # debug helper
         self.debug_helper = PlanDebugHelper(self.vehicle.id)
+        # print message in debug mode
+        self.debug = False if 'debug' not in \
+                              config_yaml else config_yaml['debug']
 
     def update_information(self, ego_pos, ego_speed, objects):
         """
@@ -174,11 +182,15 @@ class BehaviorAgent(object):
         self.break_distance = self._ego_speed / 3.6 * self.emergency_param
         # update the localization info to trajectory planner
         self.get_local_planner().update_information(ego_pos, ego_speed)
-
         self.objects = objects
+
         # current version only consider about vehicles
         obstacle_vehicles = objects['vehicles']
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
+        
+        #if 'static' in objects:
+            #self.static_obstacles = objects['static']
+        #print(self.obstacle_vehicles)
 
         # update the debug helper
         self.debug_helper.update(ego_speed, self.ttc)
@@ -280,7 +292,9 @@ class BehaviorAgent(object):
             self.get_local_planner().get_history_buffer().clear()
 
         self.start_waypoint = self._map.get_waypoint(start_location)
-
+        logger.debug("Start Location: (%s, %s, %s)" %(start_location.x, start_location.y, start_location.z))
+        logger.debug("Start Location Waypoint: (%s, %s, %s) (%s)" %(self.start_waypoint.transform.location.x, self.start_waypoint.transform.location.y, self.start_waypoint.transform.location.z, self.start_waypoint.transform.rotation.yaw))
+        """
         # make sure the start waypoint is behind the vehicle
         waypoint_attempts = 0
         unable_to_find_wp = False
@@ -295,7 +309,7 @@ class BehaviorAgent(object):
                 _, angle = cal_distance_angle(
                     self.start_waypoint.transform.location, cur_loc, cur_yaw)
                 waypoint_attempts += 1
-                #logger("%s is %s degrees from current loc %s | %s" % (self.start_waypoint.transform.location, angle, cur_loc, cur_yaw))
+                logger.debug("%s is %s degrees from current loc %s | %s" % (self.start_waypoint.transform.location, angle, cur_loc, cur_yaw))
                 if waypoint_attempts == waypoint_limit:
                     unable_to_find_wp = True
                     logger.error("unable to find valid start waypoint based on current location of %s, yaw = %s", cur_loc, cur_yaw)
@@ -303,8 +317,10 @@ class BehaviorAgent(object):
 
         if unable_to_find_wp:
             return -1
-
+        """
         end_waypoint = self._map.get_waypoint(end_location)
+        logger.debug("End Location: (%s, %s, %s)" %(end_location.x, end_location.y, end_location.z))
+        logger.debug("End Location Waypoint: (%s, %s, %s)" %(end_waypoint.transform.location.x, end_waypoint.transform.location.y, end_waypoint.transform.location.z))
         if end_reset:
             self.end_waypoint = end_waypoint
 
@@ -339,6 +355,7 @@ class BehaviorAgent(object):
         destination = spawn_points[0].location if \
             spawn_points[0].location != new_start else spawn_points[1].location
         logger.debug("New destination: " + str(destination))
+        #input("New Destination set - why?")
 
         self.set_destination(new_start, destination)
 
@@ -413,7 +430,6 @@ class BehaviorAgent(object):
                     # indicate no need to stop
                     return 0
 
-
             if not waypoint.is_junction and (
                     self.light_id_to_ignore != light_id or light_id == -1):
                 return 1
@@ -449,13 +465,17 @@ class BehaviorAgent(object):
             return v.get_location().distance(waypoint.transform.location)
 
         vehicle_state = False
-        min_distance = 100000
+        min_distance = 1000
         target_vehicle = None
 
+        print(adjacent_check)
+
         for vehicle in self.obstacle_vehicles:
+            logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
-                adjacent_check=adjacent_check)
+                adjacent_check=adjacent_check, world=self.vehicle.get_world())
+            logger.debug("Collision Free: %s" %collision_free)
             if not collision_free:
                 vehicle_state = True
 
@@ -466,6 +486,22 @@ class BehaviorAgent(object):
                 if distance < min_distance:
                     min_distance = distance
                     target_vehicle = vehicle
+#        for obstacle in self.static_obstacles:
+#            collision_free = self._collision_check.collision_circle_check(
+#                rx, ry, ryaw, obstacle, self._ego_speed / 3.6, self._map,
+#                adjacent_check=adjacent_check)
+#            logger.debug("Collision Free: %s" %collision_free)
+#            if not collision_free:
+#                vehicle_state = True
+#
+#                # the vehicle length is typical 3 meters,
+#                # so we need to consider that when calculating the distance
+#                distance = positive(dist(obstacle))
+#
+#                if distance < min_distance:
+#                    min_distance = distance
+#                    target_vehicle = obstacle
+#
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -524,6 +560,7 @@ class BehaviorAgent(object):
                     next_wpt.transform.location,
                     clean=True,
                     end_reset=False)
+                #input("Left overtake reset global plan")
                 return vehicle_state
 
         if (right_turn == carla.LaneChange.Right or right_turn ==
@@ -555,6 +592,7 @@ class BehaviorAgent(object):
                     next_wpt.transform.location,
                     clean=True,
                     end_reset=False)
+                #input("Destination Reset due to right turn or overtake")
                 return vehicle_state
 
         return True
@@ -615,6 +653,8 @@ class BehaviorAgent(object):
         target_loc : carla.Location
             The target location.
         """
+        if not isinstance(vehicle, ObstacleVehicle):
+            return
         if not target_speed:
             target_speed = self.max_speed - self.speed_lim_dist
 
@@ -655,11 +695,14 @@ class BehaviorAgent(object):
         is_junc : boolean
             Whether there is any future waypoint in the junction shortly.
         """
+        #print("Check intersection")
         for tl in objects['traffic_lights']:
             for wpt, _ in waypoint_buffer:
                 distance = \
                     tl.get_location().distance(wpt.transform.location)
+                print(distance)
                 if distance < 20:
+                    print("is Intersection")
                     return True
         return False
 
@@ -751,7 +794,6 @@ class BehaviorAgent(object):
             reset_target = \
                 ego_vehicle_wp.next(max(self._ego_speed / 3.6 * 3,
                                         10.0))[0]
-
         logger.debug(
             'Vehicle id: %d :destination pushed forward because of '
             'potential collision, reset destination :%f. %f, %f' %
@@ -789,6 +831,7 @@ class BehaviorAgent(object):
         ego_vehicle_loc = self._ego_pos.location
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         waipoint_buffer = self.get_local_planner().get_waypoint_buffer()
+        #print(waipoint_buffer)
         # ttc reset to 1000 at the beginning
         self.ttc = 1000
         # when overtake_counter > 0, another overtake/lane change is forbidden
@@ -798,7 +841,8 @@ class BehaviorAgent(object):
         # we reset destination push flag for every n rounds
         if self.destination_push_flag > 0:
             self.destination_push_flag -= 1
-
+        
+        #print(self.objects)
         # use traffic light to detect intersection
         is_intersection = self.is_intersection(self.objects, waipoint_buffer)
 
@@ -850,8 +894,10 @@ class BehaviorAgent(object):
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
         if is_intersection:
+            logger.debug("Overake not allowed because of intersection")
             self.overtake_allowed = False
         else:
+            logger.debug("Overtake is allowed because not in intersection")
             self.overtake_allowed = True and self.overtake_allowed_origin
 
         start_time = time.time()
@@ -868,6 +914,7 @@ class BehaviorAgent(object):
         end_time = time.time()
         self.debug_helper.update_agent_step_list(4, end_time-start_time)
         logger.debug("step 4 complete")
+        logger.debug("Lane change Allowed: %s" %self.lane_change_allowed)
 
         # 5. Collision check
         start_time = time.time()
@@ -891,6 +938,7 @@ class BehaviorAgent(object):
         end_time_7 = start_time
         end_time_8 = start_time
         end_time_9 = start_time
+        print("Hazard: %s" %(is_hazard))
         if not self.lane_change_allowed and \
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \
@@ -905,6 +953,7 @@ class BehaviorAgent(object):
                 reset_target.transform.location,
                 clean=True,
                 end_reset=False)
+            #input("Doing lane change as planned but found vehicle blocking other lane")
             rx, ry, rk, ryaw = self._local_planner.generate_path()
             end_time_7 = time.time()
 
@@ -912,17 +961,24 @@ class BehaviorAgent(object):
         # allowed or it is doing overtaking the second condition is to
         # prevent successive overtaking
         elif is_hazard and (not self.overtake_allowed or
-                            self.overtake_counter > 0
-                            or self.get_local_planner().potential_curved_road):
+                self.overtake_counter > 0):
+                            #or self.get_local_planner().potential_curved_road): #TL - Why is this logic here?
+            print("Vehicle is blocking in front or overtake is not allowed")
+            print("Overtake Allowed: %s" %self.overtake_allowed)
+            print("Overtake Counter: %s" %self.overtake_counter)
+            print("Curved Road: %s" %self.get_local_planner().potential_curved_road)
             car_following_flag = True
             end_time_8 = time.time()
         # 9. overtake handeling
         elif is_hazard and self.overtake_allowed and \
                 self.overtake_counter <= 0:
-            obstacle_speed = get_speed(obstacle_vehicle)
+            if isinstance(obstacle_vehicle, ObstacleVehicle):
+                obstacle_speed = get_speed(obstacle_vehicle)
             obstacle_lane_id = self._map.get_waypoint(obstacle_vehicle.get_location()).lane_id
             ego_lane_id = self._map.get_waypoint(
                 self._ego_pos.location).lane_id
+            print("Ego Lane Id: %s" %ego_lane_id)
+            print("Obstacle Lane ID: %s" %obstacle_lane_id)
             # overtake the obstacle vehicle only when speed is bigger and the
             # lane id is the same
             if ego_lane_id == obstacle_lane_id:
@@ -949,6 +1005,7 @@ class BehaviorAgent(object):
         start_time = time.time()
         if car_following_flag:
             if distance < max(self.break_distance, 3):
+                print("Car Following Somehow")
                 end_time = time.time()
                 self.debug_helper.update_agent_step_list(10, end_time-start_time)
                 self.debug_helper.update_agent_step_list(11, 0)
@@ -959,12 +1016,12 @@ class BehaviorAgent(object):
                 rx, ry, rk, target_speed=target_speed)
             end_time = time.time()
             self.debug_helper.update_agent_step_list(10, end_time-start_time)
+            logger.debug("step 10 complete - following and exiting")
             self.debug_helper.update_agent_step_list(11, 0)
             return target_speed, target_loc
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(10, end_time-start_time)
-        logger.debug("step 10 complete")
-
+        #self.debug_helper.update_agent_step_list(10, end_time-start_time)
+        
         # 11. Normal behavior
         start_time = time.time()
         target_speed, target_loc = self._local_planner.run_step(

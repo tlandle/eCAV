@@ -45,6 +45,7 @@ class EcloudConfig(object):
            "location_type" : self.EXPLICIT,
            "done_behavior" : self.DESTROY,
            "step_count" : 250, # number of steps to take before breaking
+           "verbose_updates" : False, # all vehicles send data every tick, used for edge *comparison* testing
         }
 
         if 'ecloud' in config_json:
@@ -109,3 +110,7 @@ class EcloudConfig(object):
     def get_step_count(self):
         self.logger.debug("step_count: %s", self.ecloud_scenario['step_count'])
         return self.ecloud_scenario['step_count']
+    
+    def do_verbose_update(self):
+        self.logger.debug("verbose_updates: %s", self.ecloud_scenario['verbose_updates'])
+        return self.ecloud_scenario['verbose_updates']

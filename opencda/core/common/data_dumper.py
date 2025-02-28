@@ -100,13 +100,14 @@ class DataDumper(object):
         if self.count % 2 != 0:
             return
 
-        self.save_rgb_image()
-        self.save_lidar_points()
+        self.save_rgb_image(self.count)
+        # self.save_lidar_points()
         self.save_yaml_file(perception_manager,
                             localization_manager,
-                            behavior_agent)
+                            behavior_agent,
+                            self.count)
 
-    def save_rgb_image(self):
+    def save_rgb_image(self, count):
         """
         Save camera rgb images to disk.
         """
@@ -115,7 +116,7 @@ class DataDumper(object):
             frame = camera.frame
             image = camera.image
 
-            image_name = '%06d' % frame + '_' + 'camera%d' % i + '.png'
+            image_name = '%06d' % count + '_' + 'camera%d' % i + '.png'
 
             cv2.imwrite(os.path.join(self.save_parent_folder, image_name),
                         image)
@@ -149,7 +150,8 @@ class DataDumper(object):
     def save_yaml_file(self,
                        perception_manager,
                        localization_manager,
-                       behavior_agent):
+                       behavior_agent,
+                       count):
         """
         Save objects positions/spped, true ego position,
         predicted ego position, sensor transformations.
@@ -165,7 +167,7 @@ class DataDumper(object):
         behavior_agent : opencda object
             OpenCDA behavior agent.
         """
-        frame = self.lidar.frame
+        frame = count
 
         dump_yml = {}
         vehicle_dict = {}
@@ -184,6 +186,8 @@ class DataDumper(object):
                                        "mode if you are dumping data"
 
             vehicle_dict.update({veh_carla_id: {
+                'bp_id': veh.type_id,
+                'color': veh.color,
                 "location": [veh_pos.location.x,
                              veh_pos.location.y,
                              veh_pos.location.z],
@@ -201,9 +205,13 @@ class DataDumper(object):
 
         dump_yml.update({'vehicles': vehicle_dict})
 
-        # dump ego pose and speed
+        # dump ego pose and speed, if vehicle does not exist, then it is
+        # a rsu(road side unit).
         predicted_ego_pos = localization_manager.get_ego_pos()
-        true_ego_pos = localization_manager.vehicle.get_transform()
+        true_ego_pos = localization_manager.vehicle.get_transform() \
+            if hasattr(localization_manager, 'vehicle') \
+            else localization_manager.true_ego_pos
+
         dump_yml.update({'predicted_ego_pos': [
             predicted_ego_pos.location.x,
             predicted_ego_pos.location.y,
@@ -261,19 +269,23 @@ class DataDumper(object):
             camera_param.update({'extrinsic': lidar2camera})
             dump_yml.update({'camera%d' % i: camera_param})
 
-        # dump the planned trajectory
-        trajectory_deque = behavior_agent.get_local_planner().get_trajectory()
-        trajectory_list = []
+        dump_yml.update({'RSU': True})
+        # dump the planned trajectory if it exisit.
+        if behavior_agent is not None:
+            trajectory_deque = \
+                behavior_agent.get_local_planner().get_trajectory()
+            trajectory_list = []
 
-        for i in range(len(trajectory_deque)):
-            tmp_buffer = trajectory_deque.popleft()
-            x = tmp_buffer[0].location.x
-            y = tmp_buffer[0].location.y
-            spd = tmp_buffer[1]
+            for i in range(len(trajectory_deque)):
+                tmp_buffer = trajectory_deque.popleft()
+                x = tmp_buffer[0].location.x
+                y = tmp_buffer[0].location.y
+                spd = tmp_buffer[1]
 
-            trajectory_list.append([x, y, spd])
+                trajectory_list.append([x, y, spd])
 
-        dump_yml.update({'plan_trajectory': trajectory_list})
+            dump_yml.update({'plan_trajectory': trajectory_list})
+            dump_yml.update({'RSU': False})
 
         yml_name = '%06d' % frame + '.yaml'
         save_path = os.path.join(self.save_parent_folder,

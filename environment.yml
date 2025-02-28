@@ -8,7 +8,7 @@ dependencies:
     - matplotlib==3.4.2
     - networkx==2.5.1
     - numpy
-    - pillow==8.2.0
+    - pillow
     - pyparsing==2.4.7
     - six==1.16.0
     - open3d
@@ -28,3 +28,4 @@ dependencies:
     - k-means-constrained==0.7.0
     - ortools==9.3.10497
     - grpcio-tools
+    - shapely==1.8.4

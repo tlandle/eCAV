@@ -29,20 +29,23 @@ class CavWorld(object):
     _platooning_dict : dict
         A dictionary that stores platooning managers.
 
-    ml_manager : opencda object.
-        The machine learning manager class.
+    _rsu_manager_dict : dict
+        A dictionary that stores RSU managers.
+
     """
 
-    def __init__(self, apply_ml=False):
+    def __init__(self, apply_ml=False, run_distributed=False):
 
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
         self._edge_dict = {}
         self._scenario_manager = None
+        self._rsu_manager_dict = {}
         self.ml_manager = None
+        self.run_distributed = run_distributed
 
-        if apply_ml:
+        if apply_ml and (self.run_distributed == False):
             # we import in this way so the user don't need to install ml
             # packages unless they require to
             ml_manager = getattr(importlib.import_module(
@@ -100,6 +103,17 @@ class CavWorld(object):
             The Scenario manager class (sim_api.py).
         """
         self._scenario_manager = scenario_manager
+
+    def update_rsu_manager(self, rsu_manager):
+        """
+        Add rsu manager.
+
+        Parameters
+        ----------
+        rsu_manager : opencda object
+            The RSU manager class.
+        """
+        self._rsu_manager_dict.update({rsu_manager.rid: rsu_manager})
 
     def update_sumo_vehicles(self, sumo2carla_ids):
         """

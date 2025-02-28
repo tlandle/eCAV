@@ -4,7 +4,7 @@ description: |-
   Content: This is the scenario testing configuration file for edge scenario
            at Town06 using CARLA
 
-distributed: true
+distributed: false
 define: &perception_is_active false
 perception_active: *perception_is_active
 
@@ -12,7 +12,7 @@ perception_active: *perception_is_active
 world:
   sync_mode: true
   client_port: 2000
-  fixed_delta_seconds: &delta 0.03
+  fixed_delta_seconds: &delta 0.05
   seed: 10
   weather:
     sun_altitude_angle: 15 # 90 is the midday and -90 is the midnight
@@ -29,16 +29,19 @@ world:
 vehicle_base: &vehicle_base
   sensing: &base_sensing
     perception: &base_perception
-      activate: *perception_is_active # when not activated, objects positions will be retrieved from server directly
-      camera_visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
-      camera_num: 3 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
-      lidar_visualize: false # whether to visualize lidar points using open3d
+      activate: false
+      camera:
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 1 # how many cameras are mounted on the vehicle.
+        positions:  # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+          - [2.5, 0, 1.0, 0]
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+        visualize: false
         channels: 32
         range: 50
         points_per_second: 100000
         rotation_frequency: 20 # the simulation is 20 fps
-        upper_fov: 15.0
+        upper_fov: 10.0
         lower_fov: -30.0
         dropoff_general_rate: 0.0
         dropoff_intensity_limit: 1.0
@@ -48,25 +51,25 @@ vehicle_base: &vehicle_base
       activate: true # when not activated, ego position will be retrieved from server directly
       dt: *delta # used for kalman filter
       gnss: # gnss sensor configuration
-        noise_alt_stddev: 0.005
-        noise_lat_stddev: 2e-6
-        noise_lon_stddev: 2e-6
-        heading_direction_stddev: 0.1 # degree
-        speed_stddev: 0.2
+        noise_alt_stddev: 0
+        noise_lat_stddev: 0
+        noise_lon_stddev: 0
+        heading_direction_stddev: 0 # degree
+        speed_stddev: 0
       debug_helper: &loc_debug_helper
-        show_animation: false # whether to show real-time trajectory plotting
-        x_scale: 10.0 # used to multiply with the x coordinate to make the error on x axis clearer
-        y_scale: 10.0 # used to multiply with the y coordinate to make the error on y axis clearer
+        show_animation: true # whether to show real-time trajectory plotting
+        x_scale: 1.0 # used to multiply with the x coordinate to make the error on x axis clearer
+        y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
   behavior: &base_behavior
-    max_speed: 70 # maximum speed, km/h
-    tailgate_speed: 80 # when a vehicles needs to be close to another vehicle asap
+    max_speed: 111 # maximum speed, km/h
+    tailgate_speed: 121 # when a vehicles needs to be close to another vehicle asap
     speed_lim_dist: 3 # max_speed - speed_lim_dist = target speed
     speed_decrease: 15 # used in car following mode to decrease speed for distance keeping
     safety_time: 4 # ttc safety thresholding for decreasing speed
     emergency_param: 0.4 # used to identify whether a emergency stop needed
     ignore_traffic_light: true # whether to ignore traffic light
     overtake_allowed: false # whether overtake allowed, typically false for platoon leader
-    collision_time_ahead: 1.1 # used for collision checking
+    collision_time_ahead: 1.5 # used for collision checking
     overtake_counter_recover: 35 # the vehicle can not do another overtake during next certain steps
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
     local_planner: &base_local_planner # trajectory planning related
@@ -100,6 +103,23 @@ vehicle_base: &vehicle_base
     yaw_noise: 0.0
     speed_noise: 0.0
     lag: 0
+  map_manager:
+    pixels_per_meter: 2 # rasterization map resolution
+    raster_size: [224, 224] # the rasterize map size (pixel)
+    lane_sample_resolution: 0.1 # for every 0.1m, we draw a point of lane
+    visualize: false # whether to visualize the rasteraization map
+    activate: true # whether activate the map manager
+  safety_manager: # used to watch the safety status of the cav
+    print_message: true # whether to print the message if hazard happens
+    collision_sensor:
+      history_size: 30
+      col_thresh: 1
+    stuck_dector:
+      len_thresh: 500
+      speed_thresh: 0.5
+    offroad_dector: [ ]
+    traffic_light_detector: # whether the vehicle violate the traffic light
+      light_dist_thresh: 20
 
 ecloud:
   num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
@@ -121,7 +141,7 @@ edge_base: &edge_base
   num_lanes: 4
   edge_dt: 0.210 # must be an even multiple of world_dt
   search_dt: 2.10
-  edge_sets_destination: true # otherwise, edge sets WP
+  edge_sets_destination: false # otherwise, edge sets WP
 
 # define the background traffic control by carla
 carla_traffic_manager:
@@ -136,17 +156,19 @@ carla_traffic_manager:
   random: false # whether to random select vehicles' color and model
   ignore_lights_percentage: 0 # whether set the traffic ignore traffic lights
   vehicle_list:
+  range: []
 
 # define scenario. In this scenario, a 4-vehicle platoon already exists.
 scenario:
   ecloud: 
+    verbose_updates: true
     location_type: explicit # random || explicit - edge scenarios require explicit (default)
     done_behavior: control # destroy || control
-    step_count: 250
+    step_count: 500
   single_cav_list: # this is for merging vehicle or single cav without v2x
     - <<: *vehicle_base
-      spawn_position: [-39.52, -22.79, 0.3, 0, 180, 0]
-      destination: [630, 131.39, 0.3]
+      spawn_position: [55.52, -19.79, 0.3, 0, -180, 0]
+      destination: [-130, -15.79, 0.3]
       sensing:
         <<: *base_sensing
         perception:
@@ -161,16 +183,15 @@ scenario:
         communication_range: 35
       behavior:
         <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
+        max_speed: 25
         overtake_allowed: true
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
           debug: false
     - <<: *vehicle_base
-      spawn_position: [-39.52, -19.292, 0.3, 0, 180, 0]
-      destination: [630, 131.39, 0.3]
+      spawn_position: [45.52, -19.79, 0.3, 0, -180, 0]
+      destination: [-130, -15.79, 0.3]
       sensing:
         <<: *base_sensing
         perception:
@@ -185,16 +206,15 @@ scenario:
         communication_range: 35
       behavior:
         <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
+        max_speed: 25
         overtake_allowed: true
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
           debug: false
     - <<: *vehicle_base
-      spawn_position: [-39.52, -15.79, 0.3, 0, 180, 0]
-      destination: [630, 131.39, 0.3]
+      spawn_position: [45.52, -15.79, 0.3, 0, -180, 0]
+      destination: [-130, -15.79, 0.3]
       sensing:
         <<: *base_sensing
         perception:
@@ -209,16 +229,15 @@ scenario:
         communication_range: 35
       behavior:
         <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
+        max_speed: 25
         overtake_allowed: true
         local_planner:
           <<: *base_local_planner
           debug_trajectory: true
           debug: false
     - <<: *vehicle_base
-      spawn_position: [-69.60, -12.29, 0.3, 0, 180, 0]
-      destination: [630, 131.39, 0.3]
+      spawn_position: [55.60, -15.79, 0.3, 0, -180, 0]
+      destination: [-110, -15.79, 0.3]
       sensing:
         <<: *base_sensing
         perception:
@@ -233,8 +252,7 @@ scenario:
         communication_range: 35
       behavior:
         <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
+        max_speed: 200
         overtake_allowed: true
         local_planner:
           <<: *base_local_planner

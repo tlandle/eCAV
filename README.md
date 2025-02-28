@@ -1,4 +1,4 @@
-# OpenCDA + Distributed/Async Edge Computing in the Cloud
+# eCAV
 
 This software is an extension of the [OpenCDA simulation tool](https://github.com/ucla-mobility/OpenCDA). The following features are added as an extension of OpenCDA:
 
@@ -13,7 +13,6 @@ This software is an extension of the [OpenCDA simulation tool](https://github.co
 ## Installation
 
 Install Carla and OpenCDA:
-
 https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html
 
 

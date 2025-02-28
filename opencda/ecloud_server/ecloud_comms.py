@@ -81,6 +81,11 @@ class EcloudClient:
 
     async def get_waypoints(self, request: ecloud.WaypointRequest) -> ecloud.WaypointBuffer:
         buffer = await self.stub.Client_GetWaypoints(request)
+        
+        return buffer
+
+    async def get_objects(self, request: ecloud.ObjectRequest) -> ecloud.ObjectBuffer:
+        buffer = await self.stub.Client_GetObjects(request)
 
         return buffer
 
@@ -95,41 +100,26 @@ class EcloudPushServer(ecloud_rpc.EcloudServicer):
 
         logger.info("eCloud push server initialized")
         self.que = que
-        self.last_tick = None
-        self.last_tick_id = 0
+        self.last_tick_id = -1
         self.last_tick_command = None
-        self.last_tick_last_client_duration_ns = 0
         self.port_no = 0
-
-    def is_dupe(self, tick) -> bool:
-        '''
-        checks if the current tick is a dupe due to resend
-        '''
-        if tick.tick_id == self.last_tick_id and \
-                tick.command == self.last_tick_command and \
-                tick.last_client_duration_ns == self.last_tick_last_client_duration_ns:
-            return True
-
-        return False
 
     def PushTick(self,
                  request: ecloud.Tick,
                  context: grpc.aio.ServicerContext) -> ecloud.Empty:
 
         tick = request # readability - gRPC prefers overrides preserve variable names
-        is_dupe = self.is_dupe(tick)
-        if is_dupe:
-            logger.warning('received a duplicate tick: had %s | received %s', self.last_tick, tick)
-        else:
-            self.last_tick = tick
-            self.last_tick_id = tick.tick_id
-            self.last_tick_command = tick.command
-            self.last_tick_last_client_duration_ns = tick.last_client_duration_ns
-            logger.info("new tick - %s", tick)
+        logger.info("new tick - %s", tick)
 
         assert self.que.empty()
-        if is_dupe is False:
+        if self.last_tick_id != tick.tick_id \
+            or self.last_tick_command != tick.command:
             self.que.put_nowait(tick)
+            self.last_tick_id = tick.tick_id
+            self.last_tick_command = tick.command
+        
+        else:
+            logger.error('received a duplicate tick - %s', tick)
 
         return ecloud.Empty()
 
@@ -142,6 +132,7 @@ async def ecloud_run_push_server(port,
     logger.info("spinning up eCloud push server")
     server = grpc.aio.server()
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(que), server)
+    
     server_started = False
     while not server_started:
         try:
@@ -156,7 +147,7 @@ async def ecloud_run_push_server(port,
 
     logger.critical("started eCloud push server on port %s", port)
 
-    if port >= ECLOUD_PUSH_BASE_PORT:
+    if port >= ECLOUD_PUSH_BASE_PORT: # only push for vehicle clients
         que.put_nowait(port)
 
     await server.start()

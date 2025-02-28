@@ -12,6 +12,7 @@ from queue import Queue
 import random
 from sqlite3 import connect
 import sys
+import json
 from random import shuffle
 import socket
 import time
@@ -38,6 +39,8 @@ import grpc
 
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
+from omegaconf import OmegaConf
+from omegaconf.listconfig import ListConfig
 
 import carla
 import numpy as np
@@ -51,6 +54,7 @@ from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import \
     PlatooningManager
+from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
@@ -86,7 +90,7 @@ TIMEOUT_MS = TIMEOUT_S * 1000
 NSEC_TO_MSEC = 1/1000000
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
-def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
+def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
     """
     Exclude the uncommon vehicles from the default CARLA blueprint library
     (i.e., isetta, carlacola, cybertruck, t2).
@@ -106,29 +110,41 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
         The list of suitable blueprints for vehicles.
     """
 
-    if carla_version == '0.9.11':
-        logger.debug('old version')
-        blueprints = [
+    if carla_version == '0.9.15':
+      blueprints = [
             blueprint_library.find('vehicle.audi.a2'),
             blueprint_library.find('vehicle.audi.tt'),
-            blueprint_library.find('vehicle.dodge_charger.police'),
+            blueprint_library.find('vehicle.ford.ambulance'),
+            blueprint_library.find('vehicle.ford.crown'),
+            blueprint_library.find('vehicle.mini.cooper_s_2021'),
+            blueprint_library.find('vehicle.nissan.micra'),
+            blueprint_library.find('vehicle.nissan.patrol'),
+            blueprint_library.find('vehicle.nissan.patrol_2021'),
+            blueprint_library.find('vehicle.tesla.cybertruck'),
+            blueprint_library.find('vehicle.volkswagen.t2'),
+            blueprint_library.find('vehicle.volkswagen.t2_2021'),
+            blueprint_library.find('vehicle.micro.microlino'),
+            blueprint_library.find('vehicle.dodge.charger_police'),
+            blueprint_library.find('vehicle.dodge.charger_police_2020'),
+            blueprint_library.find('vehicle.dodge.charger_2020'),
             blueprint_library.find('vehicle.jeep.wrangler_rubicon'),
             blueprint_library.find('vehicle.chevrolet.impala'),
-            blueprint_library.find('vehicle.mini.cooperst'),
+            blueprint_library.find('vehicle.mini.cooper_s'),
             blueprint_library.find('vehicle.audi.etron'),
-            blueprint_library.find('vehicle.mercedes-benz.coupe'),
+            blueprint_library.find('vehicle.mercedes.coupe'),
+            blueprint_library.find('vehicle.mercedes.coupe_2020'),
             blueprint_library.find('vehicle.bmw.grandtourer'),
             blueprint_library.find('vehicle.toyota.prius'),
             blueprint_library.find('vehicle.citroen.c3'),
-            blueprint_library.find('vehicle.mustang.mustang'),
+            blueprint_library.find('vehicle.ford.mustang'),
             blueprint_library.find('vehicle.tesla.model3'),
-            blueprint_library.find('vehicle.lincoln.mkz2017'),
+            blueprint_library.find('vehicle.lincoln.mkz_2017'),
+            blueprint_library.find('vehicle.lincoln.mkz_2020'),
             blueprint_library.find('vehicle.seat.leon'),
             blueprint_library.find('vehicle.nissan.patrol'),
-            blueprint_library.find('vehicle.nissan.micra'),
+            blueprint_library.find('vehicle.nissan.micra')
         ]
-
-    else:
+    elif carla_version == '0.9.12':
         blueprints = [
             blueprint_library.find('vehicle.audi.a2'),
             blueprint_library.find('vehicle.audi.tt'),
@@ -152,8 +168,40 @@ def car_blueprint_filter(blueprint_library, carla_version='0.9.11'):
             blueprint_library.find('vehicle.nissan.patrol'),
             blueprint_library.find('vehicle.nissan.micra'),
         ]
-
+    else:
+        sys.exit("Since v0.1.0, we do not support version earlier than "
+                 "CARLA v0.9.15")
+            
     return blueprints
+
+
+def multi_class_vehicle_blueprint_filter(label, blueprint_library, bp_meta):
+    """
+    Get a list of blueprints that have the class equals the specified label.
+
+    Parameters
+    ----------
+    label : str
+        Specified blueprint.
+
+    blueprint_library : carla.blueprint_library
+        The blueprint library that contains all models.
+
+    bp_meta : dict
+        Dictionary of {blueprint name: blueprint class}.
+
+    Returns
+    -------
+    blueprints : list
+        List of blueprints that have the class equals the specified label.
+
+    """
+    blueprints = [
+        blueprint_library.find(k)
+        for k, v in bp_meta.items() if v["class"] == label
+    ]
+    return blueprints
+
 
 class ScenarioManager:
     """
@@ -202,6 +250,8 @@ class ScenarioManager:
     vehicles = {} # vehicle_index -> tuple (actor_id, vid)
     vehicle_count = 0
 
+    rsu_managers = {}
+
     carla_version = None
     application = ['single']
     scenario = None
@@ -236,7 +286,7 @@ class ScenarioManager:
             overall_steps_by_tick = self.debug_helper.client_tick_time_dict
             for timestamps in vehicle_manager_proxy.debug_helper.timestamps_list:
                 if timestamps.tick_id in overall_steps_by_tick:
-                    assert timestamps.tick_id in latencies_by_tick
+                    assert timestamps.tick_id in latencies_by_tick, logger.exception('%s not in latencies_by_tick: %s', timestamps.tick_id, latencies_by_tick)
                     client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
                     idle_time_ms = overall_steps_by_tick[timestamps.tick_id] - latencies_by_tick[timestamps.tick_id] - client_process_time_ms # inferred rather than actual "idle" time
                     #if idle_time_ms < 0:
@@ -263,11 +313,12 @@ class ScenarioManager:
                 if not vehicle_update.HasField('transform') or not vehicle_update.HasField('velocity'):
                     continue
 
-                if not self.is_edge and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
+                if not ( self.is_edge or self.verbose_updates ) and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
                     continue
 
                 vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
-                if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
+                    #logger.debug("updating transform & velocity - %s", vehicle_update)
                     t = carla.Transform(
                     carla.Location(
                         x=vehicle_update.transform.location.x,
@@ -281,11 +332,16 @@ class ScenarioManager:
                         x=vehicle_update.velocity.x,
                         y=vehicle_update.velocity.y,
                         z=vehicle_update.velocity.z)
-                    vehicle_manager_proxy.vehicle.set_velocity(v)
-                    vehicle_manager_proxy.vehicle.set_transform(t)
-        except Exception as e:
-            logger.error('%s \n %s', e, vehicle_update)
-            raise
+                    if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                        #logger.debug("updating transform & velocity - %s", vehicle_update)
+                        vehicle_manager_proxy.vehicle.set_velocity(v)
+                        vehicle_manager_proxy.vehicle.set_transform(t)  
+                    
+                    self.debug_helper.update_velocity_per_client_timestamp(tick_id=self.tick_id,
+                                                                           velocity=v)
+        except:
+            logger.exception('%s', vehicle_update)
+
         logger.debug("vehicle updates unpacked")
 
     async def server_push_waypoints(self, stub_, wps_):
@@ -296,7 +352,7 @@ class ScenarioManager:
     async def server_do_tick(self, stub_, update_):
         empty = await stub_.Server_DoTick(update_)
 
-        assert(self.push_q.empty())
+        assert self.push_q.empty(), logger.exception("push_q should have been empty, but had %s", self.push_q.get_nowait())
         tick = await self.push_q.get()
         snapshot_t = time.time_ns()
         self.push_q.task_done()
@@ -326,7 +382,7 @@ class ScenarioManager:
         print(f"pushed scenario start")
         print(f"start {self.vehicle_count} vehicle containers")
 
-        assert(self.push_q.empty())
+        assert self.push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", self.push_q.get_nowait())
         await self.push_q.get()
         self.push_q.task_done()
 
@@ -352,11 +408,11 @@ class ScenarioManager:
                  xodr_path=None,
                  town=None,
                  cav_world=None,
-                 config_file=None,
+                 #config_file=None,
                  distributed=False):
 
-        self.config_file = config_file
-        self.ecloud_config = EcloudConfig(load_yaml(self.config_file), logger)
+        #self.config_file = config_file
+        self.ecloud_config = EcloudConfig(scenario_params, logger)
         self.sm_start_tstamp.GetCurrentTime()
         self.scenario_params = scenario_params
         self.carla_version = carla_version
@@ -396,6 +452,7 @@ class ScenarioManager:
             self.world = load_customized_world(xodr_path, self.client)
         elif town:
             try:
+                print(self.client.get_available_maps())
                 self.world = self.client.load_world(town)
             except RuntimeError:
                 logger.error(
@@ -425,32 +482,52 @@ class ScenarioManager:
         weather = self.set_weather(simulation_config['weather'])
         self.world.set_weather(weather)
 
+        # Define probabilities for each type of blueprint
+        self.use_multi_class_bp = scenario_params["blueprint"][
+            'use_multi_class_bp'] if 'blueprint' in scenario_params else False
+        if self.use_multi_class_bp:
+            # bbx/blueprint meta
+            with open(scenario_params['blueprint']['bp_meta_path']) as f:
+                self.bp_meta = json.load(f)
+            self.bp_class_sample_prob = scenario_params['blueprint'][
+                'bp_class_sample_prob']
+
+            # normalize probability
+            self.bp_class_sample_prob = {
+                k: v / sum(self.bp_class_sample_prob.values()) for k, v in
+                self.bp_class_sample_prob.items()}
+
         self.cav_world = cav_world
         self.carla_map = self.world.get_map()
         self.apply_ml = apply_ml
 
         # eCLOUD BEGIN
 
+        self.verbose_updates = self.ecloud_config.do_verbose_update()
+
         if 'ecloud' in scenario_params['scenario'] and 'num_cars' in scenario_params['scenario']['ecloud']:
-            assert('edge_list' not in scenario_params['scenario']) # edge requires explicit
+            assert 'edge_list' not in scenario_params['scenario'], logger.exception("edge requires explicit")
             self.vehicle_count = scenario_params['scenario']['ecloud']['num_cars']
             logger.debug("'ecloud' in YAML specified %s cars", self.vehicle_count)
-
-        elif 'single_cav_list' in scenario_params['scenario']:
-            self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
 
         elif 'edge_list' in scenario_params['scenario']:
             # TODO: support multiple edges...
             self.is_edge = True
-            self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['members'])
+            if 'vehicles' in scenario_params['scenario']['edge_list'][0]:
+                self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['vehicles'])
+            if 'rsus' in scenario_params['scenario']['edge_list'][0]:
+                self.rsu_count = len(scenario_params['scenario']['edge_list'][0]['rsus'])
+
+        elif 'single_cav_list' in scenario_params['scenario']:
+            self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
 
         else:
-            assert(False, "no known vehicle indexing format found")
+            assert False, logger.exception("no known vehicle indexing format found")
 
         if self.run_distributed:
             self.apply_ml = False
             if apply_ml == True:
-                assert( False, "ML should only be run on the distributed clients")
+                assert False, logger.exception("ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
             target=f"{ECLOUD_IP}:50051",
@@ -464,7 +541,9 @@ class ScenarioManager:
 
             self.debug_helper.update_sim_start_timestamp(time.time())
 
-            self.scenario = json.dumps(scenario_params)
+            logger.info(type(scenario_params))
+
+            self.scenario = json.dumps(OmegaConf.to_container(scenario_params))
             self.carla_version = self.carla_version
 
         # eCLOUD END
@@ -478,19 +557,23 @@ class ScenarioManager:
         #self.push_server = threading.Thread(target=ecloud_run_push_server, args=(ECLOUD_PUSH_API_PORT, self.push_q,))
         #self.push_server.start()
 
-        await asyncio.sleep(1) # this yields CPU to allow the PushServer to start
+        try:
+          await asyncio.sleep(1) # this yields CPU to allow the PushServer to start
+          logger.info("Push Server Started")
+          server_request = ecloud.SimulationInfo() 
+          server_request.test_scenario = self.scenario
+          server_request.application = self.application[0]
+          server_request.version = self.carla_version
+          server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
+          server_request.is_edge = self.is_edge or self.verbose_updates
 
-        server_request = ecloud.SimulationInfo()
-        server_request.test_scenario = self.scenario
-        server_request.application = self.application[0]
-        server_request.version = self.carla_version
-        server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
-        server_request.is_edge = self.is_edge
-        server_request.vehicle_machine_ip = VEHICLE_IP
+          logger.info("Waiting for scenario start")
+          await self.server_start_scenario(self.ecloud_server, server_request)
+          logger.info("Start scenario started")
 
-        await self.server_start_scenario(self.ecloud_server, server_request)
-
-        self.world.tick()
+          self.world.tick()
+        except Exception as e:
+          logger.exception('unhandled exception')
 
         logger.debug("eCloud debug: pushed START")
 
@@ -541,9 +624,43 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        logger.info('Creating single CAVs.')
+        logger.info('Creating single CAVs non dist.')
         single_cav_list = []
+        #for vehicle_index in range(self.vehicle_count):
+  
+        default_model = 'vehicle.lincoln.mkz_2017'
+
+        
+        cav_vehicle_bp = \
+            self.world.get_blueprint_library().find(default_model)
         for vehicle_index in range(self.vehicle_count):
+        #for i, cav_config in enumerate(
+                #self.scenario_params['scenario']['single_cav_list']):
+            # in case the cav wants to join a platoon later
+            # it will be empty dictionary for single cav application
+            #platoon_base = OmegaConf.create({'platoon': self.scenario_params.get('platoon_base',{})})
+            #cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
+            #                             platoon_base,
+            #                             cav_config)
+            # if the spawn position is a single scalar, we need to use map
+            # helper to transfer to spawn transform
+            #if 'spawn_special' not in cav_config:
+            #    spawn_transform = carla.Transform(
+            #        carla.Location(
+            #            x=cav_config['spawn_position'][0],
+            #            y=cav_config['spawn_position'][1],
+            #            z=cav_config['spawn_position'][2]),
+            #        carla.Rotation(
+            #            pitch=cav_config['spawn_position'][5],
+            #            yaw=cav_config['spawn_position'][4],
+            #            roll=cav_config['spawn_position'][3]))
+            #else:
+            #    spawn_transform = map_helper(self.carla_version,
+            #                                *cav_config['spawn_special'])
+
+            cav_vehicle_bp.set_attribute('color', '0, 0, 255')
+            cav_vehicle_bp.set_attribute('role_name', 'hero')
+            #vehicle = self.world.spawn_actor(cav_vehicle_bp, spawn_transform)
 
             # create vehicle manager for each cav
             vehicle_manager = VehicleManager(
@@ -558,6 +675,7 @@ class ScenarioManager:
             self.world.tick()
 
             vehicle_manager.v2x_manager.set_platoon(None)
+            self.vehicle_managers[vehicle_index] = vehicle_manager
 
             vehicle_manager.update_info()
             vehicle_manager.set_destination(
@@ -568,6 +686,60 @@ class ScenarioManager:
             single_cav_list.append(vehicle_manager)
 
         return single_cav_list
+    
+    def create_vehicle_manager_from_scenario_runner(self, vehicle):
+        """
+        Create a single CAV with a loaded ego vehicle from SR.
+        Different from the create_vehicle_manager API creating Carla vehicle from scratch,
+        SR creates on its own only supports 'single' vehicle.
+        Parameters
+        ----------
+        vehicle:
+            The Carla ego vehicle created by ScenarioRunner.
+        Returns
+        -------
+        single_cav_list : list
+            A list contains the singla CAV derived from the ego vehicle.
+        """
+        data_dump = False
+        map_helper = None
+        single_cav_params = self.scenario_params['scenario']['single_cav_list']
+        if len(single_cav_params) != 1:
+            raise ValueError('Only support one ego vehicle for ScenarioRunner')
+
+        cav_config = single_cav_params[0]
+        platoon_base = OmegaConf.create(
+            {'platoon': self.scenario_params.get('platoon_base', {})})
+        cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
+                                     platoon_base,
+                                     cav_config)
+        #vehicle_manager = VehicleManager(
+            #vehicle, self.scenario_params, ['single'], self.carla_map, self.cav_world)
+
+        vehicle_manager = VehicleManager(
+                vehicle=vehicle, vehicle_index=0, carla_world=self.world,
+                config_yaml=self.scenario_params, application=['single'],
+                carla_map=self.carla_map, cav_world=self.cav_world,
+                current_time=self.scenario_params['current_time'],
+                data_dumping=data_dump, map_helper=map_helper,
+                location_type=self.ecloud_config.get_location_type(),
+                perception_active=self.apply_ml)
+
+
+        self.world.tick()
+
+        vehicle_manager.v2x_manager.set_platoon(None)
+
+        destination = carla.Location(x=cav_config['destination'][0],
+                                     y=cav_config['destination'][1],
+                                     z=cav_config['destination'][2])
+        vehicle_manager.update_info()
+        vehicle_manager.set_destination(
+            vehicle_manager.vehicle.get_location(),
+            destination,
+            clean=True)
+
+        return [vehicle_manager]
 
     def create_platoon_manager(self, map_helper=None, data_dump=False):
         """
@@ -593,8 +765,7 @@ class ScenarioManager:
 
         # we use lincoln as default choice since our UCLA mobility lab use the
         # same car
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+        default_model = 'vehicle.lincoln.mkz_2017'
 
         cav_vehicle_bp = \
             self.world.get_blueprint_library().find(default_model)
@@ -602,8 +773,15 @@ class ScenarioManager:
         # create platoons
         for i, platoon in enumerate(
                 self.scenario_params['scenario']['platoon_list']):
+            platoon = OmegaConf.merge(self.scenario_params['platoon_base'],
+                                      platoon)
             platoon_manager = PlatooningManager(platoon, self.cav_world)
             for j, cav in enumerate(platoon['members']):
+                platton_base = OmegaConf.create({'platoon': platoon})
+                cav = OmegaConf.merge(self.scenario_params['vehicle_base'],
+                                      platton_base,
+                                      cav
+                                      )
                 if 'spawn_special' not in cav:
                     spawn_transform = carla.Transform(
                         carla.Location(
@@ -647,6 +825,36 @@ class ScenarioManager:
 
         return platoon_list
 
+    def create_rsu_manager(self, data_dump):
+        """
+        Create a list of RSU.
+
+        Parameters
+        ----------
+        data_dump : bool
+            Whether to dump sensor data.
+
+        Returns
+        -------
+        rsu_list : list
+            A list contains all rsu managers..
+        """
+        print('Creating RSU.')
+        rsu_list = []
+        for i, rsu_config in enumerate(
+                self.scenario_params['scenario']['rsu_list']):
+            rsu_config = OmegaConf.merge(self.scenario_params['rsu_base'],
+                                         rsu_config)
+            rsu_manager = RSUManager(self.world, rsu_config,
+                                     self.carla_map,
+                                     self.cav_world,
+                                     self.scenario_params['current_time'],
+                                     data_dump)
+
+            rsu_list.append(rsu_manager)
+
+        return rsu_list
+
     def spawn_vehicles_by_list(self, tm, traffic_config, bg_list):
         """
         Spawn the traffic vehicles by the given list.
@@ -669,12 +877,16 @@ class ScenarioManager:
         """
 
         blueprint_library = self.world.get_blueprint_library()
+        if not self.use_multi_class_bp:
+            ego_vehicle_random_list = car_blueprint_filter(blueprint_library,
+                                                           self.carla_version)
+        else:
+            label_list = list(self.bp_class_sample_prob.keys())
+            prob = [self.bp_class_sample_prob[itm] for itm in label_list]
 
-        ego_vehicle_random_list = car_blueprint_filter(blueprint_library,
-                                                       self.carla_version)
         # if not random select, we always choose lincoln.mkz with green color
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+        color = '0, 255, 0'
+        default_model = 'vehicle.lincoln.mkz_2017'
         ego_vehicle_bp = blueprint_library.find(default_model)
 
         for i, vehicle_config in enumerate(traffic_config['vehicle_list']):
@@ -689,14 +901,22 @@ class ScenarioManager:
                     roll=vehicle_config['spawn_position'][3]))
 
             if not traffic_config['random']:
-                ego_vehicle_bp.set_attribute('color', '0, 255, 0')
+                ego_vehicle_bp.set_attribute('color', color)
 
             else:
+                # sample a bp from various classes
+                if self.use_multi_class_bp:
+                    label = np.random.choice(label_list, p=prob)
+                    # Given the label (class), find all associated blueprints in CARLA
+                    ego_vehicle_random_list = multi_class_vehicle_blueprint_filter(
+                        label, blueprint_library, self.bp_meta)
                 ego_vehicle_bp = random.choice(ego_vehicle_random_list)
 
-                color = random.choice(
-                    ego_vehicle_bp.get_attribute('color').recommended_values)
-                ego_vehicle_bp.set_attribute('color', color)
+                if ego_vehicle_bp.has_attribute("color"):
+                    color = random.choice(
+                        ego_vehicle_bp.get_attribute(
+                            'color').recommended_values)
+                    ego_vehicle_bp.set_attribute('color', color)
 
             vehicle = self.world.spawn_actor(ego_vehicle_bp, spawn_transform)
             vehicle.set_autopilot(True, 8000)
@@ -731,12 +951,16 @@ class ScenarioManager:
             Update traffic list.
         """
         blueprint_library = self.world.get_blueprint_library()
+        if not self.use_multi_class_bp:
+            ego_vehicle_random_list = car_blueprint_filter(blueprint_library,
+                                                           self.carla_version)
+        else:
+            label_list = list(self.bp_class_sample_prob.keys())
+            prob = [self.bp_class_sample_prob[itm] for itm in label_list]
 
-        ego_vehicle_random_list = car_blueprint_filter(blueprint_library,
-                                                       self.carla_version)
         # if not random select, we always choose lincoln.mkz with green color
-        default_model = 'vehicle.lincoln.mkz2017' \
-            if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
+        color = '0, 255, 0'
+        default_model = 'vehicle.lincoln.mkz_2017'
         ego_vehicle_bp = blueprint_library.find(default_model)
 
         spawn_ranges = traffic_config['range']
@@ -780,14 +1004,21 @@ class ScenarioManager:
                                                   yaw=coordinates[4],
                                                   pitch=coordinates[5]))
             if not traffic_config['random']:
-                ego_vehicle_bp.set_attribute('color', '0, 255, 0')
+                ego_vehicle_bp.set_attribute('color', color)
 
             else:
+                # sample a bp from various classes
+                if self.use_multi_class_bp:
+                    label = np.random.choice(label_list, p=prob)
+                    # Given the label (class), find all associated blueprints in CARLA
+                    ego_vehicle_random_list = multi_class_vehicle_blueprint_filter(
+                        label, blueprint_library, self.bp_meta)
                 ego_vehicle_bp = random.choice(ego_vehicle_random_list)
-
-                color = random.choice(
-                    ego_vehicle_bp.get_attribute('color').recommended_values)
-                ego_vehicle_bp.set_attribute('color', color)
+                if ego_vehicle_bp.has_attribute("color"):
+                    color = random.choice(
+                        ego_vehicle_bp.get_attribute(
+                            'color').recommended_values)
+                    ego_vehicle_bp.set_attribute('color', color)
 
             vehicle = \
                 self.world.try_spawn_actor(ego_vehicle_bp, spawn_transform)
@@ -798,10 +1029,15 @@ class ScenarioManager:
             vehicle.set_autopilot(True, 8000)
             tm.auto_lane_change(vehicle, traffic_config['auto_lane_change'])
 
-            if 'ignore_lights_percentage' in traffic_config:
-                tm.ignore_lights_percentage(vehicle,
-                                            traffic_config[
+						# hazard behavior for traffic
+            tm.ignore_lights_percentage(vehicle, traffic_config[
                                                 'ignore_lights_percentage'])
+            #tm.ignore_signs_percentage(vehicle, traffic_config[
+            #                                    'ignore_signs_percentage'])
+            #tm.ignore_vehicles_percentage(vehicle, traffic_config[
+            #                                    'ignore_vehicles_percentage'])
+            #tm.ignore_walkers_percentage(vehicle, traffic_config[
+            #                                    'ignore_walkers_percentage'])
 
             # each vehicle have slight different speed
             tm.vehicle_percentage_speed_difference(
@@ -838,7 +1074,8 @@ class ScenarioManager:
 
         bg_list = []
 
-        if isinstance(traffic_config['vehicle_list'], list):
+        if isinstance(traffic_config['vehicle_list'], list) or \
+                isinstance(traffic_config['vehicle_list'], ListConfig):
             bg_list = self.spawn_vehicles_by_list(tm,
                                                   traffic_config,
                                                   bg_list)
@@ -896,33 +1133,39 @@ class ScenarioManager:
         single_cav_list : list
             A list contains all single CAVs' vehicle manager.
         """
-        logger.info('Creating single CAVs.')
+        logger.info('Creating single CAVs dist.')
         single_cav_list = []
 
-        config_yaml = load_yaml(self.config_file)
+        config_yaml = self.scenario_params
+        logger.info(json.dumps(OmegaConf.to_container(config_yaml, resolve=True)))
+        logger.info(self.vehicle_count)
+        logger.info(application)
         for vehicle_index in range(self.vehicle_count):
-            logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
+            try:
+              logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
-            # create vehicle manager for each cav
-            vehicle_manager_proxy = VehicleManagerProxy(
-                vehicle_index, config_yaml, application,
-                self.carla_map, self.cav_world,
-                current_time=self.scenario_params['current_time'],
-                data_dumping=data_dump, carla_version=self.carla_version, location_type=self.ecloud_config.get_location_type())
-            logger.debug("finished creating VehiceManagerProxy")
+              # create vehicle manager for each cav
+              vehicle_manager_proxy = VehicleManagerProxy(
+                  vehicle_index, config_yaml, application,
+                  self.carla_map, self.cav_world,
+                  current_time=self.scenario_params['current_time'],
+                  data_dumping=data_dump, carla_version=self.carla_version, location_type=self.ecloud_config.get_location_type())
+              logger.debug("finished creating VehiceManagerProxy")
 
-            # self.tick_world()
+              # self.tick_world()
 
-            # send gRPC with START info
-            self.application = application
+              # send gRPC with START info
+              self.application = application
 
-            vehicle_manager_proxy.start_vehicle()
+              vehicle_manager_proxy.start_vehicle()
 
-            vehicle_manager_proxy.v2x_manager.set_platoon(None)
-            logger.debug("set platoon on vehicle manager")
+              vehicle_manager_proxy.v2x_manager.set_platoon(None)
+              logger.debug("set platoon on vehicle manager")
 
-            single_cav_list.append(vehicle_manager_proxy)
-            self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
+              single_cav_list.append(vehicle_manager_proxy)
+              self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
+            except Exception as e:
+              logger.exception("Failed to create vehicle manager proxy")
 
         self.tick_world()
         logger.info("Finished creating vehicle managers and returning cav list")
@@ -955,43 +1198,75 @@ class ScenarioManager:
         logger.info('Creating edge CAVs.')
         edge_list = []
 
-        config_yaml = load_yaml(self.config_file)
+        config_yaml = self.scenario_params
+        logger.info(json.dumps(OmegaConf.to_container(config_yaml, resolve=True)))
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt)
-            for vehicle_index, cav in enumerate(edge['members']):
+            edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'])
+            if 'rsus' in edge:
+                for index, cav in enumerate(edge['rsus']):
+                    rsu_manager = RSUManager(self.world, cav,
+                                       self.carla_map,
+                                       self.cav_world,
+                                       self.scenario_params['current_time'],
+                                       data_dump)
+                    edge_manager.add_rsu(rsu_manager)
+                    self.rsu_managers[index] = rsu_manager
+            if 'vehicles' in edge:
+                for index, cav in enumerate(edge['vehicles']): 
+                    logger.debug("Creating VehiceManagerProxy for vehicle %s", index)
+                    # create vehicle manager for each cav
+                    #vehicle_manager = VehicleManagerProxy(
+                    #      vehicle_index=index, config_yaml=config_yaml, application=application,
+                    #      carla_world=self.world,
+                    #      carla_map=self.carla_map, cav_world=self.cav_world,
+                    #      current_time=self.scenario_params['current_time'],
+                    #      data_dumping=data_dump, carla_version=self.carla_version)
+                    vehicle_manager = VehicleManager(
+                          vehicle_index=index, config_yaml=config_yaml, application=application,
+                          carla_world=self.world,
+                          carla_map=self.carla_map, cav_world=self.cav_world,
+                          current_time=self.scenario_params['current_time'],
+                          data_dumping=data_dump, is_edge=True, map_helper=map_helper,
+                          location_type = self.ecloud_config.get_location_type(),
+                          perception_active=self.apply_ml)
 
-                logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
+                    logger.debug("finished creating VehiceManagerProxy")
 
-                # create vehicle manager for each cav
-                vehicle_manager = VehicleManagerProxy(
-                    vehicle_index, config_yaml, application,
-                    self.carla_map, self.cav_world,
-                    current_time=self.scenario_params['current_time'],
-                    data_dumping=data_dump, carla_version=self.carla_version)
-                logger.debug("finished creating VehiceManagerProxy")
+                    self.world.tick()
 
-                # self.tick_world()
+                    # send gRPC with START info
+                    self.application = application
 
-                # send gRPC with START info
-                self.application = application
+                    #vehicle_manager.start_vehicle()
+                    vehicle_manager.v2x_manager.set_platoon(None)
 
-                vehicle_manager.start_vehicle()
-                vehicle_manager.v2x_manager.set_platoon(None)
+                    # add the vehicle manager to platoon
+                    edge_manager.add_member(vehicle_manager)
+                    self.vehicle_managers[index] = vehicle_manager
 
-                # add the vehicle manager to platoon
-                edge_manager.add_member(vehicle_manager)
-                self.vehicle_managers[vehicle_index] = vehicle_manager
+                    vehicle_manager.update_info()
+                    vehicle_manager.set_destination(
+                      vehicle_manager.vehicle.get_location(),
+                      vehicle_manager.destination_location,
+                      clean=True)
 
-            self.tick_world()
-            destination = carla.Location(x=edge['destination'][0],
-                                         y=edge['destination'][1],
-                                         z=edge['destination'][2])
 
-            edge_manager.set_destination(destination)
-            edge_manager.start_edge()
-            edge_list.append(edge_manager)
+            try:
+              self.tick_world()
+              logger.debug("World ticked")
+              destination = carla.Location(x=edge['destination'][0],
+                                           y=edge['destination'][1],
+                                           z=edge['destination'][2])
+
+              edge_manager.set_destination(destination)
+              logger.debug("Set Destination")
+              edge_manager.start_edge()
+              logger.debug("Started edge")
+              edge_list.append(edge_manager)
+            except Exception as e:
+              logger.debug("Can't create edge manager: ", e)
 
         return edge_list
 
@@ -1187,7 +1462,7 @@ class ScenarioManager:
 
         # pickle the dataFrame
         pickle.dump(data_df, picklefile)
-        print(data_df)
+        logger.debug(data_df)
         #close file
         picklefile.close()
 
@@ -1209,7 +1484,7 @@ class ScenarioManager:
             client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()[client_data_key]
             all_client_data_list.append(client_data_list)
 
-        print(all_client_data_list)
+        logger.debug(all_client_data_list)
 
         
         #logger.debug(all_client_data_list)
@@ -1224,109 +1499,150 @@ class ScenarioManager:
           return
         self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
-    def evaluate(self, excludes_list = None):
-            """
-            Used to save all members' statistics.
+    def evaluate_collision_data(self, cumulative_stats_folder_path):
+        all_client_data_list = []
+        for _, vehicle_manager_proxy in self.vehicle_managers.items():
+            client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()["client_collisons_list"]
+            for collision_event in client_data_list:
+              all_client_data_list.append()
 
-            Returns
-            -------
-            figure : matplotlib.figure
-                The figure drawing performance curve passed back to save to
-                the disk.
+        logger.debug(all_client_data_list)
 
-            perform_txt : str
-                The string that contains all evaluation results to print out.
-            """
+        
+        #logger.debug(all_client_data_list)
 
-            perform_txt = ''
+        all_client_data_list_flat = np.array(all_client_data_list)
+        if all_client_data_list_flat.any():
+            all_client_data_list_flat = np.hstack(all_client_data_list_flat)
+        else:
+            all_client_data_list_flat = all_client_data_list_flat.flatten()
+
+        if(len(all_client_data_list_flat) == 0):
+          return
+        self.do_pickling(client_data_key, all_client_data_list_flat, cumulative_stats_folder_path)
 
 
-            num_clients = len(VEHICLE_IP.split(","))
-            if(self.run_distributed):
-                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
-                if self.perception:
-                  cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_with_perception'
-            else:
-                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
-                if self.perception:
-                    cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
 
-            if not os.path.exists(cumulative_stats_folder_path):
-                os.makedirs(cumulative_stats_folder_path)
+    def evaluate(self, excludes_list = ["client_collisions_list", "client_lane_invasions_list"]):
+        """
+        Used to save all members' statistics.
 
-            if(self.run_distributed):
-                self.evaluate_agent_data(cumulative_stats_folder_path)
-                self.evaluate_network_data(cumulative_stats_folder_path)
-                self.evaluate_idle_data(cumulative_stats_folder_path)
-                self.evaluate_client_process_data(cumulative_stats_folder_path)
-                self.evaluate_individual_client_data(cumulative_stats_folder_path)
+        Returns
+        -------
+        figure : matplotlib.figure
+            The figure drawing performance curve passed back to save to
+            the disk.
 
-                client_helper = ClientDebugHelper(0)
-                debug_data_lists = client_helper.get_debug_data().keys()
-                for list_name in debug_data_lists:
-                    if excludes_list is not None and list_name in excludes_list:
-                        continue
-                    
-                    self.evaluate_client_data(list_name, cumulative_stats_folder_path)
+        perform_txt : str
+            The string that contains all evaluation results to print out.
+        """
 
-            # ___________Client Step time__________________________________
-            client_tick_time_list = self.debug_helper.client_tick_time_list
-            client_tick_time_list_flat = np.concatenate(client_tick_time_list)
-            if client_tick_time_list_flat.any():
-                client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
-            else:
-                client_tick_time_list_flat = client_tick_time_list_flat.flatten()
-            client_step_time_key = 'client_step_time'
-            self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
+        perform_txt = ''
 
-            # ___________World Step time_________________________________
-            world_tick_time_list = self.debug_helper.world_tick_time_list
-            world_tick_time_list_flat = np.concatenate(world_tick_time_list)
-            if world_tick_time_list_flat.any():
-                world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
-            else:
-                world_tick_time_list_flat = world_tick_time_list_flat.flatten()
-            world_step_time_key = 'world_step_time'
-            self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
+        num_clients = len(VEHICLE_IP.split(","))
+        if(self.run_distributed):
+            cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_no_perception'
+            if self.perception:
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_dist_{num_clients}_with_perception'
+        else:
+            cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_no_perception'
+            if self.perception:
+                cumulative_stats_folder_path = f'./evaluation_outputs/cumulative_stats_seq_with_perception'
 
-            # ___________Total simulation time ___________________
-            sim_start_time = self.debug_helper.sim_start_timestamp
-            sim_end_time = time.time()
-            total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
-            perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
+        if not os.path.exists(cumulative_stats_folder_path):
+            os.makedirs(cumulative_stats_folder_path)
 
-            sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
-            try:
-                picklefile = open(sim_time_df_path, 'rb+')
-                sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
-            except:
-                picklefile = open(sim_time_df_path, 'wb+')
-                sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
+        if(self.run_distributed):
+            #self.evaluate_velocity_data(cumulative_stats_folder_path)
+            self.evaluate_agent_data(cumulative_stats_folder_path)
+            self.evaluate_network_data(cumulative_stats_folder_path)
+            self.evaluate_idle_data(cumulative_stats_folder_path)
+            self.evaluate_client_process_data(cumulative_stats_folder_path)
+            self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
+        client_helper = ClientDebugHelper(0)
+        debug_data_lists = client_helper.get_debug_data().keys()
+         
+        for list_name in debug_data_lists:
+                if excludes_list is not None and list_name in excludes_list:
+                    continue
+                
+                self.evaluate_client_data(list_name, cumulative_stats_folder_path)
+                logger.debug(list_name)
+
+        #self.evaluate_collision_data(cumulative_stats_folder_path)
+
+        # ___________Client Step time__________________________________
+        client_tick_time_list = self.debug_helper.client_tick_time_list
+        client_tick_time_list_flat = np.concatenate(client_tick_time_list)
+        if client_tick_time_list_flat.any():
+            client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
+        else:
+            client_tick_time_list_flat = client_tick_time_list_flat.flatten()
+        client_step_time_key = 'client_step_time'
+        self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
+
+        # ___________World Step time_________________________________
+        world_tick_time_list = self.debug_helper.world_tick_time_list
+        world_tick_time_list_flat = np.concatenate(world_tick_time_list)
+        if world_tick_time_list_flat.any():
+            world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
+        else:
+            world_tick_time_list_flat = world_tick_time_list_flat.flatten()
+        world_step_time_key = 'world_step_time'
+        self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
+
+        # ___________Total simulation time ___________________
+        sim_start_time = self.debug_helper.sim_start_timestamp
+        sim_end_time = time.time()
+        total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
+        perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
+
+        sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
+        try:
+            picklefile = open(sim_time_df_path, 'rb+')
+            sim_time_df = pickle.load(picklefile)  #unpickle the dataframe
+        except:
             picklefile = open(sim_time_df_path, 'wb+')
-            sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
-                ([{"num_cars": self.vehicle_count, \
-                    "time_s": total_sim_time, \
-                    "startup_time_ms": self.debug_helper.startup_time_ms, \
-                    "shutdown_time_ms": self.debug_helper.shutdown_time_ms, \
-                    "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
-                    ignore_index=True)
+            sim_time_df = pd.DataFrame(columns=['num_cars', 'time_s', 'startup_time_ms', 'shutdown_time_ms', 'run_timestamp'])
 
-            # pickle the dataFrame
-            pickle.dump(sim_time_df, picklefile)
-            print(sim_time_df)
-            #close file
-            picklefile.close()
+        picklefile = open(sim_time_df_path, 'wb+')
+        sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
+            ([{"num_cars": self.vehicle_count, \
+                "time_s": total_sim_time, \
+                "startup_time_ms": self.debug_helper.startup_time_ms, \
+                "shutdown_time_ms": self.debug_helper.shutdown_time_ms, \
+                "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
+                ignore_index=True)
 
-            # plotting
-            figure = plt.figure()
+        # pickle the dataFrame
+        pickle.dump(sim_time_df, picklefile)
+        logger.debug(sim_time_df)
+        #close file
+        picklefile.close()
 
-            plt.subplot(411)
-            open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
+        # plotting
+        figure = plt.figure()
 
-            # plt.subplot(412)
-            # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
+        plt.subplot(411)
+        open_plt.draw_world_tick_time_profile_single_plot(world_tick_time_list)
 
-            return figure, perform_txt
+        
+
+        # plt.subplot(412)
+        # open_plt.draw_algorithm_time_profile_single_plot(algorithm_time_list)
+
+        return figure, perform_txt
+
+    def evaluate_velocity_error(self):
+        with open('velocity_list', 'w+') as f:
+            f.write(f'{self.debug_helper.client_velocity_dict}')
+
+        plt.subplot(413)
+        open_plt.draw_deviation_from_target_velocity(self.debug_helper.client_velocity_dict)
+        all_vels = sum(self.debug_helper.client_velocity_dict.values(), [])
+        all_vels_flat = np.array(all_vels)
+        vel_mean = np.mean(all_vels_flat.flatten())
+        logger.info("Mean Velocity: %s", vel_mean)
 
     # END eCloud

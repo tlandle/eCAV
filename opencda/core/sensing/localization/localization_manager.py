@@ -24,6 +24,7 @@ class GnssSensor(object):
     The default GNSS sensor module.
 
     Parameters
+    ----------
     vehicle : carla.Vehicle
         The carla.Vehicle. We need this class to spawn our gnss and imu sensor.
 
@@ -31,15 +32,7 @@ class GnssSensor(object):
         The configuration dictionary of the localization module.
 
     Attributes
-    world : carla.world
-        The caral world of the current vehicle.
-
-    blueprint : carla.blueprint
-        The current blueprint of the sensor actor.
-
-    weak_self : opencda Object
-        A weak reference point to avoid circular reference.
-
+    ----------
     sensor : CARLA actor
         The current sensor actors that will be attach to the vehicles.
     """
@@ -200,6 +193,7 @@ class LocalizationManager(object):
             self.speed_noise_std = config_yaml['gnss']['speed_stddev']
 
             self.dt = config_yaml['dt']
+            #print("Kalman Value: %s",self.dt)
             # Kalman Filter
             self.kf = KalmanFilter(self.dt)
 
@@ -228,6 +222,8 @@ class LocalizationManager(object):
 
             # only use this for debugging purpose
             location = self.vehicle.get_transform().location
+            #print("GNSS Location: (%s, %s, %s)" %(x, y, z))
+            #print("Actual Location: (%s, %s, %s)" %(location.x, location.y, location.z))
 
             # We add synthetic noise to the heading direction
             rotation = self.vehicle.get_transform().rotation
@@ -246,6 +242,8 @@ class LocalizationManager(object):
                     self.imu.gyroscope[2])
                 self._speed = speed_kf * 3.6
                 heading_angle_kf = np.rad2deg(heading_angle_kf)
+            #print("Calculated speed: ", self._speed)
+            #print("Actual Speed: " , get_speed(self.vehicle))
 
             # add data to debug helper
             self.debug_helper.run_step(x,
@@ -265,7 +263,8 @@ class LocalizationManager(object):
             self._ego_pos = carla.Transform(
                 carla.Location(
                     x=x_kf, y=y_kf, z=z), carla.Rotation(
-                    pitch=0, yaw=heading_angle_kf, roll=0))
+                    pitch=0, yaw=rotation.yaw, roll=0))
+            #print("Final Pose(GNSS): (%s, %s, %s)" %(x_kf, y_kf, z))
 
             # save the track for future use
             self._ego_pos_history.append(self._ego_pos)

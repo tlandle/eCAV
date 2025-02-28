@@ -1,8 +1,10 @@
 #carla_server_public_ip: "20.122.64.203" # server
 carla_server_public_ip: "localhost"
+#carla_server_public_ip: "20.122.64.203" # server
 
 #ecloud_server_public_ip: "20.122.64.203" # server
 ecloud_server_public_ip: "localhost"
+#ecloud_server_public_ip: "20.122.64.203" # server
 
 # *must* be set to public IP *on* client machine(s) so they can send to ecloud server 
 # You have to set to all ips you will use even if you don't need to
@@ -10,10 +12,11 @@ ecloud_server_public_ip: "localhost"
 #vehicle_client_public_ip: "20.172.248.156,20.242.82.41,172.200.91.133,172.171.196.63,172.190.137.118"  # ndm, client4, client3, client2, client1
 # 128/64 Cars - 2  clients
 #vehicle_client_public_ip: "20.242.82.41,172.200.91.133"  #client2, client1
+#vehicle_client_public_ip: "20.242.82.41,172.200.91.133"  #client2, client1
 # 128 Cars/256 - 4  clients
 #vehicle_client_public_ip: "20.242.82.41,172.200.91.133,172.171.196.63,172.190.137.118"  #client4, client3, client2, client1
 #vehicle_client_public_ip: "20.172.248.156" # ndm
-#vehicle_client_public_ip: "localhost"
+vehicle_client_public_ip: "localhost"
 
 # 1 client
 #vehicle_client_public_ip: "172.200.91.133"  #client4, client3, client2, client1
@@ -23,7 +26,5 @@ ecloud_server_public_ip: "localhost"
 
 # 256 Cars - all clients
 #vehicle_client_public_ip: "20.172.248.156,20.242.82.41,172.200.91.133,172.171.196.63,172.190.137.118"  # ndm, client4, client3, client2, client1
-
-vehicle_client_public_ip: "localhost"
 
 log_level: "INFO"

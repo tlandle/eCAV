@@ -7,6 +7,7 @@ Analysis + visualization functions for platooning
 
 from opencda.core.plan.planer_debug_helper \
     import PlanDebugHelper
+from opencda.core.common.traffic_event import TrafficEvent, TrafficEventType
 
 import ecloud_pb2 as ecloud
 
@@ -54,7 +55,7 @@ class ClientDebugHelper(PlanDebugHelper):
             "client_controller_step_time_list" : self.controller_step_time_list,
             "client_vehicle_step_time_list" : self.vehicle_step_time_list,
             "client_control_time_list" : self.control_time_list,
-            "client_collisons_list" : self.collisions_event_list,
+            "client_collisions_list" : self.collisions_event_list,
             "client_lane_invasions_list" : self.lane_invasions_list,
         }
 
@@ -157,10 +158,10 @@ class ClientDebugHelper(PlanDebugHelper):
         self.timestamps_list.append(t)
 
     def update_collision(self, collision_info=None):
-        self.collision_list.append(collision_info)
+        self.collisions_event_list.append(collision_info)
 
     def update_lane_invasions(self, lane_invasion_info=None):
-        self.lane_invasion_list.append(lane_invasion_info)
+        self.lane_invasions_list.append(lane_invasion_info)
 
     def serialize_debug_info(self, proto_debug_helper):
         # TODO: extend instead of append? or [:] = ?
@@ -211,7 +212,7 @@ class ClientDebugHelper(PlanDebugHelper):
             lane_invasion_event.location.x = obj.get_dict()['x']
             lane_invasion_event.location.y = obj.get_dict()['y']
             lane_invasion_event.location.z = obj.get_dict()['z']
-            proto_debug_helper.lane_invasions_list.append(obj)
+            proto_debug_helper.lane_invasions_list.append(lane_invasion_event)
 
 
     def deserialize_debug_info(self, proto_debug_helper):
@@ -261,7 +262,18 @@ class ClientDebugHelper(PlanDebugHelper):
  
         self.collisions_event_list.clear()
         for obj in proto_debug_helper.collisions_event_list:
-            collision_event = TrafficEvent()
+
+            if ('static' in obj.type_id or 'traffic' in obj.type_id) \
+                and 'sidewalk' not in obj.type_id:
+                actor_type = TrafficEventType.COLLISION_STATIC
+            elif 'vehicle' in obj.type_id:
+                actor_type = TrafficEventType.COLLISION_VEHICLE
+            elif 'walker' in obj.type_id:
+                actor_type = TrafficEventType.COLLISION_PEDESTRIAN
+            else:
+                continue
+
+            collision_event = TrafficEvent(event_type=actor_type)
             collision_event.set_dict({
               'type': obj.type_id,
               'id': obj.other_actor_id,
@@ -272,11 +284,11 @@ class ClientDebugHelper(PlanDebugHelper):
 
         self.lane_invasions_list.clear()
         for obj in proto_debug_helper.lane_invasions_list:
-            lane_invasion_event = TrafficEvent()
+            lane_invasion_event = TrafficEvent(event_type=TrafficEventType.LANE_INVASION)
             lane_invasion_event.set_dict({
-              'x': obj.actor_location.x,
-              'y': obj.actor_location.y,
-              'z': obj.actor_location.z})
+              'x': obj.location.x,
+              'y': obj.location.y,
+              'z': obj.location.z})
 
             self.lane_invasions_list.append(lane_invasion_event)
- 
+

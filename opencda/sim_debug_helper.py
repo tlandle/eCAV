@@ -5,6 +5,8 @@ Analysis + visualization functions for platooning
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import math
+
 from opencda.core.plan.planer_debug_helper \
     import PlanDebugHelper
 
@@ -39,7 +41,16 @@ class SimDebugHelper(PlanDebugHelper):
         self.network_time_dict_per_client = {}
         self.client_tick_time_dict_per_client = {}   
         self.idle_time_dict = {}
-        self.client_process_time_dict = {}    
+        self.client_process_time_dict = {}
+        self.client_velocity_dict = {}
+
+    def update_velocity_per_client_timestamp(self, tick_id: int, velocity=None):
+        if tick_id not in self.client_velocity_dict:
+          self.client_velocity_dict[tick_id] = []
+        scalar_v = None
+        if velocity is not None:  
+            scalar_v = math.sqrt(pow(velocity.x, 2) + pow(velocity.y, 2) + pow(velocity.z, 2)) 
+        self.client_velocity_dict[tick_id].append(scalar_v)
 
     def update_world_tick(self, tick_time_step=None):
         self.world_tick_time_list[0].append(tick_time_step)

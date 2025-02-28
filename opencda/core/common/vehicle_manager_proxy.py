@@ -86,7 +86,7 @@ class VehicleManagerProxy(object):
     def __init__(
             self,
             vehicle_index,
-            #conn,
+            carla_world,
             config_yaml,
             application,
             carla_map,
@@ -97,18 +97,19 @@ class VehicleManagerProxy(object):
             location_type=eLocationType.EXPLICIT):
 
         self.is_edge = False
-        if 'single_cav_list' in config_yaml['scenario']:
-                self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
-                                else config_yaml['scenario']['single_cav_list'][0]
-        
-        elif 'edge_list' in config_yaml['scenario']:
+        if 'edge_list' in config_yaml['scenario']:
             # TODO: support multiple edges...
             self.is_edge = True
-            self.cav_config = config_yaml['scenario']['edge_list'][0]['members'][vehicle_index]
+            self.cav_config = config_yaml['scenario']['edge_list'][0]['vehicles'][vehicle_index]
+        
+        elif 'single_cav_list' in config_yaml['scenario']:
+                self.cav_config = config_yaml['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
+                                else config_yaml['scenario']['single_cav_list'][0]
         
         else:
             assert(False, "no known vehicle indexing format found")
         
+        self.carla_world = carla_world
         self.cav_world = cav_world
         self.data_dumping = data_dumping
         self.application = application
@@ -123,7 +124,7 @@ class VehicleManagerProxy(object):
         self.debug_helper = ClientDebugHelper(0)
 
     def start_vehicle(self):
-        # print("eCloud debug | actor_id: " + str(actor_id))
+        #print("eCloud debug | actor_id: " + str(actor_id))
         self.vehicle = ActorProxy(self.vehicle_index)
 
         # retrieve the configure for different modules
@@ -133,6 +134,7 @@ class VehicleManagerProxy(object):
         v2x_config = self.cav_config['v2x']
         # v2x module
         self.v2x_manager = V2XManager(self.cav_world, v2x_config, self.vehicle_index)
+        print("V2X Manager Created")
         # localization module
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)
@@ -141,8 +143,9 @@ class VehicleManagerProxy(object):
         sensing_config['perception']['camera_visualize'] = False
         sensing_config['perception']['lidar_visualize'] = False
         self.perception_manager = PerceptionManager(
-            self.vehicle, sensing_config['perception'], self.cav_world,
-            self.data_dumping)
+            self.vehicle, sensing_config['perception'], carla_world=self.carla_world, cav_world=self.cav_world,
+            data_dump=self.data_dumping)
+        print("Perception Manager created")
 
         # behavior agent
         self.agent = None
@@ -157,6 +160,7 @@ class VehicleManagerProxy(object):
                 self.carla_map)
         else:
             self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config)
+            print("Behavior Agent Created")
 
         # Control module
         self.controller = ControlManager(control_config)
@@ -167,5 +171,7 @@ class VehicleManagerProxy(object):
                                           save_time=self.current_time)
         else:
             self.data_dumper = None
+
+        print("Created Proxy")
 
         self.cav_world.update_vehicle_manager(self)
