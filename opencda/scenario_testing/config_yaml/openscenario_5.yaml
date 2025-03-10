@@ -21,8 +21,8 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_5
   num_actors: 2
-  configFile: '/HDD/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_5.xml'
-  additionalScenario: '/HDD/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_5.py'
+  configFile: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_5.xml'
+  additionalScenario: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_5.py'
 
   # The following shows how to configure a A-to-B simple scenario
 #  : AtoB_1

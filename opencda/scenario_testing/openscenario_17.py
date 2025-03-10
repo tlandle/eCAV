@@ -9,8 +9,8 @@ from opencda.core.common.cav_world import CavWorld
 import time
 from multiprocessing import Process
 import psutil
-
-import scenario_runner as sr
+from opencda.scenario_testing.utils.yaml_utils import add_current_time
+import scenario_runner.scenario_runner as sr
 
 
 def exec_scenario_runner(scenario_params):
@@ -35,6 +35,8 @@ def run_scenario(opt, scenario_params):
     scenario_manager = None
 
     try:
+        scenario_params = add_current_time(scenario_params)
+
         # Create CAV world
         cav_world = CavWorld(opt.apply_ml)
         # Create scenario manager
@@ -74,7 +76,7 @@ def run_scenario(opt, scenario_params):
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
-        spectator_altitude = 60
+        spectator_altitude = 100
         spectator_bird_pitch = -90
 
         while True:

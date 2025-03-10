@@ -5,7 +5,7 @@ description: |-
 # Carla server settings
 
 distributed: false
-define: &perception_is_active true
+define: &perception_is_active false
 perception_active: *perception_is_active
 
 
@@ -21,8 +21,8 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_2
   num_actors: 2
-  configFile: '/HDD/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_2.xml'
-  additionalScenario: '/HDD/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_2.py'
+  configFile: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_2.xml'
+  additionalScenario: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_2.py'
 
   host: *host
   port: *port
@@ -64,6 +64,6 @@ vehicle_base: &vehicle_base
   sensing: &base_sensing
 #    edge: true
     perception: &base_perception
-      activate: true
+      activate: false
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         visualize: true # whether to visualize lidar points using open3d

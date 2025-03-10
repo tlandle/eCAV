@@ -33,6 +33,7 @@ def run_scenario(opt, scenario_params):
     scenario_runner = None
     cav_world = None
     scenario_manager = None
+    step = 0
 
     try:
 
@@ -105,6 +106,7 @@ def run_scenario(opt, scenario_params):
                 single_cav.update_info()
                 control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
+            step = step + 1
             time.sleep(0.01)
 
     finally:

@@ -50,6 +50,7 @@ class Scenario_13(BasicScenario):
         self.vehicle_05_velocity = 5
         self.vehicle_06_velocity = 5
         self._trigger_distance = 150
+        self.agents = []
 
         super(Scenario_13, self).__init__("Scenario_13",
                                           ego_vehicles,
@@ -102,6 +103,7 @@ class Scenario_13(BasicScenario):
             sequence_vehicle[i].add_child(trigger_behavior)
             sequence_vehicle[i].add_child(drive_behavior)
             sequence_vehicle[i].add_child(Idle())
+            self.agents.append(drive_behavior)
 
         # End condition
         termination = DriveDistance(self.ego_vehicles[0], 100)

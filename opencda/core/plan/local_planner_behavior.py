@@ -629,8 +629,10 @@ class LocalPlanner(object):
             self._trajectory_buffer.clear()
             # if no spline points provided, return 0 and none target wpt
             if len(rx) == 0:
+                #print("No Spline Provided")
                 return 0, None
             self.generate_trajectory(rx, ry, rk)
+            print("Generated new trajectory")
         elif trajectory:
             self._trajectory_buffer = trajectory.copy()
 
