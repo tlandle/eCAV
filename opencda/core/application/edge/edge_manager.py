@@ -16,6 +16,7 @@ import time
 import opencda.logging_ecloud
 import coloredlogs, logging
 import sys
+from collections import deque
 
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
@@ -47,6 +48,17 @@ import grpc
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
+
+def create_waypoint_roadoption_tuple(location, carla_map):
+    # Get the waypoint closest to the vehicle's location
+    waypoint = carla_map.get_waypoint(location)
+    
+    # Determine the road option (e.g., straight, left, right, etc.)
+    # For simplicity, we'll assume a default road option
+    road_option = RoadOption.LANEFOLLOW
+    
+    return (waypoint, road_option)
+
 class EdgeManager(object):
     """
     Edge manager. Used to manage all vehicle managers under control of the edge
@@ -69,7 +81,7 @@ class EdgeManager(object):
         The destiantion of the current plan.
     """
 
-    def __init__(self, config_yaml, cav_world, carla_client, world_dt=0.03, edge_dt=0.20, search_dt=2.00, mode=None):
+    def __init__(self, config_yaml, cav_world, carla_client, world_dt=0.03, edge_dt=0.20, search_dt=2.00, mode=None, other_vehicles=None):
 
         self.edgeid = str(uuid.uuid1())
         self.vehicle_manager_list = []
@@ -81,9 +93,13 @@ class EdgeManager(object):
             self.numcars = len(config_yaml['vehicles']) # TODO - set edge_index
         if 'rsus' in config_yaml:
             self.numrsus = len(config_yaml['rsus'])
+        self.latency = config_yaml['latency'] if 'latency' in config_yaml else 0
         self.activate = config_yaml["mode"]
         #self.locations = []
         self.destination = None
+        # Hold all vehicle trajectories in dictionary of lists
+        self.traj_dict = {}
+        self.vehicle_speeds = {}
         # Query the vehicle locations and velocities + target velocities
         self.spawn_x = []
         self.spawn_y = []
@@ -106,8 +122,11 @@ class EdgeManager(object):
         self.secondary_offset=0
         cav_world.update_edge(self)
         self.carla_client = carla_client
+        self.objects_deque = deque()
         self.objects = {}
         self.mode = mode
+        self.dt = world_dt
+        self.other_vehicles = other_vehicles
 
         self.debug_helper = EdgeDebugHelper(0)
 
@@ -155,6 +174,11 @@ class EdgeManager(object):
             # TODO: DIST --> do we need to clear at start in containers?
             #vehicle_manager.agent.get_local_planner().get_waypoint_buffer().clear() # clear waypoint buffer at start
         self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
+      else:
+        for vehicle_manager in self.vehicle_manager_list:
+            self.traj_dict[vehicle_manager.vehicle.id] = []
+        for sequenced_vehicle in self.other_vehicles:
+            self.traj_dict[sequenced_vehicle._actor.id] = []
 
     def get_four_lane_waypoints_dict(self):
       world = self.carla_client.get_world()
@@ -361,18 +385,42 @@ class EdgeManager(object):
               self.spawn_x.append(x)
               self.spawn_y.append(y)
               self.spawn_v.append(v_scalar)
-            print(self.vehicle_manager_list[i].agent.objects)
+            elif(self.activate == "PERCEPTION"):
+                self.traj_dict[self.vehicle_manager_list[i].vehicle.id] = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().copy()
+                self.vehicle_speeds[self.vehicle_manager_list[i].vehicle.id] = self.vehicle_manager_list[i].vehicle.get_velocity()
+                print("Vehicle id: %s" %self.vehicle_manager_list[i].vehicle.id)
+        for sequenced_vehicle in self.other_vehicles:
+            #print("Sequenced Vehicle: ", sequenced_vehicle._actor.id)
+            #print("Sequenced Vehicle Local Planner: ", sequenced_vehicle._local_planner_dict)
+            if sequenced_vehicle._actor in sequenced_vehicle._local_planner_dict and sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor] is not None:
+                #print("Sequenced Vehicle in planner dict: ", sequenced_vehicle._actor.id)
+                self.traj_dict[sequenced_vehicle._actor.id] = sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor]._waypoints_queue.copy()
+                waypoint_roadoption_tuple = create_waypoint_roadoption_tuple(sequenced_vehicle._actor.get_location(), sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor]._map)
+                print("Waypoint Roadoption Tuple: ", waypoint_roadoption_tuple)
+                print("Waypoint Roadoption Tuple Location (%s, %s): ", waypoint_roadoption_tuple[0].transform.location.x, waypoint_roadoption_tuple[0].transform.location.y)
+                self.traj_dict[sequenced_vehicle._actor.id].appendleft(waypoint_roadoption_tuple)
+                #print("Traj Dict: ", self.traj_dict[sequenced_vehicle._actor.id])
+                self.vehicle_speeds[sequenced_vehicle._actor.id] = sequenced_vehicle._actor.get_velocity()
+                #print("Sequenced Velocity: ", self.vehicle_speeds[sequenced_vehicle._actor.id])
+                #print("Waypoint Queue: ", self.traj_dict[sequenced_vehicle._actor.id])
+            #print(self.vehicle_manager_list[i].agent.objects)
             #self.objects =  {**self.objects,  **self.vehicle_manager_list[i].agent.objects}
-            print(self.objects)
+            #print(self.objects)
             #logger.info("update_information for vehicle_%s - x:%s, y:%s", i, x, y)
+
+        #print("Traj Dict: ", self.traj_dict)
         end_time = time.time()
         logger.debug("Update Info Transform Forward Time: %s", (end_time - start_time))
         #print(self.spawn_x)
         #print(self.spawn_y)
         #print(self.spawn_v)
         for i in range(len(self.rsu_manager_list)):
+            #if len(self.objects_deque) == 10:
+                #self.objects_deque.pop()
             self.objects = {**self.objects, **self.rsu_manager_list[i].objects}
-            #print(self.objects)
+            #print("RSU Objects: ", self.rsu_manager_list[i].objects)
+        self.objects_deque.appendleft(self.objects.copy())
+
 
         print(self.objects)
           
@@ -533,38 +581,77 @@ class EdgeManager(object):
 
         #print("Locations appended: ", self.locations)
 
-    def run_step(self):
+    def run_step(self, step_id=0):
       if(self.activate == "PERCEPTION"):
         print("running perception_step edge")
-        self.run_step_perception()
+        self.run_step_perception(step_id)
       elif(self.activate == "MANEUVER"):
-        self.run_step_maneuver()
+        self.run_step_maneuver(step_id)
 
-    def run_step_perception(self):
+    def run_step_perception(self, step_id):
+        if step_id < int(self.latency/self.dt):
+            return
+        #print("running perception_step edge")
+        #print("Step ID: ", step_id)
+        #print("Vehicle Manager List: ", self.vehicle_manager_list)
+        
+        number_of_steps = int(self.latency/self.dt)
+        print("Number of Steps for Latency: ", number_of_steps)
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-          objects_to_send = self.objects.copy()
-          print("Vehicle %s" %idx)
-          for object_type, object_list in objects_to_send.items():
-            for obj in object_list:
-              print("Object %s"%obj)
-              if obj.get_location().distance(vehicle_manager.vehicle.get_location()) < 1:
-                object_list.remove(obj)
-          vehicle_manager.edge_objects.clear()
-          vehicle_manager.edge_objects = objects_to_send
-          print(objects_to_send)
-          vehicle_manager.update_info()
-          control = vehicle_manager.run_step()
-          vehicle_manager.vehicle.apply_control(control)
-          print("Applied control")
-        for rsu in self.rsu_manager_list:
-          rsu.update_info()
-          rsu.run_step()
+            #prnt("Objects Deque: ", self.objects_deque)
+            objects_to_send = self.objects_deque[number_of_steps].copy()
+            #print("Objects Deque After Copy: ", self.objects_deque)
+            print("Objects to send: ", objects_to_send)
+            #print("Vehicle %s" %idx)
+            for object_type, object_list in objects_to_send.items():
+                for obj in object_list:
+                    if obj.get_location().distance(vehicle_manager.vehicle.get_location()) < 3:
+                        object_list.remove(obj)
+            vehicle_manager.edge_objects.clear()
+            vehicle_manager.edge_objects = objects_to_send.copy()
 
-              
+            # Update vehicle manager agent trajectory dictionary
+            vehicle_manager.agent.other_car_trajectories = self.traj_dict.copy()
+
+            # Update vehicle manager agent vehicle speeds
+            vehicle_manager.agent.other_car_speeds = self.vehicle_speeds.copy()
+
+            # Apply Control; Run Step 
+            vehicle_manager.update_info(step_id)
+            control = vehicle_manager.run_step()
+            vehicle_manager.vehicle.apply_control(control)
+            #print("Applied control")
+        for rsu in self.rsu_manager_list:
+            rsu.update_info()
+            rsu.run_step()
+        #print("Objects Deque Before After Run Step: ", self.objects_deque)
+        
+        #for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
+        #  objects_to_send = self.objects.copy()
+        #  if 'vehicles' in objects_to_send:
+        #    print(len(objects_to_send['vehicles']))
+        #  print("Vehicle %s" %idx)
+        #  for object_type, object_list in objects_to_send.items():
+        #    for obj in object_list:
+        #      print("Object Distance: %s"%obj.get_location().distance(vehicle_manager.vehicle.get_location()))
+        #      if obj.get_location().distance(vehicle_manager.vehicle.get_location()) < 3:
+        #        object_list.remove(obj)
+        #  vehicle_manager.edge_objects.clear()
+        #  vehicle_manager.edge_objects = objects_to_send
+        #  print(objects_to_send)
+        #  if 'vehicles' in objects_to_send:
+        #    print(len(objects_to_send['vehicles']))
+        #  vehicle_manager.update_info(step_id)
+        #  control = vehicle_manager.run_step()
+        #  vehicle_manager.vehicle.apply_control(control)
+        #  print("Applied control")
+        #for rsu in self.rsu_manager_list:
+        #  rsu.update_info()
+        # rsu.run_step() 
           
           
           
-    def run_step_maneuvering(self):
+    def run_step_maneuvering(self, step_id):
         """
         Run one control step for each vehicles.
 

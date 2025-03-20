@@ -2,8 +2,6 @@
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import carla
-from carla.libcarla import VehicleControl
-
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.core.common.cav_world import CavWorld
 # from opencda.scenario_testing.utils.keyboard_listener import KeyListener
@@ -11,8 +9,8 @@ from opencda.core.common.cav_world import CavWorld
 import time
 from multiprocessing import Process
 import psutil
-
-import scenario_runner as sr
+from opencda.scenario_testing.utils.yaml_utils import add_current_time
+import scenario_runner.scenario_runner as sr
 
 
 def exec_scenario_runner(scenario_params):
@@ -37,6 +35,8 @@ def run_scenario(opt, scenario_params):
     scenario_manager = None
 
     try:
+        scenario_params = add_current_time(scenario_params)
+
         # Create CAV world
         cav_world = CavWorld(opt.apply_ml)
         # Create scenario manager

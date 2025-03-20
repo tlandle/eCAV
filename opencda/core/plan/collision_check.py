@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+""" -*- coding: utf-8 -*- """
 """ This module is used to check collision possibility """
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
@@ -10,9 +10,167 @@ from scipy import spatial
 import carla
 import numpy as np
 
+from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.common.misc import cal_distance_angle, draw_trajetory_points
 from opencda.core.plan.spline import Spline2D
 
+def create_waypoint_roadoption_tuple(vehicle, carla_map):
+    # Get the current location of the vehicle
+    location = vehicle.get_location()
+    
+    # Get the waypoint closest to the vehicle's location
+    waypoint = carla_map.get_waypoint(location)
+    
+    # Determine the road option (e.g., straight, left, right, etc.)
+    # For simplicity, we'll assume a default road option
+    road_option = RoadOption.LANEFOLLOW
+    
+    return (waypoint, road_option)
+
+def get_next_waypoints_positions(waypoints_deque, num_waypoints=10):
+    positions = []
+    for i in range(min(num_waypoints, len(waypoints_deque))):
+        waypoint = waypoints_deque[i][0]
+        x = waypoint.transform.location.x
+        y = waypoint.transform.location.y
+        positions.append((x, y))
+    return positions
+
+def get_positions_from_deque(waypoints_deque, velocity_vector, time_intervals):
+    positions = []
+    for t in time_intervals:
+        distance = np.linalg.norm([velocity_vector.x, velocity_vector.y, velocity_vector.z]) * t
+        for i in range(len(waypoints_deque) - 1):
+            waypoint1 = waypoints_deque[i][0]
+            waypoint2 = waypoints_deque[i+1][0]
+            segment = waypoint2.transform.location.distance(waypoint1.transform.location)
+            if distance <= segment:
+                ratio = distance / segment
+                x = waypoint1.transform.location.x + ratio * (waypoint2.transform.location.x - waypoint1.transform.location.x)
+                y = waypoint1.transform.location.y + ratio * (waypoint2.transform.location.y - waypoint1.transform.location.y)
+                positions.append((x, y))
+                break
+            else:
+                distance -= segment
+    return positions
+
+
+def interpolate_positions(waypoints_deque, num_waypoints=10, interval=3.0):
+    positions = []
+    distance_covered = 0.0
+
+    for i in range(len(waypoints_deque) - 1):
+        if len(positions) >= num_waypoints:
+            break
+
+        waypoint1 = waypoints_deque[i][0]
+        waypoint2 = waypoints_deque[i+1][0]
+        segment_length = waypoint2.transform.location.distance(waypoint1.transform.location)
+
+        while distance_covered + interval <= segment_length:
+            ratio = (distance_covered + interval) / segment_length
+            x = waypoint1.transform.location.x + ratio * (waypoint2.transform.location.x - waypoint1.transform.location.x)
+            y = waypoint1.transform.location.y + ratio * (waypoint2.transform.location.y - waypoint1.transform.location.y)
+            positions.append((x, y))
+            distance_covered += interval
+
+        distance_covered -= segment_length
+
+    return positions
+
+
+
+def interpolate_positions_points(waypoints_deque, num_points=10, num_waypoints=10):
+    positions = []
+    total_length = 0.0
+
+    # Calculate the total length of the specified number of waypoints
+    for i in range(min(num_waypoints, len(waypoints_deque)) - 1):
+        waypoint1 = waypoints_deque[i][0]
+        waypoint2 = waypoints_deque[i+1][0]
+        total_length += waypoint2.transform.location.distance(waypoint1.transform.location)
+
+    interval = total_length / (num_points - 1)
+    distance_covered = 0.0
+
+    for i in range(min(num_waypoints, len(waypoints_deque)) - 1):
+        if len(positions) >= num_points:
+            break
+
+        waypoint1 = waypoints_deque[i][0]
+        waypoint2 = waypoints_deque[i+1][0]
+        segment_length = waypoint2.transform.location.distance(waypoint1.transform.location)
+
+        while distance_covered + interval <= segment_length:
+            ratio = (distance_covered + interval) / segment_length
+            x = waypoint1.transform.location.x + ratio * (waypoint2.transform.location.x - waypoint1.transform.location.x)
+            y = waypoint1.transform.location.y + ratio * (waypoint2.transform.location.y - waypoint1.transform.location.y)
+            positions.append((x, y))
+            distance_covered += interval
+
+        distance_covered -= segment_length
+
+    # Ensure the last point is exactly at the end of the trajectory
+    if len(positions) < num_points:
+        last_waypoint = waypoints_deque[min(num_waypoints, len(waypoints_deque)) - 1][0]
+        positions.append((last_waypoint.transform.location.x, last_waypoint.transform.location.y))
+
+    return positions
+
+def check_intersection_with_path(positions, path_x, path_y, path_yaw):
+    print("Positions length: %s" %len(positions))
+    print("Path X length: %s" %len(path_x))
+    for pos, (px, py, pyaw) in zip(positions, zip(path_x, path_y, path_yaw)):
+        #print("Obstacle Vehicle Position: %s" %pos)
+        #print("Ego Vehicle Position: %s" %(px, py))
+        print("Distance: %s" %np.linalg.norm(np.array(pos) - np.array([px, py])))
+        if np.linalg.norm(np.array(pos) - np.array([px, py])) < 3.0:  # Assuming a threshold for intersection
+            return True
+    return False
+
+def check_intersection_with_path_v2(positions, path_x, path_y, path_yaw):
+    for pos, (px, py, pyaw) in zip(positions, zip(path_x, path_y, path_yaw)):
+        print("Distance: %s" %np.linalg.norm(np.array(pos) - np.array([px, py])))
+        if carla.Location(x=pos[0], y=pos[1]).distance(carla.Location(x=px, y=py)) < 6.0:
+            return True
+    return False
+
+def perpendicular_line_arrays(x, y, yaw, num_points=10, distance=1.0):
+    """
+    Calculates points along a perpendicular line and returns separate arrays for x, y, and yaw.
+
+    Args:
+        x: x-coordinate of the original point.
+        y: y-coordinate of the original point.
+        yaw: Yaw angle (in radians) of the original point.
+        num_points: Number of points to generate along the perpendicular line.
+        distance: Distance between each point on the perpendicular line.
+
+    Returns:
+        A tuple containing three arrays: (x_array, y_array, yaw_array).
+        Returns None if num_points is not a positive integer.
+    """
+
+    if not isinstance(num_points, int) or num_points <= 0:
+        print("num_points must be a positive integer.")
+        return None
+
+    perpendicular_yaw = yaw + math.pi / 2  # Calculate perpendicular yaw
+    perpendicular_yaw = math.atan2(math.sin(perpendicular_yaw), math.cos(perpendicular_yaw)) # Normalize
+
+    x_array = []
+    y_array = []
+    yaw_array = []
+
+    for i in range(num_points):
+        offset = (i - (num_points - 1) / 2) * distance # offset to center the points around the original point.
+        px = x + offset * math.cos(perpendicular_yaw)
+        py = y + offset * math.sin(perpendicular_yaw)
+        x_array.append(px)
+        y_array.append(py)
+        yaw_array.append(perpendicular_yaw)  # Yaw remains constant along the perpendicular
+
+    return np.array(x_array), np.array(y_array), np.array(yaw_array)
 
 class CollisionChecker:
     """
@@ -28,14 +186,15 @@ class CollisionChecker:
         The offset between collision checking circle and the trajectory point.
     """
 
-    def __init__(self, time_ahead=1.2, circle_radius=3.0, circle_offsets=None):
+    def __init__(self, time_ahead=1.2, circle_radius=1.0, circle_offsets=None):
 
         self.time_ahead = time_ahead
-        self._circle_offsets = [-3.0,
+        self._circle_offsets = [-1.0,
                                 0,
-                                3.0] \
+                                1.0] \
             if circle_offsets is None else circle_offsets
         self._circle_radius = circle_radius
+
 
     def is_in_range(
             self,
@@ -105,7 +264,7 @@ class CollisionChecker:
         return True if angle <= 3 else False
 
     def adjacent_lane_collision_check(
-            self, ego_loc, target_wpt, overtake, carla_map, world):
+            self, ego_loc, target_wpt, overtake, carla_map, world, oncoming_lane=False):
         """
         Generate a straight line in the adjacent lane for collision detection
         during overtake/lane change.
@@ -129,7 +288,11 @@ class CollisionChecker:
         """
         # we first need to consider the vehicle on the other lane in front
         if overtake:
-            target_wpt_next = target_wpt.next(6)[0]
+            if oncoming_lane:
+                print("Oncoming lane true")
+                target_wpt_next = target_wpt.previous(6)[0]
+            else:
+                target_wpt_next = target_wpt.next(6)[0]
         else:
             target_wpt_next = target_wpt
 
@@ -138,13 +301,24 @@ class CollisionChecker:
         diff_y = target_wpt_next.transform.location.y - ego_loc.y
         diff_s = np.hypot(diff_x, diff_y) + 3
 
-        target_wpt_previous = target_wpt.previous(diff_s)
-        while len(target_wpt_previous) == 0:
-            diff_s -= 2
+        if oncoming_lane:
+            target_wpt_previous = target_wpt.next(diff_s)
+        else:
             target_wpt_previous = target_wpt.previous(diff_s)
 
+        while len(target_wpt_previous) == 0:
+            diff_s -= 2
+            if oncoming_lane:
+                target_wpt_previous = target_wpt.next(diff_s)
+            else:
+                target_wpt_previous = target_wpt.previous(diff_s)
+
+
         target_wpt_previous = target_wpt_previous[0]
-        target_wpt_middle = target_wpt_previous.next(diff_s/2)[0]
+        if oncoming_lane:
+            target_wpt_middle = target_wpt_previous.previous(diff_s/2)[0]
+        else:
+            target_wpt_middle = target_wpt_previous.next(diff_s/2)[0]
 
         x, y = [target_wpt_next.transform.location.x,
                 target_wpt_middle.transform.location.x,
@@ -173,7 +347,9 @@ class CollisionChecker:
              world, debug_tmp, color=carla.Color(
                  255, 255, 0) if overtake else carla.Color(
                  255, 255, 255), size=0.05, lt=0.2)
-
+    
+        #world.tick()
+        #input()
         return rx, ry, ryaw
 
     def collision_circle_check(
@@ -185,6 +361,7 @@ class CollisionChecker:
             speed,
             carla_map,
             adjacent_check=False,
+            is_left_turn_at_intersection=False,
             world=None):
         """
         Use circled collision check to see whether potential hazard on
@@ -209,8 +386,10 @@ class CollisionChecker:
         distance_check = min(max(int(self.time_ahead * speed / 0.1), 90),
                              len(path_x)) \
             if not adjacent_check else len(path_x)
-        #print("Path x Length: %s" %len(path_x))
-        #print(distance_check)
+
+        #print("Distance Check: %s" %distance_check)
+
+        #create path for intersection check that is perpendicular to the path of the ego vehicle
 
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
         print("Obstacle_vehicle Location (%s, %s, %s)" %(obstacle_vehicle_loc.x, obstacle_vehicle_loc.y, obstacle_vehicle_loc.z))
@@ -219,10 +398,17 @@ class CollisionChecker:
             carla_map.get_waypoint(obstacle_vehicle_loc).transform.rotation.yaw
 
         print("Obstacle_Vehicle Yaw: %s" %obstacle_vehicle_yaw)
+        print("Is Left Turn at Intersection: %s" %is_left_turn_at_intersection)
+
+        if is_left_turn_at_intersection:
+            path_x, path_y, path_yaw = perpendicular_line_arrays(
+                path_x[70], path_y[70], path_yaw[70], num_points=200, distance=.2)
 
         # every step is 0.1m, so we check every 10 points
-        for i in range(0, distance_check, 10):
+        for i in range(0, distance_check, 20):
             ptx, pty, yaw = path_x[i], path_y[i], path_yaw[i]
+            #if is_left_turn_at_intersection:
+                #yaw = yaw - 90
 
             circle_locations = np.zeros((len(self._circle_offsets), 2))
             circle_offsets = np.array(self._circle_offsets)
@@ -230,7 +416,8 @@ class CollisionChecker:
             circle_locations[:, 1] = pty + circle_offsets * sin(yaw)
 
             for circle_location in circle_locations:
-                world.debug.draw_point(carla.Location(x=circle_location[0], y = circle_location[1], z=.5), color=carla.Color(255,255,255), size=.1, life_time=2.0)
+                #if is_left_turn_at_intersection:
+                world.debug.draw_point(carla.Location(x=circle_location[0], y = circle_location[1], z=.5), color=carla.Color(255,255,255), size=(self._circle_radius/2), life_time=2.0)
 
             # calculate bbx coords under world coordinate system
             corrected_extent_x = obstacle_vehicle.bounding_box.extent.x * \
@@ -259,6 +446,8 @@ class CollisionChecker:
                            obstacle_vehicle_loc.y +
                            corrected_extent_y]])
 
+            #print(obstacle_vehicle_bbx_array)
+
             # compute whether the distance between the four corners of the
             # vehicle to the trajectory point
             collision_dists = spatial.distance.cdist(
@@ -266,11 +455,71 @@ class CollisionChecker:
 
             collision_dists = np.subtract(collision_dists, self._circle_radius)
             collision_free = collision_free and not np.any(collision_dists < 0)
-            print(collision_dists)
+            if is_left_turn_at_intersection:
+                print(collision_dists)
 
-            if not collision_free:
-                world.debug.draw_point(obstacle_vehicle_loc, size=1, life_time=1.0)
+            #if not collision_free:
+                #world.debug.draw_point(obstacle_vehicle_loc, size=1, life_time=1.0)
                 #print(collision_dists)
-                break
+                #break
 
         return collision_free
+
+    def trajectory_collision_check(self,
+                                   ego_path_x, 
+                                   ego_path_y, 
+                                   ego_path_yaw,
+                                   ego_vehicle,
+                                   ego_speed,
+                                   map,
+                                   world,
+                                   other_vehicle,
+                                   other_trajectory,
+                                   other_speed):
+        """
+        Check whether the vehicle will collide with the obstacle vehicle
+        in the future.
+        """
+
+        collision_free = True
+        # detect x second ahead. in case the speed is very slow,
+        # there is some minimum threshold for the check distance
+
+        # Use speed and waypoints to calculate whether the vehicle will collide with the obstacle vehicle
+        # in the future using the other trajectories to determine whether the vehicle and obstacle vehicle
+        # trajectories intersect
+
+        #print("Path X: %s" %ego_path_x)
+        #print("Path Y: %s" %ego_path_y)
+        #print("Path Yaw: %s" %ego_path_yaw)
+        #waypoint_roadoption_tuple = create_waypoint_roadoption_tuple(other_vehicle, map)
+        #other_trajectory.appendleft(waypoint_roadoption_tuple)
+
+        obstacle_vehicle_positions = interpolate_positions_points(other_trajectory, num_points=len(ego_path_x), num_waypoints=3)
+        #obstacle_vehicle_positions = get_positions_from_deque(other_trajectory.copy(), other_speed, time_intervals=np.linspace(0, 100, num=len(ego_path_x)))
+        #obstacle_vehicle_positions.insert(0, (other_vehicle.get_location().x, other_vehicle.get_location().y))
+
+        #obstacle_vehicle_positions = get_next_waypoints_positions(other_trajectory, num_waypoints=10)
+        #print("Obstacle Vehicle Location: (%s, %s)" %(other_vehicle.get_location().x, other_vehicle.get_location().y))
+        #print("Ego Vehicle Position: (%s, %s)" %(ego_path_x[0], ego_path_y[0]))
+        # print ego vehicle path
+        #for i in range(len(ego_path_x)):
+            #print("Ego Vehicle Path: (%s, %s)" %(ego_path_x[i], ego_path_y[i]))
+        #print("Obstacle Vehicle Positions: %s" %obstacle_vehicle_positions)
+
+        # calculate interpolation points
+        for i in range(len(ego_path_x)):
+            world.debug.draw_point(carla.Location(x=ego_path_x[i], y = ego_path_y[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
+
+        for pos in obstacle_vehicle_positions:
+            world.debug.draw_point(carla.Location(x=pos[0], y = pos[1], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=.5)
+
+        if check_intersection_with_path_v2(obstacle_vehicle_positions, ego_path_x, ego_path_y, ego_path_yaw):
+            print("Path intersects with the vehicle's trajectory.")
+            collision_free = False
+        else:
+            print("Path does not intersect with the vehicle's trajectory.")
+
+        return collision_free
+
+

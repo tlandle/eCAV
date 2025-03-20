@@ -10,9 +10,11 @@ import sys
 import carla
 import numpy as np
 import open3d as o3d
+import time
 
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.common.misc import get_speed_sumo
+
 
 
 def is_vehicle_cococlass(label):
@@ -100,7 +102,7 @@ class ObstacleVehicle(object):
     """
 
     def __init__(self, corners, o3d_bbx,
-                 vehicle=None, lidar=None, sumo2carla_ids=None):
+                 vehicle=None, lidar=None, sumo2carla_ids=None, tick_id=0):
 
         if not vehicle:
             self.bounding_box = BoundingBox(corners)
@@ -114,6 +116,8 @@ class ObstacleVehicle(object):
             if sumo2carla_ids is None:
                 sumo2carla_ids = dict()
             self.set_vehicle(vehicle, lidar, sumo2carla_ids)
+        self.detected_tick = tick_id
+        #input(tick_id)
 
     def get_transform(self):
         """

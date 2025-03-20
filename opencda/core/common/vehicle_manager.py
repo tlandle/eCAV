@@ -29,6 +29,8 @@ from opencda.core.sensing.localization.localization_manager \
     import LocalizationManager
 from opencda.core.sensing.perception.perception_manager \
     import PerceptionManager
+from opencda.core.sensing.tracking.tracking_manager \
+    import TrackingManager
 from opencda.core.safety.safety_manager import SafetyManager
 from opencda.core.plan.behavior_agent \
     import BehaviorAgent
@@ -136,6 +138,7 @@ class VehicleManager(object):
         self.rsu_manager = None
 
         self.edge_objects = {}
+        self.vehicles_detected = {}
         # set random seed if stated
         seed = time.time()
         print(config_yaml)
@@ -320,6 +323,8 @@ class VehicleManager(object):
             self.vehicle, sensing_config['perception'], cav_world,
             data_dumping)
         logger.debug("PerceptionManager created")
+
+        self.tracking_manager = TrackingManager(self.vehicle,sensing_config['perception'], cav_world, data_dumping)
 
         # map manager
         self.map_manager = MapManager(self.vehicle,
@@ -514,7 +519,7 @@ class VehicleManager(object):
         #self.world.debug.draw_point(start_location, size=.1, life_time=1000)
         #self.world.debug.draw_point(end_location, size=.1, life_time=1000)
 
-    def update_info(self):
+    def update_info(self, step_id=None):
         """
         Call perception and localization module to
         retrieve surrounding info an ego position.
@@ -522,6 +527,7 @@ class VehicleManager(object):
         # localization
         start_time = time.time()
         self.localizer.localize()
+        self.step_id = step_id
 
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
@@ -535,6 +541,7 @@ class VehicleManager(object):
         print("Objects", objects)
         #objects = {**objects ,  **self.edge_objects}
         if 'vehicles' in self.edge_objects:
+            self.edge_objects['vehicles'] = [v for v in self.edge_objects['vehicles'] if self.perception_manager.dist(v) > 2]
             if 'vehicles' in objects:
                 objects['vehicles'].extend(self.edge_objects['vehicles'])
             else:
@@ -560,6 +567,12 @@ class VehicleManager(object):
         end_time = time.time()
         logger.debug("Perception time: %s" %(end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)
+
+        assignments = self.tracking_manager.deactivate_mode(objects, ego_pos)
+        
+        for vid in assignments:
+            if vid not in self.vehicles_detected:
+                self.vehicles_detected[vid] = self.step_id
 
         # update the ego pose for map manager
         self.map_manager.update_information(ego_pos)

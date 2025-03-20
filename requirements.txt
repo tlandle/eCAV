@@ -15,10 +15,11 @@ lxml
 psutil
 asyncio
 carla==0.9.15
-# k-means-constrained==0.7.0 # doesn't build in containers
+k-means-constrained==0.7.0 # doesn't build in containers
 ortools==9.3.10497
 grpcio-tools
 shapely==1.8.4
 omegaconf
 torch
 torchvision
+coloredlogs

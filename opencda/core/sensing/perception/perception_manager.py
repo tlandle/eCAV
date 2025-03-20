@@ -552,7 +552,8 @@ class PerceptionManager:
                 yolo_detection.xyxy[i],
                 lidar_data,
                 projected_lidar,
-                self.lidar.sensor)
+                self.lidar.sensor,
+                self.cav_world.tick_id)
 
             # calculate the speed. current we retrieve from the server
             # directly.

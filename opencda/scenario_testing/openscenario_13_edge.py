@@ -11,7 +11,9 @@ from multiprocessing import Process
 import psutil
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
+from threading import Thread
 
+scenario_runner = None
 
 def exec_scenario_runner(scenario_params):
     """
@@ -24,15 +26,19 @@ def exec_scenario_runner(scenario_params):
     Returns
     -------
     """
-    scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
+    global scenario_runner
+    scenario_runner = sr.ScenarioRunner(scenario_params)
+    #print(scenario_runner)
     scenario_runner.run()
     scenario_runner.destroy()
 
 
 def run_scenario(opt, scenario_params):
-    scenario_runner = None
+    #scenario_runner = None
+    global scenario_runner
     cav_world = None
     scenario_manager = None
+    step = 0
 
     try:
         scenario_params = add_current_time(scenario_params)
@@ -46,10 +52,15 @@ def run_scenario(opt, scenario_params):
                                                    town=scenario_params.scenario_runner.town,
                                                    cav_world=cav_world)
 
+        #scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
+        #scenario_runner.run()
+
         # Create a background process to init and execute scenario runner
-        sr_process = Process(target=exec_scenario_runner,
-                             args=(scenario_params,))
-        sr_process.start()
+        #sr_process = Process(target=exec_scenario_runner,
+       #                      args=(scenario_runner,))
+        #sr_process.start()
+        sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params.scenario_runner,))
+        sr_thread.start()
 
         # key_listener = KeyListener()
         # key_listener.start()
@@ -70,9 +81,20 @@ def run_scenario(opt, scenario_params):
             num_actors = len(vehicles) + len(walkers)
         print(f'Found all {num_actors} actors')
 
-        single_cav_list = scenario_manager.create_vehicle_manager_from_scenario_runner(
-            vehicle=ego_vehicle,
-        )
+        # Get all vehicle actor ids and add them to the edge manager
+        other_vehicles = scenario_runner.manager.scenario.agents
+        input("Other vehicles: %s" %other_vehicles)
+    
+        for vehicle in other_vehicles:
+            print(vehicle._actor.id)
+            print(vehicle._local_planner_dict)
+
+
+        world_dt = scenario_params['world']['fixed_delta_seconds']
+        edge_dt = scenario_params['edge_base']['edge_dt']
+        assert( edge_dt % world_dt == 0 ) # we need edge time to be an exact multiple of world time because we send waypoints every Nth tick 
+
+        edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
@@ -91,7 +113,9 @@ def run_scenario(opt, scenario_params):
             #     psutil.Process(sr_process.pid).resume()
 
             scenario_manager.tick()
-            ego_cav = single_cav_list[0].vehicle
+            print("about to set ego cav")
+            ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
+            print("bird view following")
 
             # Bird view following
             view_transform = carla.Transform()
@@ -101,13 +125,18 @@ def run_scenario(opt, scenario_params):
             spectator.set_transform(view_transform)
 
             # Apply the control to the ego vehicle
-            for _, single_cav in enumerate(single_cav_list):
-                single_cav.update_info()
-                control = single_cav.run_step()
-                single_cav.vehicle.apply_control(control)
-            time.sleep(0.01)
+            for edge in edge_list:
+                edge.update_information()
+                edge.run_step(step)
+            step = step + 1
+            time.sleep(0.001)
 
     finally:
+        for edge in edge_list:
+            for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
+                for vid, step_number in vehicle_manager.vehicles_detected.items():
+                    print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
+
         if cav_world is not None:
             cav_world.destroy()
         print("Destroyed cav_world")

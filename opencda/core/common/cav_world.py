@@ -44,6 +44,7 @@ class CavWorld(object):
         self._rsu_manager_dict = {}
         self.ml_manager = None
         self.run_distributed = run_distributed
+        self.tick_id = 0
 
         if apply_ml and (self.run_distributed == False):
             # we import in this way so the user don't need to install ml

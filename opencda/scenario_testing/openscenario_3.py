@@ -33,6 +33,7 @@ def run_scenario(opt, scenario_params):
     scenario_runner = None
     cav_world = None
     scenario_manager = None
+    step = 0
 
     try:
         scenario_params = add_current_time(scenario_params)
@@ -102,12 +103,16 @@ def run_scenario(opt, scenario_params):
 
             # Apply the control to the ego vehicle
             for _, single_cav in enumerate(single_cav_list):
-                single_cav.update_info()
+                single_cav.update_info(step)
                 control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
+                step = step + 1
             time.sleep(0.01)
 
     finally:
+        for i, single_cav in enumerate(single_cav_list):
+            for vid, step_number in single_cav.vehicles_detected.items():    
+                print("VID: %s found VID %s at step %s" %(single_cav.vehicle.id, vid, step_number))
         if cav_world is not None:
             cav_world.destroy()
         print("Destroyed cav_world")

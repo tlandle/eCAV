@@ -11,7 +11,10 @@ from multiprocessing import Process
 import psutil
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
+from threading import Thread
 #from scenario_runner import ScenarioRunner
+
+
 
 
 def exec_scenario_runner(scenario_params):
@@ -35,6 +38,7 @@ def run_scenario(opt, scenario_params):
     scenario_runner = None
     cav_world = None
     scenario_manager = None
+    step = 0
 
     try:
         scenario_params = add_current_time(scenario_params)
@@ -50,13 +54,22 @@ def run_scenario(opt, scenario_params):
                                                    distributed=False)
 
         # Create a background process to init and execute scenario runner
-        sr_process = Process(target=exec_scenario_runner,
-                             args=(scenario_params, ))
-        sr_process.start()
+        #sr_process = Process(target=exec_scenario_runner,
+        #                     args=(scenario_params, ))
+        #sr_process.start()
+
+        sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params, ))
+        sr_thread.start()
         
         # key_listener = KeyListener()
         # key_listener.start()
         
+        #scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
+
+        
+
+
+
         world = scenario_manager.world
         ego_vehicle = None
         num_actors = 0
@@ -105,12 +118,16 @@ def run_scenario(opt, scenario_params):
 
             # Apply the control to the ego vehicle
             for _, single_cav in enumerate(single_cav_list):
-                single_cav.update_info()
+                single_cav.update_info(step)
                 control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
-            time.sleep(0.01)
+            step = step + 1
+            time.sleep(.001)
 
     finally:
+        for i, single_cav in enumerate(single_cav_list):
+            for vid, step_number in single_cav.vehicles_detected.items():    
+                print("VID: %s found VID %s at step %s" %(single_cav.vehicle.id, vid, step_number))
         if cav_world is not None:
             cav_world.destroy()
         print("Destroyed cav_world")

@@ -1270,6 +1270,115 @@ class ScenarioManager:
 
         return edge_list
 
+    def create_edge_manager_from_scenario_runner(self, application,
+                            map_helper=None,
+                            data_dump=False,
+                            ego_vehicle=None,
+                            world_dt=0.03,
+                            edge_dt=0.20,
+                            search_dt=2.00,
+                            other_vehicles=None):
+        """
+        Create a list of edges.
+
+        Parameters
+        ----------
+        map_helper : function
+            A function to help spawn vehicle on a specific position in a
+            specific map.
+        Returns
+        -------
+        single_cav_list : list
+            A list contains all single CAVs' vehicle manager.
+        """
+
+        # TODO: needs to support multiple edges.
+        # Probably a more significant refactor,
+        # since I think each edge wants its own gRPC server
+
+        logger.info('Creating edge CAVs.')
+        edge_list = []
+
+        config_yaml = self.scenario_params
+        logger.info(json.dumps(OmegaConf.to_container(config_yaml, resolve=True)))
+        # create edges
+        for e, edge in enumerate(
+                self.scenario_params['scenario']['edge_list']):
+            edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'], other_vehicles=other_vehicles)
+            if 'rsus' in edge:
+                for index, cav in enumerate(edge['rsus']):
+                    rsu_manager = RSUManager(self.world, cav,
+                                       self.carla_map,
+                                       self.cav_world,
+                                       self.scenario_params['current_time'],
+                                       data_dump)
+                    edge_manager.add_rsu(rsu_manager)
+                    self.rsu_managers[index] = rsu_manager
+            if 'vehicles' in edge:
+                for index, cav in enumerate(edge['vehicles']): 
+                    logger.debug("Creating VehiceManagerProxy for vehicle %s", index)
+                    # create vehicle manager for each cav
+                    #vehicle_manager = VehicleManagerProxy(
+                    #      vehicle_index=index, config_yaml=config_yaml, application=application,
+                    #      carla_world=self.world,
+                    #      carla_map=self.carla_map, cav_world=self.cav_world,
+                    #      current_time=self.scenario_params['current_time'],
+                    #      data_dumping=data_dump, carla_version=self.carla_version)
+                    vehicle_manager = VehicleManager(
+                          vehicle=ego_vehicle, vehicle_index=index, config_yaml=config_yaml, application=application,
+                          carla_world=self.world,
+                          carla_map=self.carla_map, cav_world=self.cav_world,
+                          current_time=self.scenario_params['current_time'],
+                          data_dumping=data_dump, is_edge=True, map_helper=map_helper,
+                          location_type = self.ecloud_config.get_location_type(),
+                          perception_active=self.apply_ml)
+
+                    logger.debug("finished creating VehiceManagerProxy")
+
+                    self.world.tick()
+
+                    # send gRPC with START info
+                    self.application = application
+
+                    #vehicle_manager.start_vehicle()
+                    vehicle_manager.v2x_manager.set_platoon(None)
+
+                    # add the vehicle manager to platoon
+                    edge_manager.add_member(vehicle_manager)
+                    self.vehicle_managers[index] = vehicle_manager
+
+
+                    destination = carla.Location(x=cav['destination'][0],
+                                     y=cav['destination'][1],
+                                     z=cav['destination'][2])
+
+                    vehicle_manager.update_info()
+                    vehicle_manager.set_destination(
+                      vehicle_manager.vehicle.get_location(),
+                      destination,
+                      clean=True)
+
+
+            try:
+              self.tick_world()
+              logger.debug("World ticked")
+              #destination = carla.Location(x=edge['destination'][0],
+              #                             y=edge['destination'][1],
+              #                             z=edge['destination'][2])
+
+              edge_manager.set_destination(destination)
+              logger.debug("Set Destination")
+              edge_manager.start_edge()
+              logger.debug("Started edge")
+              edge_list.append(edge_manager)
+
+            except Exception as e:
+              logger.debug("Can't create edge manager: ", e)
+
+        return edge_list
+
+
+
     def tick_world(self):
         """
         Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
@@ -1285,6 +1394,8 @@ class ScenarioManager:
         Tick the server; just a pass-through to broadcast_tick to preserve backwards compatibility for now...
         """
         self.tick_world()
+        self.tick_id = self.tick_id + 1
+        self.cav_world.tick_id = self.cav_world.tick_id + 1
 
     # just use tick logic here; need something smarter if we want per-vehicle data
     # could also just switch to a "broadcast message "
@@ -1297,7 +1408,6 @@ class ScenarioManager:
         returns bool
         """
         pre_client_tick_time = time.time()
-        self.tick_id = self.tick_id + 1
 
         if command == ecloud.Command.REQUEST_DEBUG_INFO:
             self.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE

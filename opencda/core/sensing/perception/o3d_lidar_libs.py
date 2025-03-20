@@ -162,7 +162,8 @@ def o3d_camera_lidar_fusion(objects,
                             yolo_bbx,
                             lidar_3d,
                             projected_lidar,
-                            lidar_sensor):
+                            lidar_sensor,
+                            tick_id):
     """
     Utilize the 3D lidar points to extend the 2D bounding box
     from camera to 3D bounding box under world coordinates.
@@ -256,7 +257,7 @@ def o3d_camera_lidar_fusion(objects,
         corner = corner.transpose()[:, :3]
 
         if is_vehicle_cococlass(label):
-            obstacle_vehicle = ObstacleVehicle(corner, aabb)
+            obstacle_vehicle = ObstacleVehicle(corner, aabb, tick_id=tick_id)
             if 'vehicles' in objects:
                 objects['vehicles'].append(obstacle_vehicle)
             else:

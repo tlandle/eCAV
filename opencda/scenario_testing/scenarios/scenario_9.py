@@ -47,6 +47,7 @@ class Scenario_9(BasicScenario):
         self.vehicle_02_velocity = 5  # Vehicle blocked by large vehicle
         self.vehicle_03_velocity = 5  # CAV
         self._trigger_distance = 150
+        self.agents = []
 
         super(Scenario_9, self).__init__("Scenario_9",
                                          ego_vehicles,
@@ -99,6 +100,7 @@ class Scenario_9(BasicScenario):
             sequence_vehicle[i].add_child(trigger_behavior)
             sequence_vehicle[i].add_child(drive_behavior)
             sequence_vehicle[i].add_child(Idle())
+            self.agents.append(drive_behavior)
 
         # End condition
         termination = DriveDistance(self.ego_vehicles[0], 100)
