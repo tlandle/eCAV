@@ -4,6 +4,8 @@
 import carla
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.core.common.cav_world import CavWorld
+from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
+import sys
 # from opencda.scenario_testing.utils.keyboard_listener import KeyListener
 
 import time
@@ -12,6 +14,7 @@ import psutil
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 
+SCENARIO_NAME = 'openscenario_9'
 
 def exec_scenario_runner(scenario_params):
     """
@@ -74,6 +77,12 @@ def run_scenario(opt, scenario_params):
             vehicle=ego_vehicle,
         )
 
+
+        eval_manager = \
+            EvaluationManager(scenario_manager.cav_world,
+                              script_name=SCENARIO_NAME,
+                              current_time=scenario_params['current_time'])
+
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
         spectator_altitude = 100
@@ -102,15 +111,17 @@ def run_scenario(opt, scenario_params):
 
             # Apply the control to the ego vehicle
             for _, single_cav in enumerate(single_cav_list):
+                if(single_cav.safety_manager is not None):
+                    if(single_cav.safety_manager.status_dict is not None and 'stuck' in single_cav.safety_manager.status_dict and single_cav.safety_manager.status_dict['stuck'] == True):
+                        print("Stuck detected")
+                        sys.exit(0)
                 single_cav.update_info()
                 control = single_cav.run_step()
                 single_cav.vehicle.apply_control(control)
             time.sleep(0.01)
 
     finally:
-        if cav_world is not None:
-            cav_world.destroy()
-        print("Destroyed cav_world")
+        eval_manager.evaluate()
         if scenario_manager is not None:
             scenario_manager.close()
         print("Destroyed scenario_manager")

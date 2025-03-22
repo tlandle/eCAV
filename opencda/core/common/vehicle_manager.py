@@ -424,6 +424,11 @@ class VehicleManager(object):
         else:
             return
 
+        impulse = event.normal_impulse
+        intensity = np.linalg.norm([impulse.x, impulse.y, impulse.z])
+        if intensity < 1:
+            return
+
         collision_event = TrafficEvent(event_type=actor_type)
         collision_event.set_dict({
             'type': event.other_actor.type_id,

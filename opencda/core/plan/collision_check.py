@@ -495,7 +495,7 @@ class CollisionChecker:
         #waypoint_roadoption_tuple = create_waypoint_roadoption_tuple(other_vehicle, map)
         #other_trajectory.appendleft(waypoint_roadoption_tuple)
 
-        obstacle_vehicle_positions = interpolate_positions_points(other_trajectory, num_points=len(ego_path_x), num_waypoints=3)
+        obstacle_vehicle_positions = interpolate_positions_points(other_trajectory, num_points=len(ego_path_x), num_waypoints=8)
         #obstacle_vehicle_positions = get_positions_from_deque(other_trajectory.copy(), other_speed, time_intervals=np.linspace(0, 100, num=len(ego_path_x)))
         #obstacle_vehicle_positions.insert(0, (other_vehicle.get_location().x, other_vehicle.get_location().y))
 

@@ -4,6 +4,8 @@
 import carla
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.core.common.cav_world import CavWorld
+from opencda.scenario_testing.evaluations.evaluate_manager import \
+    EvaluationManager
 # from opencda.scenario_testing.utils.keyboard_listener import KeyListener
 
 import time
@@ -13,6 +15,8 @@ from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 from threading import Thread
 
+
+SCENARIO_NAME = 'openscenario_3_edge'
 scenario_runner = None
 
 def exec_scenario_runner(scenario_params):
@@ -83,7 +87,7 @@ def run_scenario(opt, scenario_params):
 
         # Get all vehicle actor ids and add them to the edge manager
         other_vehicles = scenario_runner.manager.scenario.agents
-        input("Other vehicles: %s" %other_vehicles)
+        #input("Other vehicles: %s" %other_vehicles)
     
         for vehicle in other_vehicles:
             print(vehicle._actor.id)
@@ -95,6 +99,12 @@ def run_scenario(opt, scenario_params):
         assert( edge_dt % world_dt == 0 ) # we need edge time to be an exact multiple of world time because we send waypoints every Nth tick 
 
         edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
+
+        # Create evaluation manager
+        eval_manager = \
+            EvaluationManager(scenario_manager.cav_world,
+                              script_name=SCENARIO_NAME,
+                              current_time=scenario_params['current_time'])
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
@@ -136,7 +146,8 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
-
+        if eval_manager is not None:
+            eval_manager.evaluate()
         if cav_world is not None:
             cav_world.destroy()
         print("Destroyed cav_world")

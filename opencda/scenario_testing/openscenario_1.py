@@ -4,6 +4,8 @@
 import carla
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.core.common.cav_world import CavWorld
+from opencda.scenario_testing.evaluations.evaluate_manager import \
+    EvaluationManager
 # from opencda.scenario_testing.utils.keyboard_listener import KeyListener
 
 import time
@@ -14,7 +16,7 @@ import scenario_runner.scenario_runner as sr
 from threading import Thread
 #from scenario_runner import ScenarioRunner
 
-
+SCENARIO_NAME = 'openscenario_1'
 
 
 def exec_scenario_runner(scenario_params):
@@ -90,6 +92,13 @@ def run_scenario(opt, scenario_params):
             vehicle=ego_vehicle,
         )
 
+
+        # create evaluation manager
+        eval_manager = \
+            EvaluationManager(scenario_manager.cav_world,
+                              script_name=SCENARIO_NAME,
+                              current_time=scenario_params['current_time'])
+
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
         spectator_altitude = 100
@@ -128,6 +137,7 @@ def run_scenario(opt, scenario_params):
         for i, single_cav in enumerate(single_cav_list):
             for vid, step_number in single_cav.vehicles_detected.items():    
                 print("VID: %s found VID %s at step %s" %(single_cav.vehicle.id, vid, step_number))
+        eval_manager.evaluate()
         if cav_world is not None:
             cav_world.destroy()
         print("Destroyed cav_world")
@@ -137,3 +147,4 @@ def run_scenario(opt, scenario_params):
         if scenario_runner is not None:
             scenario_runner.destroy()
         print("Destroyed scenario_runner")
+
