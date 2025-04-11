@@ -13,6 +13,7 @@ from opencda.scenario_testing.evaluations.utils import lprint
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from omegaconf import OmegaConf
 
 class EvaluationManager(object):
     """
@@ -30,6 +31,10 @@ class EvaluationManager(object):
     current_time : str
         Current timestamp, used to name the output folder.
 
+    scenario_params : dict
+        The scenario parameters used for the simulation.
+        It is used to name the output folder.
+
     Attributes
     ----------
     eval_save_path : str
@@ -37,15 +42,21 @@ class EvaluationManager(object):
 
     """
 
-    def __init__(self, cav_world, script_name, current_time):
+    def __init__(self, cav_world, script_name, current_time, scenario_params=None):
+
         self.cav_world = cav_world
         
 
         current_path = os.path.dirname(os.path.realpath(__file__))
-
-        self.eval_save_path = os.path.join(
-            current_path, '../../../evaluation_outputs',
-            script_name + '_' + current_time)
+        if scenario_params is None:
+            self.eval_save_path = os.path.join(
+                current_path, '../../../evaluation_outputs',
+                script_name + '_' + current_time)
+        else:
+            ego_cav_config = OmegaConf.merge(scenario_params["scenario"]["single_cav_list"][0], scenario_params["vehicle_base"])
+            self.eval_save_path = os.path.join(
+                current_path, '../../../evaluation_outputs',
+                script_name + "_fog_" + str(scenario_params["world"]["weather"]["fog_density"]) + "_rain_" + str(scenario_params["world"]["weather"]["precipitation"]) + "_clouds_" + str(scenario_params["world"]["weather"]["cloudiness"]) + "_target_speed_ego_" + str(ego_cav_config["behavior"]["max_speed"]), current_time) 
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 

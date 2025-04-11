@@ -8,6 +8,6 @@
         <other_actor x="-81.0" y="101.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
         <other_actor x="-81.0" y="92.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
         <other_actor x="-81.0" y="83.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
-        <weather cloudiness="0" precipitation="75" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
     </scenario>
 </scenarios>

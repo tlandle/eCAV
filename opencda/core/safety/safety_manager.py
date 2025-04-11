@@ -8,6 +8,7 @@ import logging
 
 from opencda.core.safety.sensors import CollisionSensor, \
     TrafficLightDector, StuckDetector, OffRoadDetector
+from opencda.core.safety.safety_debug_helper import SafetyDebugHelper
 
 
 class SafetyManager:
@@ -31,6 +32,7 @@ class SafetyManager:
                                            vehicle)]
         self.status_dict = {}
         self.logger = logger
+        self.debug_helper = SafetyDebugHelper(vehicle.id)
 
     def update_info(self, data_dict) -> dict:
         self.status_dict = {}

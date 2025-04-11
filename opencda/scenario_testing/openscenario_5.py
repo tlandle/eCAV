@@ -1,6 +1,12 @@
 # -*- coding: utf-8 -*-
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+
+# This scenario is a single ego vehicle scenario trying to make a right turn
+# where view is occluded by a large truck. There is a car coming from the left
+# and right lanes. The ego vehicle should yield to the car from the left lane. 
+
+
 import carla
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.core.common.cav_world import CavWorld
@@ -12,6 +18,7 @@ import psutil
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 
+SCENARIO_NAME = 'openscenario_5'
 
 def exec_scenario_runner(scenario_params):
     """
@@ -78,7 +85,7 @@ def run_scenario(opt, scenario_params):
         # Bird view following
         spectator_altitude = 100
         spectator_bird_pitch = -90
-
+        
         while True:
             # if key_listener.keys['esc']:
             #     sr_process.kill()

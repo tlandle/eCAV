@@ -80,7 +80,8 @@ def run_scenario(opt, scenario_params):
         eval_manager = \
             EvaluationManager(scenario_manager.cav_world,
                               script_name=SCENARIO_NAME,
-                              current_time=scenario_params['current_time'])
+                              current_time=scenario_params['current_time'],
+                              scenario_params=scenario_params)
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
         spectator_altitude = 100
