@@ -16,6 +16,7 @@ import opencda.logging_ecloud
 import numpy as np
 import carla
 import coloredlogs
+import copy
 
 from opencda.core.common.misc import get_speed, positive, cal_distance_angle
 from opencda.core.plan.collision_check import CollisionChecker
@@ -119,6 +120,8 @@ class BehaviorAgent(object):
         self.overtake_allowed = config_yaml['overtake_allowed']
         self.overtake_allowed_origin = config_yaml['overtake_allowed']
         self.overtake_counter = 0
+        self.overtake_stopped_vehicle = False
+        self.overtake_end_wpts = []
         # used to indicate whether a vehicle is on the planned path
         self.hazard_flag = False
 
@@ -399,7 +402,7 @@ class BehaviorAgent(object):
         route = self._global_planner.trace_route(
             start_waypoint.transform.location,
             end_waypoint.transform.location)
-
+        
         #input("Route : %s" %(route))
 
         draw_trajetory_points(self.vehicle.get_world(),
@@ -616,19 +619,25 @@ class BehaviorAgent(object):
             print("VehicleState: %s" %vehicle_state)
             #print("Checked for overtake but possibly saw collision")
             if not vehicle_state:
-                print("left overtake is operated")
+                logger.debug("left overtake is operated")
                 self.overtake_counter = 100
                 #next_wpt_list = left_wpt.next(15)
                 if(self._ego_speed > 20):
                     next_wpt_list = left_wpt.next(self._ego_speed / 3.6 * 6)
                 else:
+                    self.overtake_counter = 200
+                    self.overtake_stopped_vehicle = True
                     next_wpt_list = []
                     #print(left_wpt.previous(5)[0].transform)
                     next_wpt_list.append((left_wpt.previous(5)[0], RoadOption.CHANGELANELEFT))
                     next_wpt_list.append((left_wpt.previous(8)[0], RoadOption.LANEFOLLOW))
                     next_wpt_list.append((left_wpt.previous(11)[0], RoadOption.LANEFOLLOW))
                     next_wpt_list.append((left_wpt.previous(13)[0], RoadOption.LANEFOLLOW))
+                    next_wpt_list.append((left_wpt.previous(16)[0], RoadOption.LANEFOLLOW))
                     #input(next_wpt_list)
+                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(24)[0], RoadOption.CHANGELANERIGHT))
+                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(27)[0], RoadOption.LANEFOLLOW))
+                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(30)[0], RoadOption.LANEFOLLOW))
                 if len(next_wpt_list) == 0:
                     #input("Next Waypoint empty")
                     return True
@@ -641,29 +650,25 @@ class BehaviorAgent(object):
                 left_wpt = left_wpt.previous(5)[0]
                 #input("Drawing Point")
                 self.vehicle.get_world().debug.draw_point(left_wpt.transform.location, size=.1, life_time=2.0)
-                #self.vehicle.get_world().debug.draw_point(next_wpt.transform.location, size=.1, life_time=2.0)
-                #self.vehicle.get_world().debug.draw_point(next_wpt_list[1].transform.location, size=.1, life_time=2.0)
-                #self.vehicle.get_world().debug.draw_point(next_wpt_list[2].transform.location, size=.1, life_time=2.0)
 
                 #input("Setting Destination")
-                #self.set_destination(
-                    #left_wpt.transform.location,
-                    #next_wpt.transform.location,
-                    #clean=True,
-                    #clean_history=True,
-                    #end_reset=False)
-
+                # self.set_destination(
+                #     next_wpt.transform.location,
+                #     left_wpt.transform.location,
+                #     clean=True,
+                #     end_reset=False)
+                
                 self.get_local_planner().get_waypoints_queue().clear()
                 self.get_local_planner().get_trajectory().clear()
                 self.get_local_planner().get_waypoint_buffer().clear()
 
-                print(next_wpt_list)
+                # input("cleared waypoints")
+
                 self._local_planner.set_global_plan(next_wpt_list, clean=True)
                 rx, ry, rk, ryaw = self._local_planner.generate_path()
                 vehicle_state, _, _ = self.collision_manager(
                     rx, ry, ryaw, self._map.get_waypoint(
                         self._ego_pos.location), True)
-
 
                 #input("Left overtake reset global plan")
                 #print("Left overtake operated success")
@@ -1094,7 +1099,8 @@ class BehaviorAgent(object):
         if not self.lane_change_allowed and \
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \
-                self.overtake_counter <= 0:
+                self.overtake_counter <= 0 and \
+                not self.overtake_stopped_vehicle:
             self.overtake_allowed = False
             # get push destination based on intersection flag and current waypoint (rule-based)
             reset_target = self.get_push_destination(ego_vehicle_wp, is_intersection)
@@ -1148,6 +1154,23 @@ class BehaviorAgent(object):
                 #else:
                     #car_following_flag = True
                 end_time_9 = time.time()
+        # return to other lane
+        elif self.overtake_counter <= 100 and self.overtake_stopped_vehicle and \
+                len(self.overtake_end_wpts) > 0:
+            # self.overtake_stopped_vehicle = False
+
+            # self.get_local_planner().get_waypoints_queue().clear()
+            # self.get_local_planner().get_trajectory().clear()
+            # self.get_local_planner().get_waypoint_buffer().clear()
+
+            self._local_planner.set_global_plan(self.overtake_end_wpts)
+            self.overtake_end_wpts.clear()
+            rx, ry, rk, ryaw = self._local_planner.generate_path()
+            car_following_flag, _, _ = self.collision_manager(
+                    rx, ry, ryaw, self._map.get_waypoint(
+                        self._ego_pos.location), True)
+        elif self.overtake_counter <= 0 and self.overtake_stopped_vehicle:
+            self.overtake_stopped_vehicle = False
         elif is_hazard and left_turn:
             if distance < max(self.break_distance, 3):
                 logger.debug("Car Entering Intersection and break distance is closer than 3 meters")
