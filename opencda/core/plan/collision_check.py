@@ -6,6 +6,7 @@
 import math
 from math import sin, cos
 from scipy import spatial
+from scipy.interpolate import interp1d
 
 import carla
 import numpy as np
@@ -78,9 +79,42 @@ def interpolate_positions(waypoints_deque, num_waypoints=10, interval=3.0):
 
     return positions
 
+def linear_interp_trajectory(waypoints_deque):
+    points = []
 
+    # grab waypoint positions
+    for i in range(len(waypoints_deque)):
+        curr_waypoint = waypoints_deque[i][0]
+        x = curr_waypoint.transform.location.x
+        y = curr_waypoint.transform.location.y
+        points.append([x, y])
+
+    points = np.asarray(points)
+    x = points[:, 0]
+    y = points[:, 1]
+
+    # compute arc lengths
+    diffs = np.diff(points, axis=0)
+    segment_lengths = np.linalg.norm(diffs, axis=1)
+    s = np.insert(np.cumsum(segment_lengths), 0, 0.0)
+
+    # parametric interpolators x(s) and y(s)
+    xs = interp1d(s, x, kind='linear')
+    ys = interp1d(s, y, kind='linear')
+
+    # get arc points
+    ds = 0.1
+    total_length = s[-1]
+    num_steps = int(total_length / ds)
+    sp = np.linspace(0, num_steps * ds, num_steps + 1)
+
+    # get path
+    rx = xs(sp)
+    ry = ys(sp)
+    return rx, ry
 
 def interpolate_positions_points(waypoints_deque, num_points=10, num_waypoints=10):
+
     positions = []
     total_length = 0.0
 
@@ -405,7 +439,7 @@ class CollisionChecker:
                 path_x[70], path_y[70], path_yaw[70], num_points=200, distance=.2)
 
         # every step is 0.1m, so we check every 10 points
-        for i in range(0, distance_check, 20):
+        for i in range(0, distance_check, 10):
             ptx, pty, yaw = path_x[i], path_y[i], path_yaw[i]
             #if is_left_turn_at_intersection:
                 #yaw = yaw - 90
@@ -465,61 +499,52 @@ class CollisionChecker:
 
         return collision_free
 
-    def trajectory_collision_check(self,
-                                   ego_path_x, 
-                                   ego_path_y, 
-                                   ego_path_yaw,
-                                   ego_vehicle,
-                                   ego_speed,
-                                   map,
-                                   world,
-                                   other_vehicle,
-                                   other_trajectory,
-                                   other_speed):
+    def trajectory_collision_check(
+            self,
+            ego_path_x, 
+            ego_path_y, 
+            ego_path_yaw,
+            ego_speed,
+            obstacle_vehicle,
+            obstacle_trajectory,
+            obstacle_velocity,
+            carla_map,
+            world=None,
+            adjacent_check=False,
+            is_left_turn_at_intersection=False):
         """
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
+        # compute number of points ahead in the ego trajectory we want to find
+        ego_points_ahead = int(min(ego_speed * self.time_ahead / 0.1, len(ego_path_x)) \
+            if not adjacent_check else len(ego_path_x))
+        ego_rx = ego_path_x[:ego_points_ahead]
+        ego_ry = ego_path_y[:ego_points_ahead]
+        
+        # get interpolation of obstacle trajectory
+        obstacle_path_x, obstacle_path_y = linear_interp_trajectory(obstacle_trajectory)
+        # obstacle_speed = np.linalg.norm([obstacle_velocity.x, obstacle_velocity.y])
+        # # input(f"speed for obstacle id {obstacle_vehicle.carla_id}: {obstacle_speed}")
+        # obstacle_points_ahead = int(min(obstacle_speed * self.time_ahead / 0.1, len(obstacle_path_x)) \
+            # if not adjacent_check else len(obstacle_path_x))
+        obstacle_points_ahead = min(len(obstacle_path_x), ego_points_ahead)
+        obstacle_rx = obstacle_path_x[:obstacle_points_ahead]
+        obstacle_ry = obstacle_path_y[:obstacle_points_ahead]
 
-        collision_free = True
-        # detect x second ahead. in case the speed is very slow,
-        # there is some minimum threshold for the check distance
+        if world is not None:
+            # draw ego path
+            for i in range(ego_points_ahead):
+                world.debug.draw_point(carla.Location(x=ego_rx[i], y=ego_ry[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
+            # draw obstacle path
+            for i in range(obstacle_points_ahead):
+                world.debug.draw_point(carla.Location(x=obstacle_rx[i], y=obstacle_ry[i], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=2.0)
 
-        # Use speed and waypoints to calculate whether the vehicle will collide with the obstacle vehicle
-        # in the future using the other trajectories to determine whether the vehicle and obstacle vehicle
-        # trajectories intersect
-
-        #print("Path X: %s" %ego_path_x)
-        #print("Path Y: %s" %ego_path_y)
-        #print("Path Yaw: %s" %ego_path_yaw)
-        #waypoint_roadoption_tuple = create_waypoint_roadoption_tuple(other_vehicle, map)
-        #other_trajectory.appendleft(waypoint_roadoption_tuple)
-
-        obstacle_vehicle_positions = interpolate_positions_points(other_trajectory, num_points=len(ego_path_x), num_waypoints=3)
-        #obstacle_vehicle_positions = get_positions_from_deque(other_trajectory.copy(), other_speed, time_intervals=np.linspace(0, 100, num=len(ego_path_x)))
-        #obstacle_vehicle_positions.insert(0, (other_vehicle.get_location().x, other_vehicle.get_location().y))
-
-        #obstacle_vehicle_positions = get_next_waypoints_positions(other_trajectory, num_waypoints=10)
-        #print("Obstacle Vehicle Location: (%s, %s)" %(other_vehicle.get_location().x, other_vehicle.get_location().y))
-        #print("Ego Vehicle Position: (%s, %s)" %(ego_path_x[0], ego_path_y[0]))
-        # print ego vehicle path
-        #for i in range(len(ego_path_x)):
-            #print("Ego Vehicle Path: (%s, %s)" %(ego_path_x[i], ego_path_y[i]))
-        #print("Obstacle Vehicle Positions: %s" %obstacle_vehicle_positions)
-
-        # calculate interpolation points
-        for i in range(len(ego_path_x)):
-            world.debug.draw_point(carla.Location(x=ego_path_x[i], y = ego_path_y[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
-
-        for pos in obstacle_vehicle_positions:
-            world.debug.draw_point(carla.Location(x=pos[0], y = pos[1], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=.5)
-
-        if check_intersection_with_path_v2(obstacle_vehicle_positions, ego_path_x, ego_path_y, ego_path_yaw):
-            print("Path intersects with the vehicle's trajectory.")
-            collision_free = False
-        else:
-            print("Path does not intersect with the vehicle's trajectory.")
-
-        return collision_free
+        # check for potential collisions
+        ego_path = np.stack((ego_rx, ego_ry), axis=1)
+        obstacle_path = np.stack((obstacle_rx, obstacle_ry), axis=1)
+        dists = spatial.distance.cdist(ego_path, obstacle_path)
+        collision_dists = np.subtract(dists, self._circle_radius)
+        return np.any(collision_dists < 0)
 
 

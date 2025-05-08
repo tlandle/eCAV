@@ -509,8 +509,10 @@ class BehaviorAgent(object):
             trajectory_collision_free = True
             if (vehicle.carla_id != None and self.other_car_trajectories.get(vehicle.carla_id) != None and self.other_car_speeds.get(vehicle.carla_id) != None and speed_scalar > 0.5):
                 trajectory_collision_free = self._collision_check.trajectory_collision_check(
-                    rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
-                    world=self.vehicle.get_world(), other_vehicle=vehicle, other_trajectory=self.other_car_trajectories[vehicle.carla_id].copy(), other_speed=self.other_car_speeds[vehicle.carla_id])
+                    rx, ry, ryaw, self._ego_speed / 3.6, vehicle,
+                    self.other_car_trajectories[vehicle.carla_id].copy(),
+                    self.other_car_speeds[vehicle.carla_id], self._map,
+                    world=self.vehicle.get_world(), adjacent_check=adjacent_check)
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
                 adjacent_check=adjacent_check, world=self.vehicle.get_world())
