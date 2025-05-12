@@ -24,7 +24,7 @@ dependencies:
     - jinja2
     - psutil
     - asyncio
-    - carla==0.9.12
+    - carla==0.9.15
     - k-means-constrained==0.7.0
     - ortools==9.3.10497
     - grpcio-tools

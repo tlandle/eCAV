@@ -517,7 +517,7 @@ class CollisionChecker:
         in the future.
         """
         # compute number of points ahead in the ego trajectory we want to find
-        ego_points_ahead = int(min(ego_speed * self.time_ahead / 0.1, len(ego_path_x)) \
+        ego_points_ahead = int(min(max(ego_speed * self.time_ahead / 0.1, 50), len(ego_path_x)) \
             if not adjacent_check else len(ego_path_x))
         ego_rx = ego_path_x[:ego_points_ahead]
         ego_ry = ego_path_y[:ego_points_ahead]
