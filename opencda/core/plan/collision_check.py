@@ -415,9 +415,9 @@ class CollisionChecker:
             circle_locations[:, 0] = ptx + circle_offsets * cos(yaw)
             circle_locations[:, 1] = pty + circle_offsets * sin(yaw)
 
-            for circle_location in circle_locations:
+            #for circle_location in circle_locations:
                 #if is_left_turn_at_intersection:
-                world.debug.draw_point(carla.Location(x=circle_location[0], y = circle_location[1], z=.5), color=carla.Color(255,255,255), size=(self._circle_radius/2), life_time=2.0)
+                #world.debug.draw_point(carla.Location(x=circle_location[0], y = circle_location[1], z=.5), color=carla.Color(255,255,255), size=(self._circle_radius/2), life_time=2.0)
 
             # calculate bbx coords under world coordinate system
             corrected_extent_x = obstacle_vehicle.bounding_box.extent.x * \
@@ -508,11 +508,11 @@ class CollisionChecker:
         #print("Obstacle Vehicle Positions: %s" %obstacle_vehicle_positions)
 
         # calculate interpolation points
-        for i in range(len(ego_path_x)):
-            world.debug.draw_point(carla.Location(x=ego_path_x[i], y = ego_path_y[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
+        #for i in range(len(ego_path_x)):
+            #world.debug.draw_point(carla.Location(x=ego_path_x[i], y = ego_path_y[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
 
-        for pos in obstacle_vehicle_positions:
-            world.debug.draw_point(carla.Location(x=pos[0], y = pos[1], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=.5)
+        #for pos in obstacle_vehicle_positions:
+            #world.debug.draw_point(carla.Location(x=pos[0], y = pos[1], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=.5)
 
         if check_intersection_with_path_v2(obstacle_vehicle_positions, ego_path_x, ego_path_y, ego_path_yaw):
             print("Path intersects with the vehicle's trajectory.")

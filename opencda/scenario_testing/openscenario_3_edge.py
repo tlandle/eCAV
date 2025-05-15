@@ -130,6 +130,9 @@ def run_scenario(opt, scenario_params):
             # Bird view following
             view_transform = carla.Transform()
             view_transform.location = ego_cav.get_transform().location
+            print("ego_cav.get_transform().location: %s" %ego_cav.get_transform().location)
+            if ego_cav.get_transform().location.x == 0 and ego_cav.get_transform().location.y == 0:
+                input("ego_cav.get_transform().location.x == 0")
             view_transform.location.z = view_transform.location.z + spectator_altitude
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)

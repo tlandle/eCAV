@@ -1,8 +1,3 @@
-# Author: Tyler Landle <tlandle3@gatech.edu>
-# License: TDG-Attribution-NonCommercial-NoDistribution 1.0
-
-""" MultiObjectTracker class definition. """
-
 class MultiObjectTracker(object):
     def __init__(self):
         self._trackers = []

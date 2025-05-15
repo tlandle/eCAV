@@ -44,13 +44,13 @@ class Scenario_3(BasicScenario):
             config.trigger_points[0].location)
 
         self.num_vehicle = 6
-        self.vehicle_01_velocity = 7  # Violated vehicle
+        self.vehicle_01_velocity = 25  # Violated vehicle
         self.vehicle_02_velocity = 0  # Large vehicles from 02 to 06
         self.vehicle_03_velocity = 0
         self.vehicle_04_velocity = 0
         self.vehicle_05_velocity = 0
         self.vehicle_06_velocity = 0
-        self._trigger_distance = 150
+        self._trigger_distance = 75
         self.agents = []
 
         super(Scenario_3, self).__init__("Scenario_3",
@@ -130,7 +130,7 @@ class Scenario_3(BasicScenario):
             self.agents.append(drive_behavior)
 
         # End condition
-        termination = DriveDistance(self.ego_vehicles[0], 100)
+        termination = DriveDistance(self.ego_vehicles[0], 200)
 
         # Build composite behavior tree
         root = py_trees.composites.Parallel(

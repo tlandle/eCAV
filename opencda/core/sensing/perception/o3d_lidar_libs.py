@@ -272,3 +272,139 @@ def o3d_camera_lidar_fusion(objects,
                 objects['static'] = [static_obstacle]
 
     return objects
+
+def o3d_camera_lidar_fusion_from_tracker(objects,
+                            track,
+                            lidar_3d,
+                            projected_lidar,
+                            lidar_sensor,
+                            tick_id):
+    """
+    Utilize the 3D lidar points to extend the 2D bounding box
+    from camera to 3D bounding box under world coordinates.
+
+    Parameters
+    ----------
+    objects : dict
+        The dictionary contains all object detection results.
+
+    track : np.ndarray
+        Output track from SORT or DeepSORT, shape (n, 5)->(n, [[x1, y1, x2, y2], id]
+
+    lidar_3d : np.ndarray
+        Raw 3D lidar points in lidar coordinate system.
+
+    projected_lidar : np.ndarray
+        3D lidar points projected to the camera space.
+
+    lidar_sensor : carla.sensor
+        The lidar sensor.
+
+    Returns
+    -------
+    objects : dict
+        The update object dictionary that contains 3d bounding boxes.
+    """
+
+
+    print("track shape: ", track.shape)
+    for i in range(track.shape[0]):
+        detection = track[i]
+        x1, y1, x2, y2 = int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3])
+        track_id = int(detection[4])  # instead of label
+        print("track id: ", track_id)
+        print("x1, y1, x2, y2: ", x1, y1, x2, y2)
+    
+        # choose the lidar points in the 2d yolo bounding box
+        points_in_bbx = \
+            (projected_lidar[:, 0] > x1) & (projected_lidar[:, 0] < x2) & \
+            (projected_lidar[:, 1] > y1) & (projected_lidar[:, 1] < y2) & \
+            (projected_lidar[:, 2] > 0.0)
+        # ignore intensity channel
+        #print(len(lidar_3d))
+        #print(len(points_in_bbx))
+        select_points = lidar_3d[points_in_bbx][:, :-1]
+        #select_points = lidar_3d[points_in_bbx]
+
+        print("select points shape: ", select_points.shape)
+
+
+        if select_points.shape[0] == 0:
+            continue
+
+        # filter out the outlier
+        x_common = mode(np.array(np.abs(select_points[:, 0]),
+                                 dtype=np.int), axis=0)[0][0]
+        y_common = mode(np.array(np.abs(select_points[:, 1]),
+                                 dtype=np.int), axis=0)[0][0]
+        points_inlier = (np.abs(select_points[:, 0]) > x_common - 3) & \
+                        (np.abs(select_points[:, 0]) < x_common + 3) & \
+                        (np.abs(select_points[:, 1]) > y_common - 3) & \
+                        (np.abs(select_points[:, 1]) < y_common + 3)
+        select_points = select_points[points_inlier]
+
+        print("select points shape after inlier: ", select_points.shape)
+
+        if select_points.shape[0] < 2:
+            continue
+
+        # to visualize 3d lidar points in o3d visualizer, we need to
+        # revert the x coordinates
+        select_points[:, :1] = -select_points[:, :1]
+
+        # create o3d.PointCloud object
+        o3d_pointcloud = o3d.geometry.PointCloud()
+        o3d_pointcloud.points = o3d.utility.Vector3dVector(select_points)
+        # add o3d bounding box
+        aabb = o3d_pointcloud.get_axis_aligned_bounding_box()
+        aabb.color = (0, 1, 0)
+
+        # get the eight corner of the bounding boxes.
+        corner = np.asarray(aabb.get_box_points())
+        # covert back to unreal coordinate
+        corner[:, :1] = -corner[:, :1]
+        corner = corner.transpose()
+        # extend (3, 8) to (4, 8) for homogenous transformation
+        corner = np.r_[corner, [np.ones(corner.shape[1])]]
+        # project to world reference
+        corner = st.sensor_to_world(corner, lidar_sensor.get_transform())
+        corner = corner.transpose()[:, :3]
+
+        print("corner shape: ", corner.shape)
+
+        if len(objects['vehicles']) == 0:
+            vehicle_obstacle = ObstacleVehicle(corner, aabb, tick_id=tick_id, track_id=track_id)
+            if 'vehicles' in objects:
+                objects['vehicles'].append(vehicle_obstacle)
+            else:
+                objects['vehicles'] = [vehicle_obstacle]
+            continue
+
+        for vehicle in objects.get("vehicles", []):
+            if vehicle.track_id == track_id:
+                vehicle.corner = corner
+                vehicle.aabb = aabb
+
+                print("update vehicle: ", vehicle.track_id)
+                break
+            else:
+                print("create new vehicle: ", track_id)
+                vehicle_obstacle = ObstacleVehicle(corner, aabb, tick_id=tick_id, track_id=track_id)
+                if 'vehicles' in objects:
+                    objects['vehicles'].append(vehicle_obstacle)
+                else:
+                    objects['vehicles'] = [vehicle_obstacle]
+
+        for static in objects.get("static", []):
+            if static.track_id == track_id:
+                static.update(corner, aabb)
+                break
+            # if not found, create a new object
+            else:
+                static_obstacle = StaticObstacle(corner, aabb)
+                if 'static' in objects:
+                    objects['static'].append(static_obstacle)
+                else:
+                    objects['static'] = [static_obstacle]
+
+    return objects

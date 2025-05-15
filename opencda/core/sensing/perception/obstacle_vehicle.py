@@ -102,7 +102,7 @@ class ObstacleVehicle(object):
     """
 
     def __init__(self, corners, o3d_bbx,
-                 vehicle=None, lidar=None, sumo2carla_ids=None, tick_id=0):
+                 vehicle=None, lidar=None, sumo2carla_ids=None, tick_id=0, track_id=None):
 
         if not vehicle:
             self.bounding_box = BoundingBox(corners)
@@ -112,6 +112,10 @@ class ObstacleVehicle(object):
             self.o3d_bbx = o3d_bbx
             self.carla_id = -1
             self.velocity = carla.Vector3D(0.0, 0.0, 0.0)
+            # monotonically increasing unique id for the obstacle vehicle starting from 0
+            # and doesn't collide with other obstacle vehicle ids
+            self.obstacle_id = int(time.time() * 1000) % sys.maxsize 
+            self.track_id = track_id
         else:
             if sumo2carla_ids is None:
                 sumo2carla_ids = dict()
