@@ -25,12 +25,92 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.planer_debug_helper import PlanDebugHelper
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
+from opencda.core.prediction.obstacle_prediction import ObstaclePrediction
 from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
 
 SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
+
+
+def is_prediction_matching_ego(prediction, ego_path_x, ego_path_y, ego_speed, threshold=1.5, max_compare_steps=10):
+    """
+    Check if the predicted trajectory matches the ego vehicle's path.
+    Parameters
+    ----------
+    prediction : ObstaclePrediction
+        The predicted trajectory of the obstacle vehicle.
+    ego_path_x : list
+        The x coordinates of the ego vehicle's path.
+    ego_path_y : list
+        The y coordinates of the ego vehicle's path.
+    ego_speed : float
+        The speed of the ego vehicle.
+    threshold : float
+        The threshold for matching.
+    max_compare_steps : int
+        The maximum number of steps to compare.
+    Returns
+    -------
+    bool
+        True if the predicted trajectory matches the ego vehicle's path.
+    """
+    pred_transforms = prediction.predicted_trajectory[:max_compare_steps]
+    min_len = min(len(pred_transforms), len(ego_path_x), len(ego_path_y))
+
+    if min_len < 3:
+        return False
+
+    total_dist = 0.0
+    for i in range(min_len):
+        pred_loc = pred_transforms[i].location
+        dx = pred_loc.x - ego_path_x[i]
+        dy = pred_loc.y - ego_path_y[i]
+        dist = (dx**2 + dy**2)**0.5
+        total_dist += dist
+
+    avg_dist = total_dist / min_len
+    return avg_dist < threshold
+
+def will_prediction_collide_with_ego(
+    prediction,
+    ego_path_x,
+    ego_path_y,
+    ego_path_yaw,
+    ego_speed_mps,
+    time_step=0.05,
+    lateral_threshold=1.5,
+    max_steps=30
+):
+    """
+    Checks if the predicted trajectory intersects ego path, and returns TTC.
+
+    Returns:
+        (bool, float): (True, time_to_collision_in_sec) if collision likely, else (False, None).
+    """
+    pred_traj = prediction.predicted_trajectory[:max_steps]
+    if not pred_traj or len(ego_path_x) < 2:
+        return False, None
+
+    for i, pred_transform in enumerate(pred_traj):
+        pred_time = i * time_step
+        ego_distance_ahead = ego_speed_mps * pred_time
+        ego_idx = min(int(ego_distance_ahead), len(ego_path_x) - 1)
+
+        ego_x = ego_path_x[ego_idx]
+        ego_y = ego_path_y[ego_idx]
+
+        pred_loc = pred_transform.location
+        dx = pred_loc.x - ego_x
+        dy = pred_loc.y - ego_y
+        lateral_dist = (dx**2 + dy**2) ** 0.5
+
+        if lateral_dist < lateral_threshold:
+            return True, pred_time  # Collision and TTC
+
+    return False, None
 
 class BehaviorAgent(object):
     """
@@ -164,6 +244,7 @@ class BehaviorAgent(object):
         # Other Car Trajecories Dictionary
         self.other_car_trajectories = {}
         self.other_car_speeds = {}
+        self.generated_predictions = [] # ObstaclePrediction list
 
     def update_information(self, ego_pos, ego_speed, objects):
         """
@@ -500,19 +581,35 @@ class BehaviorAgent(object):
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             print("Vehicle Id: %s" %vehicle.carla_id)
             print("Vehicle Trajectory: %s" %self.other_car_trajectories.get(vehicle.carla_id))
-            print("Vehicle Speed: %s" %self.other_car_speeds.get(vehicle.carla_id))
-            if self.other_car_speeds.get(vehicle.carla_id) != None:
-                speed_scalar = np.linalg.norm([self.other_car_speeds.get(vehicle.carla_id).x, self.other_car_speeds.get(vehicle.carla_id).y])
-            else:
-                speed_scalar = 0
-            print("Speed Scalar: %s" %speed_scalar)
+            #print("Vehicle Speed: %s" %self.other_car_speeds.get(vehicle.carla_id))
+            #if self.other_car_speeds.get(vehicle.carla_id) != None:
+            #    speed_scalar = np.linalg.norm([self.other_car_speeds.get(vehicle.carla_id).x, self.other_car_speeds.get(vehicle.carla_id).y])
+            #else:
+                #speed_scalar = 0
+            #print("Speed Scalar: %s" %speed_scalar)
             trajectory_collision_free = True
-            if (vehicle.carla_id != None and self.other_car_trajectories.get(vehicle.carla_id) != None and self.other_car_speeds.get(vehicle.carla_id) != None and speed_scalar > 0.5):
-                trajectory_collision_free = self._collision_check.trajectory_collision_check(
-                    rx, ry, ryaw, self._ego_speed / 3.6, vehicle,
-                    self.other_car_trajectories[vehicle.carla_id].copy(),
-                    self.other_car_speeds[vehicle.carla_id], self._map,
-                    world=self.vehicle.get_world(), adjacent_check=adjacent_check)
+            #if (vehicle.carla_id != None and self.other_car_trajectories.get(vehicle.carla_id) != None and self.other_car_speeds.get(vehicle.carla_id) != None and speed_scalar > 0.5):
+                #trajectory_collision_free = self._collision_check.trajectory_collision_check(
+                 #   rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
+                 #   world=self.vehicle.get_world(), other_vehicle=vehicle, other_trajectory=self.other_car_trajectories[vehicle.carla_id].copy(), other_speed=self.other_car_speeds[vehicle.carla_id])
+            # Remove predictions for the current vehicle
+            for pred in self.generated_predictions:
+                if is_prediction_matching_ego(pred, rx, ry, self._ego_speed / 3.6):
+                    self.generated_predictions.remove(pred)
+
+            colliding = []
+            for pred in self.generated_predictions:
+                collision, ttc = will_prediction_collide_with_ego(
+                    pred,
+                    rx,
+                    ry,
+                    ryaw,
+                    self._ego_speed / 3.6
+                )
+                if collision:
+                    colliding.append(pred)
+                    trajectory_collision_free = False
+                    #print("Collision with prediction: %s" %pred.predicted_trajectory)
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
                 adjacent_check=adjacent_check, world=self.vehicle.get_world())

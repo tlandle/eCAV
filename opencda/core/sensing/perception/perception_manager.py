@@ -23,7 +23,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import \
 from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, \
-    o3d_camera_lidar_fusion
+    o3d_camera_lidar_fusion, o3d_camera_lidar_fusion_from_tracker
 from opencda.client_debug_helper import ClientDebugHelper
 
 class CameraSensor:
@@ -353,6 +353,9 @@ class PerceptionManager:
     carla_world : carla.world
         CARLA world, used for rsu.
 
+    tracking_manager : opencda object
+        The tracking manager that is used to track the detected vehicles.
+
     Attributes
     ----------
     lidar : opencda object
@@ -366,7 +369,7 @@ class PerceptionManager:
     """
 
     def __init__(self, vehicle, config_yaml, cav_world,
-                 data_dump=False, carla_world=None, infra_id=None):
+                 data_dump=False, carla_world=None, infra_id=None, tracking_manager=None):
         self.vehicle = vehicle
  
         if hasattr(vehicle, 'get_world'): 
@@ -418,6 +421,9 @@ class PerceptionManager:
 
         else:
             self.rgb_camera = None
+
+        # tracking manager
+        self.tracking_manager = tracking_manager
 
         # we only spawn the LiDAR when perception module is activated or lidar
         # visualization is needed
@@ -503,6 +509,7 @@ class PerceptionManager:
     def activate_mode(self, objects):
         """
         Use Yolov5 + Lidar fusion to detect objects.
+        Use tracking manager to track the detected objects.
 
         Parameters
         ----------
@@ -530,10 +537,13 @@ class PerceptionManager:
 
         # yolo detection
         yolo_detection = self.ml_manager.object_detector(rgb_images)
+        print("Yolo Detection: %s" %yolo_detection)
+
         # rgb_images for drawing
         rgb_draw_images = []
 
         lidar_data = self.lidar.data
+        print("Lidar Data: %s" %lidar_data)
 
         for (i, rgb_camera) in enumerate(self.rgb_camera):
             # lidar projection
@@ -547,13 +557,20 @@ class PerceptionManager:
             #logger.debug("Lidar Input to Fusion: %s" %len(lidar_data))
             #logger.debug("Projection Input to Fusion %s" %len(projected_lidar))
             # camera lidar fusion
-            objects = o3d_camera_lidar_fusion(
+
+            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+
+            print("Tracking Detection: %s" %tracking_detection)
+
+
+            objects = o3d_camera_lidar_fusion_from_tracker(
                 objects,
-                yolo_detection.xyxy[i],
+                tracking_detection,
                 lidar_data,
                 projected_lidar,
                 self.lidar.sensor,
                 self.cav_world.tick_id)
+            print("Objects after lidar fusion: %s" %objects)
 
             # calculate the speed. current we retrieve from the server
             # directly.

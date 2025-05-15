@@ -10,6 +10,8 @@ from opencda.core.sensing.perception.perception_manager import \
     PerceptionManager
 from opencda.core.sensing.localization.rsu_localization_manager import \
     LocalizationManager
+from opencda.core.sensing.tracking.tracking_manager \
+    import TrackingManager
 
 
 class RSUManager(object):
@@ -79,13 +81,17 @@ class RSUManager(object):
         self.localizer = LocalizationManager(carla_world,
                                              sensing_config['localization'],
                                              self.carla_map)
+        # tracking module
+
+        self.tracking_manager = TrackingManager(None, cav_world, data_dumping, carla_world=carla_world, infra_id=self.rid, tracker_type = "SORT")
         # perception module
         self.perception_manager = PerceptionManager(vehicle=None,
                                                     config_yaml=sensing_config['perception'],
                                                     cav_world=cav_world,
                                                     carla_world = carla_world,
                                                     data_dump=data_dumping,
-                                                    infra_id=self.rid)
+                                                    infra_id=self.rid,
+                                                    tracking_manager=self.tracking_manager)
         self.objects = {}
 
         if data_dumping:

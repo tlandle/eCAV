@@ -1304,7 +1304,7 @@ class ScenarioManager:
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'], other_vehicles=other_vehicles)
+            edge_manager = EdgeManager(self.world, edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'], other_vehicles=other_vehicles)
             if 'rsus' in edge:
                 for index, cav in enumerate(edge['rsus']):
                     rsu_manager = RSUManager(self.world, cav,

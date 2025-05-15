@@ -13,6 +13,7 @@ from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 from threading import Thread
 
+SCENARIO_NAME = 'openscenario_1_edge'
 scenario_runner = None
 
 def exec_scenario_runner(scenario_params):
@@ -95,6 +96,13 @@ def run_scenario(opt, scenario_params):
         assert( edge_dt % world_dt == 0 ) # we need edge time to be an exact multiple of world time because we send waypoints every Nth tick 
 
         edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
+
+
+        # create evaluation manager
+        eval_manager = \
+            EvaluationManager(scenario_manager.cav_world,
+                              script_name=SCENARIO_NAME,
+                              current_time=scenario_params['current_time'])
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following

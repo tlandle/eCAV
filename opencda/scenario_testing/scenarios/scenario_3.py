@@ -14,7 +14,8 @@ import carla
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
                                                                       WaypointFollower,
-                                                                      Idle)
+                                                                      Idle,
+                                                                      SyncArrival)
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import DriveDistance, InTriggerDistanceToLocation
 from srunner.scenarios.basic_scenario import BasicScenario
@@ -43,13 +44,13 @@ class Scenario_3(BasicScenario):
             config.trigger_points[0].location)
 
         self.num_vehicle = 6
-        self.vehicle_01_velocity = 7  # Violated vehicle
+        self.vehicle_01_velocity = 25  # Violated vehicle
         self.vehicle_02_velocity = 0  # Large vehicles from 02 to 06
         self.vehicle_03_velocity = 0
         self.vehicle_04_velocity = 0
         self.vehicle_05_velocity = 0
         self.vehicle_06_velocity = 0
-        self._trigger_distance = 150
+        self._trigger_distance = 75
         self.agents = []
 
         super(Scenario_3, self).__init__("Scenario_3",
@@ -86,13 +87,15 @@ class Scenario_3(BasicScenario):
 
         sequence_vehicle = []
 
-        # Vehicle behaviors
+        # Vehicle behavior
         for i in range(self.num_vehicle):
             sequence_vehicle.append(py_trees.composites.Sequence(f"Vehicle_0{i + 1}"))
             trigger_location = getattr(self, f"vehicle_0{i + 1}_trigger_location")
             actor = self.other_actors[i]
             transform = getattr(self, f"car_0{i + 1}_visible")
             velocity = getattr(self, f"vehicle_0{i + 1}_velocity")
+
+            sync_arrival = SyncArrival(actor, self.ego_vehicles[0] , carla.Location(x=-83.55, y=127.9, z=0.5))
 
             trigger_behavior = InTriggerDistanceToLocation(self.ego_vehicles[0], trigger_location,
                                                            self._trigger_distance)
@@ -103,14 +106,31 @@ class Scenario_3(BasicScenario):
             else:
                 drive_behavior = WaypointFollower(actor, velocity)
 
+            if (i == 0):
+                sync_arrival_parallel = py_trees.composites.Parallel(
+                    f"SyncArrival_{i}", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                waypoint_follower_parallel = py_trees.composites.Parallel(
+                    f"WaypointFollower_{i}", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+
             sequence_vehicle[i].add_child(set_transform_behavior)
+            #if i == 0:
+            #    sequence_vehicle[i].add_child(trigger_behavior)
+            #    sequence_vehicle[i].add_child(sync_arrival_parallel)
+            #    sequence_vehicle[i].add_child(waypoint_follower_parallel)
+            #    waypoint_follower_parallel.add_child(drive_behavior)
+            #    sync_arrival_parallel.add_child(sync_arrival)
+            #if i == 0:
+                #sequence_vehicle[i].add_child(trigger_behavior)
+                #sequence_vehicle[i].add_child(sync_arrival)
+                #sequence_vehicle[i].add_child(drive_behavior)
+            #else:
             sequence_vehicle[i].add_child(trigger_behavior)
             sequence_vehicle[i].add_child(drive_behavior)
             sequence_vehicle[i].add_child(Idle())
             self.agents.append(drive_behavior)
 
         # End condition
-        termination = DriveDistance(self.ego_vehicles[0], 100)
+        termination = DriveDistance(self.ego_vehicles[0], 200)
 
         # Build composite behavior tree
         root = py_trees.composites.Parallel(

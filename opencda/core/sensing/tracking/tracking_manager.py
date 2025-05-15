@@ -61,8 +61,8 @@ class TrackingManager:
         Open3d point cloud visualizer.
     """
 
-    def __init__(self, vehicle, config_yaml, cav_world,
-                 data_dump=False, carla_world=None, infra_id=None):
+    def __init__(self, vehicle, cav_world,
+                 data_dump=False, carla_world=None, infra_id=None, tracker_type=None):
         self.vehicle = vehicle
  
         if hasattr(vehicle, 'get_world'): 
@@ -70,8 +70,8 @@ class TrackingManager:
             else self.vehicle.get_world()
         else:
           self.carla_world = carla_world
-
-        self._map = self.carla_world.get_map()
+        if self.carla_world is not None:
+            self._map = self.carla_world.get_map()
         self.id = infra_id if infra_id is not None else vehicle.id
         #print(carla_world)
 
@@ -84,8 +84,14 @@ class TrackingManager:
         self.ego_pos = None
 
         # the dictionary contains all objects
-        self.objects = {}
         self.data_dump = data_dump
+
+        # TODO: make this a config
+        #self.activate_mode = True
+
+        if tracker_type == 'SORT':
+            from opencda.core.sensing.tracking.sort_tracker import MultiObjectSORTTracker
+            self.tracker = MultiObjectSORTTracker(max_age=5, min_matching_iou=0.3)
 
         self.debug_helper = ClientDebugHelper(0)
 
@@ -105,6 +111,12 @@ class TrackingManager:
             The distance between ego and the target actor.
         """
         return a.get_location().distance(self.ego_pos.location)
+
+    def track(self, objects):
+        #if self.activate_mode:
+        return self.activate_mode(objects)
+        #else:
+        #    return self.deactivate_mode(objects)
 
     def deactivate_mode(self, objects, ego_pos):
         """
@@ -179,4 +191,5 @@ class TrackingManager:
 
         return matches
 
-
+    def activate_mode(self, objects):
+        return self.tracker.track(objects)

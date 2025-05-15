@@ -1,55 +1,65 @@
 import numpy as np
 
-from pylot.perception.detection.obstacle import Obstacle
-from pylot.perception.detection.utils import BoundingBox2D
-from pylot.perception.tracking.multi_object_tracker import MultiObjectTracker
+#from pylot.perception.detection.obstacle import Obstacle
+#from pylot.perception.detection.utils import BoundingBox2D
+from opencda.core.sensing.perception.obstacle_vehicle import BoundingBox
+from opencda.core.sensing.tracking.multi_object_tracker import MultiObjectTracker
 
 from sort.sort import Sort
-
+from collections import deque
 
 class MultiObjectSORTTracker(MultiObjectTracker):
-    def __init__(self, flags, logger):
-        self._logger = logger
-        self.tracker = Sort(max_age=flags.obstacle_track_max_age,
-                            min_hits=1,
-                            min_iou=flags.min_matching_iou)
-
-    def reinitialize(self, frame, obstacles):
-        """ Reinitializes a multiple obstacle tracker.
-
+    def __init__(self, max_age, min_matching_iou):
+        """ Initializes the SORT tracker.
         Args:
-            frame (:py:class:`~pylot.perception.camera_frame.CameraFrame`):
-                Frame to reinitialize with.
-            obstacles : List of perception.detection.obstacle.Obstacle.
+            max_age (int): Maximum number of frames to keep a track alive.
+            min_matching_iou (float): Minimum IOU to consider a match.
+            logger: Logger to log messages.
         """
-        detections, labels, ids = self.convert_detections_for_sort_alg(
-            obstacles)
-        self.tracker.update(detections, labels, ids)
+        self.tracker = Sort(max_age=max_age,
+                            min_hits=1,
+                            min_iou=min_matching_iou)
+        self.history = deque(maxlen=10)
 
-    def track(self, frame):
+    def track(self, detections):
         """ Tracks obstacles in a frame.
-
         Args:
-            frame (:py:class:`~pylot.perception.camera_frame.CameraFrame`):
-                Frame to track in.
+            frame: Current frame.
+            detections: List of detected obstacles.
+        Returns:
+            bool: True if tracking was successful.
+            list: List of tracked obstacles.
+
         """
         # each track in tracks has format ([xmin, ymin, xmax, ymax], id)
-        obstacles = []
-        for track in self.tracker.trackers:
-            coords = track.predict()[0].tolist()
-            # changing to xmin, xmax, ymin, ymax format
-            xmin = int(coords[0])
-            xmax = int(coords[2])
-            ymin = int(coords[1])
-            ymax = int(coords[3])
-            if xmin < xmax and ymin < ymax:
-                bbox = BoundingBox2D(xmin, xmax, ymin, ymax)
-                obstacles.append(Obstacle(bbox, 0, track.label, track.id))
-            else:
-                self._logger.error(
-                    "Tracker found invalid bounding box {} {} {} {}".format(
-                        xmin, xmax, ymin, ymax))
-        return True, obstacles
+        convert_detections, labels, ids = self.convert_detections(detections)
+        tracks = self.tracker.update(convert_detections,
+                                      labels=labels,
+                                      ids=ids)
+        print('tracks:', tracks)
+        self.history.append(tracks.copy()) # for input into predictor
+        return tracks.copy()
+
+    def convert_detections(self, detections):
+        # Prepare detections for SORT
+
+        if detections.is_cuda:
+            detections = detections.cpu().detach().numpy()
+        else:
+            detections = detections.detach().numpy()
+        dets_for_sort = []
+        labels = []
+        ids = []
+        print('detections:', detections)
+        for det in detections:
+            # yolo bbx format: [x1, y1, x2, y2, conf, cls]
+            x1, y1, x2, y2, conf, cls = det
+            # Optionally filter classes (e.g., only cars/trucks)
+            dets_for_sort.append([x1.item(), y1.item(), x2.item(), y2.item(), conf.item()])
+            labels.append(cls.item())
+            ids.append(-1)
+        print('dets_for_sort:', dets_for_sort)
+        return (np.array(dets_for_sort), labels, ids)
 
     def convert_detections_for_sort_alg(self, obstacles):
         converted_detections = []

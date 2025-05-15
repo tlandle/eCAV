@@ -8,6 +8,7 @@ import logging
 
 from opencda.core.safety.sensors import CollisionSensor, \
     TrafficLightDector, StuckDetector, OffRoadDetector
+from opencda.core.safety.safety_debug_helper import SafetyDebugHelper
 
 
 class SafetyManager:
@@ -29,23 +30,25 @@ class SafetyManager:
                         OffRoadDetector(params['offroad_dector']),
                         TrafficLightDector(params['traffic_light_detector'],
                                            vehicle)]
+        self.status_dict = {}
         self.logger = logger
+        self.debug_helper = SafetyDebugHelper(vehicle.id)
 
     def update_info(self, data_dict) -> dict:
-        status_dict = {}
+        self.status_dict = {}
         for sensor in self.sensors:
             sensor.tick(data_dict)
-            status_dict.update(sensor.return_status())
+            self.status_dict.update(sensor.return_status())
         if self.print_message:
             print_flag = False
             # only print message when it has hazard
-            for key, val in status_dict.items():
+            for key, val in self.status_dict.items():
                 if val == True:
                     print_flag = True
                     break
             if print_flag:
                 self.logger.info("Safety Warning from the safety manager:")
-                self.logger.debug(status_dict)
+                self.logger.debug(self.status_dict)
 
 
     def destroy(self):

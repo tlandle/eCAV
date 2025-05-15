@@ -13,6 +13,7 @@ from opencda.scenario_testing.evaluations.utils import lprint
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from omegaconf import OmegaConf
 
 class EvaluationManager(object):
     """
@@ -30,6 +31,10 @@ class EvaluationManager(object):
     current_time : str
         Current timestamp, used to name the output folder.
 
+    scenario_params : dict
+        The scenario parameters used for the simulation.
+        It is used to name the output folder.
+
     Attributes
     ----------
     eval_save_path : str
@@ -37,15 +42,21 @@ class EvaluationManager(object):
 
     """
 
-    def __init__(self, cav_world, script_name, current_time):
+    def __init__(self, cav_world, script_name, current_time, scenario_params=None):
+
         self.cav_world = cav_world
         
 
         current_path = os.path.dirname(os.path.realpath(__file__))
-
-        self.eval_save_path = os.path.join(
-            current_path, '../../../evaluation_outputs',
-            script_name + '_' + current_time)
+        if scenario_params is None:
+            self.eval_save_path = os.path.join(
+                current_path, '../../../evaluation_outputs',
+                script_name + '_' + current_time)
+        else:
+            ego_cav_config = OmegaConf.merge(scenario_params["scenario"]["single_cav_list"][0], scenario_params["vehicle_base"])
+            self.eval_save_path = os.path.join(
+                current_path, '../../../evaluation_outputs',
+                script_name + "_fog_" + str(scenario_params["world"]["weather"]["fog_density"]) + "_rain_" + str(scenario_params["world"]["weather"]["precipitation"]) + "_clouds_" + str(scenario_params["world"]["weather"]["cloudiness"]) + "_target_speed_ego_" + str(ego_cav_config["behavior"]["max_speed"]), current_time) 
         if not os.path.exists(self.eval_save_path):
             os.makedirs(self.eval_save_path)
 
@@ -58,13 +69,13 @@ class EvaluationManager(object):
         """
         log_file = os.path.join(self.eval_save_path, 'log.txt')
 
-        #self.localization_eval(log_file)
+        self.localization_eval(log_file)
         print('Localization Evaluation Done.')
 
-        #self.kinematics_eval(log_file)
+        self.kinematics_eval(log_file)
         print('Kinematics Evaluation Done.')
 
-        #self.platooning_eval(log_file)
+        self.platooning_eval(log_file)
         print('Platooning Evaluation Done.')
 
         #self.edge_eval(log_file)
@@ -101,6 +112,7 @@ class EvaluationManager(object):
                 '%d_kinematics_plotting.eps' %
                 actor_id)
             figure.savefig(figure_save_path, format='eps', dpi=1200)
+            plt.close(figure)
 
 
             lprint(log_file, perform_txt)
@@ -129,6 +141,7 @@ class EvaluationManager(object):
                 '%d_localization_plotting.eps' %
                 actor_id)
             figure.savefig(figure_save_path, format='eps', dpi=1200)
+            plt.close(figure)
 
 
             # save log txt
@@ -154,6 +167,7 @@ class EvaluationManager(object):
                 '%s_platoon_plotting.eps' %
                 pmid)
             figure.savefig(figure_save_path, format='eps', dpi=1200)
+            plt.close(figure)
 
 
             # save log txt
@@ -179,6 +193,7 @@ class EvaluationManager(object):
                 '%s_edge_plotting.eps' %
                 pmid)
             figure.savefig(figure_save_path, format='eps', dpi=1200)
+            plt.close(figure)
 
 
             # save log txt
@@ -216,6 +231,7 @@ class EvaluationManager(object):
             self.eval_save_path,
             'collision_plotting.png')
         ax.get_figure().savefig(figure_save_path, format='png')
+        plt.close(ax.get_figure())
 
 
         # save log txt
@@ -227,7 +243,7 @@ class EvaluationManager(object):
         Args:
             -log_file (File): The log file to write the data.
         """
-        lprint(log_file, "***********Collision Module***********")
+        lprint(log_file, "***********Lane Invasion Module***********")
         data = []
         vehicle_ids = []
         for vid, vm in self.cav_world.get_vehicle_managers().items():
@@ -252,6 +268,7 @@ class EvaluationManager(object):
             self.eval_save_path,
             'lane_invasions_plotting.png')
         ax.get_figure().savefig(figure_save_path, format='png')
+        plt.close(ax.get_figure())
 
 
         # save log txt
