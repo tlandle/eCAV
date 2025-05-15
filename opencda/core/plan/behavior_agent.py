@@ -577,6 +577,32 @@ class BehaviorAgent(object):
 
         #print(adjacent_check)
 
+        for pred in self.generated_predictions:
+            if is_prediction_matching_ego(pred, rx, ry, self._ego_speed / 3.6):
+                self.generated_predictions.remove(pred)
+
+        colliding = []
+        for pred in self.generated_predictions:
+            # get speed from pred
+            dt = 0.05 # tyler hardcoded this for now lol
+            detected_traj = pred.obstacle_trajectory
+            last_2_postions = detected_traj.get_last_n_transforms(2)
+            prev_pos, current_pos = last_2_postions[0], last_2_postions[1]
+            vel_x = (current_pos.location.x - prev_pos.location.x) / dt
+            vel_y = (current_pos.location.y - prev_pos.location.y) / dt
+            obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
+
+            collision, ttc = self._collision_check.trajectory_collision_check(
+                rx, ry, ryaw, self._ego_speed / 3.6,
+                pred.predicted_trajectory, obstacle_speed,
+                self._map, world=self.vehicle.get_world(),
+                adjacent_check=adjacent_check, is_left_turn_at_intersection=is_left_turn_at_intersection
+            )
+            if collision:
+                colliding.append(pred)
+                vehicle_state = True
+                #print("Collision with prediction: %s" %pred.predicted_trajectory)
+
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             print("Vehicle Id: %s" %vehicle.carla_id)
@@ -593,23 +619,7 @@ class BehaviorAgent(object):
                  #   rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
                  #   world=self.vehicle.get_world(), other_vehicle=vehicle, other_trajectory=self.other_car_trajectories[vehicle.carla_id].copy(), other_speed=self.other_car_speeds[vehicle.carla_id])
             # Remove predictions for the current vehicle
-            for pred in self.generated_predictions:
-                if is_prediction_matching_ego(pred, rx, ry, self._ego_speed / 3.6):
-                    self.generated_predictions.remove(pred)
-
-            colliding = []
-            for pred in self.generated_predictions:
-                collision, ttc = will_prediction_collide_with_ego(
-                    pred,
-                    rx,
-                    ry,
-                    ryaw,
-                    self._ego_speed / 3.6
-                )
-                if collision:
-                    colliding.append(pred)
-                    trajectory_collision_free = False
-                    #print("Collision with prediction: %s" %pred.predicted_trajectory)
+         
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
                 adjacent_check=adjacent_check, world=self.vehicle.get_world())

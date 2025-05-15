@@ -79,14 +79,13 @@ def interpolate_positions(waypoints_deque, num_waypoints=10, interval=3.0):
 
     return positions
 
-def linear_interp_trajectory(waypoints_deque):
+def linear_interp_trajectory(pred_trajectory):
     points = []
 
     # grab waypoint positions
-    for i in range(len(waypoints_deque)):
-        curr_waypoint = waypoints_deque[i][0]
-        x = curr_waypoint.transform.location.x
-        y = curr_waypoint.transform.location.y
+    for i, pred_transform in enumerate(pred_trajectory):
+        x = pred_transform.location.x
+        y = pred_transform.location.y
         points.append([x, y])
 
     points = np.asarray(points)
@@ -111,7 +110,39 @@ def linear_interp_trajectory(waypoints_deque):
     # get path
     rx = xs(sp)
     ry = ys(sp)
-    return rx, ry
+    return sp, np.stack((rx, ry), axis=1)
+
+def time_reparametrize(points, sp, speed):
+    if speed == 0:
+        tp = np.full_like(sp, fill_value=0.0)
+    else:
+        tp = sp / speed
+    
+    x, y = points[:, 0], points[:, 1]
+    xt = interp1d(tp, x, kind='linear')
+    yt = interp1d(tp, y, kind='linear')
+    return xt, yt, tp
+
+def lookahead_interp(xt, yt, time_ahead, dt=0.05, t_max=None):
+    t_end = min(time_ahead, t_max)
+    num_steps = int(t_end / dt)
+    tp = np.linspace(0, num_steps * dt, num_steps + 1)
+    x = xt(tp)
+    y = yt(tp)
+    return x, y
+
+def check_paths_within_radius(path_a, path_b, r=1, dt=0.05):
+    diffs = path_a - path_b
+    dists = np.linalg.norm(diffs, axis=1)
+    is_collision = np.any(dists < r)
+
+    collision_indices = np.where(dists < r)[0]
+    if is_collision:
+        ttc = collision_indices[0] * dt
+    else:
+        ttc = None
+
+    return is_collision, ttc
 
 def interpolate_positions_points(waypoints_deque, num_points=10, num_waypoints=10):
 
@@ -502,13 +533,13 @@ class CollisionChecker:
     def trajectory_collision_check(
             self,
             ego_path_x, 
-            ego_path_y, 
+            ego_path_y,
             ego_path_yaw,
             ego_speed,
-            obstacle_vehicle,
             obstacle_trajectory,
-            obstacle_velocity,
+            obstacle_speed,
             carla_map,
+            time_step=0.05,
             world=None,
             adjacent_check=False,
             is_left_turn_at_intersection=False):
@@ -516,35 +547,40 @@ class CollisionChecker:
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
-        # compute number of points ahead in the ego trajectory we want to find
-        ego_points_ahead = int(min(max(ego_speed * self.time_ahead / 0.1, 50), len(ego_path_x)) \
-            if not adjacent_check else len(ego_path_x))
-        ego_rx = ego_path_x[:ego_points_ahead]
-        ego_ry = ego_path_y[:ego_points_ahead]
-        
-        # get interpolation of obstacle trajectory
-        obstacle_path_x, obstacle_path_y = linear_interp_trajectory(obstacle_trajectory)
-        # obstacle_speed = np.linalg.norm([obstacle_velocity.x, obstacle_velocity.y])
-        # # input(f"speed for obstacle id {obstacle_vehicle.carla_id}: {obstacle_speed}")
-        # obstacle_points_ahead = int(min(obstacle_speed * self.time_ahead / 0.1, len(obstacle_path_x)) \
-            # if not adjacent_check else len(obstacle_path_x))
-        obstacle_points_ahead = min(len(obstacle_path_x), ego_points_ahead)
-        obstacle_rx = obstacle_path_x[:obstacle_points_ahead]
-        obstacle_ry = obstacle_path_y[:obstacle_points_ahead]
+        # find sp for ego path
+        ego_interp_path = np.stack((ego_path_x, ego_path_y), axis=1)
+        ego_diffs = np.diff(ego_interp_path, axis=0)
+        ego_segment_lengths = np.linalg.norm(ego_diffs, axis=1)
+        ego_sp = np.insert(np.cumsum(ego_segment_lengths), 0, 0.0)
 
+        # get interpolation of obstacle trajectory
+        obstacle_sp, obstacle_interp_path = linear_interp_trajectory(obstacle_trajectory)
+
+        # convert paths to time domain
+        ego_xt, ego_yt, ego_tp = time_reparametrize(ego_interp_path, ego_sp, ego_speed)
+        obstacle_xt, obstacle_yt, obstacle_tp = time_reparametrize(obstacle_interp_path,
+                                                                   obstacle_sp,
+                                                                   obstacle_speed)
+
+        # get lookahead paths
+        ego_x, ego_y = lookahead_interp(ego_xt, ego_yt, self.time_ahead, t_max=ego_tp[-1])
+        obstacle_x, obstacle_y = lookahead_interp(obstacle_xt,
+                                                  obstacle_yt,
+                                                  self.time_ahead,
+                                                  t_max=obstacle_tp[-1])
+        
         if world is not None:
             # draw ego path
-            for i in range(ego_points_ahead):
-                world.debug.draw_point(carla.Location(x=ego_rx[i], y=ego_ry[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
+            for i in range(len(ego_x)):
+                world.debug.draw_point(carla.Location(x=ego_x[i], y=ego_y[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
             # draw obstacle path
-            for i in range(obstacle_points_ahead):
-                world.debug.draw_point(carla.Location(x=obstacle_rx[i], y=obstacle_ry[i], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=2.0)
+            for i in range(len(obstacle_x)):
+                world.debug.draw_point(carla.Location(x=obstacle_x[i], y=obstacle_y[i], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=2.0)
 
-        # check for potential collisions
-        ego_path = np.stack((ego_rx, ego_ry), axis=1)
-        obstacle_path = np.stack((obstacle_rx, obstacle_ry), axis=1)
-        dists = spatial.distance.cdist(ego_path, obstacle_path)
-        collision_dists = np.subtract(dists, self._circle_radius)
-        return np.any(collision_dists < 0)
+        length = min(len(ego_x), len(obstacle_x))
+        ego_path = np.stack((ego_x[:length], ego_y[:length]), axis=1)
+        obstacle_path = np.stack((obstacle_x[:length], obstacle_y[:length]), axis=1)
+        is_collision, ttc = check_paths_within_radius(ego_path, obstacle_path, r=self._circle_radius)
+        return is_collision, ttc
 
 
