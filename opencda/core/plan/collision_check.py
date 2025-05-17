@@ -112,12 +112,8 @@ def linear_interp_trajectory(pred_trajectory):
     ry = ys(sp)
     return sp, np.stack((rx, ry), axis=1)
 
-def time_reparametrize(points, sp, speed):
-    if speed == 0:
-        tp = np.full_like(sp, fill_value=0.0)
-    else:
-        tp = sp / speed
-    
+def time_reparametrize(points, sp, speed, min_speed=5):
+    tp = sp / max(speed, min_speed)
     x, y = points[:, 0], points[:, 1]
     xt = interp1d(tp, x, kind='linear')
     yt = interp1d(tp, y, kind='linear')
@@ -562,20 +558,12 @@ class CollisionChecker:
                                                                    obstacle_sp,
                                                                    obstacle_speed)
 
-        # get lookahead paths
+        # # get lookahead paths
         ego_x, ego_y = lookahead_interp(ego_xt, ego_yt, self.time_ahead, t_max=ego_tp[-1])
         obstacle_x, obstacle_y = lookahead_interp(obstacle_xt,
                                                   obstacle_yt,
                                                   self.time_ahead,
                                                   t_max=obstacle_tp[-1])
-        
-        if world is not None:
-            # draw ego path
-            for i in range(len(ego_x)):
-                world.debug.draw_point(carla.Location(x=ego_x[i], y=ego_y[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
-            # draw obstacle path
-            for i in range(len(obstacle_x)):
-                world.debug.draw_point(carla.Location(x=obstacle_x[i], y=obstacle_y[i], z=.5), color=carla.Color(0,255,0), size=0.1, life_time=2.0)
 
         length = min(len(ego_x), len(obstacle_x))
         ego_path = np.stack((ego_x[:length], ego_y[:length]), axis=1)
