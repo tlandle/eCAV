@@ -380,21 +380,21 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
                 objects['vehicles'] = [vehicle_obstacle]
             continue
 
+
+        found = False
         for vehicle in objects.get("vehicles", []):
             if vehicle.track_id == track_id:
                 vehicle.corner = corner
-                vehicle.aabb = aabb
+                vehicle.aabb   = aabb
+                found = True
+                break                     # we updated the right one
 
-                print("update vehicle: ", vehicle.track_id)
-                break
-            else:
-                print("create new vehicle: ", track_id)
-                vehicle_obstacle = ObstacleVehicle(corner, aabb, tick_id=tick_id, track_id=track_id)
-                if 'vehicles' in objects:
-                    objects['vehicles'].append(vehicle_obstacle)
-                else:
-                    objects['vehicles'] = [vehicle_obstacle]
-
+        if not found:                     # create only once
+            vehicle_obstacle = ObstacleVehicle(corner, aabb,
+                                               tick_id=tick_id,
+                                               track_id=track_id)
+            objects.setdefault("vehicles", []).append(vehicle_obstacle)
+        
         for static in objects.get("static", []):
             if static.track_id == track_id:
                 static.update(corner, aabb)
