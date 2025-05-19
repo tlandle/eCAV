@@ -576,37 +576,40 @@ class BehaviorAgent(object):
         target_vehicle = None
 
         #print(adjacent_check)
+        print("num predictions: %s" %len(self.generated_predictions))
 
         for pred in self.generated_predictions:
             if is_prediction_matching_ego(pred, rx, ry, self._ego_speed / 3.6):
                 self.generated_predictions.remove(pred)
 
-        colliding = []
         for pred in self.generated_predictions:
             # get speed from pred
             dt = 0.05 # tyler hardcoded this for now lol
-            detected_traj = pred.obstacle_trajectory
-            last_2_postions = detected_traj.get_last_n_transforms(2)
-            prev_pos, current_pos = last_2_postions[0], last_2_postions[1]
-            vel_x = (current_pos.location.x - prev_pos.location.x) / dt
-            vel_y = (current_pos.location.y - prev_pos.location.y) / dt
-            obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
+            detected_traj = pred.obstacle_trajectory.trajectory
+            if len(detected_traj) > 1:
+                prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
+                vel_x = (current_pos.location.x - prev_pos.location.x) / dt
+                vel_y = (current_pos.location.y - prev_pos.location.y) / dt
+                obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
+            else:
+                obstacle_speed = 0  # literally no idea what to do in this case
+
+            # print("Obstacle speed: %s" %obstacle_speed)
 
             collision, ttc = self._collision_check.trajectory_collision_check(
                 rx, ry, ryaw, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
-                self._map, world=self.vehicle.get_world(),
-                adjacent_check=adjacent_check, is_left_turn_at_intersection=is_left_turn_at_intersection
+                self._map, world=self.vehicle.get_world(), time_step=dt
             )
             if collision:
-                colliding.append(pred)
                 vehicle_state = True
-                #print("Collision with prediction: %s" %pred.predicted_trajectory)
-
+                return vehicle_state, target_vehicle, min_distance
+                print("Collision with prediction: %s" %pred.predicted_trajectory)
+        
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             print("Vehicle Id: %s" %vehicle.carla_id)
-            print("Vehicle Trajectory: %s" %self.other_car_trajectories.get(vehicle.carla_id))
+            # print("Vehicle Trajectory: %s" %self.other_car_trajectories.get(vehicle.carla_id))
             #print("Vehicle Speed: %s" %self.other_car_speeds.get(vehicle.carla_id))
             #if self.other_car_speeds.get(vehicle.carla_id) != None:
             #    speed_scalar = np.linalg.norm([self.other_car_speeds.get(vehicle.carla_id).x, self.other_car_speeds.get(vehicle.carla_id).y])
