@@ -79,16 +79,7 @@ def interpolate_positions(waypoints_deque, num_waypoints=10, interval=3.0):
 
     return positions
 
-def linear_interp_trajectory(pred_trajectory):
-    points = []
-
-    # grab waypoint positions
-    for i, pred_transform in enumerate(pred_trajectory):
-        x = pred_transform.location.x
-        y = pred_transform.location.y
-        points.append([x, y])
-
-    points = np.asarray(points)
+def linear_interp_trajectory(points):
     x = points[:, 0]
     y = points[:, 1]
 
@@ -543,14 +534,21 @@ class CollisionChecker:
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
-        # find sp for ego path
-        ego_interp_path = np.stack((ego_path_x, ego_path_y), axis=1)
-        ego_diffs = np.diff(ego_interp_path, axis=0)
-        ego_segment_lengths = np.linalg.norm(ego_diffs, axis=1)
-        ego_sp = np.insert(np.cumsum(ego_segment_lengths), 0, 0.0)
+        # linear interpolate over ego path (naive)
+        distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 50), len(ego_path_x))    # minimum number of points can be tuned
+        ego_x_points = ego_path_x[:distance_check]
+        ego_y_points = ego_path_y[:distance_check]
+        ego_points = np.stack((ego_x_points, ego_y_points), axis=1)
+        ego_sp, ego_interp_path = linear_interp_trajectory(ego_points)
 
         # get interpolation of obstacle trajectory
-        obstacle_sp, obstacle_interp_path = linear_interp_trajectory(obstacle_trajectory)
+        obs_points = []
+        for i, pred_transform in enumerate(obstacle_trajectory):
+            x = pred_transform.location.x
+            y = pred_transform.location.y
+            obs_points.append([x, y])
+        obs_points = np.asarray(obs_points)
+        obstacle_sp, obstacle_interp_path = linear_interp_trajectory(obs_points)
 
         # convert paths to time domain
         ego_xt, ego_yt, ego_tp = time_reparametrize(ego_interp_path, ego_sp, ego_speed)
