@@ -99,10 +99,10 @@ def run_scenario(opt, scenario_params):
 
 
         # create evaluation manager
-        eval_manager = \
-            EvaluationManager(scenario_manager.cav_world,
-                              script_name=SCENARIO_NAME,
-                              current_time=scenario_params['current_time'])
+        # eval_manager = \
+        #     EvaluationManager(scenario_manager.cav_world,
+        #                       script_name=SCENARIO_NAME,
+        #                       current_time=scenario_params['current_time'])
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following

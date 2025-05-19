@@ -48,8 +48,8 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_1
   num_actors: 2
-  configFile: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_1.xml'
-  additionalScenario: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_1.py'
+  configFile: '/home/chattsgpu/Documents/Carla_opencda/eCloudSim/opencda/scenario_testing/scenarios/scenario_1.xml'
+  additionalScenario: '/home/chattsgpu/Documents/Carla_opencda/eCloudSim/opencda/scenario_testing/scenarios/scenario_1.py'
 
   host: *host
   port: *port

@@ -12,6 +12,7 @@ import os
 import sys
 import subprocess
 from omegaconf import OmegaConf
+import torch
 
 from opencda.version import __version__
 import coloredlogs, logging
@@ -66,6 +67,9 @@ def main():
     scene_dict = OmegaConf.load(config_yaml)
     # merge the dictionaries
     scene_dict = OmegaConf.merge(default_dict, scene_dict)
+
+    if opt.apply_ml:
+        torch.cuda.init()
 
     # import the testing script
     testing_scenario = importlib.import_module(
