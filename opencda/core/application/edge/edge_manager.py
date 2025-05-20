@@ -787,6 +787,7 @@ class EdgeManager(object):
         print("Number of Steps for Latency: ", number_of_steps)
         ab3dmot_vehicles = []
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
+            vehicle_manager.agent.generated_predictions.clear() # surely this will work
 
             # Get vehicle objects
             objects = self.objects_deque[number_of_steps].copy()
@@ -970,6 +971,9 @@ class EdgeManager(object):
 
             # Update vehicle manager agent vehicle speeds
             vehicle_manager.agent.other_car_speeds = self.vehicle_speeds.copy()
+
+            # clear predictions
+            # vehicle_manager.agent.generated_predictions.clear()
 
             # Apply Control; Run Step 
             vehicle_manager.update_info(step_id)

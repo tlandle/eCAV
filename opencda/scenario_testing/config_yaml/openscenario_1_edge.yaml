@@ -228,7 +228,7 @@ edge_base: &edge_base
   search_dt: 2
   latency: .1 
   edge_sets_destination: false # otherwise, edge sets WP
-  mode: PERCEPTION                                                
+  mode: PREDICTION                                                
 
 # Define OpenCDA scenario
 scenario:
