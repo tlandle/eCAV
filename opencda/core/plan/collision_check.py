@@ -534,12 +534,11 @@ class CollisionChecker:
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
-        # linear interpolate over ego path (naive)
-        distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 50), len(ego_path_x))    # minimum number of points can be tuned
-        ego_x_points = ego_path_x[:distance_check]
-        ego_y_points = ego_path_y[:distance_check]
-        ego_points = np.stack((ego_x_points, ego_y_points), axis=1)
-        ego_sp, ego_interp_path = linear_interp_trajectory(ego_points)
+        # ego path is already interpolated with an arc step size of 0.1
+        ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 90), len(ego_path_x))    # minimum number of points can be tuned
+        ego_x_points = ego_path_x[:ego_distance_check]
+        ego_y_points = ego_path_y[:ego_distance_check]
+        ego_path = np.stack((ego_x_points, ego_y_points), axis=1)
 
         # get interpolation of obstacle trajectory
         obs_points = []
@@ -550,30 +549,25 @@ class CollisionChecker:
         obs_points = np.asarray(obs_points)
         obstacle_sp, obstacle_interp_path = linear_interp_trajectory(obs_points)
 
-        # convert paths to time domain
-        ego_xt, ego_yt, ego_tp = time_reparametrize(ego_interp_path, ego_sp, ego_speed)
-        obstacle_xt, obstacle_yt, obstacle_tp = time_reparametrize(obstacle_interp_path,
-                                                                   obstacle_sp,
-                                                                   obstacle_speed)
+        # # get look ahead interpolation
+        obs_path_x = obstacle_interp_path[:, 0]
+        obs_path_y = obstacle_interp_path[:, 1]
+        obs_distance_check = min(int(self.time_ahead * obstacle_speed / 0.1), len(obs_path_x))
+        obs_x_points = obs_path_x[:obs_distance_check]
+        obs_y_points = obs_path_y[:obs_distance_check]
+        obs_path = np.stack((obs_x_points, obs_y_points), axis=1)
 
-        # get lookahead paths
-        ego_x, ego_y = lookahead_interp(ego_xt, ego_yt, self.time_ahead, t_max=ego_tp[-1], dt=time_step)
-        obstacle_x, obstacle_y = lookahead_interp(obstacle_xt,
-                                                  obstacle_yt,
-                                                  self.time_ahead,
-                                                  t_max=obstacle_tp[-1],
-                                                  dt=time_step)
-        
-        # if world is not None:
-        #     for i in range(len(ego_x)):
-        #         world.debug.draw_point(carla.Location(x=ego_x[i], y=ego_y[i], z=.5), color=carla.Color(255,255,0), size=0.1, life_time=2.0)
-        #     for i in range(len(obstacle_x)):
-        #         world.debug.draw_point(carla.Location(x=obstacle_x[i], y=obstacle_y[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=2.0)
+        # check collision
+        dists = spatial.distance.cdist(ego_path, obs_path)
+        collision_dists = np.subtract(dists, self._circle_radius)
+        is_collision = np.any(collision_dists < 0)
 
-        length = min(len(ego_x), len(obstacle_x))
-        ego_path = np.stack((ego_x[:length], ego_y[:length]), axis=1)
-        obstacle_path = np.stack((obstacle_x[:length], obstacle_y[:length]), axis=1)
-        is_collision, ttc = check_paths_within_radius(ego_path, obstacle_path, r=self._circle_radius, dt=time_step)
-        return is_collision, ttc
+        if world is not None:
+            for i in range(ego_distance_check):
+                world.debug.draw_point(carla.Location(x=ego_path_x[i], y=ego_path_y[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=2.0)
+            for i in range(obs_distance_check):
+                world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=2.0)
+
+        return is_collision
 
 

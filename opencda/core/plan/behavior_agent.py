@@ -194,8 +194,9 @@ class BehaviorAgent(object):
         self.break_distance = 0
         self.ttc = 1000
         # collision checker
+        time_ahead = 10 # config_yaml['collision_time_ahead']
         self._collision_check = CollisionChecker(
-            time_ahead=config_yaml['collision_time_ahead'])
+            time_ahead=time_ahead)
         self.ignore_traffic_light = config_yaml['ignore_traffic_light']
         self.overtake_allowed = config_yaml['overtake_allowed']
         self.overtake_allowed_origin = config_yaml['overtake_allowed']
@@ -546,7 +547,7 @@ class BehaviorAgent(object):
             self.light_id_to_ignore = -1
         return 0
 
-    def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False, is_left_turn_at_intersection=False):
+    def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False, is_left_turn_at_intersection=False, obs_check=False):
         """
         This module is in charge of warning in case of a collision.
 
@@ -581,30 +582,6 @@ class BehaviorAgent(object):
         for pred in self.generated_predictions:
             if is_prediction_matching_ego(pred, rx, ry, self._ego_speed / 3.6):
                 self.generated_predictions.remove(pred)
-
-        for pred in self.generated_predictions:
-            # get speed from pred
-            dt = 0.05 # tyler hardcoded this for now lol
-            detected_traj = pred.obstacle_trajectory.trajectory
-            if len(detected_traj) > 1:
-                prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
-                vel_x = (current_pos.location.x - prev_pos.location.x) / dt
-                vel_y = (current_pos.location.y - prev_pos.location.y) / dt
-                obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
-            else:
-                obstacle_speed = 0  # literally no idea what to do in this case
-
-            # print("Obstacle speed: %s" %obstacle_speed)
-
-            collision, ttc = self._collision_check.trajectory_collision_check(
-                rx, ry, ryaw, self._ego_speed / 3.6,
-                pred.predicted_trajectory, obstacle_speed,
-                self._map, world=self.vehicle.get_world(), time_step=dt
-            )
-            if collision:
-                vehicle_state = True
-                return vehicle_state, target_vehicle, min_distance
-                print("Collision with prediction: %s" %pred.predicted_trajectory)
         
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
@@ -616,7 +593,6 @@ class BehaviorAgent(object):
             #else:
                 #speed_scalar = 0
             #print("Speed Scalar: %s" %speed_scalar)
-            trajectory_collision_free = True
             #if (vehicle.carla_id != None and self.other_car_trajectories.get(vehicle.carla_id) != None and self.other_car_speeds.get(vehicle.carla_id) != None and speed_scalar > 0.5):
                 #trajectory_collision_free = self._collision_check.trajectory_collision_check(
                  #   rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
@@ -644,14 +620,6 @@ class BehaviorAgent(object):
                 if distance < min_distance:
                     min_distance = distance
                     target_vehicle = vehicle
-
-            if not trajectory_collision_free:
-                vehicle_state = True
-                #if distance < 10:
-                distance = 2.0
-                if distance < min_distance:
-                    min_distance = distance
-                    target_vehicle = vehicle
 #        for obstacle in self.static_obstacles:
 #            collision_free = self._collision_check.collision_circle_check(
 #                rx, ry, ryaw, obstacle, self._ego_speed / 3.6, self._map,
@@ -668,6 +636,32 @@ class BehaviorAgent(object):
 #                    min_distance = distance
 #                    target_vehicle = obstacle
 #
+
+        if not obs_check:
+            collisions = []
+            for pred in self.generated_predictions:
+                # get speed from pred
+                dt = 0.05 # tyler hardcoded this for now lol
+                detected_traj = pred.obstacle_trajectory.trajectory
+                if len(detected_traj) > 1:
+                    prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
+                    vel_x = (current_pos.location.x - prev_pos.location.x) / dt
+                    vel_y = (current_pos.location.y - prev_pos.location.y) / dt
+                    obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
+                else:
+                    obstacle_speed = 0  # literally no idea what to do in this case
+
+                # print("Obstacle speed: %s" %obstacle_speed)
+
+                collision = self._collision_check.trajectory_collision_check(
+                    rx, ry, ryaw, self._ego_speed / 3.6,
+                    pred.predicted_trajectory, obstacle_speed,
+                    self._map, world=self.vehicle.get_world(), time_step=dt
+                )
+                if collision:
+                    vehicle_state = True
+                    collisions.append(pred)
+                    print("detected collision with %s" %pred.predicted_trajectory)
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -1190,7 +1184,7 @@ class BehaviorAgent(object):
         is_hazard = False
         if collision_detector_enabled:
             is_hazard, obstacle_vehicle, distance = self.collision_manager(
-                rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn)
+                rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn, obs_check=True)
         car_following_flag = False
         end_time = time.time()
         self.debug_helper.update_agent_step_list(5, end_time-start_time)
