@@ -132,10 +132,11 @@ def run_scenario(opt, scenario_params):
             view_transform.location = ego_cav.get_transform().location
             print("ego_cav.get_transform().location: %s" %ego_cav.get_transform().location)
             if ego_cav.get_transform().location.x == 0 and ego_cav.get_transform().location.y == 0:
-                input("ego_cav.get_transform().location.x == 0")
+                break;
             view_transform.location.z = view_transform.location.z + spectator_altitude
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
+            
 
             # Apply the control to the ego vehicle
             for edge in edge_list:
@@ -144,6 +145,12 @@ def run_scenario(opt, scenario_params):
             step = step + 1
             time.sleep(0.001)
 
+    except SystemExit as e:
+        print(f"Caught SystemExit({e.code}) in run_scenario — proceeding to evaluation/cleanup")
+
+    except Exception as e:
+        print(f"Caught exception {type(e).__name__} in run_scenario: {e} — proceeding to evaluation/cleanup")
+
     finally:
         for edge in edge_list:
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
@@ -151,9 +158,6 @@ def run_scenario(opt, scenario_params):
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
         if eval_manager is not None:
             eval_manager.evaluate()
-        if cav_world is not None:
-            cav_world.destroy()
-        print("Destroyed cav_world")
         if scenario_manager is not None:
             scenario_manager.close()
         print("Destroyed scenario_manager")

@@ -10,6 +10,7 @@ import subprocess
 import os
 from datetime import datetime
 from opencda.scenario_testing.evaluations.utils import lprint
+import json
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -284,8 +285,53 @@ class EvaluationManager(object):
         """
         lprint(log_file, "***********Simulation Analysis***********")
 
-        scenario_manager =self.cav_world.get_scenario_manager()
-        figure, perform_txt = scenario_manager.evaluate()
+        # 1) safely call your evaluate()
+        try:
+            scenario_manager =self.cav_world.get_scenario_manager()
+            figure, perform_txt = scenario_manager.evaluate()
+            error = None
+
+        except SystemExit as e:
+            lprint(log_file, f" Caught SystemExit({e.code}), marking failure")
+            figure = plt.figure()               # empty placeholder
+            perform_txt = "success_rate: 0.0"    # you can extend this string
+            error = f"SystemExit({e.code})"
+
+        except Exception as e:
+            lprint(log_file, f"Error during evaluate(): {type(e).__name__}: {e}")
+            figure = plt.figure()
+            perform_txt = "success_rate: 0.0"
+            error = type(e).__name__
+
+        # 2) parse perform_txt into dict
+        metrics = {}
+        for part in perform_txt.replace("\n", "").split(","):
+            if ":" not in part:
+                continue
+            k, v = part.split(":", 1)
+            key = k.strip().lower().replace(" ", "_")
+            try:
+                metrics[key] = float(v.strip())
+            except ValueError:
+                metrics[key] = v.strip()
+
+
+
+        # === SUCCESS definition ===
+        collisions   = metrics.get("collision_count", 1)
+        deadlockflag = metrics.get("deadlock_detected", True)
+        success      = (collisions == 0) and (not deadlockflag)
+        metrics["success_rate"] = 1.0 if success else 0.0
+
+
+        # 3) always add an error field if we caught one
+        if error is not None:
+            metrics["error"] = error
+
+        # 4) write JSON
+        json_path = os.path.join(self.eval_save_path, "simulation_metrics.json")
+        with open(json_path, "w") as jf:
+            json.dump(metrics, jf, indent=2)
 
         # save plotting
         figure_save_path = os.path.join(
@@ -297,12 +343,12 @@ class EvaluationManager(object):
             'simulation_plotting.png')
         figure.savefig(figure_save_path, format='png')
 
+        plt.close(figure)
 
         # save log txt
         lprint(log_file, perform_txt)
 
 
-        # In[5]:                                                                                                                                                                                                                                                                           
 def create_bar_plot(data, x, y, labels):                                                                                                                                                                                                                                           
     """                                                                                                                                                                                                                                                                            
     Create a bar plot using seaborn.                                                                                                                                                                                                                                               
