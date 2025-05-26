@@ -194,7 +194,7 @@ class BehaviorAgent(object):
         self.break_distance = 0
         self.ttc = 1000
         # collision checker
-        time_ahead = 10 # config_yaml['collision_time_ahead']
+        time_ahead = config_yaml['collision_time_ahead']
         self._collision_check = CollisionChecker(
             time_ahead=time_ahead)
         self.ignore_traffic_light = config_yaml['ignore_traffic_light']
@@ -659,6 +659,8 @@ class BehaviorAgent(object):
             )
             if collision:
                 vehicle_state = True
+                target_vehicle = pred.obstacle_trajectory.obstacle
+                min_distance = 0
                 collisions.append(pred)
                 print("detected collision with %s" %pred.predicted_trajectory)
 
@@ -1183,7 +1185,7 @@ class BehaviorAgent(object):
         is_hazard = False
         if collision_detector_enabled:
             is_hazard, obstacle_vehicle, distance = self.collision_manager(
-                rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn, obs_check=True)
+                rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn)
         car_following_flag = False
         end_time = time.time()
         self.debug_helper.update_agent_step_list(5, end_time-start_time)

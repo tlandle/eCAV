@@ -102,10 +102,10 @@ def run_scenario(opt, scenario_params):
         edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
 
         # Create evaluation manager
-        eval_manager = \
-            EvaluationManager(scenario_manager.cav_world,
-                              script_name=SCENARIO_NAME,
-                              current_time=scenario_params['current_time'])
+        # eval_manager = \
+        #     EvaluationManager(scenario_manager.cav_world,
+        #                       script_name=SCENARIO_NAME,
+        #                       current_time=scenario_params['current_time'])
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following

@@ -534,6 +534,9 @@ class CollisionChecker:
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
+        if obstacle_speed < 5:
+            return False    # ignore "stationary" obstacles
+
         # ego path is already interpolated with an arc step size of 0.1
         ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 90), len(ego_path_x))    # minimum number of points can be tuned
         ego_x_points = ego_path_x[:ego_distance_check]
@@ -564,9 +567,9 @@ class CollisionChecker:
 
         if world is not None:
             for i in range(ego_distance_check):
-                world.debug.draw_point(carla.Location(x=ego_path_x[i], y=ego_path_y[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=2.0)
+                world.debug.draw_point(carla.Location(x=ego_x_points[i], y=ego_y_points[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=1.0)
             for i in range(obs_distance_check):
-                world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=2.0)
+                world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=1.0)
 
         return is_collision
 
