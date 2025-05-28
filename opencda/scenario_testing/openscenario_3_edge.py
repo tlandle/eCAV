@@ -150,8 +150,8 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
-        if eval_manager is not None:
-            eval_manager.evaluate()
+        # if eval_manager is not None:
+        #     eval_manager.evaluate()
         if cav_world is not None:
             cav_world.destroy()
         print("Destroyed cav_world")

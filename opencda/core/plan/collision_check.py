@@ -586,9 +586,9 @@ class CollisionChecker:
 
         if world is not None:
             for i in range(len(ego_x_points)):
-                world.debug.draw_point(carla.Location(x=ego_x_points[i], y=ego_y_points[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=1.0)
+                world.debug.draw_point(carla.Location(x=ego_x_points[i], y=ego_y_points[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=0.25)
             for i in range(len(obs_x_points)):
-                world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=1.0)
+                world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=0.25)
 
         return is_collision
 
