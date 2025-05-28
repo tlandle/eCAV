@@ -103,8 +103,11 @@ def linear_interp_trajectory(points):
     ry = ys(sp)
     return sp, np.stack((rx, ry), axis=1)
 
-def time_reparametrize(points, sp, speed, min_speed=5):
-    tp = sp / max(speed, min_speed)
+def time_reparametrize(points, sp, speed):
+    if speed > 0:
+        tp = sp / speed
+    else:
+        tp = np.zeros_like(sp)
     x, y = points[:, 0], points[:, 1]
     xt = interp1d(tp, x, kind='linear')
     yt = interp1d(tp, y, kind='linear')
@@ -537,11 +540,12 @@ class CollisionChecker:
         if obstacle_speed < 5:
             return False    # ignore "stationary" obstacles
 
-        # ego path is already interpolated with an arc step size of 0.1
+        # naively resample the ego path
         ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 90), len(ego_path_x))    # minimum number of points can be tuned
         ego_x_points = ego_path_x[:ego_distance_check]
         ego_y_points = ego_path_y[:ego_distance_check]
-        ego_path = np.stack((ego_x_points, ego_y_points), axis=1)
+        ego_points = np.stack((ego_x_points, ego_y_points), axis=1)
+        ego_sp, ego_path = linear_interp_trajectory(ego_points)
 
         # get interpolation of obstacle trajectory
         obs_points = []
@@ -550,25 +554,40 @@ class CollisionChecker:
             y = pred_transform.location.y
             obs_points.append([x, y])
         obs_points = np.asarray(obs_points)
-        obstacle_sp, obstacle_interp_path = linear_interp_trajectory(obs_points)
-
-        # # get look ahead interpolation
-        obs_path_x = obstacle_interp_path[:, 0]
-        obs_path_y = obstacle_interp_path[:, 1]
+        obs_sp, obs_path = linear_interp_trajectory(obs_points)
+        obs_path_x = obs_path[:, 0]
+        obs_path_y = obs_path[:, 1]
         obs_distance_check = min(int(self.time_ahead * obstacle_speed / 0.1), len(obs_path_x))
-        obs_x_points = obs_path_x[:obs_distance_check]
-        obs_y_points = obs_path_y[:obs_distance_check]
-        obs_path = np.stack((obs_x_points, obs_y_points), axis=1)
 
-        # check collision
-        dists = spatial.distance.cdist(ego_path, obs_path)
-        collision_dists = np.subtract(dists, self._circle_radius)
-        is_collision = np.any(collision_dists < 0)
+        if ego_speed > 5:
+            # time reparameterize
+            ego_xt, ego_yt, ego_tp = time_reparametrize(ego_path, ego_sp, ego_speed)
+            obs_xt, obs_yt, obs_tp = time_reparametrize(obs_path, obs_sp, obstacle_speed)
+
+            # get lookahead paths
+            ego_x_points, ego_y_points = lookahead_interp(ego_xt, ego_yt, self.time_ahead, t_max=ego_tp[-1], dt=time_step)
+            obs_x_points, obs_y_points = lookahead_interp(obs_xt, obs_yt, self.time_ahead, t_max=obs_tp[-1], dt=time_step)
+
+            # check collision (time-based)
+            length = min(len(ego_x_points), len(obs_x_points))
+            ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
+            obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
+            is_collision, _ = check_paths_within_radius(ego_path, obs_path, r=10, dt=time_step)
+        else:
+            # get lookahead for obstacle path
+            obs_x_points = obs_path_x[:obs_distance_check]
+            obs_y_points = obs_path_y[:obs_distance_check]
+            obs_path = np.stack((obs_x_points, obs_y_points), axis=1)
+
+            # check collision (naive arc-based)
+            dists = spatial.distance.cdist(ego_path, obs_path)
+            collision_dists = np.subtract(dists, self._circle_radius)
+            is_collision = np.any(collision_dists < 0)
 
         if world is not None:
-            for i in range(ego_distance_check):
+            for i in range(len(ego_x_points)):
                 world.debug.draw_point(carla.Location(x=ego_x_points[i], y=ego_y_points[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=1.0)
-            for i in range(obs_distance_check):
+            for i in range(len(obs_x_points)):
                 world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=1.0)
 
         return is_collision

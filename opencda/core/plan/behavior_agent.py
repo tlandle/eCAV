@@ -636,11 +636,14 @@ class BehaviorAgent(object):
 #                    min_distance = distance
 #                    target_vehicle = obstacle
 #
+        # if there is already a hazard, don't worry about collisions
+        if vehicle_state:
+            return vehicle_state, target_vehicle, min_distance
 
         collisions = []
         for pred in self.generated_predictions:
             # get speed from pred
-            dt = 0.05 # tyler hardcoded this for now lol
+            dt = 0.05 # time step duration for simulator
             detected_traj = pred.obstacle_trajectory.trajectory
             if len(detected_traj) > 1:
                 prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
@@ -659,10 +662,12 @@ class BehaviorAgent(object):
             )
             if collision:
                 vehicle_state = True
-                target_vehicle = pred.obstacle_trajectory.obstacle
-                min_distance = 0
+                distance = 2.0
+                if distance < min_distance:
+                    min_distance = distance
+                    target_vehicle = pred.obstacle_trajectory.obstacle
                 collisions.append(pred)
-                print("detected collision with %s" %pred.predicted_trajectory)
+                print("detected collision with %s" %target_vehicle)
 
         return vehicle_state, target_vehicle, min_distance
 
