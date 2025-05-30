@@ -35,7 +35,7 @@ coloredlogs.install(level='DEBUG', logger=logger)
 SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
 
-def is_prediction_matching_ego(prediction, ego_path_x, ego_path_y, ego_speed, threshold=2, max_compare_steps=10):
+def is_prediction_matching_ego(prediction, ego_path_x, ego_path_y, ego_speed, threshold=1.5, max_compare_steps=10):
     """
     Check if the predicted trajectory matches the ego vehicle's path.
     Parameters
@@ -650,7 +650,7 @@ class BehaviorAgent(object):
             else:
                 obstacle_speed = 0  # literally no idea what to do in this case
 
-            # print("Obstacle speed: %s" %obstacle_speed)
+            print("Obstacle speed: %s" %obstacle_speed)
 
             collision = self._collision_check.trajectory_collision_check(
                 rx, ry, ryaw, self._ego_speed / 3.6,

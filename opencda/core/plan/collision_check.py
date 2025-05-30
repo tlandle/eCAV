@@ -541,7 +541,7 @@ class CollisionChecker:
             return False    # ignore "stationary" obstacles
 
         # naively resample the ego path
-        ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 90), len(ego_path_x))    # minimum number of points can be tuned
+        ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 50), len(ego_path_x))    # minimum number of points can be tuned
         ego_x_points = ego_path_x[:ego_distance_check]
         ego_y_points = ego_path_y[:ego_distance_check]
         ego_points = np.stack((ego_x_points, ego_y_points), axis=1)
@@ -555,9 +555,6 @@ class CollisionChecker:
             obs_points.append([x, y])
         obs_points = np.asarray(obs_points)
         obs_sp, obs_path = linear_interp_trajectory(obs_points)
-        obs_path_x = obs_path[:, 0]
-        obs_path_y = obs_path[:, 1]
-        obs_distance_check = min(int(self.time_ahead * obstacle_speed / 0.1), len(obs_path_x))
 
         if ego_speed > 5:
             # time reparameterize
@@ -575,6 +572,9 @@ class CollisionChecker:
             is_collision, _ = check_paths_within_radius(ego_path, obs_path, r=10, dt=time_step)
         else:
             # get lookahead for obstacle path
+            obs_path_x = obs_path[:, 0]
+            obs_path_y = obs_path[:, 1]
+            obs_distance_check = min(int(self.time_ahead * obstacle_speed / 0.1), len(obs_path_x))
             obs_x_points = obs_path_x[:obs_distance_check]
             obs_y_points = obs_path_y[:obs_distance_check]
             obs_path = np.stack((obs_x_points, obs_y_points), axis=1)
