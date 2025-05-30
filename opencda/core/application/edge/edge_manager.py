@@ -772,7 +772,7 @@ class EdgeManager(object):
         print("running perception_step edge")
         self.run_step_perception(step_id)
       elif(self.activate == "PREDICTION"):
-        print("running prediction_step edge")
+        #print("running prediction_step edge")
         self.run_step_prediction(step_id)
       elif(self.activate == "MANEUVER"):
         self.run_step_maneuver(step_id)
@@ -796,11 +796,11 @@ class EdgeManager(object):
                 if object_type == 'vehicles':
                     for obj in object_list:
                         # Convert to AB3DMOT format
-                        print("Object Location: ", obj.get_location())
+                        #print("Object Location: ", obj.get_location())
                         #detection = self.convert_aabb_to_ab3dmot_dict(obj.o3d_bbx)
                         detection = self.convert_boundingbox_to_ab3dmot_dict(obj.bounding_box, obj.get_location())
                         # Append to objects list
-                        print("Detection: ", detection)
+                        #print("Detection: ", detection)
                         ab3dmot_vehicles.append(detection)
 
 
@@ -819,11 +819,11 @@ class EdgeManager(object):
 
         # Use AB3DMOT to track and deduplicate
         ab3dmot_output_objects, _ = self.ab3dmot_tracker.track(dets_all, step_id)
-        print("AB3DMOT Output Objects: ", ab3dmot_output_objects)
+        #print("AB3DMOT Output Objects: ", ab3dmot_output_objects)
 
         # check for stale ab3dmot output
         ab3dmot_output_objects = self.filter_stale_tracks(ab3dmot_output_objects, max_age=5)
-        print("AB3DMOT Output Objects after filtering: ", ab3dmot_output_objects)
+        #print("AB3DMOT Output Objects after filtering: ", ab3dmot_output_objects)
 
 
         # Convert AB3DMOT output to ObstacleTrajectory objects
@@ -832,13 +832,13 @@ class EdgeManager(object):
 
         #self.tracked_trajectories_deque.appendleft(tracked_trajectories.copy())
 
-        print("Number of tracked trajectories: ", len(self.tracked_trajectories))
+        #print("Number of tracked trajectories: ", len(self.tracked_trajectories))
 
         # Run the linear operator predictor on the tracked trajectories
         # Type ObstaclePrediction list is returned
         generated_predictions = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_trajectories)
 
-        print("Number of generated predictions: ", len(generated_predictions))
+        #print("Number of generated predictions: ", len(generated_predictions))
 
 
         self.track_color_map = {}
@@ -856,26 +856,26 @@ class EdgeManager(object):
                 )
 
             color = self.track_color_map[track_id]
-            print(track_id)
-            for transform in prediction.obstacle_trajectory.trajectory:
+            #print(track_id)
+            #for transform in prediction.obstacle_trajectory.trajectory:
                 #print("Obstacle Trajectory: ", transform)
-                self.world.debug.draw_point(
-                    transform.location,
-                    size=0.1,
-                    color=color,
-                    life_time=.1,
-                    persistent_lines=False
-                )
+                #self.world.debug.draw_point(
+                #    transform.location,
+                #    size=0.1,
+                #    color=color,
+                #    life_time=.1,
+                #    persistent_lines=False
+                #)
 
-            for transform in prediction.predicted_trajectory:
-                #print("Predicted Trajectory: ", transform)
-                self.world.debug.draw_point(
-                    transform.location,
-                    size=0.1,
-                    color=color,
-                    life_time=.1,
-                    persistent_lines=False
-                )
+            #for transform in prediction.predicted_trajectory:
+            #    #print("Predicted Trajectory: ", transform)
+            #    self.world.debug.draw_point(
+            #        transform.location,
+            #        size=0.1,
+            #        color=color,
+            #        life_time=.1,
+            #        persistent_lines=False
+            #    )
 
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
             predictions_to_send = generated_predictions.copy()
