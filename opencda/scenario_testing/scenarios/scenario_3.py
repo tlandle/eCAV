@@ -24,69 +24,58 @@ from srunner.scenarios.basic_scenario import BasicScenario
 
 class ProbabilisticBrakeJitter(py_trees.behaviour.Behaviour):
     """
-    After `start_delay` sec, every `period` sec we roll a dice (p_event).
-    If it fires, apply a brake pulse with random strength in
-    [min_brake, max_brake] for `pulse_dur` sec.
-    Works in a Parallel *after* WaypointFollower → its control wins.
+    Between `start_delay` s and `stop_time` s:
+        • each tick, with probability `p_brake`  →  apply `brake_strength`
+        • otherwise                              →  apply `full_throttle`
+    Outside that window the node does nothing (RUNNING before, SUCCESS after).
     """
+
     def __init__(self,
                  actor: carla.Vehicle,
                  start_delay: float = 2.0,
-                 period: float = .10,
-                 p_event: float = 0.35,
-                 min_brake: float = 0.2,
-                 max_brake: float = 0.9,
-                 pulse_dur: float = .6,
-                 cruise_throttle: float = .8,
-                 name="ProbabilisticBrakeJitter"):
+                 stop_time: float   = 5.0,
+                 p_brake: float     = 0.7,
+                 brake_strength: float = 1.0,     # 0.0 … 1.0
+                 full_throttle: float = 0.8,
+                 name: str = "ProbBrakeJitter"):
         super().__init__(name)
-        self._a      = actor
-        self._world  = actor.get_world()
-        self._delay  = start_delay
-        self._T      = period
-        self._p      = p_event
-        self._bmin   = min_brake
-        self._bmax   = max_brake
-        self._dur    = pulse_dur
-        self._thr    = cruise_throttle
+        self._actor = actor
+        self._world = actor.get_world()
 
-        self._next_roll   = 0.0          # sim-time of next dice roll
-        self._pulse_end   = 0.0          # end-time of current brake pulse
+        self._t0  = start_delay
+        self._t1  = stop_time
+        self._p   = p_brake
+        self._brk = max(0.0, min(1.0, brake_strength))   # clamp to [0,1]
+        self._thr = full_throttle
 
-    def _t(self):
+    # internal helper
+    def _sim_t(self):
         return self._world.get_snapshot().timestamp.elapsed_seconds
 
-    # ───────────────  Py-Trees  ───────────────
+    # ────────────────────────────────────────────────────────────────
     def initialise(self):
-        t0 = self._t()
-        self._next_roll = t0 + self._delay
-        self._pulse_end = t0               # no pulse yet
+        self._t_start = self._sim_t()
 
     def update(self):
-        now = self._t()
+        t = self._sim_t() - self._t_start
 
-        # ♦ 1  schedule next dice roll
-        if now >= self._next_roll:
-            if random.random() < self._p:
-                # start new pulse (may overlap existing one)
-                self._pulse_end = max(self._pulse_end, now + self._dur)
-                self._cur_brake = random.uniform(self._bmin, self._bmax)
-            self._next_roll += self._T          # next roll in period T
+        if t < self._t0:                     # not yet
+            return py_trees.common.Status.RUNNING
 
-        # ♦ 2  choose control this frame
-        cur = self._a.get_control()
-        if now < self._pulse_end:
-            # inside a brake pulse → overwrite throttle/brake
-            self._a.apply_control(
-                carla.VehicleControl(throttle=0.0,
-                                     steer=cur.steer,
-                                     brake=self._cur_brake))
-        else:
-            # cruising → maintain throttle
-            self._a.apply_control(
-                carla.VehicleControl(throttle=self._thr,
-                                     steer=cur.steer,
-                                     brake=0.0))
+        if t >= self._t1:                    # window passed → SUCCESS
+            cur = self._actor.get_control()
+            self._actor.apply_control(carla.VehicleControl(
+                throttle=self._thr, steer=cur.steer, brake=0.0))
+            return py_trees.common.Status.SUCCESS
+
+        # inside the window: stochastic brake / throttle each tick
+        cur = self._actor.get_control()
+        if random.random() < self._p:        # brake this frame
+            self._actor.apply_control(carla.VehicleControl(
+                throttle=0.0,  steer=cur.steer, brake=self._brk))
+        else:                                # throttle this frame
+            self._actor.apply_control(carla.VehicleControl(
+                throttle=self._thr, steer=cur.steer, brake=0.0))
 
         return py_trees.common.Status.RUNNING
 
@@ -351,12 +340,20 @@ class Scenario_3(BasicScenario):
                 "Brake+Follow", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
 
                 
-                brake_behavior = RandomHardBrake(actor,
-                                 start_delay=2.0,
-                                 p_brake=0.5,      # 1.0 = always brake
-                                 min_dur=1.0,
-                                 max_dur=5.0,
-                                 full_throttle=1.0)
+                #brake_behavior = RandomHardBrake(actor,
+                #                 start_delay=2.0,
+                #                 p_brake=0.5,      # 1.0 = always brake
+                #                 min_dur=1.0,
+                #                 max_dur=5.0,
+                #                 full_throttle=1.0)
+
+                brake_behavior = ProbabilisticBrakeJitter(actor,
+                                        start_delay=2.0,
+                                        stop_time=5.0,
+                                        p_brake=0.4,      # 1.0 = always brake
+                                        brake_strength=.5,
+                                        full_throttle=1.0)
+
 
                 jitter_behavior = SteeringJitter(actor,
                                      amplitude_deg=4.0,
