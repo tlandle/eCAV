@@ -577,7 +577,7 @@ class BehaviorAgent(object):
         target_vehicle = None
 
         #print(adjacent_check)
-        print("num predictions: %s" %len(self.generated_predictions))
+        print("generated predictions: %s" %self.generated_predictions)
 
         for pred in self.generated_predictions:
             if is_prediction_matching_ego(pred, rx, ry, self._ego_speed / 3.6):
