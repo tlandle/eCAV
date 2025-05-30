@@ -286,7 +286,7 @@ class Scenario_3(BasicScenario):
                 
                 brake_behavior = RandomHardBrake(actor,
                                  start_delay=2.0,
-                                 p_brake=0.0,      # 1.0 = always brake
+                                 p_brake=0.5,      # 1.0 = always brake
                                  min_dur=1.0,
                                  max_dur=5.0,
                                  full_throttle=1.0)

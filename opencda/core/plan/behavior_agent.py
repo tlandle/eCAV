@@ -35,7 +35,7 @@ coloredlogs.install(level='DEBUG', logger=logger)
 SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
 
-def is_prediction_matching_ego(prediction, ego_path_x, ego_path_y, ego_speed, threshold=1.5, max_compare_steps=10):
+def is_prediction_matching_ego(prediction, ego_locations, threshold=3, max_compare_steps=10, world=None):
     """
     Check if the predicted trajectory matches the ego vehicle's path.
     Parameters
@@ -57,22 +57,39 @@ def is_prediction_matching_ego(prediction, ego_path_x, ego_path_y, ego_speed, th
     bool
         True if the predicted trajectory matches the ego vehicle's path.
     """
-    pred_transforms = prediction.predicted_trajectory[:max_compare_steps]
-    min_len = min(len(pred_transforms), len(ego_path_x), len(ego_path_y))
+    tracked_trajectory = prediction.obstacle_trajectory.trajectory
+    num_transforms = min(max_compare_steps, len(tracked_trajectory))
+    tracked_transforms = []
+    for i in range(-num_transforms, 0, 1):
+        tracked_transforms.append(tracked_trajectory[i])
 
-    if min_len < 3:
+    min_len = min(len(tracked_transforms), len(ego_locations))
+    print("min_len: %s" %min_len)
+
+    if min_len < 2:
         return False
 
     total_dist = 0.0
     for i in range(min_len):
-        pred_loc = pred_transforms[i].location
-        dx = pred_loc.x - ego_path_x[i]
-        dy = pred_loc.y - ego_path_y[i]
+        pred_loc = tracked_transforms[i].location
+        ego_loc = ego_locations[i]
+        dx = pred_loc.x - ego_loc.x
+        dy = pred_loc.y - ego_loc.y
         dist = (dx**2 + dy**2)**0.5
+
+        # print("tracked location: ({}, {})".format(pred_loc.x, pred_loc.y))
+        # print("ego location: ({}, {})".format(ego_loc.x, ego_loc.y))
+
         total_dist += dist
 
+        # if world is not None:
+        #     world.debug.draw_point(carla.Location(x=pred_loc.x, y=pred_loc.y, z=.5), color=carla.Color(255,0,0), size=0.1, life_time=0.25)
+        #     world.debug.draw_point(carla.Location(x=ego_loc.x, y=ego_loc.y, z=.5), color=carla.Color(0,255,0), size=0.1, life_time=0.25)
+
     avg_dist = total_dist / min_len
-    return avg_dist < threshold
+    is_ego = avg_dist < threshold
+    print("is ego? %s" %is_ego)
+    return is_ego
 
 def will_prediction_collide_with_ego(
     prediction,
@@ -203,6 +220,7 @@ class BehaviorAgent(object):
         self.overtake_counter = 0
         self.overtake_stopped_vehicle = False
         self.overtake_end_wpts = []
+        self.ego_location_buffer = []
         # used to indicate whether a vehicle is on the planned path
         self.hazard_flag = False
 
@@ -577,11 +595,7 @@ class BehaviorAgent(object):
         target_vehicle = None
 
         #print(adjacent_check)
-        print("generated predictions: %s" %self.generated_predictions)
-
-        for pred in self.generated_predictions:
-            if is_prediction_matching_ego(pred, rx, ry, self._ego_speed / 3.6):
-                self.generated_predictions.remove(pred)
+        # print("generated predictions: %s" %self.generated_predictions)
         
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
@@ -639,6 +653,10 @@ class BehaviorAgent(object):
 
         collisions = []
         for pred in self.generated_predictions:
+            # ignore any predictions that match the ego vehicle
+            if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
+                continue
+            
             # get speed from pred
             dt = 0.05 # time step duration for simulator
             detected_traj = pred.obstacle_trajectory.trajectory
@@ -648,7 +666,7 @@ class BehaviorAgent(object):
                 vel_y = (current_pos.location.y - prev_pos.location.y) / dt
                 obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
             else:
-                obstacle_speed = 0  # literally no idea what to do in this case
+                obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
 
             print("Obstacle speed: %s" %obstacle_speed)
 
@@ -1086,6 +1104,9 @@ class BehaviorAgent(object):
         """
         # retrieve ego location
         ego_vehicle_loc = self._ego_pos.location
+        if len(self.ego_location_buffer) == 10:
+            self.ego_location_buffer.pop(0)
+        self.ego_location_buffer.append(ego_vehicle_loc)
         ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
         waipoint_buffer = self.get_local_planner().get_waypoint_buffer()
         #print(waipoint_buffer)
