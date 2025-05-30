@@ -35,7 +35,7 @@ coloredlogs.install(level='DEBUG', logger=logger)
 SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
 
-def is_prediction_matching_ego(prediction, ego_path_x, ego_path_y, ego_speed, threshold=1.5, max_compare_steps=10):
+def is_prediction_matching_ego(prediction, ego_path_x, ego_path_y, ego_speed, threshold=2, max_compare_steps=10):
     """
     Check if the predicted trajectory matches the ego vehicle's path.
     Parameters
@@ -613,8 +613,8 @@ class BehaviorAgent(object):
                 # the vehicle length is typical 3 meters,
                 # so we need to consider that when calculating the distance
                 distance = positive(dist(vehicle) - 3)
-                if distance > 10:
-                    vehicle_state = False
+                # if distance > 10:
+                #     vehicle_state = False
                 print("Vehicle non trajectory potential collision Distance: %s" %distance)
                 
                 if distance < min_distance:
@@ -640,7 +640,7 @@ class BehaviorAgent(object):
         collisions = []
         for pred in self.generated_predictions:
             # get speed from pred
-            dt = 0.05 # tyler hardcoded this for now lol
+            dt = 0.05 # time step duration for simulator
             detected_traj = pred.obstacle_trajectory.trajectory
             if len(detected_traj) > 1:
                 prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
@@ -659,8 +659,10 @@ class BehaviorAgent(object):
             )
             if collision:
                 vehicle_state = True
-                target_vehicle = pred.obstacle_trajectory.obstacle
-                min_distance = 0
+                distance = 2.0
+                if distance < min_distance:
+                    min_distance = distance
+                    target_vehicle = pred.obstacle_trajectory.obstacle
                 collisions.append(pred)
                 print("detected collision with %s" %pred.predicted_trajectory)
 
