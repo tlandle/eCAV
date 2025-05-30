@@ -14,6 +14,9 @@ import carla
 import numpy as np
 from matplotlib.path import Path
 from shapely.geometry import Polygon
+import shapely.speedups
+shapely.speedups.enable()
+from shapely.geometry import LineString, MultiLineString, LinearRing, GeometryCollection
 
 from opencda.core.sensing.perception.sensor_transformation import \
     world_to_sensor
@@ -237,7 +240,65 @@ class MapManager(object):
         y_max_in = y_center < bounds[:, 1, 1] + half_extent
         return np.nonzero(x_min_in & y_min_in & x_max_in & y_max_in)[0]
 
+
     def associate_lane_tl(self, mid_lane):
+        """
+        Return the traffic-light ID associated with `mid_lane`, or None if
+        the trigger polygon is empty / malformed.
+        """
+        associate_tl_id = ''
+        for tl_id, tl_content in self.traffic_light_info.items():
+
+            trigger_poly = tl_content['corners']
+
+            if trigger_poly is None:
+                return None
+
+            # ------------------------------------------------------------------
+            # Helper to flatten any boundary geometry into an N×2 float array
+            # ------------------------------------------------------------------
+            def _coords_array(geom):
+                if geom.is_empty:
+                    return None
+                if isinstance(geom, (LineString, LinearRing)):
+                    return np.asarray(geom.coords, dtype=float)
+                elif isinstance(geom, MultiLineString):
+                    parts = [
+                        np.asarray(g.coords, dtype=float)
+                        for g in geom.geoms if not g.is_empty and len(g.coords) >= 2
+                    ]
+                    return None if not parts else np.concatenate(parts, axis=0)
+                elif isinstance(geom, GeometryCollection):
+                    parts = [_coords_array(g) for g in geom.geoms]
+                    parts = [p for p in parts if p is not None and len(p) >= 2]
+                    return None if not parts else np.concatenate(parts, axis=0)
+                else:
+                    return None
+
+            coords = _coords_array(trigger_poly.boundary)
+            if coords is None or len(coords) < 2:
+                # Bad / trivial geometry – skip mapping
+                print("[associate_lane_tl] ⚠️  skipped TL mapping: invalid trigger geometry")
+                return None
+
+            try:
+                trigger_path = Path(coords[:, :2])          # Path now gets plain floats
+            except Exception as e:
+                print("[associate_lane_tl] ⚠️  skipped TL mapping:", e)
+                return None
+
+            check_array = trigger_path.contains_points(mid_lane[:, :2])
+
+            if check_array.any():
+                associate_tl_id = tl_id
+
+
+        # ------------------------------------------------------------------
+        # ... proceed with your normal lane-to-TL matching using trigger_path ...
+        # ------------------------------------------------------------------
+        return associate_tl_id
+
+    def associate_lane_tl_old(self, mid_lane):
         """
         Given the waypoints for a certain lane, find the traffic light that
         influence it.
@@ -256,7 +317,21 @@ class MapManager(object):
         for tl_id, tl_content in self.traffic_light_info.items():
             trigger_poly = tl_content['corners']
             # use Path to do fast computation
-            trigger_path = Path(trigger_poly.boundary)
+
+            boundary = trigger_poly.boundary            # could be LineString or MultiLineString
+            if isinstance(boundary, LineString):
+                coords = np.asarray(boundary.coords, dtype=float)
+            elif isinstance(boundary, MultiLineString):
+                # flatten all parts
+                coords = np.concatenate(
+                [np.asarray(ls.coords, dtype=float) for ls in boundary], axis=0
+                )
+            else:
+                print("[associate_lane_tl]  unknown boundary type:", type(boundary))
+                return None
+
+            trigger_path = Path(coords[:, :2])          # Path now gets a plain float array
+            #trigger_path = Path(trigger_poly.boundary)
             # check if any point in the middle line inside the trigger area
             check_array = trigger_path.contains_points(mid_lane[:, :2])
 

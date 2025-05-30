@@ -30,8 +30,8 @@ def exec_scenario_runner(scenario_params):
     Returns
     -------
     """
-    global scenario_runner
-    scenario_runner = sr.ScenarioRunner(scenario_params)
+    #global scenario_runner
+    scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
     #print(scenario_runner)
     scenario_runner.run()
     scenario_runner.destroy()
@@ -60,11 +60,12 @@ def run_scenario(opt, scenario_params):
         #scenario_runner.run()
 
         # Create a background process to init and execute scenario runner
-        #sr_process = Process(target=exec_scenario_runner,
-       #                      args=(scenario_runner,))
-        #sr_process.start()
-        sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params.scenario_runner,))
-        sr_thread.start()
+
+        sr_process = Process(target=exec_scenario_runner,
+                             args=(scenario_params,))
+        sr_process.start()
+        #sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params.scenario_runner,))
+        #sr_thread.start()
 
         # key_listener = KeyListener()
         # key_listener.start()
@@ -86,13 +87,13 @@ def run_scenario(opt, scenario_params):
         print(f'Found all {num_actors} actors')
 
         # Get all vehicle actor ids and add them to the edge manager
-        other_vehicles = scenario_runner.manager.scenario.agents
+        #other_vehicles = scenario_runner.manager.scenario.agents
         #input("Other vehicles: %s" %other_vehicles)
     
-        for vehicle in other_vehicles:
-            print(vehicle._actor.id)
-            print(vehicle._local_planner_dict)
-
+        #for vehicle in other_vehicles:
+        #    print(vehicle._actor.id)
+        #    print(vehicle._local_planner_dict)
+        other_vehicles = []
 
         world_dt = scenario_params['world']['fixed_delta_seconds']
         edge_dt = scenario_params['edge_base']['edge_dt']
@@ -102,9 +103,9 @@ def run_scenario(opt, scenario_params):
 
         # Create evaluation manager
         eval_manager = \
-            EvaluationManager(scenario_manager.cav_world,
-                              script_name=SCENARIO_NAME,
-                              current_time=scenario_params['current_time'])
+             EvaluationManager(scenario_manager.cav_world,
+                               script_name=SCENARIO_NAME,
+                               current_time=scenario_params['current_time'])
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following

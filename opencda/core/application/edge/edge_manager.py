@@ -138,7 +138,7 @@ class EdgeManager(object):
         self.dt = world_dt
         self.other_vehicles = other_vehicles
         # TODO make this a parameter
-        self.num_future_steps = 25
+        self.num_future_steps = 50
         self.linear_predictor_manager = LinearPredictorManager(num_future_steps=self.num_future_steps)
 
         self.debug_helper = EdgeDebugHelper(0)

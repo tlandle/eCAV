@@ -22,6 +22,73 @@ from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTes
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import DriveDistance, InTriggerDistanceToLocation
 from srunner.scenarios.basic_scenario import BasicScenario
 
+class ProbabilisticBrakeJitter(py_trees.behaviour.Behaviour):
+    """
+    After `start_delay` sec, every `period` sec we roll a dice (p_event).
+    If it fires, apply a brake pulse with random strength in
+    [min_brake, max_brake] for `pulse_dur` sec.
+    Works in a Parallel *after* WaypointFollower → its control wins.
+    """
+    def __init__(self,
+                 actor: carla.Vehicle,
+                 start_delay: float = 2.0,
+                 period: float = .10,
+                 p_event: float = 0.35,
+                 min_brake: float = 0.2,
+                 max_brake: float = 0.9,
+                 pulse_dur: float = .6,
+                 cruise_throttle: float = .8,
+                 name="ProbabilisticBrakeJitter"):
+        super().__init__(name)
+        self._a      = actor
+        self._world  = actor.get_world()
+        self._delay  = start_delay
+        self._T      = period
+        self._p      = p_event
+        self._bmin   = min_brake
+        self._bmax   = max_brake
+        self._dur    = pulse_dur
+        self._thr    = cruise_throttle
+
+        self._next_roll   = 0.0          # sim-time of next dice roll
+        self._pulse_end   = 0.0          # end-time of current brake pulse
+
+    def _t(self):
+        return self._world.get_snapshot().timestamp.elapsed_seconds
+
+    # ───────────────  Py-Trees  ───────────────
+    def initialise(self):
+        t0 = self._t()
+        self._next_roll = t0 + self._delay
+        self._pulse_end = t0               # no pulse yet
+
+    def update(self):
+        now = self._t()
+
+        # ♦ 1  schedule next dice roll
+        if now >= self._next_roll:
+            if random.random() < self._p:
+                # start new pulse (may overlap existing one)
+                self._pulse_end = max(self._pulse_end, now + self._dur)
+                self._cur_brake = random.uniform(self._bmin, self._bmax)
+            self._next_roll += self._T          # next roll in period T
+
+        # ♦ 2  choose control this frame
+        cur = self._a.get_control()
+        if now < self._pulse_end:
+            # inside a brake pulse → overwrite throttle/brake
+            self._a.apply_control(
+                carla.VehicleControl(throttle=0.0,
+                                     steer=cur.steer,
+                                     brake=self._cur_brake))
+        else:
+            # cruising → maintain throttle
+            self._a.apply_control(
+                carla.VehicleControl(throttle=self._thr,
+                                     steer=cur.steer,
+                                     brake=0.0))
+
+        return py_trees.common.Status.RUNNING
 
 class SteeringJitter(py_trees.behaviour.Behaviour):
     """
@@ -156,7 +223,7 @@ class RandomHardBrake(py_trees.behaviour.Behaviour):
                 self._actor.apply_control(carla.VehicleControl(
                     throttle=0.0,
                     steer=cur.steer,
-                    brake=0.5))
+                    brake=0.25))
                 return py_trees.common.Status.RUNNING
 
         # phase 4 ───── resume full throttle and finish

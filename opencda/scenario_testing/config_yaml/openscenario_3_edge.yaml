@@ -41,7 +41,7 @@ carla_traffic_manager:
   range: []
 
 
-# Parameters needed for ScenarioRunner
+  # Parameters needed for ScenarioRunner
 scenario_runner:
   town: town03
 
@@ -120,7 +120,7 @@ vehicle_base: &vehicle_base
     emergency_param: .4 # used to identify whether a emergency stop needed
     ignore_traffic_light: true # whether to ignore traffic light
     overtake_allowed: true # whether overtake allowed, typically false for platoon leader
-    collision_time_ahead: 1.5 # used for collision checking
+    collision_time_ahead: 3 # used for collision checking
     overtake_counter_recover: 35 # the vehicle can not do another overtake during next certain steps
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
     local_planner: &base_local_planner # trajectory planning related
@@ -223,10 +223,10 @@ edge_base: &edge_base
   change_leader_speed: true # whether to assign leader multiple speed to follow
   leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
   stage_duration: 10 # how long should the leader keeps in the current velocity stag
-  target_speed: 100 # kph
+  target_speed: 50 # kph
   edge_dt: 0.2 # must be an even multiple of world_dt 
   search_dt: 2
-  latency: .2 
+  latency: 1 
   edge_sets_destination: false # otherwise, edge sets WP
   mode: PREDICTION 
 

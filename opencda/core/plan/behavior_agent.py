@@ -194,7 +194,7 @@ class BehaviorAgent(object):
         self.break_distance = 0
         self.ttc = 1000
         # collision checker
-        time_ahead = 10 # config_yaml['collision_time_ahead']
+        time_ahead = config_yaml['collision_time_ahead']
         self._collision_check = CollisionChecker(
             time_ahead=time_ahead)
         self.ignore_traffic_light = config_yaml['ignore_traffic_light']
@@ -637,31 +637,32 @@ class BehaviorAgent(object):
 #                    target_vehicle = obstacle
 #
 
-        if not obs_check:
-            collisions = []
-            for pred in self.generated_predictions:
-                # get speed from pred
-                dt = 0.05 # tyler hardcoded this for now lol
-                detected_traj = pred.obstacle_trajectory.trajectory
-                if len(detected_traj) > 1:
-                    prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
-                    vel_x = (current_pos.location.x - prev_pos.location.x) / dt
-                    vel_y = (current_pos.location.y - prev_pos.location.y) / dt
-                    obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
-                else:
-                    obstacle_speed = 0  # literally no idea what to do in this case
+        collisions = []
+        for pred in self.generated_predictions:
+            # get speed from pred
+            dt = 0.05 # tyler hardcoded this for now lol
+            detected_traj = pred.obstacle_trajectory.trajectory
+            if len(detected_traj) > 1:
+                prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
+                vel_x = (current_pos.location.x - prev_pos.location.x) / dt
+                vel_y = (current_pos.location.y - prev_pos.location.y) / dt
+                obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
+            else:
+                obstacle_speed = 0  # literally no idea what to do in this case
 
-                # print("Obstacle speed: %s" %obstacle_speed)
+            # print("Obstacle speed: %s" %obstacle_speed)
 
-                collision = self._collision_check.trajectory_collision_check(
-                    rx, ry, ryaw, self._ego_speed / 3.6,
-                    pred.predicted_trajectory, obstacle_speed,
-                    self._map, world=self.vehicle.get_world(), time_step=dt
-                )
-                if collision:
-                    vehicle_state = True
-                    collisions.append(pred)
-                    print("detected collision with %s" %pred.predicted_trajectory)
+            collision = self._collision_check.trajectory_collision_check(
+                rx, ry, ryaw, self._ego_speed / 3.6,
+                pred.predicted_trajectory, obstacle_speed,
+                self._map, world=self.vehicle.get_world(), time_step=dt
+            )
+            if collision:
+                vehicle_state = True
+                target_vehicle = pred.obstacle_trajectory.obstacle
+                min_distance = 0
+                collisions.append(pred)
+                print("detected collision with %s" %pred.predicted_trajectory)
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -1184,7 +1185,7 @@ class BehaviorAgent(object):
         is_hazard = False
         if collision_detector_enabled:
             is_hazard, obstacle_vehicle, distance = self.collision_manager(
-                rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn, obs_check=True)
+                rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn)
         car_following_flag = False
         end_time = time.time()
         self.debug_helper.update_agent_step_list(5, end_time-start_time)
@@ -1234,7 +1235,7 @@ class BehaviorAgent(object):
             end_time_8 = time.time()
         # 9. overtake handeling
         elif is_hazard and self.overtake_allowed and \
-                self.overtake_counter <= 0:
+                self.overtake_counter <= 0  and obstacle_vehicle != None:
             logger.debug("Overtake Allowed and overtake counter is 0")
             if isinstance(obstacle_vehicle, ObstacleVehicle):
                 obstacle_speed = get_speed(obstacle_vehicle)
