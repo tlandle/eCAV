@@ -354,7 +354,6 @@ class Scenario_3(BasicScenario):
                                         brake_strength=.5,
                                         full_throttle=1.0)
 
-
                 jitter_behavior = SteeringJitter(actor,
                                      amplitude_deg=4.0,
                                      period=0.25,
