@@ -350,8 +350,8 @@ class Scenario_3(BasicScenario):
                 brake_behavior = ProbabilisticBrakeJitter(actor,
                                         start_delay=2.0,
                                         stop_time=5.0,
-                                        p_brake=0.4,      # 1.0 = always brake
-                                        brake_strength=.5,
+                                        p_brake=0.5,      # 1.0 = always brake
+                                        brake_strength=.6,
                                         full_throttle=1.0)
 
                 jitter_behavior = SteeringJitter(actor,

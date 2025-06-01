@@ -120,7 +120,10 @@ class EvaluationManager(object):
 
             loc_debug_helper = vm.agent.debug_helper
             figure, perform_txt, metrics = loc_debug_helper.evaluate()
-            self.global_metrics.setdefault("vehicles", {})[vm.vehicle.id] = metrics
+            print(metrics)
+            veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(vm.vehicle.id, {})
+
+            veh_dict.update(metrics)
 
             # save plotting
             figure_save_path = os.path.join(
@@ -320,7 +323,7 @@ class EvaluationManager(object):
         self.global_metrics.setdefault("vehicles", {})
         for vid, n in per_vehicle.items():
              # merge without clobbering existing metrics
-            veh_dict = self.metrics.setdefault("vehicles", {}).setdefault(v_id, {})
+            veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(vid, {})
             veh_dict["collisions"] = n
 
         
