@@ -331,7 +331,7 @@ class VehicleManager(object):
 
         self.perception_manager = PerceptionManager(
             self.vehicle, sensing_config['perception'], cav_world,
-            data_dumping, tracking_manager=self.tracking_manager)
+            data_dumping, tracking_manager=self.tracking_manager, debug_helper=self.debug_helper)
         logger.debug("PerceptionManager created")
 
         

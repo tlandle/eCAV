@@ -25,39 +25,12 @@ class EdgeDebugHelper(PlanDebugHelper):
     def __init__(self, actor_id):
         super(EdgeDebugHelper, self).__init__(actor_id)
 
-        self.time_gap_list = [[]]
-        self.dist_gap_list = [[]]
         self.algorithm_time_list = [[]]
+        self.tracking_time_list = [[]]
+        self.prediction_time_list = [[]]
         
 
-    def update(self, ego_speed, ttc, time_gap=None, dist_gap=None, algorithm_time_step=None):
-        """
-        Update the platoon related vehicle information.
-
-        Parameters
-        ----------
-        ego_speed : float
-            Ego vehcile speed.
-
-        ttc : float
-            Ego vehicle time-to-collision.
-
-        time_gap : float
-            Ego vehicle time gap with the front vehicle.
-
-        dist_gap : float
-            Ego vehicle distance gap with front vehicle.
-        """
-        super().update(ego_speed, ttc)
-        # at the very beginning, the vehicle speed is 0, which causes
-        # an infinite time gap.  So we need to filter out the first
-        # 100 data points.
-        if self.count > 100:
-            self.time_gap_list[0].append(time_gap)
-            self.dist_gap_list[0].append(dist_gap)
-
-  
-    def update_edge(self, algorithm_time_step=None):
+    def update_edge(self, algorithm_time_step=None, tracking_time=None, prediction_time=None):
         """
         Update the platoon related vehicle information.
 
@@ -65,4 +38,6 @@ class EdgeDebugHelper(PlanDebugHelper):
         ----------
         """
         self.algorithm_time_list[0].append(algorithm_time_step)
+        self.tracking_time_list[0].append(tracking_time)
+        self.prediction_time_list[0].append(prediction_time)
 

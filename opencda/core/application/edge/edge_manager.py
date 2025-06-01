@@ -792,6 +792,7 @@ class EdgeManager(object):
             # Get vehicle objects
             objects = self.objects_deque[number_of_steps].copy()
             # Convert obstacle vehicle objects to AB3DMOT format
+            start_time = time.perf_counter()
             for object_type, object_list in objects.items():
                 if object_type == 'vehicles':
                     for obj in object_list:
@@ -828,6 +829,12 @@ class EdgeManager(object):
 
         # Convert AB3DMOT output to ObstacleTrajectory objects
         self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10, dt=self.dt)
+
+        end_tracker_time = time.perf_counter()
+        tracker_time = end_tracker_time - start_time * 1000  # Convert to milliseconds
+
+
+        start_prediction_time = time.perf_counter()        
         #tracked_trajectories = self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10)
 
         #self.tracked_trajectories_deque.appendleft(tracked_trajectories.copy())
@@ -837,6 +844,13 @@ class EdgeManager(object):
         # Run the linear operator predictor on the tracked trajectories
         # Type ObstaclePrediction list is returned
         generated_predictions = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_trajectories)
+
+        end_prediction_time = time.perf_counter()
+        prediction_time = end_prediction_time - start_prediction_time * 1000  # Convert to milliseconds
+
+        self.debug_helper.update_edge(0,
+                                 tracking_time=tracker_time,
+                                 prediction_time=prediction_time)
 
         #print("Number of generated predictions: ", len(generated_predictions))
 
@@ -1128,9 +1142,32 @@ class EdgeManager(object):
         algorithm_time_list_tmp = \
                 algorithm_time_list_tmp[algorithm_time_list_tmp < 100]
 
+        tracking_time_list = self.debug_helper.tracking_time_list
+        tracking_time_list_mean = np.mean(tracking_time_list)
+        tracking_time_list_std = np.std(tracking_time_list)
+
+        prediction_time_list = self.debug_helper.prediction_time_list
+        prediction_time_list_mean = np.mean(prediction_time_list)
+        prediction_time_list_std = np.std(prediction_time_list)
+
 
         perform_txt += 'Algorithm time mean: %f, std: %f \n' % (
                 np.mean(algorithm_time_list_tmp), np.std(algorithm_time_list_tmp))
+
+        perform_txt += 'Tracking time mean: %f, std: %f \n' % (
+                tracking_time_list_mean, tracking_time_list_std)
+
+        perform_txt += 'Prediction time mean: %f, std: %f \n' % (
+                prediction_time_list_mean, prediction_time_list_std)
+
+        metrics = {
+            'algorithm_time_mean': np.mean(algorithm_time_list_tmp),
+            'algorithm_time_std': np.std(algorithm_time_list_tmp),
+            'tracking_time_mean': tracking_time_list_mean,
+            'tracking_time_std': tracking_time_list_std,
+            'prediction_time_mean': prediction_time_list_mean,
+            'prediction_time_std': prediction_time_list_std
+        }
 
 
         figure = plt.figure()
@@ -1149,7 +1186,7 @@ class EdgeManager(object):
 
 
 
-        return figure, perform_txt
+        return figure, perform_txt, metrics
 
     def destroy(self):
         """

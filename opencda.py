@@ -44,6 +44,7 @@ def arg_parse():
                             help="Make no noise")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
+    parser.add_argument("--output_dir", default=None)
     # parse the arguments and return the result
     opt = parser.parse_args()
     return opt

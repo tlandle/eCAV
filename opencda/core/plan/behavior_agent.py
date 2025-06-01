@@ -688,8 +688,13 @@ class BehaviorAgent(object):
         collisions = []
         for pred in self.generated_predictions:
             # ignore any predictions that match the ego vehicle
-            if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
+            #if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
+                #continue
+            if is_likely_ego(pred, self._ego_pos):
+                logger.debug("Prediction is likely ego, removing it")
+                #self.generated_predictions.remove(pred)
                 continue
+
             
             # get speed from pred
             dt = 0.05 # time step duration for simulator

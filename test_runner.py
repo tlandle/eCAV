@@ -1,115 +1,111 @@
-
 #!/usr/bin/env python3
-"""Run a parameter‑sweep experiment and archive results hierarchically.
+"""
+sweep_runner.py
+---------------
+Launches opencda.py multiple times, sweeping a latency parameter and capturing
+all outputs in a fully deterministic folder hierarchy:
 
-Directory layout created:
+experiment_results/<scenario>/<timestamp>/latency_<v>/run_<rep>/
 
-experiment_results/
-└─ <scenario>/
-   └─ <YYYYMMDD_HHMMSS>/            # timestamp when this runner was launched
-      └─ latency_<value>/           # the swept parameter value
-         └─ run_<rep>/              # repetition index (1‑based)
-            └─ simulation_metrics.json (copied and tagged)
-
-The script keeps the original YAML config backed up and restores it after the
-sweep.  It never crashes on a failed child process.
+Each run directory contains:
+    • runner_stdout.txt           (cmd, return-code, stdout, stderr)
+    • evaluation_output/          (full folder from EvaluateManager)
+    • simulation_metrics.json     (scenario-level metrics, always present)
 """
 
-import argparse
-import copy
-import json
-import shutil
-import subprocess
-import time
+import argparse, subprocess, yaml, shutil, json, sys
+import copy, os, time
 from pathlib import Path
+from datetime import datetime
 
-import yaml
+# ────────────── CLI ─────────────────────────────────────────────────────
+cli = argparse.ArgumentParser()
+cli.add_argument("-t", "--scenario", required=True,
+                 help="scenario name (YAML without extension)")
+cli.add_argument("--values",   nargs="+", type=float, required=True,
+                 help="latency values to sweep (s)")
+cli.add_argument("--repetitions", type=int, default=1,
+                 help="runs per latency value")
+args = cli.parse_args()
 
+# ────────────── paths & constants ───────────────────────────────────────
+ROOT        = Path(__file__).resolve().parent
+CFG_DIR     = ROOT / "opencda/scenario_testing/config_yaml"
+CFG_FILE    = CFG_DIR / f"{args.scenario}.yaml"
+CFG_BAK     = CFG_DIR / f"{args.scenario}.yaml.bak"
 
-# ──────────────────────────────── CLI args ──────────────────────────────── #
+STAMP       = datetime.now().strftime("%Y%m%d_%H%M%S")
+EXP_ROOT    = ROOT / "experiment_results" / args.scenario / STAMP
+OUT_BASE    = ROOT / "opencda/scenario_testing/evaluation_outputs"
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Sweep edge‑latency values for a scenario")
-    p.add_argument("--scenario", "-t", required=True,
-                   help="Scenario name (matches both ‑t and <scenario>.yaml)")
-    p.add_argument("--values", nargs="+", type=float, required=True,
-                   help="Latency values (in seconds) to test, e.g. 0.05 0.1 0.2")
-    p.add_argument("--repetitions", type=int, default=1,
-                   help="How many times to repeat each latency value")
-    return p.parse_args()
+print(f"\n▶  Writing all runs under: {EXP_ROOT}", flush=True)
 
+# ────────────── backup original YAML ────────────────────────────────────
+shutil.copy(CFG_FILE, CFG_BAK)
+with CFG_BAK.open() as f:
+    ORIGINAL_CFG = yaml.safe_load(f)
 
-# ─────────────────────────────── main runner ────────────────────────────── #
+try:
+    run_idx = 0
+    for latency in args.values:
+        for rep in range(1, args.repetitions + 1):
+            run_idx += 1
+            print(f"\n→ Run {run_idx}: latency={latency}  rep={rep}", flush=True)
 
-def main() -> None:
-    args = parse_args()
+            # ---- 1. patch YAML in-place --------------------------------
+            patched = copy.deepcopy(ORIGINAL_CFG)
+            patched["edge_base"]["latency"] = float(latency)
+            with CFG_FILE.open("w") as f:
+                yaml.safe_dump(patched, f)
 
-    repo_root   = Path(__file__).parent.resolve()
-    cfg_dir     = repo_root / "opencda/scenario_testing/config_yaml"
-    cfg_path    = cfg_dir / f"{args.scenario}.yaml"
-    backup_path = cfg_dir / f"{args.scenario}.yaml.bak"
+            # ---- 2. create runner output dir ---------------------------
+            run_dir  = EXP_ROOT / f"latency_{latency}" / f"run_{rep}"
+            run_dir.mkdir(parents=True, exist_ok=True)
 
-    out_base    = repo_root / "opencda/scenario_testing/evaluation_outputs"
+            # dedicated evaluation dir for this run
+            eval_dir = OUT_BASE / STAMP / f"lat_{latency}_rep_{rep}"
+            eval_dir.mkdir(parents=True, exist_ok=True)
 
-    timestamp   = time.strftime("%Y%m%d_%H%M%S")  # runner start time
-    exp_root    = repo_root / "experiment_results" / args.scenario / timestamp
+            # ---- 3. launch opencda.py ----------------------------------
+            cmd = [sys.executable, "opencda.py",
+                   "-t", args.scenario,
+                   "--apply_ml",
+                   "--output_dir", str(eval_dir)]
 
-    # ── backup original YAML ── #
-    shutil.copy(cfg_path, backup_path)
-    with open(backup_path, "r", encoding="utf-8") as bf:
-        orig_cfg = yaml.safe_load(bf)
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,              # keep text mode
+                encoding="utf-8",
+                errors="replace"        # <── any invalid byte → �
+            )
 
-    try:
-        for latency in args.values:
-            for rep in range(1, args.repetitions + 1):
-                # 1) patch YAML
-                cfg = copy.deepcopy(orig_cfg)
-                cfg["edge_base"]["latency"] = latency
-                with open(cfg_path, "w", encoding="utf-8") as f:
-                    yaml.safe_dump(cfg, f)
+            # ---- 4. save stdio -----------------------------------------
+            (run_dir / "runner_stdout.txt").write_text(
+                f"CMD: {' '.join(cmd)}\n"
+                f"RET: {result.returncode}\n\n"
+                f"=== STDOUT ===\n{result.stdout}\n"
+                f"=== STDERR ===\n{result.stderr}\n")
 
-                # 2) snapshot existing output dirs
-                out_base.mkdir(parents=True, exist_ok=True)
-                before = set(out_base.iterdir())
+            # ---- 5. copy evaluation output + metrics -------------------
+            try:
+                # copy full evaluation folder (may contain plots, logs…)
+                shutil.copytree(eval_dir, run_dir / "evaluation_output")
+                metrics_src = eval_dir / "simulation_metrics.json"
+                metrics = json.load(metrics_src.open())
+            except Exception as e:
+                metrics = {"success_rate": 0.0,
+                           "error": f"evaluation folder missing: {e}"}
 
-                # 3) launch scenario
-                cmd = ["python", "opencda.py", "-t", args.scenario, "--apply_ml"]
-                print(f"→ [{time.strftime('%H:%M:%S')}] {args.scenario}  latency={latency}s  rep={rep}")
-                result = subprocess.run(cmd, check=False)
-                if result.returncode != 0:
-                    print(f"⚠️  Child exited with code {result.returncode}")
+            metrics["edge_latency_s"] = float(latency)
+            (run_dir / "simulation_metrics.json").write_text(
+                json.dumps(metrics, indent=2))
 
-                # 4) locate new evaluation folder
-                after    = set(out_base.iterdir())
-                new_dirs = after - before
-                if not new_dirs:
-                    print("⚠️  No new evaluation folder detected — skipping copy")
-                    continue
-                run_folder = max(new_dirs, key=lambda d: d.stat().st_mtime)
+except Exception as fatal:
+    print("\n FATAL error in runner:", fatal, flush=True)
 
-                # 5) tag metrics and copy to hierarchy
-                metrics_file = run_folder / "simulation_metrics.json"
-                if not metrics_file.exists():
-                    print(f"⚠️  {metrics_file.name} missing in {run_folder.name}")
-                    continue
+finally:
+    CFG_BAK.replace(CFG_FILE)                 # restore original YAML
+    print("\n Runner finished. YAML restored.", flush=True)
 
-                # inject latency value
-                data = json.load(metrics_file.open())
-                data["edge_latency_s"] = latency
-                with open(metrics_file, "w", encoding="utf-8") as jf:
-                    json.dump(data, jf, indent=2)
-
-                # make hierarchical destination
-                dest_dir = exp_root / f"latency_{latency}" / f"run_{rep}"
-                dest_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copy(metrics_file, dest_dir / metrics_file.name)
-                print(f"   • saved → {dest_dir.relative_to(repo_root)}")
-
-    finally:
-        # ── restore YAML ── #
-        backup_path.replace(cfg_path)
-        print("\n✅ Restored original YAML and finished sweep.")
-
-
-if __name__ == "__main__":
-    main()

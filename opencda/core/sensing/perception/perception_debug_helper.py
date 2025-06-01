@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Analysis + Visualization functions for planning
+Analysis + Visualization functions for perception
 """
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License:  TDG-Attribution-NonCommercial-NoDistrib
@@ -16,71 +16,41 @@ import ecloud_pb2 as ecloud
 
 logger = logging.getLogger(__name__)
 
-class PlanDebugHelper(object):
+class PerceptionDebugHelper(object):
     """
-    This class aims to save statistics for planner behaviour.
+    This class aims to save statistics for perception debugging.
 
     Parameters:
     -actor_id : int
         The actor ID of the target vehicle for bebuging.
 
     Attributes
-    -speed_list : list
-        The list containing speed info(m/s) of all time-steps.
-    -acc_list : list
-        The list containing acceleration info(m^2/s) of all time-steps.
-    -ttc_list : list
-        The list containing ttc info(s) for all time-steps.
-    -count : int
-        Used to count how many simulation steps have been executed.
 
     """
 
     def __init__(self, actor_id):
         self.actor_id = actor_id
-        self.speed_list = [[]] # doesn't ever use the double-list; only ever index 0
-        self.acc_list = [[]] # doesn't ever use the double-list; only ever index 0
-        self.ttc_list = [[]] # doesn't ever use the double-list; only ever index 0
-        self.agent_step_list = [
-            [], # 0: sim end
-            [], # 1: lights
-            [], # 2: temp route
-            [], # 3: path generation
-            [], # 4: lane change
-            [], # 5: collision
-            [], # 6: no-lane-change composite
-            [], # 7: push
-            [], # 8: blocking
-            [], # 9: overtake
-            [], # 10: following
-            [], # 11: normal
-        ] # index corresponds to specific decision instance in BehaviorAgent.run_step
+        self.detection_time_list = [[]]
+        self.tracking_time_list = [[]]
 
         self.count = 0
 
-    def get_agent_step_list(self):
-        return self.agent_step_list
-
-    def update(self, ego_speed, ttc):
+    def update(self, detection_time, tracking_time):
         """
-        Update the speed info.
-        Args:
-            -ego_speed (float): Ego speed in km/h.
-            -ttc (flot): Time to collision in seconds.
+        Update the detection and tracking time for the target vehicle.
+        Parameters:
+        -detection_time : float
+            The detection time of the target vehicle.
+        -tracking_time : float
+            The tracking time of the target vehicle.
 
         """
         self.count += 1
         # at the very beginning, the vehicle is in a spawn state, so we should
         # filter out the first 100 data points.
-        if self.count > 100:
-            self.speed_list[0].append(ego_speed / 3.6)
-            if len(self.speed_list[0]) <= 1:
-                self.acc_list[0].append(0)
-            else:
-                # todo: time-step hardcoded
-                self.acc_list[0].append(
-                    (self.speed_list[0][-1] - self.speed_list[0][-2]) / 0.05)
-            self.ttc_list[0].append(ttc)
+        if self.count > 100: 
+            self.detection_time_list[0].append(detection_time * 1000)
+            self.tracking_time_list[0].append(tracking_time * 1000)
 
     def update_agent_step_list(self, decision_index, time_s=None):
         self.agent_step_list[decision_index].append(time_s*1000)
