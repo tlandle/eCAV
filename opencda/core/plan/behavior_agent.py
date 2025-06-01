@@ -60,19 +60,15 @@ def is_likely_ego(pred: ObstaclePrediction,
 
     return dist < safety_margin
 
-def is_prediction_matching_ego(prediction, ego_locations, threshold=3, max_compare_steps=10, world=None):
+def is_prediction_matching_ego(prediction, ego_locations, threshold=4, max_compare_steps=10, world=None):
     """
     Check if the predicted trajectory matches the ego vehicle's path.
     Parameters
     ----------
     prediction : ObstaclePrediction
         The predicted trajectory of the obstacle vehicle.
-    ego_path_x : list
-        The x coordinates of the ego vehicle's path.
-    ego_path_y : list
-        The y coordinates of the ego vehicle's path.
-    ego_speed : float
-        The speed of the ego vehicle.
+    ego_locations : list[carla.Location]
+        A list of previous positions for the ego vehicle.
     threshold : float
         The threshold for matching.
     max_compare_steps : int
@@ -89,7 +85,7 @@ def is_prediction_matching_ego(prediction, ego_locations, threshold=3, max_compa
         tracked_transforms.append(tracked_trajectory[i])
 
     min_len = min(len(tracked_transforms), len(ego_locations))
-    print("min_len: %s" %min_len)
+    # print("min_len: %s" %min_len)
 
     if min_len < 2:
         return False
@@ -113,7 +109,7 @@ def is_prediction_matching_ego(prediction, ego_locations, threshold=3, max_compa
 
     avg_dist = total_dist / min_len
     is_ego = avg_dist < threshold
-    print("is ego? %s" %is_ego)
+    # print("is ego? %s" %is_ego)
     return is_ego
 
 def will_prediction_collide_with_ego(
@@ -243,7 +239,7 @@ class BehaviorAgent(object):
         self.overtake_allowed = config_yaml['overtake_allowed']
         self.overtake_allowed_origin = config_yaml['overtake_allowed']
         self.overtake_counter = 0
-        self.overtake_stopped_vehicle = False
+        self.overtake_other_direction = False
         self.overtake_end_wpts = []
         self.ego_location_buffer = []
         # used to indicate whether a vehicle is on the planned path
@@ -271,6 +267,11 @@ class BehaviorAgent(object):
         self.lane_change_allowed = True
         # destination temp push flag
         self.destination_push_flag = 0
+
+        # overtaking
+        self.overtake_wait_time = 20    # TODO: make this a parameter
+        self.overtake_wait_counter = self.overtake_wait_time
+        self.do_overtake = False
 
         # white list of vehicle managers that the cav does not consider as
         # obstacles
@@ -590,7 +591,7 @@ class BehaviorAgent(object):
             self.light_id_to_ignore = -1
         return 0
 
-    def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False, is_left_turn_at_intersection=False, obs_check=False):
+    def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False, is_left_turn_at_intersection=False, check_full_path=False):
         """
         This module is in charge of warning in case of a collision.
 
@@ -699,7 +700,7 @@ class BehaviorAgent(object):
             # get speed from pred
             dt = 0.05 # time step duration for simulator
             detected_traj = pred.obstacle_trajectory.trajectory
-            if len(detected_traj) > 1:
+            if len(detected_traj) > 2:
                 prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
                 vel_x = (current_pos.location.x - prev_pos.location.x) / dt
                 vel_y = (current_pos.location.y - prev_pos.location.y) / dt
@@ -707,12 +708,17 @@ class BehaviorAgent(object):
             else:
                 obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
 
+            if obstacle_speed > 120:
+                # we can just assume something bugged
+                obstacle_speed = 0
+
             print("Obstacle speed: %s" %obstacle_speed)
 
             collision = self._collision_check.trajectory_collision_check(
                 rx, ry, ryaw, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
-                self._map, world=self.vehicle.get_world(), time_step=dt
+                self._map, world=self.vehicle.get_world(), time_step=dt,
+                check_full_path=check_full_path
             )
             if collision:
                 vehicle_state = True
@@ -722,6 +728,7 @@ class BehaviorAgent(object):
                     target_vehicle = pred.obstacle_trajectory.obstacle
                 collisions.append(pred)
                 print("detected collision with %s" %pred.predicted_trajectory)
+                # input("ok")
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -788,22 +795,25 @@ class BehaviorAgent(object):
                 logger.debug("left overtake is operated")
                 self.overtake_counter = 100
                 #next_wpt_list = left_wpt.next(15)
-                if(self._ego_speed > 20):
-                    next_wpt_list = left_wpt.next(self._ego_speed / 3.6 * 6)
-                else:
-                    self.overtake_counter = 200
-                    self.overtake_stopped_vehicle = True
+                if left_turn == carla.LaneChange.NONE and obstacle_vehicle_wpt.left_lane_marking.type == carla.LaneMarkingType.Broken and self._ego_speed < 20:
+                    print("performing overtake into opposing flow of traffic")
+                    # self.overtake_counter = 200
+                    self.overtake_other_direction = True
                     next_wpt_list = []
-                    #print(left_wpt.previous(5)[0].transform)
                     next_wpt_list.append((left_wpt.previous(5)[0], RoadOption.CHANGELANELEFT))
                     next_wpt_list.append((left_wpt.previous(8)[0], RoadOption.LANEFOLLOW))
                     next_wpt_list.append((left_wpt.previous(11)[0], RoadOption.LANEFOLLOW))
                     next_wpt_list.append((left_wpt.previous(13)[0], RoadOption.LANEFOLLOW))
                     next_wpt_list.append((left_wpt.previous(16)[0], RoadOption.LANEFOLLOW))
-                    #input(next_wpt_list)
-                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(24)[0], RoadOption.CHANGELANERIGHT))
-                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(27)[0], RoadOption.LANEFOLLOW))
-                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(30)[0], RoadOption.LANEFOLLOW))
+                    # input(next_wpt_list)
+                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(20)[0], RoadOption.CHANGELANERIGHT))
+                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(23)[0], RoadOption.LANEFOLLOW))
+                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(26)[0], RoadOption.LANEFOLLOW))
+                elif left_turn != carla.LaneChange.NONE:
+                    next_wpt_list = left_wpt.next(self._ego_speed / 3.6 * 6)
+                else:
+                    return True
+
                 if len(next_wpt_list) == 0:
                     #input("Next Waypoint empty")
                     return True
@@ -832,9 +842,10 @@ class BehaviorAgent(object):
 
                 self._local_planner.set_global_plan(next_wpt_list, clean=True)
                 rx, ry, rk, ryaw = self._local_planner.generate_path()
+                check_full_path = (self._ego_speed / 3.6) < 5
                 vehicle_state, _, _ = self.collision_manager(
                     rx, ry, ryaw, self._map.get_waypoint(
-                        self._ego_pos.location), True)
+                        self._ego_pos.location), True, check_full_path=check_full_path)
 
                 #input("Left overtake reset global plan")
                 #print("Left overtake operated success")
@@ -1269,7 +1280,7 @@ class BehaviorAgent(object):
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \
                 self.overtake_counter <= 0 and \
-                not self.overtake_stopped_vehicle:
+                not self.overtake_other_direction:
             self.overtake_allowed = False
             # get push destination based on intersection flag and current waypoint (rule-based)
             reset_target = self.get_push_destination(ego_vehicle_wp, is_intersection)
@@ -1314,23 +1325,18 @@ class BehaviorAgent(object):
                 self.hazard_flag = is_hazard
                 # we only consider overtaking when speed is faster than the
                 # front obstacle
-
-                #if self._ego_speed >= obstacle_speed - 5:
-                #print("Entering overtake management")
-                car_following_flag = self.overtake_management(obstacle_vehicle)
-                #print("Vehicle State %s"%car_following_flag)
-                rx, ry, rk, ryaw = self._local_planner.generate_path()
-                #else:
-                    #car_following_flag = True
+                if self._ego_speed >= obstacle_speed - 5:
+                    print("Entering overtake management")
+                    car_following_flag = self.overtake_management(obstacle_vehicle)
+                    print("Vehicle State %s"%car_following_flag)
+                    rx, ry, rk, ryaw = self._local_planner.generate_path()
+                else:
+                    car_following_flag = True
                 end_time_9 = time.time()
         # return to other lane
-        elif self.overtake_counter <= 100 and self.overtake_stopped_vehicle and \
+        elif self.overtake_counter <= 0 and self.overtake_other_direction and \
                 len(self.overtake_end_wpts) > 0:
-            # self.overtake_stopped_vehicle = False
-
-            # self.get_local_planner().get_waypoints_queue().clear()
-            # self.get_local_planner().get_trajectory().clear()
-            # self.get_local_planner().get_waypoint_buffer().clear()
+            self.overtake_counter = 100 # perform another lane change
 
             self._local_planner.set_global_plan(self.overtake_end_wpts)
             self.overtake_end_wpts.clear()
@@ -1338,8 +1344,9 @@ class BehaviorAgent(object):
             car_following_flag, _, _ = self.collision_manager(
                     rx, ry, ryaw, self._map.get_waypoint(
                         self._ego_pos.location), True)
-        elif self.overtake_counter <= 0 and self.overtake_stopped_vehicle:
-            self.overtake_stopped_vehicle = False
+        elif self.overtake_counter <= 0 and self.overtake_other_direction and \
+                len(self.overtake_end_wpts) == 0:
+            self.overtake_other_direction = False
         elif is_hazard and left_turn:
             if distance < max(self.break_distance, 3):
                 logger.debug("Car Entering Intersection and break distance is closer than 3 meters")

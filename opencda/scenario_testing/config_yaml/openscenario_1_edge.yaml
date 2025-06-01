@@ -48,8 +48,8 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_1
   num_actors: 2
-  configFile: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_1.xml'
-  additionalScenario: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_1.py'
+  configFile: '/HDD/TrafficSimulator_eCloud/eCloudSim/opencda/scenario_testing/scenarios/scenario_1.xml'
+  additionalScenario: '/HDD/TrafficSimulator_eCloud/eCloudSim/opencda/scenario_testing/scenarios/scenario_1.py'
 
   host: *host
   port: *port
@@ -120,7 +120,7 @@ vehicle_base: &vehicle_base
     emergency_param: .4 # used to identify whether a emergency stop needed
     ignore_traffic_light: true # whether to ignore traffic light
     overtake_allowed: true # whether overtake allowed, typically false for platoon leader
-    collision_time_ahead: 5 # used for collision checking
+    collision_time_ahead: 3 # used for collision checking
     overtake_counter_recover: 35 # the vehicle can not do another overtake during next certain steps
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
     local_planner: &base_local_planner # trajectory planning related
