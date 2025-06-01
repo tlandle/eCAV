@@ -102,10 +102,10 @@ def run_scenario(opt, scenario_params):
         edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
 
         # Create evaluation manager
-        # eval_manager = \
-        #     EvaluationManager(scenario_manager.cav_world,
-        #                       script_name=SCENARIO_NAME,
-        #                       current_time=scenario_params['current_time'])
+        eval_manager = \
+             EvaluationManager(scenario_manager.cav_world,
+                               script_name=SCENARIO_NAME,
+                               current_time=scenario_params['current_time'])
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
@@ -157,8 +157,8 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
-        # if eval_manager is not None:
-        #     eval_manager.evaluate()
+        if eval_manager is not None:
+            eval_manager.evaluate()
         if scenario_manager is not None:
             scenario_manager.close()
         print("Destroyed scenario_manager")

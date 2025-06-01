@@ -6,6 +6,7 @@ __pycache__/
 
 # docker issues when using this in everyone's environ
 start_vehicles.sh
+experiment_results/*
 
 # C extensions
 *.so

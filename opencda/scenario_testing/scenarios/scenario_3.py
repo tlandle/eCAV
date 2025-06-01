@@ -22,6 +22,62 @@ from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTes
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import DriveDistance, InTriggerDistanceToLocation
 from srunner.scenarios.basic_scenario import BasicScenario
 
+class ProbabilisticBrakeJitter(py_trees.behaviour.Behaviour):
+    """
+    Between `start_delay` s and `stop_time` s:
+        • each tick, with probability `p_brake`  →  apply `brake_strength`
+        • otherwise                              →  apply `full_throttle`
+    Outside that window the node does nothing (RUNNING before, SUCCESS after).
+    """
+
+    def __init__(self,
+                 actor: carla.Vehicle,
+                 start_delay: float = 2.0,
+                 stop_time: float   = 5.0,
+                 p_brake: float     = 0.7,
+                 brake_strength: float = 1.0,     # 0.0 … 1.0
+                 full_throttle: float = 0.8,
+                 name: str = "ProbBrakeJitter"):
+        super().__init__(name)
+        self._actor = actor
+        self._world = actor.get_world()
+
+        self._t0  = start_delay
+        self._t1  = stop_time
+        self._p   = p_brake
+        self._brk = max(0.0, min(1.0, brake_strength))   # clamp to [0,1]
+        self._thr = full_throttle
+
+    # internal helper
+    def _sim_t(self):
+        return self._world.get_snapshot().timestamp.elapsed_seconds
+
+    # ────────────────────────────────────────────────────────────────
+    def initialise(self):
+        self._t_start = self._sim_t()
+
+    def update(self):
+        t = self._sim_t() - self._t_start
+
+        if t < self._t0:                     # not yet
+            return py_trees.common.Status.RUNNING
+
+        if t >= self._t1:                    # window passed → SUCCESS
+            cur = self._actor.get_control()
+            self._actor.apply_control(carla.VehicleControl(
+                throttle=self._thr, steer=cur.steer, brake=0.0))
+            return py_trees.common.Status.SUCCESS
+
+        # inside the window: stochastic brake / throttle each tick
+        cur = self._actor.get_control()
+        if random.random() < self._p:        # brake this frame
+            self._actor.apply_control(carla.VehicleControl(
+                throttle=0.0,  steer=cur.steer, brake=self._brk))
+        else:                                # throttle this frame
+            self._actor.apply_control(carla.VehicleControl(
+                throttle=self._thr, steer=cur.steer, brake=0.0))
+
+        return py_trees.common.Status.RUNNING
 
 class SteeringJitter(py_trees.behaviour.Behaviour):
     """
@@ -156,7 +212,7 @@ class RandomHardBrake(py_trees.behaviour.Behaviour):
                 self._actor.apply_control(carla.VehicleControl(
                     throttle=0.0,
                     steer=cur.steer,
-                    brake=0.5))
+                    brake=0.25))
                 return py_trees.common.Status.RUNNING
 
         # phase 4 ───── resume full throttle and finish
@@ -284,12 +340,19 @@ class Scenario_3(BasicScenario):
                 "Brake+Follow", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
 
                 
-                brake_behavior = RandomHardBrake(actor,
-                                 start_delay=2.0,
-                                 p_brake=0.5,      # 1.0 = always brake
-                                 min_dur=1.0,
-                                 max_dur=5.0,
-                                 full_throttle=1.0)
+                #brake_behavior = RandomHardBrake(actor,
+                #                 start_delay=2.0,
+                #                 p_brake=0.5,      # 1.0 = always brake
+                #                 min_dur=1.0,
+                #                 max_dur=5.0,
+                #                 full_throttle=1.0)
+
+                brake_behavior = ProbabilisticBrakeJitter(actor,
+                                        start_delay=2.0,
+                                        stop_time=5.0,
+                                        p_brake=0.4,      # 1.0 = always brake
+                                        brake_strength=.5,
+                                        full_throttle=1.0)
 
                 jitter_behavior = SteeringJitter(actor,
                                      amplitude_deg=4.0,
