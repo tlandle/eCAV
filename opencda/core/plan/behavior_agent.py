@@ -60,7 +60,7 @@ def is_likely_ego(pred: ObstaclePrediction,
 
     return dist < safety_margin
 
-def is_prediction_matching_ego(prediction, ego_locations, threshold=3, max_compare_steps=10, world=None):
+def is_prediction_matching_ego(prediction, ego_locations, threshold=4, max_compare_steps=10, world=None):
     """
     Check if the predicted trajectory matches the ego vehicle's path.
     Parameters
@@ -269,6 +269,8 @@ class BehaviorAgent(object):
         self.destination_push_flag = 0
 
         # overtaking
+        self.overtake_wait_time = 20    # TODO: make this a parameter
+        self.overtake_wait_counter = self.overtake_wait_time
         self.do_overtake = False
 
         # white list of vehicle managers that the cav does not consider as
@@ -589,7 +591,7 @@ class BehaviorAgent(object):
             self.light_id_to_ignore = -1
         return 0
 
-    def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False, is_left_turn_at_intersection=False, obs_check=False):
+    def collision_manager(self, rx, ry, ryaw, waypoint, adjacent_check=False, is_left_turn_at_intersection=False, check_full_path=False):
         """
         This module is in charge of warning in case of a collision.
 
@@ -712,7 +714,8 @@ class BehaviorAgent(object):
             collision = self._collision_check.trajectory_collision_check(
                 rx, ry, ryaw, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
-                self._map, world=self.vehicle.get_world(), time_step=dt
+                self._map, world=self.vehicle.get_world(), time_step=dt,
+                check_full_path=check_full_path
             )
             if collision:
                 vehicle_state = True
@@ -836,9 +839,10 @@ class BehaviorAgent(object):
 
                 self._local_planner.set_global_plan(next_wpt_list, clean=True)
                 rx, ry, rk, ryaw = self._local_planner.generate_path()
+                check_full_path = (self._ego_speed / 3.6) < 5
                 vehicle_state, _, _ = self.collision_manager(
                     rx, ry, ryaw, self._map.get_waypoint(
-                        self._ego_pos.location), True)
+                        self._ego_pos.location), True, check_full_path=check_full_path)
 
                 #input("Left overtake reset global plan")
                 #print("Left overtake operated success")
