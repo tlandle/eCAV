@@ -310,7 +310,8 @@ class Scenario_3(BasicScenario):
             set_transform_behavior = ActorTransformSetter(actor, transform)
             if i == 0:
                 waypoint = [carla.Location(x=-108.6, y=129.5, z=0.5), carla.Location(x=-120.6, y=129.5, z=0.5), carla.Location(x=-140.6, y=115.2, z=0.5), carla.Location(x=-142.0, y=87.6, z=0.5)]
-                drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
+                #drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
+                drive_behavior = sync_arrival
             else:
                 drive_behavior = WaypointFollower(actor, velocity)
 
@@ -349,14 +350,14 @@ class Scenario_3(BasicScenario):
 
                 brake_behavior = ProbabilisticBrakeJitter(actor,
                                         start_delay=2.0,
-                                        stop_time=5.0,
-                                        p_brake=0.5,      # 1.0 = always brake
-                                        brake_strength=.6,
+                                        stop_time=3,
+                                        p_brake=0.6,      # 1.0 = always brake
+                                        brake_strength=.8,
                                         full_throttle=1.0)
 
                 jitter_behavior = SteeringJitter(actor,
                                      amplitude_deg=4.0,
-                                     period=0.25,
+                                     period=0.1,
                                      dur=3.0)
 
                 parallel.add_child(drive_behavior)

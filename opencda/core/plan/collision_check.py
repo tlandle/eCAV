@@ -449,12 +449,6 @@ class CollisionChecker:
         obstacle_vehicle_yaw = \
             carla_map.get_waypoint(obstacle_vehicle_loc).transform.rotation.yaw
 
-        print("Obstacle_Vehicle Yaw: %s" %obstacle_vehicle_yaw)
-        print("Is Left Turn at Intersection: %s" %is_left_turn_at_intersection)
-
-        if is_left_turn_at_intersection:
-            path_x, path_y, path_yaw = perpendicular_line_arrays(
-                path_x[70], path_y[70], path_yaw[70], num_points=200, distance=.2)
 
         # every step is 0.1m, so we check every 10 points
         for i in range(0, distance_check, 10):
@@ -466,10 +460,6 @@ class CollisionChecker:
             circle_offsets = np.array(self._circle_offsets)
             circle_locations[:, 0] = ptx + circle_offsets * cos(yaw)
             circle_locations[:, 1] = pty + circle_offsets * sin(yaw)
-
-            #for circle_location in circle_locations:
-                #if is_left_turn_at_intersection:
-                #world.debug.draw_point(carla.Location(x=circle_location[0], y = circle_location[1], z=.5), color=carla.Color(255,255,255), size=(self._circle_radius/2), life_time=2.0)
 
             # calculate bbx coords under world coordinate system
             corrected_extent_x = obstacle_vehicle.bounding_box.extent.x * \
@@ -507,12 +497,10 @@ class CollisionChecker:
 
             collision_dists = np.subtract(collision_dists, self._circle_radius)
             collision_free = collision_free and not np.any(collision_dists < 0)
-            if is_left_turn_at_intersection:
-                print(collision_dists)
 
-            #if not collision_free:
+            if not collision_free:
                 #world.debug.draw_point(obstacle_vehicle_loc, size=1, life_time=1.0)
-                #print(collision_dists)
+                print(collision_dists)
                 #break
 
         return collision_free

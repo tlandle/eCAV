@@ -121,7 +121,7 @@ class EvaluationManager(object):
             loc_debug_helper = vm.agent.debug_helper
             figure, perform_txt, metrics = loc_debug_helper.evaluate()
             print(metrics)
-            veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(vm.vehicle.id, {})
+            veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(str(vm.vehicle.id), {})
 
             veh_dict.update(metrics)
 
