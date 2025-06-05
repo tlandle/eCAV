@@ -19,7 +19,7 @@ class ObstacleTrajectory(object):
     def __init__(self, obstacle: ObstacleVehicle, trajectory):
         self.obstacle = obstacle
         self.trajectory = trajectory
-        self.time_since_last_update = 0.0
+        self.time_since_update = 0.0
 
     def update(self, transform):
         """Appends a new transform and resets update timer."""
