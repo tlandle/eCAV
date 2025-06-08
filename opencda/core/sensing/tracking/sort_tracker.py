@@ -8,6 +8,11 @@ from opencda.core.sensing.tracking.multi_object_tracker import MultiObjectTracke
 from sort.sort import Sort
 from collections import deque
 
+
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='ERROR', logger=logger)
+
 class MultiObjectSORTTracker(MultiObjectTracker):
     def __init__(self, max_age, min_matching_iou):
         """ Initializes the SORT tracker.
@@ -36,7 +41,7 @@ class MultiObjectSORTTracker(MultiObjectTracker):
         tracks = self.tracker.update(convert_detections,
                                       labels=labels,
                                       ids=ids)
-        print('tracks:', tracks)
+        logger.debug('tracks:', tracks)
         self.history.append(tracks.copy()) # for input into predictor
         return tracks.copy()
 
@@ -50,7 +55,7 @@ class MultiObjectSORTTracker(MultiObjectTracker):
         dets_for_sort = []
         labels = []
         ids = []
-        print('detections:', detections)
+        logger.debug('detections:', detections)
         for det in detections:
             # yolo bbx format: [x1, y1, x2, y2, conf, cls]
             x1, y1, x2, y2, conf, cls = det
@@ -58,7 +63,7 @@ class MultiObjectSORTTracker(MultiObjectTracker):
             dets_for_sort.append([x1.item(), y1.item(), x2.item(), y2.item(), conf.item()])
             labels.append(cls.item())
             ids.append(-1)
-        print('dets_for_sort:', dets_for_sort)
+        logger.debug('dets_for_sort:', dets_for_sort)
         return (np.array(dets_for_sort), labels, ids)
 
     def convert_detections_for_sort_alg(self, obstacles):

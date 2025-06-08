@@ -227,6 +227,28 @@ class RandomHardBrake(py_trees.behaviour.Behaviour):
 
         return py_trees.common.Status.SUCCESS
 
+# Helper: ego-speed  →  on-coming speed  (km h⁻¹)
+# Anchor points:   (50 → 10) , (70 → 25) , (100 → 35)
+def _oncoming_speed_for(ego_kmh):
+    x = [50.0, 70.0, 100.0]            # ego target-speed
+    y = [10.0, 25.0,  50.0]            # desired on-coming speed
+
+    # below first anchor → extrapolate with first segment slope
+    if ego_kmh <= x[0]:
+        m = (y[1] - y[0]) / (x[1] - x[0])
+        return y[0] + m * (ego_kmh - x[0])
+
+    # above last anchor → extrapolate with last segment slope
+    if ego_kmh >= x[-1]:
+        m = (y[-1] - y[-2]) / (x[-1] - x[-2])
+        return y[-1] + m * (ego_kmh - x[-1])
+
+    # inside range → linear-interpolate between surrounding anchors
+    for i in range(1, len(x)):
+        if ego_kmh <= x[i]:
+            m = (y[i] - y[i-1]) / (x[i] - x[i-1])
+            return y[i-1] + m * (ego_kmh - x[i-1])
+
 
 class Scenario_3(BasicScenario):
     """
@@ -240,7 +262,7 @@ class Scenario_3(BasicScenario):
     timeout = 1200
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
-                 timeout=600):
+                 timeout=600, scenario_params=None):
         """
         Setup all relevant parameters and create scenario
         """
@@ -251,13 +273,13 @@ class Scenario_3(BasicScenario):
             config.trigger_points[0].location)
 
         self.num_vehicle = 6
-        self.vehicle_01_velocity = 25  # Violated vehicle
+        self.vehicle_01_velocity = 10  # Violated vehicle
         self.vehicle_02_velocity = 0  # Large vehicles from 02 to 06
         self.vehicle_03_velocity = 0
         self.vehicle_04_velocity = 0
         self.vehicle_05_velocity = 0
         self.vehicle_06_velocity = 0
-        self._trigger_distance = 75
+        self._trigger_distance = 72
         self.agents = []
 
         super(Scenario_3, self).__init__("Scenario_3",
@@ -310,8 +332,11 @@ class Scenario_3(BasicScenario):
             set_transform_behavior = ActorTransformSetter(actor, transform)
             if i == 0:
                 waypoint = [carla.Location(x=-108.6, y=129.5, z=0.5), carla.Location(x=-120.6, y=129.5, z=0.5), carla.Location(x=-140.6, y=115.2, z=0.5), carla.Location(x=-142.0, y=87.6, z=0.5)]
-                #drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
-                drive_behavior = sync_arrival
+                ego_velocity = self.ego_vehicles[0].get_speed_limit()
+                velocity = _oncoming_speed_for(ego_velocity * 3.6)  # convert to km h⁻¹
+                print(f"Vehicle 01 velocity: {velocity} km/h")
+                drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
+                #drive_behavior = sync_arrival
             else:
                 drive_behavior = WaypointFollower(actor, velocity)
 
@@ -351,7 +376,7 @@ class Scenario_3(BasicScenario):
                 brake_behavior = ProbabilisticBrakeJitter(actor,
                                         start_delay=2.0,
                                         stop_time=3,
-                                        p_brake=0.6,      # 1.0 = always brake
+                                        p_brake=0.0,      # 1.0 = always brake
                                         brake_strength=.8,
                                         full_throttle=1.0)
 
@@ -361,8 +386,8 @@ class Scenario_3(BasicScenario):
                                      dur=3.0)
 
                 parallel.add_child(drive_behavior)
-                parallel.add_child(brake_behavior)
-                parallel.add_child(jitter_behavior)
+                #parallel.add_child(brake_behavior)
+                #parallel.add_child(jitter_behavior)
 
                 sequence_vehicle[i].add_child(trigger_behavior)
                 sequence_vehicle[i].add_child(parallel)

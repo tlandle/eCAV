@@ -14,6 +14,8 @@ import json
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
+import numpy as np
 from omegaconf import OmegaConf
 
 class EvaluationManager(object):
@@ -93,7 +95,10 @@ class EvaluationManager(object):
         self.platooning_eval(log_file)
         print('Platooning Evaluation Done.')
 
-        #self.edge_eval(log_file)
+        self.client_perception_tracking_eval(log_file)
+        print('Client Perception Tracking Evaluation Done.')
+
+        self.edge_eval(log_file)
         print('Edge Evaluation Done.')
 
         self.lane_invasion_eval(log_file)
@@ -202,7 +207,7 @@ class EvaluationManager(object):
         """
         lprint(log_file, "***********Edge Analysis***********")
 
-        edge_cav_config = self.scenario_params['scenario']['edge_base']
+        edge_cav_config = self.scenario_params['edge_base']
         if edge_cav_config is None:
             lprint(log_file, "No edge configuration provided, skipping edge evaluation.")
             return
@@ -212,7 +217,11 @@ class EvaluationManager(object):
 
         for pmid, pm in self.cav_world.get_edge_dict().items():
             lprint(log_file, 'Edge ID: %s' % pmid)
-            figure, perform_txt = pm.evaluate()
+            figure, perform_txt, metrics = pm.evaluate()
+
+            # update global metrics with edge metrics
+            self.global_metrics.setdefault("edges", {}).setdefault(pmid, {})
+            self.global_metrics["edges"][pmid].update(metrics)
 
             # save plotting
             figure_save_path = os.path.join(
@@ -235,12 +244,12 @@ class EvaluationManager(object):
             tracking_list   = list[float]  (ms)
 
         Metrics stored:
-            self.metrics["vehicles"][vid]["perception_mean_ms"]
-            self.metrics["vehicles"][vid]["perception_std_ms"]
-            self.metrics["vehicles"][vid]["tracking_mean_ms"]
-            self.metrics["vehicles"][vid]["tracking_std_ms"]
-            self.metrics["perception_mean_ms"]   (scenario average)
-            self.metrics["tracking_mean_ms"]
+            self.global_metrics["vehicles"][vid]["perception_mean_ms"]
+            self.global_metrics["vehicles"][vid]["perception_std_ms"]
+            self.global_metrics["vehicles"][vid]["tracking_mean_ms"]
+            self.global_metrics["vehicles"][vid]["tracking_std_ms"]
+            self.global_metrics["perception_mean_ms"]   (scenario average)
+            self.global_metrics["tracking_mean_ms"]
         """
 
         lprint(log_file, "***********Client Perception Tracking Module***********")
@@ -250,8 +259,8 @@ class EvaluationManager(object):
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             v_id = str(vm.vehicle.id)
 
-            perc = vm.debug_helper.get_debug_data()["client_perception_list"]
-            track = vm.debug_helper.get_debug_data()["client_tracking_list"]
+            perc = vm.debug_helper.get_debug_data()["client_perception_time"]
+            track = vm.debug_helper.get_debug_data()["client_tracking_time"]
 
             perc_mean = float(np.mean(perc)) if perc else 0.0
             perc_std  = float(np.std (perc)) if perc else 0.0
@@ -266,13 +275,15 @@ class EvaluationManager(object):
             }
 
             # store in global metrics structure
-            self.metrics.setdefault("vehicles", {})[v_id] = per_vehicle[v_id]
+            veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(str(vm.vehicle.id), {})
+
+            veh_dict.update(per_vehicle[v_id])
 
         # -------- scenario-level averages -----------------------------------
         if per_vehicle:
-            self.metrics["perception_mean_ms"] = float(
+            self.global_metrics["perception_mean_ms"] = float(
                 np.mean([v["perception_mean_ms"] for v in per_vehicle.values()]))
-            self.metrics["tracking_mean_ms"] = float(
+            self.global_metrics["tracking_mean_ms"] = float(
                 np.mean([v["tracking_mean_ms"]   for v in per_vehicle.values()]))
 
         # -------- plotting ---------------------------------------------------
@@ -303,8 +314,8 @@ class EvaluationManager(object):
 
         # -------- log line ---------------------------------------------------
         lprint(log_file,
-               f"Perception mean(ms): {self.metrics.get('perception_mean_ms', 'NA'):.1f}, "
-               f"Tracking mean(ms): {self.metrics.get('tracking_mean_ms', 'NA'):.1f}")
+               f"Perception mean(ms): {self.global_metrics.get('perception_mean_ms', 'NA'):.1f}, "
+               f"Tracking mean(ms): {self.global_metrics.get('tracking_mean_ms', 'NA'):.1f}")
                
     def collision_eval(self, log_file):
         """

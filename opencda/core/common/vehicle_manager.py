@@ -38,6 +38,7 @@ from opencda.core.prediction.obstacle_prediction \
     import ObstaclePrediction
 from opencda.core.sensing.tracking.obstacle_trajectory \
     import ObstacleTrajectory
+from opencda.core.prediction.linear_predictor_manager import LinearPredictorManager
 from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.common.misc import compute_distance
@@ -148,7 +149,7 @@ class VehicleManager(object):
         self.generated_predictions = {}
         # set random seed if stated
         seed = time.time()
-        print(config_yaml)
+        logger.debug(config_yaml)
         if 'seed' in config_yaml['world']:
             seed = config_yaml['world']['seed']
 
@@ -160,13 +161,15 @@ class VehicleManager(object):
         random.seed(seed)
 
         edge_sets_destination = False
-        print(vehicle_index)
+        logger.debug(vehicle_index)
         if not is_edge:
             cav_config = self.scenario_params['scenario']['single_cav_list'][vehicle_index] if location_type == eLocationType.EXPLICIT \
                         else self.scenario_params['scenario']['single_cav_list'][0] 
             cav_config = OmegaConf.merge(self.scenario_params['vehicle_base'],
                                          cav_config)
         #print(cav_config)
+
+        self.linear_predictor_manager = LinearPredictorManager(num_future_steps=25)
 
         # ORIGINAL FLOW
 
@@ -255,7 +258,7 @@ class VehicleManager(object):
                             z=self.spawn_transform.location.z)
 
                 else:
-                    print("No spawn location specified")
+                    logger.debug("No spawn location specified")
                     break
 
                 # By default, we use lincoln as our cav model.
@@ -453,7 +456,7 @@ class VehicleManager(object):
                 round(actor_location.y, 3),
                 round(actor_location.z, 3)))
 
-        print(
+        logger.debug(
             "Agent collided against object with type={} and id={} at (x={}, y={}, z={})".format(
                 event.other_actor.type_id,
                 event.other_actor.id,
@@ -552,7 +555,7 @@ class VehicleManager(object):
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
-        print("Objects", objects)
+        logger.debug("Objects", objects)
 
         #objects = {**objects ,  **self.edge_objects}
         if 'vehicles' in self.edge_objects:
@@ -574,11 +577,11 @@ class VehicleManager(object):
             else:
                 objects['static'] = self.edge_objects['static']
 
-        print("Edge Objects", self.edge_objects)
+        logger.debug("Edge Objects", self.edge_objects)
  
        # if self.rsu_manager:
           #objects = {**objects ,  **self.rsu_manager.perception_manager.detect(ego_pos, self.vehicle.id)}
-        print("Combined Objects: " , objects)
+        logger.debug("Combined Objects: " , objects)
         end_time = time.time()
         logger.debug("Perception time: %s" %(end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)

@@ -167,7 +167,7 @@ class TrackingManager:
                 print("VID: %s Location: (%s, %s, %s)" %(vehicle.id, vehicle.get_location().x, vehicle.get_location().y, vehicle.get_location().z))
                 world.debug.draw_string(vehicle.get_location(), "V %s"%(vehicle.id))
                 matrix[i][j] = detected_vehicle.get_location().distance(vehicle.get_location())
-                print("Distance: %s" %matrix[i][j])
+                #print("Distance: %s" %matrix[i][j])
 
 
 

@@ -20,6 +20,11 @@ from opencda.core.sensing.perception.obstacle_vehicle import \
     is_vehicle_cococlass, ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 
+
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='ERROR', logger=logger)
+
 VIRIDIS = np.array(cm.get_cmap('plasma').colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 LABEL_COLORS = np.array([
@@ -211,8 +216,8 @@ def o3d_camera_lidar_fusion(objects,
             (projected_lidar[:, 1] > y1) & (projected_lidar[:, 1] < y2) & \
             (projected_lidar[:, 2] > 0.0)
         # ignore intensity channel
-        #print(len(lidar_3d))
-        #print(len(points_in_bbx))
+        #logger.debug(len(lidar_3d))
+        #logger.debug(len(points_in_bbx))
         select_points = lidar_3d[points_in_bbx][:, :-1]
         #select_points = lidar_3d[points_in_bbx]
 
@@ -307,13 +312,13 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
     """
 
 
-    print("track shape: ", track.shape)
+    logger.debug("track shape: ", track.shape)
     for i in range(track.shape[0]):
         detection = track[i]
         x1, y1, x2, y2 = int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3])
         track_id = int(detection[4])  # instead of label
-        print("track id: ", track_id)
-        print("x1, y1, x2, y2: ", x1, y1, x2, y2)
+        logger.debug("track id: ", track_id)
+        logger.debug("x1, y1, x2, y2: ", x1, y1, x2, y2)
     
         # choose the lidar points in the 2d yolo bounding box
         points_in_bbx = \
@@ -321,12 +326,12 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
             (projected_lidar[:, 1] > y1) & (projected_lidar[:, 1] < y2) & \
             (projected_lidar[:, 2] > 0.0)
         # ignore intensity channel
-        #print(len(lidar_3d))
-        #print(len(points_in_bbx))
+        #logger.debug(len(lidar_3d))
+        #logger.debug(len(points_in_bbx))
         select_points = lidar_3d[points_in_bbx][:, :-1]
         #select_points = lidar_3d[points_in_bbx]
 
-        print("select points shape: ", select_points.shape)
+        logger.debug("select points shape: ", select_points.shape)
 
 
         if select_points.shape[0] == 0:
@@ -343,7 +348,7 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
                         (np.abs(select_points[:, 1]) < y_common + 3)
         select_points = select_points[points_inlier]
 
-        print("select points shape after inlier: ", select_points.shape)
+        logger.debug("select points shape after inlier: ", select_points.shape)
 
         if select_points.shape[0] < 2:
             continue
@@ -370,7 +375,7 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         corner = st.sensor_to_world(corner, lidar_sensor.get_transform())
         corner = corner.transpose()[:, :3]
 
-        print("corner shape: ", corner.shape)
+        logger.debug("corner shape: ", corner.shape)
 
         if len(objects['vehicles']) == 0:
             vehicle_obstacle = ObstacleVehicle(corner, aabb, tick_id=tick_id, track_id=track_id)

@@ -26,6 +26,11 @@ from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_camera_lidar_fusion, o3d_camera_lidar_fusion_from_tracker
 from opencda.client_debug_helper import ClientDebugHelper
 
+
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='ERROR', logger=logger)
+
 class CameraSensor:
     """
     Camera manager for vehicle or infrastructure.
@@ -63,7 +68,7 @@ class CameraSensor:
 
         spawn_point = self.spawn_point_estimation(relative_position,
                                                   global_position)
-        print("Vehicle: %s"%vehicle)
+        logger.debug("Vehicle: %s"%vehicle)
 
         if vehicle is not None:
             self.sensor = world.spawn_actor(
@@ -542,16 +547,19 @@ class PerceptionManager:
 
         detection_start_time = time.time()
         yolo_detection = self.ml_manager.object_detector(rgb_images)
+
+        
+
         detection_end_time = time.time()
         self.debug_helper.update_detections_time(
             detection_end_time - detection_start_time * 1000)
-        print("Yolo Detection: %s" %yolo_detection)
+        logger.debug("Yolo Detection: %s" %yolo_detection)
 
         # rgb_images for drawing
         rgb_draw_images = []
 
         lidar_data = self.lidar.data
-        print("Lidar Data: %s" %lidar_data)
+        logger.debug("Lidar Data: %s" %lidar_data)
 
         total_tracking_time = 0
         total_lidar_fusion_time = 0
@@ -573,7 +581,7 @@ class PerceptionManager:
             tracking_end_time = time.time()
             total_tracking_time += tracking_end_time - tracking_start_time
 
-            print("Tracking Detection: %s" %tracking_detection)
+            logger.debug("Tracking Detection: %s" %tracking_detection)
 
             lidar_fusion_start_time = time.time()
             objects = o3d_camera_lidar_fusion_from_tracker(
@@ -585,7 +593,7 @@ class PerceptionManager:
                 self.cav_world.tick_id)
             lidar_fusion_end_time = time.time()
             total_lidar_fusion_time += lidar_fusion_end_time - lidar_fusion_start_time
-            print("Objects after lidar fusion: %s" %objects)
+            logger.debug("Objects after lidar fusion: %s" %objects)
 
             # calculate the speed. current we retrieve from the server
             # directly.
@@ -740,7 +748,7 @@ class PerceptionManager:
         semantic_tag = self.semantic_lidar.obj_tag
 
         if semantic_tag is None or semantic_idx is None:
-            print('none')
+            logger.debug('none')
             return vehicle_list
 
         # label 10 is the vehicle
