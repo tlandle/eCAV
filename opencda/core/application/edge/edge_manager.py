@@ -936,6 +936,7 @@ class EdgeManager(object):
                     traj.update(transform)
                     traj.trajectory = deque(traj.trajectory, maxlen=trajectory_length)
                     traj.obstacle.transform = transform
+                    traj.obstacle.location = transform.location
                 else:
                     dummy_obstacle = ObstacleVehicle(
                         corners=np.zeros((8, 3)),
@@ -944,6 +945,7 @@ class EdgeManager(object):
                         tick_id=0
                     )
                     dummy_obstacle.transform = transform
+                    dummy_obstacle.location = transform.location
                     self.tracked_trajectories[track_id] = ObstacleTrajectory(
                         dummy_obstacle,
                         deque([transform], maxlen=trajectory_length)
