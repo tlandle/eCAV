@@ -624,21 +624,23 @@ class BehaviorAgent(object):
         #logger.debug(adjacent_check)
         #logger.debug("generated predictions: %s" %self.generated_predictions)
 
+        pred_carla_objects = {}
+
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             logger.debug("Vehicle Id: %s" %vehicle.carla_id)
-            # logger.debug("Vehicle Trajectory: %s" %self.other_car_trajectories.get(vehicle.carla_id))
-            #logger.debug("Vehicle Speed: %s" %self.other_car_speeds.get(vehicle.carla_id))
-            #if self.other_car_speeds.get(vehicle.carla_id) != None:
-            #    speed_scalar = np.linalg.norm([self.other_car_speeds.get(vehicle.carla_id).x, self.other_car_speeds.get(vehicle.carla_id).y])
-            #else:
-                #speed_scalar = 0
-            #logger.debug("Speed Scalar: %s" %speed_scalar)
-            #if (vehicle.carla_id != None and self.other_car_trajectories.get(vehicle.carla_id) != None and self.other_car_speeds.get(vehicle.carla_id) != None and speed_scalar > 0.5):
-                #trajectory_collision_free = self._collision_check.trajectory_collision_check(
-                 #   rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
-                 #   world=self.vehicle.get_world(), other_vehicle=vehicle, other_trajectory=self.other_car_trajectories[vehicle.carla_id].copy(), other_speed=self.other_car_speeds[vehicle.carla_id])
-            # Remove predictions for the current vehicle
+
+            obstacle_loc = vehicle.get_location()
+
+            # find which vehicle is which
+            for pred in self.generated_predictions:
+                traj = pred.obstacle_trajectory.trajectory
+                if len(traj) == 0:
+                    continue
+                last_loc = traj[-1].location
+                dist_from_obstacle = math.hypot(last_loc.x-obstacle_loc.x, last_loc.y-obstacle_loc.y)
+                if dist_from_obstacle < 10:
+                    pred_carla_objects[pred] = vehicle
          
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
@@ -668,6 +670,25 @@ class BehaviorAgent(object):
                 #self.generated_predictions.remove(pred)
                 continue
 
+            # ignore any predictions for obstacles behind the ego
+            if pred in pred_carla_objects:
+                obstacle_vehicle = pred_carla_objects[pred]
+                obstacle_vehicle_loc = obstacle_vehicle.get_location()
+                obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
+                ego_wpt = self._map.get_waypoint(self.vehicle.get_location())
+                if ego_wpt.lane_id == obstacle_vehicle_wpt.lane_id:
+                    # get the heading
+                    theta = ego_wpt.transform.rotation.yaw
+                    
+                    ego_loc = ego_wpt.transform.location
+                    dx = obstacle_vehicle_loc.x - ego_loc.x
+                    dy = obstacle_vehicle_loc.y - ego_loc.y
+                    heading_x = math.cos(math.radians(theta))
+                    heading_y = math.sin(math.radians(theta))
+                    dot = dx * heading_x + dy * heading_y
+                    if dot < 0:
+                        print("found vehicle behind ego")
+                        continue
             
             # get speed from pred
             dt = 0.05 # time step duration for simulator
@@ -692,7 +713,7 @@ class BehaviorAgent(object):
             collision = self._collision_check.trajectory_collision_check(
                 rx, ry, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
-                world=None, time_step=dt,
+                world=self.vehicle.get_world(), time_step=dt,
                 check_full_path=check_full_path
             )
             if collision:
