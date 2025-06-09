@@ -45,8 +45,8 @@ class Scenario_1(BasicScenario):
         self.num_vehicle = 4
         self.vehicle_01_velocity = 0
         self.vehicle_02_velocity = 8
-        self.vehicle_03_velocity = 8
-        self.vehicle_04_velocity = 8
+        self.vehicle_03_velocity = 6
+        self.vehicle_04_velocity = 6
         self._trigger_distance = 150
         self.agents = []
 

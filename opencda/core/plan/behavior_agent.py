@@ -710,13 +710,14 @@ class BehaviorAgent(object):
 
             logger.debug("Obstacle speed: %s" %obstacle_speed)
 
-            collision = self._collision_check.trajectory_collision_check(
+            collision, ttc = self._collision_check.trajectory_collision_check(
                 rx, ry, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
                 world=self.vehicle.get_world(), time_step=dt,
                 check_full_path=check_full_path
             )
             if collision:
+                self.debug_helper.update(self._ego_speed / 3.6, ttc)
                 vehicle_state = True
                 distance = 2.0
                 if distance < min_distance:
@@ -797,20 +798,24 @@ class BehaviorAgent(object):
                     logger.debug("performing overtake into opposing flow of traffic")
                     # self.overtake_counter = 200
                     if set_destination:
+                        self.overtake_counter = 50  # just enough to be able to change lanes
                         self.overtake_other_direction = True
                     next_wpt_list = []
-                    next_wpt_list.append((left_wpt.previous(2)[0], RoadOption.CHANGELANELEFT))
-                    next_wpt_list.append((left_wpt.previous(5)[0], RoadOption.LANEFOLLOW))
+                    next_wpt_list.append((left_wpt.previous(5)[0], RoadOption.CHANGELANELEFT))
+                    next_wpt_list.append((left_wpt.previous(7)[0], RoadOption.LANEFOLLOW))
                     next_wpt_list.append((left_wpt.previous(10)[0], RoadOption.LANEFOLLOW))
                     next_wpt_list.append((left_wpt.previous(13)[0], RoadOption.LANEFOLLOW))
-                    next_wpt_list.append((left_wpt.previous(16)[0], RoadOption.LANEFOLLOW))
+                    next_wpt_list.append((left_wpt.previous(15)[0], RoadOption.LANEFOLLOW))
                     # input(next_wpt_list)
-                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(22)[0], RoadOption.CHANGELANERIGHT))
-                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(25)[0], RoadOption.LANEFOLLOW))
-                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(28)[0], RoadOption.LANEFOLLOW))
-                    self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(31)[0], RoadOption.LANEFOLLOW))
+                    if set_destination:
+                        self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(30)[0], RoadOption.CHANGELANERIGHT))
+                        self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(32)[0], RoadOption.LANEFOLLOW))
+                        self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(34)[0], RoadOption.LANEFOLLOW))
+                        self.overtake_end_wpts.append((obstacle_vehicle_wpt.next(36)[0], RoadOption.LANEFOLLOW))
                     # next_wpt_list.extend(self.overtake_end_wpts)
                 elif left_turn != carla.LaneChange.NONE:
+                    if set_destination:
+                        self.overtake_other_direction = False
                     next_wpt_list = left_wpt.next(self._ego_speed / 3.6 * 6)
                     if len(next_wpt_list) == 0:
                         return True
@@ -885,12 +890,13 @@ class BehaviorAgent(object):
                             # we can just assume something bugged
                             obstacle_speed = 0
 
-                        collision = self._collision_check.waypoint_collision_check(
+                        collision, ttc = self._collision_check.waypoint_collision_check(
                                 next_wpt_list, self._ego_pos.location, self._ego_speed / 3.6,
                                 pred.predicted_trajectory, obstacle_speed,
                                 world=self.vehicle.get_world())
                         
                         if collision:
+                            self.debug_helper.update(self._ego_speed / 3.6, ttc)
                             return True
                         
                     return False
@@ -919,6 +925,7 @@ class BehaviorAgent(object):
                 next_wpt = next_wpt_list[0]
                 right_wpt = right_wpt.next(5)[0]
                 if set_destination:
+                    self.overtake_other_direction = False
                     self.overtake_counter = 100
                     self.set_destination(
                         right_wpt.transform.location,
@@ -1210,7 +1217,7 @@ class BehaviorAgent(object):
         # ttc reset to 1000 at the beginning
         self.ttc = 1000
         # when overtake_counter > 0, another overtake/lane change is forbidden
-        if self.overtake_counter > 0:
+        if self.overtake_counter > 0 and not self.overtake_other_direction:
             self.overtake_counter -= 1
 
         # we reset destination push flag for every n rounds
@@ -1314,6 +1321,8 @@ class BehaviorAgent(object):
         logger.debug("step 5 complete")
 
         if not is_hazard:
+            if self.overtake_counter > 0 and self.overtake_other_direction:
+                self.overtake_counter -= 1
             self.hazard_flag = False
 
         # 6. composite steps 7 - 9
@@ -1400,13 +1409,8 @@ class BehaviorAgent(object):
                 else:
                     car_following_flag = True
                 end_time_9 = time.time()
-        elif is_hazard and left_turn:
-            if distance < max(self.break_distance, 3):
-                logger.debug("Car Entering Intersection and break distance is closer than 3 meters")
-                return 0, None
-
         # return to other lane if overtaking
-        if self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0:
+        elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0:
             self.overtake_counter = 100 # perform another lane change
 
             self._local_planner.set_global_plan(self.overtake_end_wpts)
@@ -1417,7 +1421,11 @@ class BehaviorAgent(object):
                         self._ego_pos.location), True)
         elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) == 0:
             self.overtake_other_direction = False
-
+        elif is_hazard and left_turn:
+            if distance < max(self.break_distance, 3):
+                logger.debug("Car Entering Intersection and break distance is closer than 3 meters")
+                return 0, None
+        
         if self.overtake_counter <= 0 and not self.overtake_other_direction and self.do_overtake:
             self.do_overtake = False
             self.num_overtake_collisions = 0

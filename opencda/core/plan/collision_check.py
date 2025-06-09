@@ -547,8 +547,8 @@ class CollisionChecker:
             rx.append(ix)
             ry.append(iy)
 
-        is_collision = self.trajectory_collision_check(rx, ry, ego_speed, obstacle_trajectory, obstacle_speed, check_full_path=True, world=world)
-        return is_collision
+        is_collision, ttc = self.trajectory_collision_check(rx, ry, ego_speed, obstacle_trajectory, obstacle_speed, check_full_path=True, world=world)
+        return is_collision, ttc
 
     def trajectory_collision_check(
             self,
@@ -565,7 +565,7 @@ class CollisionChecker:
         in the future.
         """
         if obstacle_speed < 5:
-            return False    # ignore "stationary" obstacles
+            return False, 1000    # ignore "stationary" obstacles
 
         # get interpolation of obstacle trajectory
         obs_points = []
@@ -595,6 +595,7 @@ class CollisionChecker:
             dists = spatial.distance.cdist(ego_path, obs_path)
             collision_dists = np.subtract(dists, self._circle_radius)
             is_collision = np.any(collision_dists < 0)
+            ttc = 2
         else:
             # naively resample the ego path
             ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 50), len(ego_path_x))    # minimum number of points can be tuned
@@ -615,7 +616,7 @@ class CollisionChecker:
             length = min(len(ego_x_points), len(obs_x_points))
             ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
             obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-            is_collision, _ = check_paths_within_radius(ego_path, obs_path, r=5, dt=time_step)
+            is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=5, dt=time_step)
 
         if world is not None:
             for i in range(len(ego_x_points)):
@@ -623,6 +624,6 @@ class CollisionChecker:
             for i in range(len(obs_x_points)):
                 world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=0.25)
 
-        return is_collision
+        return is_collision, ttc
 
 
