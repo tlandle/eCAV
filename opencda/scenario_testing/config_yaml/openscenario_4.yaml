@@ -4,7 +4,7 @@ description: |-
 
 
 distributed: false
-define: &perception_is_active false
+define: &perception_is_active true
 perception_active: *perception_is_active
 
 # Carla server settings
@@ -73,6 +73,7 @@ vehicle_base: &vehicle_base
   sensing: &base_sensing
 #    edge: true
     perception: &base_perception
+      activate: *perception_is_active # whether to activate perceptio
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         visualize: true # whether to visualize lidar points using open3d
   behavior: &base_behavior

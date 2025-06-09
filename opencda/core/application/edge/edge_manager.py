@@ -97,7 +97,7 @@ class EdgeManager(object):
         self.rsu_manager_list = []
         #self.target_speed = config_yaml['target_speed'] # kph
         #self.traffic_velocity = self.target_speed * 0.277778 # convert to m/s! NOT kph
-        print(config_yaml)
+        logger.debug(config_yaml)
         if 'vehicles' in config_yaml:
             self.numcars = len(config_yaml['vehicles']) # TODO - set edge_index
         if 'rsus' in config_yaml:
@@ -138,7 +138,7 @@ class EdgeManager(object):
         self.dt = world_dt
         self.other_vehicles = other_vehicles
         # TODO make this a parameter
-        self.num_future_steps = 50
+        self.num_future_steps = 25
         self.linear_predictor_manager = LinearPredictorManager(num_future_steps=self.num_future_steps)
 
         self.debug_helper = EdgeDebugHelper(0)
@@ -153,35 +153,35 @@ class EdgeManager(object):
     def start_edge(self):
       if(self.activate == "MANEUVER"):
         self.get_four_lane_waypoints_dict()
-        print("Got Waypoints")
+        logger.debug("Got Waypoints")
         self.processor = transform_processor(self.waypoints_dict)
-        print("Edge: Waypoints transformed")
+        logger.debug("Edge: Waypoints transformed")
         _, _ = self.processor.process_waypoints_bidirectional(0)
-        print("Edge: Waypoints processed")
+        logger.debug("Edge: Waypoints processed")
         inverted = self.processor.process_forward(0)
-        print(len(inverted))
+        logger.debug(len(inverted))
         i = 0
 
         # for k in inverted:
         #     if k[0,0] <= 0 and k[0,0] < -self.secondary_offset:
-        #       print("Current indice is: ", k[0,0])
+        #       logger.debug("Current indice is: ", k[0,0])
         #       self.secondary_offset = -k[0,0]
 
         for vehicle_manager in self.vehicle_manager_list:
             spawn_coords = vehicle_manager.vehicle.get_location()
             spawn_coords = np.array([spawn_coords.x,spawn_coords.y]).reshape((2,1))
-            print("Spawn Coords before transform")
-            print(spawn_coords)
+            logger.debug("Spawn Coords before transform")
+            logger.debug(spawn_coords)
             spawn_coords = self.processor.process_single_waypoint_forward(spawn_coords[0,0],spawn_coords[1,0])
-            print("Spawn Coords after Transform")
-            print(spawn_coords)
+            logger.debug("Spawn Coords after Transform")
+            logger.debug(spawn_coords)
             # sys.exit()
             # self.spawn_x.append(vehicle_manager.vehicle.get_location().x)
             # self.spawn_y.append(vehicle_manager.vehicle.get_location().y)
             #self.spawn_v.append(vehicle_manager.vehicle.get_velocity())
             ## THIS IS TEMPORARY ##
-            # print("inverted is: ", inverted[i][0,0])
-            # print("revised x is: ", self.secondary_offset)
+            # logger.debug("inverted is: ", inverted[i][0,0])
+            # logger.debug("revised x is: ", self.secondary_offset)
             self.spawn_x.append(spawn_coords[0]) # inverted[i][0,0]+self.secondary_offset)
             #self.spawn_v.append(5*(i+1))
             self.spawn_v.append(0)
@@ -235,7 +235,7 @@ class EdgeManager(object):
       indices_source = indices_source.astype(int)
       indices_dest = indices_dest.astype(int)
 
-      #print("Source Shape: ", indices_source.shape)
+      #logger.debug("Source Shape: ", indices_source.shape)
 
       a = carla.Location(waypoints[indices_source[0,1]].transform.location)
       b = carla.Location(waypoints[indices_dest[0,1]].transform.location)
@@ -258,7 +258,7 @@ class EdgeManager(object):
 
       i = 0
       for w in w1:
-        #print(w)
+        #logger.debug(w)
         mark=str(i)
         if i % 10 == 0:
             world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
@@ -269,7 +269,7 @@ class EdgeManager(object):
         i += 1
       i = 0
       for w in w2:
-        #print(w)
+        #logger.debug(w)
         mark=str(i)
         if i % 10 == 0:
             world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
@@ -280,7 +280,7 @@ class EdgeManager(object):
         i += 1
       i = 0
       for w in w3:
-        #print(w)
+        #logger.debug(w)
         mark=str(i)
         if i % 10 == 0:
             world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
@@ -291,7 +291,7 @@ class EdgeManager(object):
         i += 1
       i = 0
       for w in w4:
-        #print(w)
+        #logger.debug(w)
         mark=str(i)
         if i % 10 == 0:
             world.debug.draw_string(w[0].transform.location,mark, draw_shadow=False, color=carla.Color(r=255, g=0, b=0), life_time=120.0, persistent_lines=True)
@@ -383,10 +383,10 @@ class EdgeManager(object):
                 for vehicle in obj['vehicles']:
                     if vehicle.id == self.vehicle.id:
                         vehicle.track_id = vehicle.id
-                        #print("Transforming Object Track IDs to Global IDs")
-                        #print(trajectory)
-                        #print(vehicle.id)
-                        #print(vehicle.get_transform().location)
+                        #logger.debug("Transforming Object Track IDs to Global IDs")
+                        #logger.debug(trajectory)
+                        #logger.debug(vehicle.id)
+                        #logger.debug(vehicle.get_transform().location)
         return trajectory
 
 
@@ -571,44 +571,44 @@ class EdgeManager(object):
             elif(self.activate == "PERCEPTION"):
                 self.traj_dict[self.vehicle_manager_list[i].vehicle.id] = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().copy()
                 self.vehicle_speeds[self.vehicle_manager_list[i].vehicle.id] = self.vehicle_manager_list[i].vehicle.get_velocity()
-                print("Vehicle id: %s" %self.vehicle_manager_list[i].vehicle.id)
+                logger.debug("Vehicle id: %s" %self.vehicle_manager_list[i].vehicle.id)
             elif(self.activate == "PREDICTION"):
                 self.objects = {**self.objects, **self.vehicle_manager_list[i].agent.objects}
         if(self.activate == "PERCEPTION"):
             for sequenced_vehicle in self.other_vehicles:
-                #print("Sequenced Vehicle: ", sequenced_vehicle._actor.id)
-                #print("Sequenced Vehicle Local Planner: ", sequenced_vehicle._local_planner_dict)
+                #logger.debug("Sequenced Vehicle: ", sequenced_vehicle._actor.id)
+                #logger.debug("Sequenced Vehicle Local Planner: ", sequenced_vehicle._local_planner_dict)
                 if sequenced_vehicle._actor in sequenced_vehicle._local_planner_dict and sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor] is not None:
-                    #print("Sequenced Vehicle in planner dict: ", sequenced_vehicle._actor.id)
+                    #logger.debug("Sequenced Vehicle in planner dict: ", sequenced_vehicle._actor.id)
                     self.traj_dict[sequenced_vehicle._actor.id] = sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor]._waypoints_queue.copy()
                     waypoint_roadoption_tuple = create_waypoint_roadoption_tuple(sequenced_vehicle._actor.get_location(), sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor]._map)
-                    print("Waypoint Roadoption Tuple: ", waypoint_roadoption_tuple)
-                    print("Waypoint Roadoption Tuple Location (%s, %s): ", waypoint_roadoption_tuple[0].transform.location.x, waypoint_roadoption_tuple[0].transform.location.y)
+                    logger.debug("Waypoint Roadoption Tuple: ", waypoint_roadoption_tuple)
+                    logger.debug("Waypoint Roadoption Tuple Location (%s, %s): ", waypoint_roadoption_tuple[0].transform.location.x, waypoint_roadoption_tuple[0].transform.location.y)
                     self.traj_dict[sequenced_vehicle._actor.id].appendleft(waypoint_roadoption_tuple)
-                    #print("Traj Dict: ", self.traj_dict[sequenced_vehicle._actor.id])
+                    #logger.debug("Traj Dict: ", self.traj_dict[sequenced_vehicle._actor.id])
                     self.vehicle_speeds[sequenced_vehicle._actor.id] = sequenced_vehicle._actor.get_velocity()
-                    #print("Sequenced Velocity: ", self.vehicle_speeds[sequenced_vehicle._actor.id])
-                    #print("Waypoint Queue: ", self.traj_dict[sequenced_vehicle._actor.id])
-                #print(self.vehicle_manager_list[i].agent.objects)
+                    #logger.debug("Sequenced Velocity: ", self.vehicle_speeds[sequenced_vehicle._actor.id])
+                    #logger.debug("Waypoint Queue: ", self.traj_dict[sequenced_vehicle._actor.id])
+                #logger.debug(self.vehicle_manager_list[i].agent.objects)
                 #self.objects =  {**self.objects,  **self.vehicle_manager_list[i].agent.objects}
-                #print(self.objects)
+                #logger.debug(self.objects)
                 #logger.info("update_information for vehicle_%s - x:%s, y:%s", i, x, y)
         
-        #print("Traj Dict: ", self.traj_dict)
+        #logger.debug("Traj Dict: ", self.traj_dict)
         end_time = time.time()
         logger.debug("Update Info Transform Forward Time: %s", (end_time - start_time))
-        #print(self.spawn_x)
-        #print(self.spawn_y)
-        #print(self.spawn_v)
+        #logger.debug(self.spawn_x)
+        #logger.debug(self.spawn_y)
+        #logger.debug(self.spawn_v)
         for i in range(len(self.rsu_manager_list)):
             #if len(self.objects_deque) == 10:
                 #self.objects_deque.pop()
             self.objects = {**self.objects, **self.rsu_manager_list[i].objects}
-            #print("RSU Objects: ", self.rsu_manager_list[i].objects)
+            #logger.debug("RSU Objects: ", self.rsu_manager_list[i].objects)
         self.objects_deque.appendleft(self.objects.copy())
 
 
-        print(self.objects)
+        logger.debug(self.objects)
           
 
         start_time = time.time()
@@ -617,20 +617,20 @@ class EdgeManager(object):
         if(self.activate == "MANEUVER"):
           self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
           end_time = time.time()
-          print("Traffic Tracker Time: %s", (end_time - start_time))
+          logger.debug("Traffic Tracker Time: %s", (end_time - start_time))
 
           for i, car in enumerate(self.Traffic_Tracker.cars_on_road):
-            print(i)
-            print(self.vehicle_manager_list[i].agent.max_speed)
+            logger.debug(i)
+            logger.debug(self.vehicle_manager_list[i].agent.max_speed)
             car.target_velocity = self.vehicle_manager_list[i].agent.max_speed * 0.277778 # convert to m/s! NOT kph
 
         # sys.exit()
 
-        #print("Updated Info")
+        #logger.debug("Updated Info")
 
     def algorithm_step(self):
         self.locations = []
-        #print("started Algo step")
+        #logger.debug("started Algo step")
 
         #DEBUGGING: Bypass algo and simply move cars forward to solve synch and transform issues
         #Bypassed as of 14/3/2022
@@ -664,7 +664,7 @@ class EdgeManager(object):
 
         self.Traffic_Tracker.time_tick(mode='Graph') #Tick the simulation
 
-        #print("Success capsule")
+        #logger.debug("Success capsule")
 
         #Recording location and state
         x_states, y_states, tv, v = self.Traffic_Tracker.ret_car_locations() # Commented out for bypassing algo
@@ -686,12 +686,12 @@ class EdgeManager(object):
         self.target_velocities = np.hstack((self.target_velocities,tv)) #Commented out for bypassing algo, comment back in if algo present
         self.velocities = np.hstack((self.velocities,v)) #Was just v, v_states for the skipping-planner debugging
 
-        #print("Returned X: ", self.xcars)
-        #print("Returned Y: ", self.ycars)
+        #logger.debug("Returned X: ", self.xcars)
+        #logger.debug("Returned Y: ", self.ycars)
 
         self.xcars = self.xcars - self.secondary_offset
 
-        #print("Revised Returned X: ", self.xcars)
+        #logger.debug("Revised Returned X: ", self.xcars)
 
         ###########################################
 
@@ -702,7 +702,7 @@ class EdgeManager(object):
         #     x_res = self.xcars[j,i]
         #     y_res = self.ycars[j,i]
         #     processed_array.append(np.array([[x_res],[y_res]]))
-        #     print("Appending to waypoints_rev")
+        #     logger.debug("Appending to waypoints_rev")
         #   back = self.processor.process_back(processed_array)
         #   waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
         #   waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
@@ -725,18 +725,18 @@ class EdgeManager(object):
             x_res = self.xcars[j,i]
             y_res = self.ycars[j,i]
             processed_array.append(np.array([[x_res],[y_res]]))
-            #print("Appending to waypoints_rev")
-          #print(processed_array)
+            #logger.debug("Appending to waypoints_rev")
+          #logger.debug(processed_array)
           back = self.processor.process_back(processed_array)
 
-          #print(waypoints_rev)
-          #print(waypoints_rev.keys())
+          #logger.debug(waypoints_rev)
+          #logger.debug(waypoints_rev.keys())
           for j in range(0,self.numcars):
-            #print(len(back))
-            #print(j)
-            # print(waypoints_rev[str(j+1)])
-            # print(back[str(j)])
-            # print(np.hstack((waypoints_rev[str(j+1)],back[str(j)])))
+            #logger.debug(len(back))
+            #logger.debug(j)
+            # logger.debug(waypoints_rev[str(j+1)])
+            # logger.debug(back[str(j)])
+            # logger.debug(np.hstack((waypoints_rev[str(j+1)],back[str(j)])))
             waypoints_rev[str(j+1)] = np.hstack((waypoints_rev[str(j+1)],back[j]))
 
         # processed_array = []
@@ -746,14 +746,14 @@ class EdgeManager(object):
         #         y_res = self.ycars[j,-1]
         #         processed_array.append(np.array([[x_res],[y_res]]))
         #         self.xcars[j,-1] += 4 #Increment by +4, just adding another waypoint '4m' ahead of this one, until horizon 3 steps ahead
-        #     print("Appending to waypoints_rev: ", self.xcars)
+        #     logger.debug("Appending to waypoints_rev: ", self.xcars)
         #     back = self.processor.process_back(processed_array)
         #     waypoints_rev[1] = np.hstack((waypoints_rev[1],back[0]))
         #     waypoints_rev[2] = np.hstack((waypoints_rev[2],back[1]))
         #     waypoints_rev[3] = np.hstack((waypoints_rev[3],back[2]))
         #     waypoints_rev[4] = np.hstack((waypoints_rev[4],back[3]))
 
-        #print(waypoints_rev)
+        #logger.debug(waypoints_rev)
         # car_locations = {1 : [], 2 : [], 3 : [], 4 : [], 5 : [], 6 : [], 7 : [], 8 : []}
 
         logger.warning("CREATING OVERRIDE WAYPOINTS")
@@ -765,14 +765,14 @@ class EdgeManager(object):
 
             logger.warning("car_%s - (x: %s, y: %s)", car, location.transform.location.x, location.transform.location.x)
 
-        #print("Locations appended: ", self.locations)
+        #logger.debug("Locations appended: ", self.locations)
 
     def run_step(self, step_id=0):
       if(self.activate == "PERCEPTION"):
-        print("running perception_step edge")
+        logger.debug("running perception_step edge")
         self.run_step_perception(step_id)
       elif(self.activate == "PREDICTION"):
-        #print("running prediction_step edge")
+        #logger.debug("running prediction_step edge")
         self.run_step_prediction(step_id)
       elif(self.activate == "MANEUVER"):
         self.run_step_maneuver(step_id)
@@ -780,11 +780,14 @@ class EdgeManager(object):
     def run_step_prediction(self, step_id):
         #self.tracked_trajectories.clear()
         generated_predictions = []
+        logger.debug("Latency: ", self.latency)
+        logger.debug("DT: ", self.dt)
+
         if step_id < int(self.latency/self.dt):
             return
-
+        
         number_of_steps = int(self.latency/self.dt)
-        print("Number of Steps for Latency: ", number_of_steps)
+        logger.debug("Number of Steps for Latency: ", number_of_steps)
         ab3dmot_vehicles = []
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
             vehicle_manager.agent.generated_predictions.clear() # surely this will work
@@ -792,15 +795,16 @@ class EdgeManager(object):
             # Get vehicle objects
             objects = self.objects_deque[number_of_steps].copy()
             # Convert obstacle vehicle objects to AB3DMOT format
+            start_time = time.perf_counter()
             for object_type, object_list in objects.items():
                 if object_type == 'vehicles':
                     for obj in object_list:
                         # Convert to AB3DMOT format
-                        #print("Object Location: ", obj.get_location())
+                        #logger.debug("Object Location: ", obj.get_location())
                         #detection = self.convert_aabb_to_ab3dmot_dict(obj.o3d_bbx)
                         detection = self.convert_boundingbox_to_ab3dmot_dict(obj.bounding_box, obj.get_location())
                         # Append to objects list
-                        #print("Detection: ", detection)
+                        #logger.debug("Detection: ", detection)
                         ab3dmot_vehicles.append(detection)
 
 
@@ -819,26 +823,39 @@ class EdgeManager(object):
 
         # Use AB3DMOT to track and deduplicate
         ab3dmot_output_objects, _ = self.ab3dmot_tracker.track(dets_all, step_id)
-        #print("AB3DMOT Output Objects: ", ab3dmot_output_objects)
+        #logger.debug("AB3DMOT Output Objects: ", ab3dmot_output_objects)
 
         # check for stale ab3dmot output
         ab3dmot_output_objects = self.filter_stale_tracks(ab3dmot_output_objects, max_age=5)
-        #print("AB3DMOT Output Objects after filtering: ", ab3dmot_output_objects)
+        #logger.debug("AB3DMOT Output Objects after filtering: ", ab3dmot_output_objects)
 
 
         # Convert AB3DMOT output to ObstacleTrajectory objects
         self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10, dt=self.dt)
+
+        end_tracker_time = time.perf_counter()
+        tracker_time = (end_tracker_time - start_time) * 1000  # Convert to milliseconds
+
+
+        start_prediction_time = time.perf_counter()        
         #tracked_trajectories = self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10)
 
         #self.tracked_trajectories_deque.appendleft(tracked_trajectories.copy())
 
-        #print("Number of tracked trajectories: ", len(self.tracked_trajectories))
+        #logger.debug("Number of tracked trajectories: ", len(self.tracked_trajectories))
 
         # Run the linear operator predictor on the tracked trajectories
         # Type ObstaclePrediction list is returned
         generated_predictions = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_trajectories)
 
-        #print("Number of generated predictions: ", len(generated_predictions))
+        end_prediction_time = time.perf_counter()
+        prediction_time = (end_prediction_time - start_prediction_time) * 1000  # Convert to milliseconds
+
+        self.debug_helper.update_edge(0,
+                                 tracking_time=tracker_time,
+                                 prediction_time=prediction_time)
+
+        #logger.debug("Number of generated predictions: ", len(generated_predictions))
 
 
         self.track_color_map = {}
@@ -856,9 +873,9 @@ class EdgeManager(object):
                 )
 
             color = self.track_color_map[track_id]
-            #print(track_id)
+            #logger.debug(track_id)
             #for transform in prediction.obstacle_trajectory.trajectory:
-                #print("Obstacle Trajectory: ", transform)
+                #logger.debug("Obstacle Trajectory: ", transform)
                 #self.world.debug.draw_point(
                 #    transform.location,
                 #    size=0.1,
@@ -868,7 +885,7 @@ class EdgeManager(object):
                 #)
 
             #for transform in prediction.predicted_trajectory:
-            #    #print("Predicted Trajectory: ", transform)
+            #    #logger.debug("Predicted Trajectory: ", transform)
             #    self.world.debug.draw_point(
             #        transform.location,
             #        size=0.1,
@@ -888,7 +905,7 @@ class EdgeManager(object):
             vehicle_manager.update_info(step_id)
             control = vehicle_manager.run_step()
             vehicle_manager.vehicle.apply_control(control)
-            #print("Applied control")
+            #logger.debug("Applied control")
         for rsu in self.rsu_manager_list:
             rsu.update_info()
             rsu.run_step()
@@ -919,6 +936,7 @@ class EdgeManager(object):
                     traj.update(transform)
                     traj.trajectory = deque(traj.trajectory, maxlen=trajectory_length)
                     traj.obstacle.transform = transform
+                    traj.obstacle.location = transform.location
                 else:
                     dummy_obstacle = ObstacleVehicle(
                         corners=np.zeros((8, 3)),
@@ -927,6 +945,7 @@ class EdgeManager(object):
                         tick_id=0
                     )
                     dummy_obstacle.transform = transform
+                    dummy_obstacle.location = transform.location
                     self.tracked_trajectories[track_id] = ObstacleTrajectory(
                         dummy_obstacle,
                         deque([transform], maxlen=trajectory_length)
@@ -947,18 +966,18 @@ class EdgeManager(object):
     def run_step_perception(self, step_id):
         if step_id < int(self.latency/self.dt):
             return
-        #print("running perception_step edge")
-        #print("Step ID: ", step_id)
-        #print("Vehicle Manager List: ", self.vehicle_manager_list)
+        #logger.debug("running perception_step edge")
+        #logger.debug("Step ID: ", step_id)
+        #logger.debug("Vehicle Manager List: ", self.vehicle_manager_list)
         
         number_of_steps = int(self.latency/self.dt)
-        print("Number of Steps for Latency: ", number_of_steps)
+        logger.debug("Number of Steps for Latency: ", number_of_steps)
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
             #prnt("Objects Deque: ", self.objects_deque)
             objects_to_send = self.objects_deque[number_of_steps].copy()
-            #print("Objects Deque After Copy: ", self.objects_deque)
-            print("Objects to send: ", objects_to_send)
-            #print("Vehicle %s" %idx)
+            #logger.debug("Objects Deque After Copy: ", self.objects_deque)
+            logger.debug("Objects to send: ", objects_to_send)
+            #logger.debug("Vehicle %s" %idx)
             for object_type, object_list in objects_to_send.items():
                 for obj in object_list:
                     if obj.get_location().distance(vehicle_manager.vehicle.get_location()) < 3:
@@ -979,31 +998,31 @@ class EdgeManager(object):
             vehicle_manager.update_info(step_id)
             control = vehicle_manager.run_step()
             vehicle_manager.vehicle.apply_control(control)
-            #print("Applied control")
+            #logger.debug("Applied control")
         for rsu in self.rsu_manager_list:
             rsu.update_info()
             rsu.run_step()
-        #print("Objects Deque Before After Run Step: ", self.objects_deque)
+        #logger.debug("Objects Deque Before After Run Step: ", self.objects_deque)
         
         #for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
         #  objects_to_send = self.objects.copy()
         #  if 'vehicles' in objects_to_send:
-        #    print(len(objects_to_send['vehicles']))
-        #  print("Vehicle %s" %idx)
+        #    logger.debug(len(objects_to_send['vehicles']))
+        #  logger.debug("Vehicle %s" %idx)
         #  for object_type, object_list in objects_to_send.items():
         #    for obj in object_list:
-        #      print("Object Distance: %s"%obj.get_location().distance(vehicle_manager.vehicle.get_location()))
+        #      logger.debug("Object Distance: %s"%obj.get_location().distance(vehicle_manager.vehicle.get_location()))
         #      if obj.get_location().distance(vehicle_manager.vehicle.get_location()) < 3:
         #        object_list.remove(obj)
         #  vehicle_manager.edge_objects.clear()
         #  vehicle_manager.edge_objects = objects_to_send
-        #  print(objects_to_send)
+        #  logger.debug(objects_to_send)
         #  if 'vehicles' in objects_to_send:
-        #    print(len(objects_to_send['vehicles']))
+        #    logger.debug(len(objects_to_send['vehicles']))
         #  vehicle_manager.update_info(step_id)
         #  control = vehicle_manager.run_step()
         #  vehicle_manager.vehicle.apply_control(control)
-        #  print("Applied control")
+        #  logger.debug("Applied control")
         #for rsu in self.rsu_manager_list:
         #  rsu.update_info()
         # rsu.run_step() 
@@ -1029,14 +1048,14 @@ class EdgeManager(object):
         logger.debug("Algorithm completion time: %s", (post_algo_time - pre_algo_time))
         self.debug_helper.update_edge((post_algo_time - pre_algo_time)*1000)
         all_waypoint_buffers = []
-        #print("completed Algorithm Step")
+        #logger.debug("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-        #   # print(i)
+        #   # logger.debug(i)
         #   waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-        #   # print(waypoint_buffer)
+        #   # logger.debug(waypoint_buffer)
         #   # for waypoints in waypoint_buffer:
-        #   #   print("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
+        #   #   logger.debug("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
         #   waypoint_buffer.clear() #EDIT MADE 16/03
             waypoint_buffer_proto = ecloud.WaypointBuffer()
             waypoint_buffer_proto.vehicle_index = idx
@@ -1048,21 +1067,21 @@ class EdgeManager(object):
 
             all_waypoint_buffers.append(waypoint_buffer_proto)
           # for waypoints in waypoint_buffer:
-          #   print("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
+          #   logger.debug("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
           # sys.exit()
-          # # print(waypoint_buffer)
+          # # logger.debug(waypoint_buffer)
 
         return all_waypoint_buffers
 
-        # #print("\n ########################\n")
-        # #print("Length of vehicle manager list: ", len(self.vehicle_manager_list))
+        # #logger.debug("\n ########################\n")
+        # #logger.debug("Length of vehicle manager list: ", len(self.vehicle_manager_list))
 
         # control_list = []
         # for i in range(len(self.vehicle_manager_list)):
-        #     waypoints_buffer_printer = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
-        #     #for waypoints in waypoints_buffer_printer:
-        #         #print("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
-        #     # print(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
+        #     waypoints_buffer_logger.debuger = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
+        #     #for waypoints in waypoints_buffer_logger.debuger:
+        #         #logger.debug("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
+        #     # logger.debug(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
         #     control = self.vehicle_manager_list[i].run_step(self.target_speed)
         #     control_list.append(control)
 
@@ -1082,7 +1101,7 @@ class EdgeManager(object):
             the disk.
 
         perform_txt : str
-            The string that contains all evaluation results to print out.
+            The string that contains all evaluation results to logger.debug out.
         """
 
         #velocity_list = []
@@ -1128,9 +1147,32 @@ class EdgeManager(object):
         algorithm_time_list_tmp = \
                 algorithm_time_list_tmp[algorithm_time_list_tmp < 100]
 
+        tracking_time_list = self.debug_helper.tracking_time_list
+        tracking_time_list_mean = np.mean(tracking_time_list)
+        tracking_time_list_std = np.std(tracking_time_list)
+
+        prediction_time_list = self.debug_helper.prediction_time_list
+        prediction_time_list_mean = np.mean(prediction_time_list)
+        prediction_time_list_std = np.std(prediction_time_list)
+
 
         perform_txt += 'Algorithm time mean: %f, std: %f \n' % (
                 np.mean(algorithm_time_list_tmp), np.std(algorithm_time_list_tmp))
+
+        perform_txt += 'Tracking time mean: %f, std: %f \n' % (
+                tracking_time_list_mean, tracking_time_list_std)
+
+        perform_txt += 'Prediction time mean: %f, std: %f \n' % (
+                prediction_time_list_mean, prediction_time_list_std)
+
+        metrics = {
+            'algorithm_time_mean': np.mean(algorithm_time_list_tmp),
+            'algorithm_time_std': np.std(algorithm_time_list_tmp),
+            'tracking_time_mean': tracking_time_list_mean,
+            'tracking_time_std': tracking_time_list_std,
+            'prediction_time_mean': prediction_time_list_mean,
+            'prediction_time_std': prediction_time_list_std
+        }
 
 
         figure = plt.figure()
@@ -1149,7 +1191,7 @@ class EdgeManager(object):
 
 
 
-        return figure, perform_txt
+        return figure, perform_txt, metrics
 
     def destroy(self):
         """

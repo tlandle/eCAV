@@ -15,7 +15,7 @@ from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 from threading import Thread
 
-
+MAX_STEPS = 1000  # Maximum number of steps to run the scenario
 SCENARIO_NAME = 'openscenario_3_edge'
 scenario_runner = None
 
@@ -30,7 +30,7 @@ def exec_scenario_runner(scenario_params):
     Returns
     -------
     """
-    #global scenario_runner
+    global scenario_runner
     scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
     #print(scenario_runner)
     scenario_runner.run()
@@ -61,11 +61,11 @@ def run_scenario(opt, scenario_params):
 
         # Create a background process to init and execute scenario runner
 
-        sr_process = Process(target=exec_scenario_runner,
-                             args=(scenario_params,))
-        sr_process.start()
-        #sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params.scenario_runner,))
-        #sr_thread.start()
+        #sr_process = Process(target=exec_scenario_runner,
+        #                     args=(scenario_params,))
+        #sr_process.start()
+        sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params,))
+        sr_thread.start()
 
         # key_listener = KeyListener()
         # key_listener.start()
@@ -86,13 +86,6 @@ def run_scenario(opt, scenario_params):
             num_actors = len(vehicles) + len(walkers)
         print(f'Found all {num_actors} actors')
 
-        # Get all vehicle actor ids and add them to the edge manager
-        #other_vehicles = scenario_runner.manager.scenario.agents
-        #input("Other vehicles: %s" %other_vehicles)
-    
-        #for vehicle in other_vehicles:
-        #    print(vehicle._actor.id)
-        #    print(vehicle._local_planner_dict)
         other_vehicles = []
 
         world_dt = scenario_params['world']['fixed_delta_seconds']
@@ -102,10 +95,16 @@ def run_scenario(opt, scenario_params):
         edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
 
         # Create evaluation manager
-        eval_manager = \
-             EvaluationManager(scenario_manager.cav_world,
-                               script_name=SCENARIO_NAME,
-                               current_time=scenario_params['current_time'])
+        #eval_manager = \
+        #     EvaluationManager(scenario_manager.cav_world,
+        #                       script_name=SCENARIO_NAME,
+        #                       current_time=scenario_params['current_time'])
+
+        eval_manager = EvaluationManager(scenario_manager.cav_world, 
+                                         script_name=SCENARIO_NAME, 
+                                         scenario_params=scenario_params,
+                                         current_time=scenario_params['current_time'],
+                                         output_dir=opt.output_dir)
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
@@ -144,6 +143,9 @@ def run_scenario(opt, scenario_params):
                 edge.update_information()
                 edge.run_step(step)
             step = step + 1
+            if step >= MAX_STEPS:
+                print("Reached max steps, exiting")
+                break
             time.sleep(0.001)
 
     except SystemExit as e:

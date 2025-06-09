@@ -7,6 +7,7 @@ import math
 from math import sin, cos
 from scipy import spatial
 from scipy.interpolate import interp1d
+import coloredlogs, logging
 
 import carla
 import numpy as np
@@ -14,6 +15,10 @@ import numpy as np
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.common.misc import cal_distance_angle, draw_trajetory_points
 from opencda.core.plan.spline import Spline2D
+
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='ERROR', logger=logger)
 
 def create_waypoint_roadoption_tuple(vehicle, carla_map):
     # Get the current location of the vehicle
@@ -170,19 +175,19 @@ def interpolate_positions_points(waypoints_deque, num_points=10, num_waypoints=1
     return positions
 
 def check_intersection_with_path(positions, path_x, path_y, path_yaw):
-    print("Positions length: %s" %len(positions))
-    print("Path X length: %s" %len(path_x))
+    logger.debug("Positions length: %s" %len(positions))
+    logger.debug("Path X length: %s" %len(path_x))
     for pos, (px, py, pyaw) in zip(positions, zip(path_x, path_y, path_yaw)):
-        #print("Obstacle Vehicle Position: %s" %pos)
-        #print("Ego Vehicle Position: %s" %(px, py))
-        print("Distance: %s" %np.linalg.norm(np.array(pos) - np.array([px, py])))
+        #logger.debug("Obstacle Vehicle Position: %s" %pos)
+        #logger.debug("Ego Vehicle Position: %s" %(px, py))
+        logger.debug("Distance: %s" %np.linalg.norm(np.array(pos) - np.array([px, py])))
         if np.linalg.norm(np.array(pos) - np.array([px, py])) < 3.0:  # Assuming a threshold for intersection
             return True
     return False
 
 def check_intersection_with_path_v2(positions, path_x, path_y, path_yaw):
     for pos, (px, py, pyaw) in zip(positions, zip(path_x, path_y, path_yaw)):
-        print("Distance: %s" %np.linalg.norm(np.array(pos) - np.array([px, py])))
+        logger.debug("Distance: %s" %np.linalg.norm(np.array(pos) - np.array([px, py])))
         if carla.Location(x=pos[0], y=pos[1]).distance(carla.Location(x=px, y=py)) < 6.0:
             return True
     return False
@@ -204,7 +209,7 @@ def perpendicular_line_arrays(x, y, yaw, num_points=10, distance=1.0):
     """
 
     if not isinstance(num_points, int) or num_points <= 0:
-        print("num_points must be a positive integer.")
+        logger.debug("num_points must be a positive integer.")
         return None
 
     perpendicular_yaw = yaw + math.pi / 2  # Calculate perpendicular yaw
@@ -241,9 +246,9 @@ class CollisionChecker:
     def __init__(self, time_ahead=1.2, circle_radius=1.0, circle_offsets=None):
 
         self.time_ahead = time_ahead
-        self._circle_offsets = [-1.0,
+        self._circle_offsets = [-.8,
                                 0,
-                                1.0] \
+                                .8] \
             if circle_offsets is None else circle_offsets
         self._circle_radius = circle_radius
 
@@ -341,7 +346,7 @@ class CollisionChecker:
         # we first need to consider the vehicle on the other lane in front
         if overtake:
             if oncoming_lane:
-                print("Oncoming lane true")
+                logger.debug("Oncoming lane true")
                 target_wpt_next = target_wpt.previous(6)[0]
             else:
                 target_wpt_next = target_wpt.next(6)[0]
@@ -439,22 +444,16 @@ class CollisionChecker:
                              len(path_x)) \
             if not adjacent_check else len(path_x)
 
-        #print("Distance Check: %s" %distance_check)
+        #logger.debug("Distance Check: %s" %distance_check)
 
         #create path for intersection check that is perpendicular to the path of the ego vehicle
 
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
-        print("Obstacle_vehicle Location (%s, %s, %s)" %(obstacle_vehicle_loc.x, obstacle_vehicle_loc.y, obstacle_vehicle_loc.z))
-        #print("Self Location (%s, %s, %s)" %(
+        logger.debug("Obstacle_vehicle Location (%s, %s, %s)" %(obstacle_vehicle_loc.x, obstacle_vehicle_loc.y, obstacle_vehicle_loc.z))
+        #logger.debug("Self Location (%s, %s, %s)" %(
         obstacle_vehicle_yaw = \
             carla_map.get_waypoint(obstacle_vehicle_loc).transform.rotation.yaw
 
-        print("Obstacle_Vehicle Yaw: %s" %obstacle_vehicle_yaw)
-        print("Is Left Turn at Intersection: %s" %is_left_turn_at_intersection)
-
-        if is_left_turn_at_intersection:
-            path_x, path_y, path_yaw = perpendicular_line_arrays(
-                path_x[70], path_y[70], path_yaw[70], num_points=200, distance=.2)
 
         # every step is 0.1m, so we check every 10 points
         for i in range(0, distance_check, 10):
@@ -466,10 +465,6 @@ class CollisionChecker:
             circle_offsets = np.array(self._circle_offsets)
             circle_locations[:, 0] = ptx + circle_offsets * cos(yaw)
             circle_locations[:, 1] = pty + circle_offsets * sin(yaw)
-
-            #for circle_location in circle_locations:
-                #if is_left_turn_at_intersection:
-                #world.debug.draw_point(carla.Location(x=circle_location[0], y = circle_location[1], z=.5), color=carla.Color(255,255,255), size=(self._circle_radius/2), life_time=2.0)
 
             # calculate bbx coords under world coordinate system
             corrected_extent_x = obstacle_vehicle.bounding_box.extent.x * \
@@ -498,7 +493,7 @@ class CollisionChecker:
                            obstacle_vehicle_loc.y +
                            corrected_extent_y]])
 
-            #print(obstacle_vehicle_bbx_array)
+            #logger.debug(obstacle_vehicle_bbx_array)
 
             # compute whether the distance between the four corners of the
             # vehicle to the trajectory point
@@ -507,12 +502,10 @@ class CollisionChecker:
 
             collision_dists = np.subtract(collision_dists, self._circle_radius)
             collision_free = collision_free and not np.any(collision_dists < 0)
-            if is_left_turn_at_intersection:
-                print(collision_dists)
 
-            #if not collision_free:
+            if not collision_free:
                 #world.debug.draw_point(obstacle_vehicle_loc, size=1, life_time=1.0)
-                #print(collision_dists)
+                logger.debug(collision_dists)
                 #break
 
         return collision_free
@@ -584,7 +577,8 @@ class CollisionChecker:
         obs_sp, obs_path = linear_interp_trajectory(obs_points)
 
         if check_full_path:
-            print(world)
+            logger.debug("check full paths")
+
             ego_x_points = ego_path_x
             ego_y_points = ego_path_y
             ego_path = np.stack((ego_x_points, ego_y_points), axis=1)

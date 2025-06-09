@@ -32,6 +32,8 @@ class ClientDebugHelper(PlanDebugHelper):
         super(ClientDebugHelper, self).__init__(actor_id)
 
         self.perception_time_list = []
+        self.tracking_time_list = []
+        self.lidar_fusion_time_list = []
         self.localization_time_list = []
         self.update_info_time_list = []
         self.agent_update_info_time_list = []
@@ -43,10 +45,12 @@ class ClientDebugHelper(PlanDebugHelper):
         self.timestamps_list = []
         self.collisions_event_list = []
         self.lane_invasions_list = []
+        self.detections_time_list = []
 
         self.debug_data = {
             "client_control_time" : self.control_time_list,
             "client_perception_time" : self.perception_time_list,
+            "client_tracking_time" : self.tracking_time_list,
             "client_localization_time" : self.localization_time_list,
             "client_update_info_time" : self.update_info_time_list,
             "client_agent_update_info_time" : self.agent_update_info_time_list,
@@ -57,6 +61,8 @@ class ClientDebugHelper(PlanDebugHelper):
             "client_control_time_list" : self.control_time_list,
             "client_collisions_list" : self.collisions_event_list,
             "client_lane_invasions_list" : self.lane_invasions_list,
+            "detections_time_list" : self.detections_time_list,
+            "lidar_fusion_time_list" : self.lidar_fusion_time_list
         }
 
     def get_debug_data(self):
@@ -70,6 +76,33 @@ class ClientDebugHelper(PlanDebugHelper):
         ----------
         """
         self.perception_time_list.append(tick_time_step)
+
+    def update_detections_time(self, tick_time_step=None):
+        """
+        Update the client detections time
+
+        Parameters
+        ----------
+        """
+        self.detections_time_list.append(tick_time_step)
+
+    def update_tracking_time(self, tick_time_step=None):
+        """
+        Update the client tracking time
+
+        Parameters
+        ----------
+        """
+        self.tracking_time_list.append(tick_time_step)
+
+    def update_lidar_fusion_time(self, tick_time_step=None):
+        """
+        Update the client lidar fusion time
+
+        Parameters
+        ----------
+        """
+        self.lidar_fusion_time_list.append(tick_time_step)
     
 
     def update_localization_time(self, tick_time_step=None):

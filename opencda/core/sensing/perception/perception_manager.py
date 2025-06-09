@@ -26,6 +26,11 @@ from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_camera_lidar_fusion, o3d_camera_lidar_fusion_from_tracker
 from opencda.client_debug_helper import ClientDebugHelper
 
+
+import coloredlogs, logging
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='ERROR', logger=logger)
+
 class CameraSensor:
     """
     Camera manager for vehicle or infrastructure.
@@ -63,7 +68,7 @@ class CameraSensor:
 
         spawn_point = self.spawn_point_estimation(relative_position,
                                                   global_position)
-        print("Vehicle: %s"%vehicle)
+        logger.debug("Vehicle: %s"%vehicle)
 
         if vehicle is not None:
             self.sensor = world.spawn_actor(
@@ -369,7 +374,7 @@ class PerceptionManager:
     """
 
     def __init__(self, vehicle, config_yaml, cav_world,
-                 data_dump=False, carla_world=None, infra_id=None, tracking_manager=None):
+                 data_dump=False, carla_world=None, infra_id=None, tracking_manager=None, debug_helper=None):
         self.vehicle = vehicle
  
         if hasattr(vehicle, 'get_world'): 
@@ -457,7 +462,10 @@ class PerceptionManager:
         self.traffic_thresh = config_yaml['traffic_light_thresh'] \
             if 'traffic_light_thresh' in config_yaml else 50
 
-        self.debug_helper = ClientDebugHelper(0)
+        if debug_helper is None:
+            self.debug_helper = ClientDebugHelper(self.id)
+        else:
+            self.debug_helper = debug_helper
 
     def dist(self, a):
         """
@@ -536,15 +544,25 @@ class PerceptionManager:
                     cv2.COLOR_BGR2RGB))
 
         # yolo detection
+
+        detection_start_time = time.time()
         yolo_detection = self.ml_manager.object_detector(rgb_images)
-        print("Yolo Detection: %s" %yolo_detection)
+
+        
+
+        detection_end_time = time.time()
+        self.debug_helper.update_detections_time(
+            detection_end_time - detection_start_time * 1000)
+        logger.debug("Yolo Detection: %s" %yolo_detection)
 
         # rgb_images for drawing
         rgb_draw_images = []
 
         lidar_data = self.lidar.data
-        print("Lidar Data: %s" %lidar_data)
+        logger.debug("Lidar Data: %s" %lidar_data)
 
+        total_tracking_time = 0
+        total_lidar_fusion_time = 0
         for (i, rgb_camera) in enumerate(self.rgb_camera):
             # lidar projection
             #logger.debug("Lidar Input: %s" %len(lidar_data))
@@ -558,11 +576,14 @@ class PerceptionManager:
             #logger.debug("Projection Input to Fusion %s" %len(projected_lidar))
             # camera lidar fusion
 
+            tracking_start_time = time.time()
             tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            tracking_end_time = time.time()
+            total_tracking_time += tracking_end_time - tracking_start_time
 
-            print("Tracking Detection: %s" %tracking_detection)
+            logger.debug("Tracking Detection: %s" %tracking_detection)
 
-
+            lidar_fusion_start_time = time.time()
             objects = o3d_camera_lidar_fusion_from_tracker(
                 objects,
                 tracking_detection,
@@ -570,11 +591,19 @@ class PerceptionManager:
                 projected_lidar,
                 self.lidar.sensor,
                 self.cav_world.tick_id)
-            print("Objects after lidar fusion: %s" %objects)
+            lidar_fusion_end_time = time.time()
+            total_lidar_fusion_time += lidar_fusion_end_time - lidar_fusion_start_time
+            logger.debug("Objects after lidar fusion: %s" %objects)
 
             # calculate the speed. current we retrieve from the server
             # directly.
             self.speed_retrieve(objects)
+
+        self.debug_helper.update_tracking_time(
+            total_tracking_time * 1000)
+
+        self.debug_helper.update_lidar_fusion_time(
+            total_lidar_fusion_time * 1000)
 
         if self.camera_visualize:
             for (i, rgb_image) in enumerate(rgb_draw_images):
@@ -693,7 +722,6 @@ class PerceptionManager:
         objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
         perception_end_time = time.time()
-        self.debug_helper.update_perception_time((perception_end_time - perception_start_time)*1000)
 
         return objects
 
@@ -720,7 +748,7 @@ class PerceptionManager:
         semantic_tag = self.semantic_lidar.obj_tag
 
         if semantic_tag is None or semantic_idx is None:
-            print('none')
+            logger.debug('none')
             return vehicle_list
 
         # label 10 is the vehicle
