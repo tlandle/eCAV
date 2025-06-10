@@ -279,7 +279,7 @@ class Scenario_3(BasicScenario):
         self.vehicle_04_velocity = 0
         self.vehicle_05_velocity = 0
         self.vehicle_06_velocity = 0
-        self._trigger_distance = 72
+        self._trigger_distance = 75
         self.agents = []
 
         super(Scenario_3, self).__init__("Scenario_3",

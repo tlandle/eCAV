@@ -691,10 +691,12 @@ class BehaviorAgent(object):
             # ignore any predictions that match the ego vehicle
             #if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
                 #continue
-            if is_likely_ego(pred, self._ego_pos):
-                logger.debug("Prediction is likely ego, removing it")
+            #if is_likely_ego(pred, self._ego_pos):
+            #    logger.debug("Prediction is likely ego, removing it")
                 #self.generated_predictions.remove(pred)
-                continue
+            #    continue
+
+            print("Prediction: %s" %pred.obstacle_trajectory.trajectory)
 
             
             # get speed from pred
@@ -715,8 +717,14 @@ class BehaviorAgent(object):
                 # if the speed is too low, we assume the obstacle is stationary
                 obstacle_speed = 0
 
-            logger.debug("Obstacle speed: %s" %obstacle_speed)
 
+            if obstacle_speed < 1:
+                continue
+
+            print("Obstacle speed: %s" %obstacle_speed)
+            print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
+            print("My Id: %s" %self.vehicle.id)
+            
             collision = self._collision_check.trajectory_collision_check(
                 rx, ry, ryaw, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
@@ -730,7 +738,7 @@ class BehaviorAgent(object):
                     min_distance = distance
                     target_vehicle = pred.obstacle_trajectory.obstacle
                 collisions.append(pred)
-                logger.debug("detected collision with %s" %pred.predicted_trajectory)
+                print("detected collision with %s" %pred.predicted_trajectory)
                 # input("ok")
 
         return vehicle_state, target_vehicle, min_distance

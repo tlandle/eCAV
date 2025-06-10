@@ -146,7 +146,7 @@ class VehicleManager(object):
 
         self.edge_objects = {}
         self.vehicles_detected = {}
-        self.generated_predictions = {}
+        self.tracked_trajectories = {}
         # set random seed if stated
         seed = time.time()
         logger.debug(config_yaml)
@@ -503,6 +503,26 @@ class VehicleManager(object):
         self.world = self.client.get_world()
         self.carla_map = self.world.get_map()
 
+
+    def _update_local_trajectories(self, objects_dict, sim_time):
+        """
+        objects_dict : output of o3d_camera_lidar_fusion_from_tracker
+                       { "vehicles": [ObstacleVehicle, …] }
+        sim_time     : world timestamp (s)
+        """
+        vehicles = objects_dict.get("vehicles", [])
+        for veh in vehicles:
+            if veh.track_id is None:
+                continue
+            tf = veh.get_transform() or veh.transform       # carla.Transform
+            self._local_trajs[veh.track_id].append(tf)
+
+        # purge trajectories that have not been seen for 2 seconds
+        stale_ids = [tid for tid, traj in self._local_trajs.items()
+                     if (sim_time - traj[-1].timestamp) > 2.0]
+        for tid in stale_ids:
+            del self._local_trajs[tid]
+
     def set_destination(
             self,
             start_location,
@@ -557,6 +577,9 @@ class VehicleManager(object):
         objects = self.perception_manager.detect(ego_pos)
         logger.debug("Objects", objects)
 
+        #self.tracked_local_trajectories = self.update_local_trajectories(objects, self.localizer.get_sim_time())
+
+
         #objects = {**objects ,  **self.edge_objects}
         if 'vehicles' in self.edge_objects:
             self.edge_objects['vehicles'] = [v for v in self.edge_objects['vehicles'] if self.perception_manager.dist(v) > 2]
@@ -578,8 +601,16 @@ class VehicleManager(object):
                 objects['static'] = self.edge_objects['static']
 
         logger.debug("Edge Objects", self.edge_objects)
- 
-       # if self.rsu_manager:
+
+        # generate predicted trajectories
+
+        #local_predictions = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_local_trajectories)
+
+        #if edge_predictions is None:
+        #    edge_predictions = self.linear_predictor_manager.generate_predicted_trajectories(self.edge_tracked_trajectories)
+
+        
+        # if self.rsu_manager:
           #objects = {**objects ,  **self.rsu_manager.perception_manager.detect(ego_pos, self.vehicle.id)}
         logger.debug("Combined Objects: " , objects)
         end_time = time.time()

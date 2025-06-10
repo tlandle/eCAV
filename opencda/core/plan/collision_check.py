@@ -540,6 +540,8 @@ class CollisionChecker:
         obs_points = np.asarray(obs_points)
         obs_sp, obs_path = linear_interp_trajectory(obs_points)
 
+        print("Obstacle Path Length: %s" %len(obs_path))
+
         if check_full_path:
             logger.debug("check full paths")
 
@@ -584,8 +586,10 @@ class CollisionChecker:
 
         if world is not None:
             for i in range(len(ego_x_points)):
+                #print("Ego Vehicle Point: (%s, %s)" %(ego_x_points[i], ego_y_points[i]))
                 world.debug.draw_point(carla.Location(x=ego_x_points[i], y=ego_y_points[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=0.25)
             for i in range(len(obs_x_points)):
+                #print("Obstacle Vehicle Point: (%s, %s)" %(obs_x_points[i], obs_y_points[i]))
                 world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=0.25)
 
         return is_collision

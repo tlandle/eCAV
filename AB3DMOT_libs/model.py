@@ -9,6 +9,10 @@ from AB3DMOT_libs.vis import vis_obj
 #from xinshuo_miscellaneous import print_log
 #from xinshuo_io import mkdir_if_missing
 
+FRAME_IDX = 0          # simulation step or frame number
+GUID      = 1          # globally-unique ID supplied by beacon / vehicle
+CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknown
+
 np.set_printoptions(suppress=True, precision=3)
 
 # A Baseline of 3D Multi-Object Tracking
@@ -248,6 +252,9 @@ class AB3DMOT(object):
 				# kalman filter update with observation
 				trk.kf.update(bbox3d)
 
+				if trk.carla_id == -1 and info[d, CID] != -1:
+					trk.carla_id = int(info[d, CID])
+
 				if trk.id == self.debug_id:
 					print('after matching')
 					print(trk.kf.x.reshape((-1)))
@@ -288,10 +295,18 @@ class AB3DMOT(object):
 			d = Box3D.bbox2array_raw(d)
 
 			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):      
-				results.append(np.concatenate((d, [trk.id], trk.info)).reshape(1, -1)) 		
+				out_row = np.concatenate([
+					d,                         # 0..6
+					[trk.id],                  # 7  track id
+					[trk.carla_id],            # 8  CARLA actor id
+					[trk.guid],                # 9  sender GUID
+					trk.info                   # 10… frame, guid, carla_id, …
+				]).reshape(1, -1)
+				results.append(out_row)
 			num_trks -= 1
 
 			# deadth, remove dead tracklet
+
 			if (trk.time_since_update >= self.max_age): 
 				self.trackers.pop(num_trks)
 
