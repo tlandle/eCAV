@@ -312,13 +312,13 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
     """
 
 
-    logger.debug("track shape: ", track.shape)
+    #logger.debug("track shape: ", track.shape)
     for i in range(track.shape[0]):
         detection = track[i]
         x1, y1, x2, y2 = int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3])
         track_id = int(detection[4])  # instead of label
-        logger.debug("track id: ", track_id)
-        logger.debug("x1, y1, x2, y2: ", x1, y1, x2, y2)
+        #logger.debug("track id: ", track_id)
+        #logger.debug("x1, y1, x2, y2: ", x1, y1, x2, y2)
     
         # choose the lidar points in the 2d yolo bounding box
         points_in_bbx = \
@@ -331,7 +331,7 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         select_points = lidar_3d[points_in_bbx][:, :-1]
         #select_points = lidar_3d[points_in_bbx]
 
-        logger.debug("select points shape: ", select_points.shape)
+        #logger.debug("select points shape: ", select_points.shape)
 
 
         if select_points.shape[0] == 0:
@@ -348,7 +348,7 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
                         (np.abs(select_points[:, 1]) < y_common + 3)
         select_points = select_points[points_inlier]
 
-        logger.debug("select points shape after inlier: ", select_points.shape)
+        #logger.debug("select points shape after inlier: ", select_points.shape)
 
         if select_points.shape[0] < 2:
             continue
@@ -375,7 +375,7 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         corner = st.sensor_to_world(corner, lidar_sensor.get_transform())
         corner = corner.transpose()[:, :3]
 
-        logger.debug("corner shape: ", corner.shape)
+        #logger.debug("corner shape: ", corner.shape)
 
         if len(objects['vehicles']) == 0:
             vehicle_obstacle = ObstacleVehicle(corner, aabb, tick_id=tick_id, track_id=track_id)

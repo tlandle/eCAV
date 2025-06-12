@@ -11,6 +11,9 @@ from AB3DMOT_libs.vis import vis_obj
 
 np.set_printoptions(suppress=True, precision=3)
 
+
+SIZE_RATIO_TH = 1.30       # >30 % length mismatch ⇒ never match
+COST_MAX      = 1e3        # large positive cost (for −distance metrics) 
 FRAME_IDX = 0          # simulation step or frame number
 GUID      = 1          # globally-unique ID supplied by beacon / vehicle
 CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknown
@@ -105,18 +108,15 @@ class AB3DMOT(object):
 		elif self.metric in ['iou_2d', 'iou_3d']:   	   self.max_sim, self.min_sim = 1.0, 0.0
 		elif self.metric in ['giou_2d', 'giou_3d']: 	   self.max_sim, self.min_sim = 1.0, -1.0
 
-	def process_dets(self, dets, info):
+	def process_dets(self, dets):
 		# convert each detection into the class Box3D 
 		# inputs: 
 		# 	dets - a numpy array of detections in the format [[h,w,l,x,y,z,theta],...]
 
 		dets_new = []
-		for k, det in enumerate(dets):
+		for det in dets:
 			det_tmp = Box3D.array2bbox_raw(det)
-			det_tmp.carla_id = int(info[k, CID])    # ← add fields
-			det_tmp.guid     = int(info[k, GUID])
 			dets_new.append(det_tmp)
-
 		return dets_new
 
 	def within_range(self, theta):
@@ -220,15 +220,13 @@ class AB3DMOT(object):
 			# update statistics
 			kf_tmp.time_since_update += 1 		
 			trk_tmp = kf_tmp.kf.x.reshape((-1))[:7]
+			trk_box = Box3D.array2bbox(trk_tmp)        # new Box3D
 
-			trk_box = Box3D.array2bbox(trk_tmp)
-
-			# attach meta so compute_affinity can read it
-			trk_box.carla_id = getattr(kf_tmp, "carla_id", -1)
-			trk_box.guid     = getattr(kf_tmp, "guid",     -1)
-
-			trks.append(trk_box)
-			#trks.append(Box3D.array2bbox(trk_tmp))
+        # -------- copy metadata so compute_affinity can use it -------
+			#trk_box.carla_id = kf_tmp.carla_id     # 🆕
+			#trk_box.guid     = kf_tmp.guid         # (optional)
+			
+			trks.append(trk_box)		# append the propagated track
 
 		return trks
 
@@ -261,16 +259,17 @@ class AB3DMOT(object):
 
 				# kalman filter update with observation
 				trk.kf.update(bbox3d)
-				idx = d[0] if isinstance(d, np.ndarray) else d		# convert to scalar
-
-				cid_in = int(info[idx, CID])          # beacon’s carla_id
-				if cid_in != -1:
-					if trk.carla_id == -1:
-						already = any((o is not trk) and (o.carla_id == cid_in)
-									  for o in self.trackers)
-						if not already:
-							trk.carla_id = cid_in
-
+				#idx = d[0]                                   # scalar index into info
+				
+				#cid_in = int(info[idx, CID])
+				#cid_in = int(info[idx, CID])            # ← beacon’s carla_id (-1 if normal det)
+				#if cid_in != -1:                        # only propagate real ids
+				#	if trk.carla_id == -1:              # track has no id yet
+				#	# give cid_in to *one and only one* track
+				#		already = any((o is not trk) and (o.carla_id == cid_in)
+				#			for o in self.trackers)
+				#		if not already:
+				#			trk.carla_id = cid_in
 				if trk.id == self.debug_id:
 					print('after matching')
 					print(trk.kf.x.reshape((-1)))
@@ -291,8 +290,6 @@ class AB3DMOT(object):
 		new_id_list = list()					# new ID generated for unmatched detections
 		for i in unmatched_dets:        			# a scalar of index
 			trk = KF(Box3D.bbox2array(dets[i]), info[i, :], self.ID_count[0])
-			trk.carla_id = int(info[i, CID])                # NEW
-			trk.guid     = int(info[i, GUID])               # NEW
 			self.trackers.append(trk)
 			new_id_list.append(trk.id)
 			# print('track ID %s has been initialized due to new detection' % trk.id)
@@ -312,19 +309,20 @@ class AB3DMOT(object):
 			d = Box3D.array2bbox(trk.kf.x[:7].reshape((7, )))     # bbox location self
 			d = Box3D.bbox2array_raw(d)
 
-			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):
-				out_row = np.concatenate([
-					d,                         # 0..6
-					[trk.id],                  # 7  track id
-					[trk.carla_id],            # 8  CARLA actor id
-					[trk.guid],                # 9  sender GUID
-					trk.info                   # 10… frame, guid, carla_id, …
-				]).reshape(1, -1)
-				results.append(out_row)		# append the output row
-				#results.append(np.concatenate((d, [trk.id], trk.info)).reshape(1, -1)) 		
+			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):     
+				out_row = np.concatenate((d, [trk.id], trk.info)).reshape(1, -1)
+				#out_row = np.concatenate([
+	#				d,                         # 0..6
+	#				[trk.id],                  # 7  track id
+	#				[trk.carla_id],            # 8  CARLA actor id
+	#				[trk.guid],                # 9  sender GUID
+	#				trk.info                   # 10… frame, guid, carla_id, …
+#				]).reshape(1, -1)
+				results.append(out_row)
 			num_trks -= 1
 
 			# deadth, remove dead tracklet
+
 			if (trk.time_since_update >= self.max_age): 
 				self.trackers.pop(num_trks)
 
@@ -425,7 +423,11 @@ class AB3DMOT(object):
 		self.id_past = [trk.id for trk in self.trackers]
 
 		# process detection format
-		dets = self.process_dets(dets, info)		# convert to Box3D objects
+		dets = self.process_dets(dets)
+
+		#for k, det_obj in enumerate(dets):
+		#	det_obj.carla_id = int(info[k, 2]) 
+
 
 		# tracks propagation based on velocity
 		trks = self.prediction()

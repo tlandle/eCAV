@@ -3,6 +3,12 @@ from numba import jit
 from scipy.optimize import linear_sum_assignment
 from AB3DMOT_libs.dist_metrics import iou, dist3d, dist_ground, m_distance
 
+SIZE_RATIO_TH = 1.30       # >30 % length mismatch ⇒ never match
+COST_MAX      = 1e3        # large positive cost (for −distance metrics) 
+FRAME_IDX = 0          # simulation step or frame number
+GUID      = 1          # globally-unique ID supplied by beacon / vehicle
+CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknown
+
 def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None):
 	# compute affinity matrix
 
@@ -15,8 +21,25 @@ def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None):
 			elif metric == 'm_dis':   dist_now = -m_distance(det, trk, trk_inv_inn_matrices[t])
 			elif metric == 'euler':   dist_now = -m_distance(det, trk, None)
 			elif metric == 'dist_2d': dist_now = -dist_ground(det, trk)              	
-			elif metric == 'dist_3d': dist_now = -dist3d(det, trk)              				
+			elif metric == 'dist_3d': dist_now = -dist3d(det, trk)              		
 			else: assert False, 'error'
+
+			
+			#len_ratio = max(det.l, trk.l) / max(1e-3, min(det.l, trk.l))
+			#if len_ratio > SIZE_RATIO_TH:
+		#		dist_now = COST_MAX     # forbid this pair
+	#		width_ratio = max(det.w, trk.w) / max(1e-3, min(det.w, trk.w))
+	#		if width_ratio > SIZE_RATIO_TH:
+	#			dist_now = COST_MAX
+
+
+			#  ─── prevent cross-id matches ───────────────────────────────────────
+			det_cid = det.info[CID] if hasattr(det, "info") else -1   # -1 for normal det
+			trk_cid = trk.carla_id                                    # already stored
+
+			if det_cid != -1 and trk_cid != -1 and det_cid != trk_cid:
+			    dist_now = COST_MAX      # forbid: beacon ID disagrees with track ID
+			#  ────────────────────────────────────────────────────────────────────
 			aff_matrix[d, t] = dist_now
 
 	return aff_matrix

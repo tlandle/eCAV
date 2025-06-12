@@ -12,6 +12,7 @@ import weakref
 import carla
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.linalg import norm           
 import time
 import opencda.logging_ecloud
 import coloredlogs, logging
@@ -56,6 +57,7 @@ import grpc
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
+guid_counter = 0
 
 def create_waypoint_roadoption_tuple(location, carla_map):
     # Get the waypoint closest to the vehicle's location
@@ -67,57 +69,64 @@ def create_waypoint_roadoption_tuple(location, carla_map):
     
     return (waypoint, road_option)
 
-def _ab3d_row_from_bbox(obj, frame_idx: int):
-    """
-    ObstacleVehicle →  det_row, info_row
-        det_row  = [h, w, l, x, y, z, ry]             (float)
-        info_row = [frame_idx, guid/track_id, carla_id]  (int)
-    """
-    # ── geometry ─────────────────────────────────────────────────────
-    bbx = obj.bounding_box
-    h, w, l = bbx.extent.z * 2, bbx.extent.y * 2, bbx.extent.x * 2
-    loc     = obj.location
-    #ry      = math.radians(obj.transform.rotation.yaw)
-    ry = 0.0  # AB3DMOT does not use yaw, so we set it to 0.0
 
-    # ── ids ──────────────────────────────────────────────────────────
-    track_id = getattr(obj, "track_id", -1)    # use as guid if nothing else
-    carla_id = getattr(obj, "carla_id", -1)    # –1 if unknown
+# ...
 
-    det_row  = [loc.x, loc.y, loc.z, h, w, l, ry]  # AB3DMOT format
-    info_row = [frame_idx, track_id, carla_id]
-    return det_row, info_row
+GUID_COUNTER = 0                         # keep it global as before
 
+def _xyz(loc):
+    """CARLA Location  to  np.array([x,y,z])."""
+    return np.array([loc.x, loc.y, loc.z], dtype=np.float32)
+
+# ─── main helper ──────────────────────────────────────────────────────
 def collect_ab3d_detections(edge,
                             objects_dict: dict,
-                            frame_idx: int):
+                            frame_idx: int,
+                            dup_radius: float = 2.0):
     """
-    Builds dets_all = {'dets': (N,7) float32, 'info': (N,3) int64}
-    for AB3DMOT from:
-        • every ObstacleVehicle in *objects_dict* (camera/LiDAR) and
-        • one self-beacon per VehicleManager in edge.vehicle_manager_list.
+    Build the dict that AB3DMOT.track() wants and remove any perception
+    detection that is closer than <dup_radius> m to a self-beacon.
     """
-    det_rows, info_rows = [], []
+    global GUID_COUNTER
+    det_rows, info_rows, beacons_xyz = [], [], []
 
-    # 1. synthetic obstacles from perception
-    for obj in objects_dict.get("vehicles", []):
-        det, info = _ab3d_row_from_bbox(obj, frame_idx)
-        det_rows.append(det);  info_rows.append(info)
-
-    # 2. one self beacon per ego vehicle  (ground truth pose, real carla_id)
+    # 1. ground-truth beacon for every managed vehicle
     for vm in edge.vehicle_manager_list:
-        veh = vm.vehicle
-        bbx = veh.bounding_box.extent
-        h,w,l = bbx.z*2, bbx.y*2, bbx.x*2
+        veh   = vm.vehicle
         loc   = veh.get_location()
-        ry = 0.0  # AB3DMOT does not use yaw, so we set it to 0.0
-        #ry    = math.radians(veh.get_transform().rotation.yaw)
-        det_rows.append([loc.x, loc.y, loc.z, h, w, l, ry])
-        info_rows.append([frame_idx, veh.id, veh.id])        # guid = carla_id
+        ext   = veh.bounding_box.extent
+        h, w, l = ext.z * 2, ext.y * 2, ext.x * 2         # KITTI = [h,w,l]
+        ry = 0.0                                          # yaw unused here
 
-    dets_np  = np.asarray(det_rows,  dtype=np.float32)
-    info_np  = np.asarray(info_rows, dtype=np.int64)
-    return {'dets': dets_np, 'info': info_np}
+        print(f"Vehicle {veh.id} at {loc} with extents {ext} added as beacon.")
+
+        GUID_COUNTER += 1
+        #det_rows.append([loc.x, loc.y, loc.z, h, w, l, ry])  # 7 floats
+        det_rows.append([h, w, l, loc.x, loc.y, loc.z, ry])  # KITTI order: [h,w,l,x,y,z,yaw]
+        info_rows.append([frame_idx, GUID_COUNTER, veh.id])   # 3 ints only
+        #info_rows.append(np.zeros(7, dtype=np.int64))  # no carla_id, so -1
+        beacons_xyz.append(_xyz(loc))
+
+    # 2. sensor detections (skip duplicates of the beacon)
+    for obj in objects_dict.get("vehicles", []):
+        if any(norm(_xyz(obj.bounding_box.location) - b) < dup_radius for b in beacons_xyz):
+            print(f"Skipping duplicate detection for {obj} at {obj.location}.")
+            continue                                     # duplicate → drop
+        bbx = obj.bounding_box.extent
+        h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
+        loc     = obj.bounding_box.location
+        GUID_COUNTER += 1
+        #det_rows.append([loc.x, loc.y, loc.z, h, w, l, 0.0])
+        det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])  # KITTI order: [h,w,l,x,y,z,yaw]
+        info_rows.append([frame_idx, GUID_COUNTER, -1])
+        #info_rows.append(np.zeros(7, dtype=np.int64))  # no carla_id, so -1
+
+        print(f"Obstacle {obj} at {loc} with extents {bbx} added as detection.")
+
+    return {
+        'dets': np.asarray(det_rows,  dtype=np.float32),
+        'info': np.asarray(info_rows, dtype=np.int64)
+    }
 
 def _belongs_to_vehicle(pred, vm, track_to_carla):
     """
@@ -926,7 +935,139 @@ class EdgeManager(object):
       elif(self.activate == "MANEUVER"):
         self.run_step_maneuver(step_id) 
 
-    
+    def run_step_prediction_old(self, step_id):
+        #self.tracked_trajectories.clear()
+        generated_predictions = []
+        logger.debug("Latency: ", self.latency)
+        logger.debug("DT: ", self.dt)
+
+        if step_id < int(self.latency/self.dt):
+            return
+        
+        number_of_steps = int(self.latency/self.dt)
+        logger.debug("Number of Steps for Latency: ", number_of_steps)
+        ab3dmot_vehicles = []
+        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
+            vehicle_manager.agent.generated_predictions.clear() # surely this will work
+
+            # Get vehicle objects
+            objects = self.objects_deque[number_of_steps].copy()
+            # Convert obstacle vehicle objects to AB3DMOT format
+            start_time = time.perf_counter()
+            for object_type, object_list in objects.items():
+                if object_type == 'vehicles':
+                    for obj in object_list:
+                        # Convert to AB3DMOT format
+                        #logger.debug("Object Location: ", obj.get_location())
+                        #detection = self.convert_aabb_to_ab3dmot_dict(obj.o3d_bbx)
+                        detection = self.convert_boundingbox_to_ab3dmot_dict(obj.bounding_box, obj.get_location())
+                        # Append to objects list
+                        #logger.debug("Detection: ", detection)
+                        ab3dmot_vehicles.append(detection)
+
+
+
+        detection_array = []
+        for det in ab3dmot_vehicles:  # your list of dicts
+            x, y, z = det['location']
+            h, w, l = det['dimensions']
+            ry = det['rotation_y']
+            detection_array.append([x, y, z, h, w, l, ry])
+
+        dets_all = {
+            'dets': np.array(detection_array),
+            'info': np.zeros((len(detection_array), 7))
+        }
+
+        # Use AB3DMOT to track and deduplicate
+        ab3dmot_output_objects, _ = self.ab3dmot_tracker.track(dets_all, step_id)
+        #logger.debug("AB3DMOT Output Objects: ", ab3dmot_output_objects)
+
+        # check for stale ab3dmot output
+        ab3dmot_output_objects = self.filter_stale_tracks(ab3dmot_output_objects, max_age=5)
+        #logger.debug("AB3DMOT Output Objects after filtering: ", ab3dmot_output_objects)
+
+
+        # Convert AB3DMOT output to ObstacleTrajectory objects
+        self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10, dt=self.dt)
+
+        end_tracker_time = time.perf_counter()
+        tracker_time = (end_tracker_time - start_time) * 1000  # Convert to milliseconds
+
+
+        start_prediction_time = time.perf_counter()        
+        #tracked_trajectories = self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10)
+
+        #self.tracked_trajectories_deque.appendleft(tracked_trajectories.copy())
+
+        #logger.debug("Number of tracked trajectories: ", len(self.tracked_trajectories))
+
+        # Run the linear operator predictor on the tracked trajectories
+        # Type ObstaclePrediction list is returned
+        generated_predictions = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_trajectories)
+
+        end_prediction_time = time.perf_counter()
+        prediction_time = (end_prediction_time - start_prediction_time) * 1000  # Convert to milliseconds
+
+        self.debug_helper.update_edge(0,
+                                 tracking_time=tracker_time,
+                                 prediction_time=prediction_time)
+
+        #logger.debug("Number of generated predictions: ", len(generated_predictions))
+
+
+        self.track_color_map = {}
+
+        for prediction in generated_predictions:
+            track_id = prediction.obstacle_trajectory.obstacle.track_id
+
+            # Generate or reuse color for this track ID
+            if track_id not in self.track_color_map:
+                random.seed(track_id)  # consistent color per ID
+                self.track_color_map[track_id] = carla.Color(
+                    r=random.randint(50, 255),
+                    g=random.randint(50, 255),
+                    b=random.randint(50, 255)
+                )
+
+            color = self.track_color_map[track_id]
+            #logger.debug(track_id)
+            #for transform in prediction.obstacle_trajectory.trajectory:
+                #logger.debug("Obstacle Trajectory: ", transform)
+                #self.world.debug.draw_point(
+                #    transform.location,
+                #    size=0.1,
+                #    color=color,
+                #    life_time=.1,
+                #    persistent_lines=False
+                #)
+
+            #for transform in prediction.predicted_trajectory:
+            #    #logger.debug("Predicted Trajectory: ", transform)
+            #    self.world.debug.draw_point(
+            #        transform.location,
+            #        size=0.1,
+            #        color=color,
+            #        life_time=.1,
+            #        persistent_lines=False
+            #    )
+
+        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
+            predictions_to_send = generated_predictions.copy()
+            for obstacle_prediction in predictions_to_send:
+                    vehicle_manager.agent.generated_predictions.append(obstacle_prediction)
+
+        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
+
+            # Apply Control; Run Step 
+            vehicle_manager.update_info(step_id)
+            control = vehicle_manager.run_step()
+            vehicle_manager.vehicle.apply_control(control)
+            #logger.debug("Applied control")
+        for rsu in self.rsu_manager_list:
+            rsu.update_info()
+            rsu.run_step()
+
     def run_step_prediction(self, step_id):
         # ------------------------------------------------ latency filter ---
         print("Running prediction step for edge", self.edgeid, flush=True)
@@ -952,32 +1093,24 @@ class EdgeManager(object):
 
         print("Tracks after AB3DMOT:", tracks_np, flush=True)
 
-        for frame_tracks in tracks_np:
-            if frame_tracks is None or len(frame_tracks) == 0:
-                continue
-
-            for track in frame_tracks:
-                track_id = int(track[7])
-                carla_id  = int(track[8])
-                if carla_id != -1:
-                    self.track_to_carla[track_id]  = carla_id
-                    self.carla_to_track[carla_id]  = track_id
-
-
-
-        print("Track to CARLA mapping:", self.track_to_carla, flush=True)
-        print("CARLA to Track mapping:", self.carla_to_track, flush=True)
-
         # ------------------------------------------------ convert to trajectories
         tracks_np = self.filter_stale_tracks(tracks_np, max_age=5)
         print("Tracks after filtering:", tracks_np, flush=True)
         self.convert_ab3dmot_history_to_trajectories(
             tracks_np, trajectory_length=10, dt=self.dt)
 
+        print("Tracked trajectories:", self.tracked_trajectories, flush=True)
+        for traj_id, traj in self.tracked_trajectories.items():
+            print(f"Trajectory ID {traj_id}", flush=True)
+            for t in traj.trajectory:
+                print(f"  Transform: {t}", flush=True)
+            
         # ------------------------------------------------ prediction
         t1 = time.perf_counter()
         preds = self.linear_predictor_manager.generate_predicted_trajectories(
                      self.tracked_trajectories)
+
+
         predict_ms = (time.perf_counter() - t1) * 1000.0
 
         # ------------------------------------------------ debug/telemetry
@@ -1010,7 +1143,11 @@ class EdgeManager(object):
             rsu.update_info()
             rsu.run_step()
 
-    def convert_ab3dmot_history_to_trajectories(self, mot_output_deque, trajectory_length=10, dt=0.05):
+    def convert_ab3dmot_history_to_trajectories(self,
+                                                mot_output_deque,
+                                                trajectory_length: int = 10,
+                                                dt: float = 0.05):
+
         if not hasattr(self, "tracked_trajectories"):
             self.tracked_trajectories = {}
 
@@ -1021,25 +1158,30 @@ class EdgeManager(object):
                 continue
 
             for track in frame_tracks:
-                track_id = int(track[7])
-                location = track[0:3]
-                rotation_y = track[6]
-                carla_id  = int(track[8])
-                guid = int(track[9])
+                track_id  = int(track[7])    # unchanged
+                location = track[3:6]      # [x, y, z]
+                rotation_y = track[6]        # yaw
+                carla_id  = int(track[8])    # unchanged
+                guid      = int(track[9])
 
-                loc = carla.Location(x=location[0], y=location[1], z=location[2])
+                loc = carla.Location(x=location[0],
+                                     y=location[1],
+                                     z=location[2])
                 rot = carla.Rotation(yaw=np.degrees(rotation_y))
                 transform = carla.Transform(location=loc, rotation=rot)
+
+                print("Processing track ID:", track_id, "at location:", loc, "rotation:", rot, flush=True)
 
                 updated_ids.add(track_id)
 
                 if track_id in self.tracked_trajectories:
                     traj = self.tracked_trajectories[track_id]
                     traj.update(transform)
-                    traj.trajectory = deque(traj.trajectory, maxlen=trajectory_length)
+                    traj.trajectory = deque(traj.trajectory,
+                                            maxlen=trajectory_length)
                     traj.obstacle.transform = transform
-                    traj.obstacle.location = transform.location
-                    traj.obstacle.carla_id = carla_id
+                    traj.obstacle.location  = transform.location
+                    traj.obstacle.carla_id  = carla_id
                 else:
                     dummy_obstacle = ObstacleVehicle(
                         corners=np.zeros((8, 3)),
@@ -1048,8 +1190,8 @@ class EdgeManager(object):
                         tick_id=0
                     )
                     dummy_obstacle.transform = transform
-                    dummy_obstacle.location = transform.location
-                    dummy_obstacle.carla_id = carla_id
+                    dummy_obstacle.location  = transform.location
+                    dummy_obstacle.carla_id  = carla_id
                     self.tracked_trajectories[track_id] = ObstacleTrajectory(
                         dummy_obstacle,
                         deque([transform], maxlen=trajectory_length)

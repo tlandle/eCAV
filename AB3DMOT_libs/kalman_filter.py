@@ -8,8 +8,9 @@ class Filter(object):
 		self.time_since_update = 0
 		self.id = ID
 		self.hits = 1           		# number of total hits including the first detection
-		self.carla_id = int(info[2])   # −1 if sensor didn't know
-		self.guid     = int(info[1])   # optional
+		self.carla_id = int(info[2]) if len(info) > 2 else -1
+		self.guid     = int(info[1]) if len(info) > 1 else -1
+		#self.class_id = int(info[3])   # class id, 0 for vehicle, 1 for pedestrian, 2 for cyclist
 		self.info = info        		# other information associated	
 
 class KF(Filter):

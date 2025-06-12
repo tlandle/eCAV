@@ -13,6 +13,7 @@ from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 from threading import Thread
 
+MAX_STEPS = 1000  # Maximum number of steps to run the scenario
 SCENARIO_NAME = 'openscenario_1_edge'
 scenario_runner = None
 
@@ -139,6 +140,9 @@ def run_scenario(opt, scenario_params):
                 edge.update_information()
                 edge.run_step(step)
             step = step + 1
+            if step >= MAX_STEPS:
+                print("Reached max steps, exiting")
+                break
             time.sleep(0.001)
 
     finally:

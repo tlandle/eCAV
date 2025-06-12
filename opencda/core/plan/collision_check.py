@@ -509,27 +509,63 @@ class CollisionChecker:
                 #break
 
         return collision_free
+    
+    def waypoint_collision_check(
+            self,
+            ego_waypoints,
+            ego_loc,
+            ego_speed,
+            obstacle_trajectory,
+            obstacle_speed,
+            world=None):
+        """
+        Check whether the vehicle's path along desired waypoints intersects
+        with the predicted path of an obstacle vehicle.
+        """
+        # get ego points
+        ego_points = []
+        ego_points.append([ego_loc.x, ego_loc.y])
+        for wpt, _ in ego_waypoints:
+            x = wpt.transform.location.x
+            y = wpt.transform.location.y
+            ego_points.append([x, y])
+        ego_points = np.asarray(ego_points)
+        ego_x = ego_points[:, 0]
+        ego_y = ego_points[:, 1]
+
+        print("ego waypoints: %s" %ego_points)
+
+        # get spline
+        ds = 0.1
+        sp = Spline2D(ego_x, ego_y)
+        s = np.arange(sp.s[0], sp.s[-1], ds)
+
+        # calculate interpolation points
+        rx, ry = [], []
+        for i_s in s:
+            ix, iy = sp.calc_position(i_s)
+            rx.append(ix)
+            ry.append(iy)
+
+        is_collision, ttc = self.trajectory_collision_check(rx, ry, ego_speed, obstacle_trajectory, obstacle_speed, check_full_path=True, world=world)
+        return is_collision, ttc
 
     def trajectory_collision_check(
             self,
             ego_path_x, 
             ego_path_y,
-            ego_path_yaw,
             ego_speed,
             obstacle_trajectory,
             obstacle_speed,
-            carla_map,
             time_step=0.05,
             world=None,
-            adjacent_check=False,
-            is_left_turn_at_intersection=False,
             check_full_path=False):
         """
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
         if obstacle_speed < 5:
-            return False    # ignore "stationary" obstacles
+            return False, 1000    # ignore "stationary" obstacles
 
         # get interpolation of obstacle trajectory
         obs_points = []
@@ -547,13 +583,12 @@ class CollisionChecker:
 
             ego_x_points = ego_path_x
             ego_y_points = ego_path_y
-            ego_points = np.stack((ego_x_points, ego_y_points), axis=1)
-            ego_sp, ego_path = linear_interp_trajectory(ego_points)
+            ego_path = np.stack((ego_x_points, ego_y_points), axis=1)
 
             # get lookahead for obstacle path
             obs_path_x = obs_path[:, 0]
             obs_path_y = obs_path[:, 1]
-            obs_distance_check = min(int(self.time_ahead * obstacle_speed / 0.1), len(obs_path_x))
+            obs_distance_check = min(max(50, int(self.time_ahead * obstacle_speed / 0.1)), len(obs_path_x))
             obs_x_points = obs_path_x[:obs_distance_check]
             obs_y_points = obs_path_y[:obs_distance_check]
             obs_path = np.stack((obs_x_points, obs_y_points), axis=1)
@@ -562,6 +597,7 @@ class CollisionChecker:
             dists = spatial.distance.cdist(ego_path, obs_path)
             collision_dists = np.subtract(dists, self._circle_radius)
             is_collision = np.any(collision_dists < 0)
+            ttc = 2
         else:
             # naively resample the ego path
             ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 50), len(ego_path_x))    # minimum number of points can be tuned
@@ -582,7 +618,7 @@ class CollisionChecker:
             length = min(len(ego_x_points), len(obs_x_points))
             ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
             obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-            is_collision, _ = check_paths_within_radius(ego_path, obs_path, r=5, dt=time_step)
+            is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=5, dt=time_step)
 
         if world is not None:
             for i in range(len(ego_x_points)):
@@ -592,6 +628,6 @@ class CollisionChecker:
                 #print("Obstacle Vehicle Point: (%s, %s)" %(obs_x_points[i], obs_y_points[i]))
                 world.debug.draw_point(carla.Location(x=obs_x_points[i], y=obs_y_points[i], z=.5), color=carla.Color(255,0,0), size=0.1, life_time=0.25)
 
-        return is_collision
+        return is_collision, ttc
 
 

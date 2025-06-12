@@ -41,7 +41,9 @@ class MultiObjectSORTTracker(MultiObjectTracker):
         tracks = self.tracker.update(convert_detections,
                                       labels=labels,
                                       ids=ids)
-        logger.debug('tracks:', tracks)
+
+        logger.debug('tracks: %s' %tracks)
+        #logger.debug('tracks:', tracks)
         self.history.append(tracks.copy()) # for input into predictor
         return tracks.copy()
 
@@ -55,7 +57,7 @@ class MultiObjectSORTTracker(MultiObjectTracker):
         dets_for_sort = []
         labels = []
         ids = []
-        logger.debug('detections:', detections)
+        #logger.debug('detections:', detections)
         for det in detections:
             # yolo bbx format: [x1, y1, x2, y2, conf, cls]
             x1, y1, x2, y2, conf, cls = det
@@ -63,7 +65,7 @@ class MultiObjectSORTTracker(MultiObjectTracker):
             dets_for_sort.append([x1.item(), y1.item(), x2.item(), y2.item(), conf.item()])
             labels.append(cls.item())
             ids.append(-1)
-        logger.debug('dets_for_sort:', dets_for_sort)
+        #logger.debug('dets_for_sort:', dets_for_sort)
         return (np.array(dets_for_sort), labels, ids)
 
     def convert_detections_for_sort_alg(self, obstacles):

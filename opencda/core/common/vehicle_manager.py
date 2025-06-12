@@ -600,7 +600,7 @@ class VehicleManager(object):
             else:
                 objects['static'] = self.edge_objects['static']
 
-        logger.debug("Edge Objects", self.edge_objects)
+        #logger.debug("Edge Objects", self.edge_objects)
 
         # generate predicted trajectories
 
