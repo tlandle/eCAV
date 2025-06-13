@@ -626,6 +626,19 @@ class BehaviorAgent(object):
 
         pred_carla_objects = {}
 
+        # find closest prediction to ego
+        closest_to_ego, closest_to_ego_dist = None, 1000
+        ego_loc = self.vehicle.get_location()
+        for pred in self.generated_predictions:
+            traj = pred.obstacle_trajectory.trajectory
+            if len(traj) == 0:
+                continue
+            last_loc = traj[-1].location
+            dist_from_obstacle = math.hypot(last_loc.x-ego_loc.x, last_loc.y-ego_loc.y)
+            if dist_from_obstacle < closest_to_ego_dist:
+                closest_to_ego_dist = dist_from_obstacle
+                closest_to_ego = pred
+
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             logger.debug("Vehicle Id: %s" %vehicle.carla_id)
@@ -633,14 +646,17 @@ class BehaviorAgent(object):
             obstacle_loc = vehicle.get_location()
 
             # find which vehicle is which
+            closest_pred, dist_to_closest = None, 1000
             for pred in self.generated_predictions:
                 traj = pred.obstacle_trajectory.trajectory
                 if len(traj) == 0:
                     continue
                 last_loc = traj[-1].location
                 dist_from_obstacle = math.hypot(last_loc.x-obstacle_loc.x, last_loc.y-obstacle_loc.y)
-                if dist_from_obstacle < 10:
-                    pred_carla_objects[pred] = vehicle
+                if dist_from_obstacle < dist_to_closest:
+                    dist_to_closest = dist_from_obstacle
+                    closest_pred = pred
+            pred_carla_objects[closest_pred] = vehicle
          
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
@@ -670,7 +686,8 @@ class BehaviorAgent(object):
                 self.generated_predictions.remove(pred)
                 continue
 
-            print("Prediction: %s" %pred.obstacle_trajectory.trajectory)
+            for transform in pred.obstacle_trajectory.trajectory:
+                print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
 
             # ignore any predictions for obstacles behind the ego
             if pred in pred_carla_objects:

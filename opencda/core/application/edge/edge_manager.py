@@ -69,17 +69,134 @@ def create_waypoint_roadoption_tuple(location, carla_map):
     
     return (waypoint, road_option)
 
+def _iou_ego(box, ego_loc, ego_size):
+    ex, ey, ez = ego_loc          # beacon centre
+    eh, ew, el = ego_size
+    bx, by, bz, bh, bw, bl = box
 
-# ...
+    if abs(bx-ex) > (bl+el)*0.5: return 0.0   # use length, not width
+    if abs(by-ey) > (bw+ew)*0.5: return 0.0   # and width on the other axis
+    if abs(bz-ez) > (bh+eh)*0.5: return 0.0
+    inter = (
+            max(0., min(ex+ew/2, bx+bw/2)-max(ex-ew/2, bx-bw/2)) *
+            max(0., min(ey+el/2, by+bl/2)-max(ey-el/2, by-bl/2)) *
+            max(0., min(ez+eh/2, bz+bh/2)-max(ez-eh/2, bz-bh/2))
+            )
+    vol   = ew*el*eh + bw*bl*bh - inter
+    return inter / vol
 
-GUID_COUNTER = 0                         # keep it global as before
+
+
+# helper that works in *horizontal* (x-y) plane only
+def _centre_2d(obj):
+    return np.array([obj.x, obj.y], dtype=np.float32)
+
+def _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh):
+    """
+    really coarse IoU between two axis-aligned rectangles in the x-y plane
+    box_xy  = centre (x,y) of detection,   box_wh  = (w, l)
+    ego_xy  = centre (x,y) of the beacon,  ego_wh  = (w, l)
+    """
+    dx = abs(box_xy[0] - ego_xy[0])
+    dy = abs(box_xy[1] - ego_xy[1])
+    ix = max(0.0, 0.5*(box_wh[0] + ego_wh[0]) - dx)
+    iy = max(0.0, 0.5*(box_wh[1] + ego_wh[1]) - dy)
+    inter = ix * iy
+    if inter == 0.0:
+        return 0.0
+    union = box_wh[0]*box_wh[1] + ego_wh[0]*ego_wh[1] - inter
+    return inter / union
+
+
+# ──────────────────────────────────────────────────────────────────────
+# NEW: reject unrealistically small 3-D boxes (slice-like clusters)
+# ──────────────────────────────────────────────────────────────────────
+_MIN_EDGE   = 0.60        # m   – anything thinner than this is noise
+_MIN_VOLUME = 1.00        # m³  – filter out tiny clusters
+
+
+def _is_sliver(h, w, l):
+    """True ⇢ at least one edge < _MIN_EDGE  OR  volume < _MIN_VOLUME"""
+    return (min(h, w, l) < _MIN_EDGE) or (h * w * l < _MIN_VOLUME)
+# ──────────────────────────────────────────────────────────────────────
+
+
+GUID_COUNTER = 0
+
 
 def _xyz(loc):
-    """CARLA Location  to  np.array([x,y,z])."""
     return np.array([loc.x, loc.y, loc.z], dtype=np.float32)
 
-# ─── main helper ──────────────────────────────────────────────────────
+
 def collect_ab3d_detections(edge,
+                            objects_dict: dict,
+                            frame_idx: int,
+                            dup_radius: float = 3.0):
+
+    global GUID_COUNTER
+    det_rows, info_rows, beacons_xyz = [], [], []
+
+    # 1 ─────────────── beacons ────────────────────────────────────────
+    for vm in edge.vehicle_manager_list:
+        veh   = vm.vehicle
+        loc   = veh.get_location()
+        ext   = veh.bounding_box.extent
+        h, w, l = ext.z * 2, ext.y * 2, ext.x * 2   # KITTI order: h, w, l
+        det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])
+        GUID_COUNTER += 1
+        info_rows.append([frame_idx, GUID_COUNTER, veh.id])
+        beacons_xyz.append(_xyz(loc))
+        ego_h, ego_w, ego_l = h, w, l
+
+    # ego geometry in x-y
+    ego_xy = beacons_xyz[0][:2]
+    ego_wh = np.array([ego_w, ego_l], dtype=np.float32)
+
+    # 2 ─────────────── sensor detections ──────────────────────────────
+    for obj in objects_dict.get("vehicles", []):
+        bbx = obj.bounding_box.extent
+        h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
+
+        # ── 2-a  size / volume sanity check  ──────────────────────────
+        if _is_sliver(h, w, l):
+            # tiny “slice” → ignore
+            continue
+
+        loc     = obj.bounding_box.location
+        box_xy  = np.array([loc.x, loc.y], dtype=np.float32)
+        box_wh  = np.array([w, l],        dtype=np.float32)
+
+        # ── 2-b  3-D distance gate (fast)  ───────────────────────────
+        if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.7 * max(ego_wh):
+            # too close to our own beacon – most likely ego points
+            continue
+
+        # ── 2-c  2-D IoU gate (optional)  ────────────────────────────
+        if _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh) > 0.25:
+            # overlaps beacon footprint too much – treat as ego
+            continue
+
+        # ── 2-d  keep it  ────────────────────────────────────────────
+        det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])
+        GUID_COUNTER += 1
+        info_rows.append([frame_idx, GUID_COUNTER, -1])
+
+    # 3 ─────────────── return to AB3DMOT ──────────────────────────────
+    return {
+        'dets': np.asarray(det_rows,  dtype=np.float32),
+        'info': np.asarray(info_rows, dtype=np.int64)
+    }
+# beacon centre and footprint in the x-y plane
+# ...
+
+#GUID_COUNTER = 0                         # keep it global as before
+
+#def _xyz(loc):
+#    """CARLA Location  to  np.array([x,y,z])."""
+#    return np.array([loc.x, loc.y, loc.z], dtype=np.float32)
+
+# ─── main helper ──────────────────────────────────────────────────────
+def collect_ab3d_detections_old(edge,
                             objects_dict: dict,
                             frame_idx: int,
                             dup_radius: float = 3.0):
@@ -106,15 +223,72 @@ def collect_ab3d_detections(edge,
         info_rows.append([frame_idx, GUID_COUNTER, veh.id])   # 3 ints only
         #info_rows.append(np.zeros(7, dtype=np.int64))  # no carla_id, so -1
         beacons_xyz.append(_xyz(loc))
+        ego_h, ego_w, ego_l = h, w, l    
 
-    # 2. sensor detections (skip duplicates of the beacon)
+    ego_xy = np.array([beacons_xyz[0][0], beacons_xyz[0][1]], dtype=np.float32)
+    ego_wh = np.array([ego_w, ego_l], dtype=np.float32)          # width, length
+
     for obj in objects_dict.get("vehicles", []):
-        if any(norm(_xyz(obj.bounding_box.location) - b) < dup_radius for b in beacons_xyz):
-            print(f"Skipping duplicate detection for {obj} at {obj.location}.")
-            continue                                     # duplicate → drop
         bbx = obj.bounding_box.extent
         h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
         loc     = obj.bounding_box.location
+        box_xy  = np.array([loc.x, loc.y], dtype=np.float32)
+        box_wh  = np.array([w, l], dtype=np.float32)
+
+        _iou = _iou_ego([loc.x, loc.y, loc.z, h, w, l],
+                        beacons_xyz[0],            # only one ego in this edge
+                        [ego_h, ego_w, ego_l])
+
+        print(f"IoU ego vehicle {obj} at {loc}: {_iou:.2f}")
+
+        if _iou_ego([loc.x, loc.y, loc.z, h, w, l],
+                     beacons_xyz[0],            # only one ego in this edge
+                    [ego_h, ego_w, ego_l]) > 0.10:
+            print(f"Skipping ego vehicle {obj} at {obj.location}.")
+            continue                                     # ego vehicle → skip
+
+
+        # quick distance gate (fast) ------------------------------------------------
+        # make absolutely sure these are the numbers you expect
+        ego_wh = np.array([ego_w, ego_l])             # metres
+        box_xy = np.array([loc.x, loc.y])             # (x,y) of this detection
+
+        dist = np.linalg.norm(box_xy - ego_xy)
+        thr  = 0.7 * max(ego_wh)                      # ≈ 3 m for a 4 m-long bus
+        print(f"Beacon at {ego_xy} with size {ego_wh} m")
+        print(f"Object {obj} at {box_xy} with size {box_wh} m")
+        print(f"Threshold for {obj}: {thr:.2f} m")
+        print(f"dist={dist:.2f} m  thr={thr:.2f} m  keep? {dist>=thr}")
+
+        if dist < thr:
+            print(f"→ skip   {obj}  (dist={dist:.2f})")
+            continue
+
+        # softer 2-D IoU gate (rarely triggered after distance, but nice to have) ---
+        iou = _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh)
+        print(f"IoU vs ego for {obj}: {iou:.2f}")
+        if iou > 0.25:                                           # generous overlap
+            print(f"→ skip   {obj}  (IoU test)")
+            continue
+
+
+    # 2. sensor detections (skip duplicates of the beacon)
+    #for obj in objects_dict.get("vehicles", []):
+    #    bbx = obj.bounding_box.extent
+    #    h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
+    #    loc     = obj.bounding_box.location
+
+    #    _iou = _iou_ego([loc.x, loc.y, loc.z, h, w, l],
+    #                    beacons_xyz[0],            # only one ego in this edge
+    #                    [ego_h, ego_w, ego_l])
+
+    #    print(f"IoU ego vehicle {obj} at {loc}: {_iou:.2f}")
+
+     #   if _iou_ego([loc.x, loc.y, loc.z, h, w, l],
+    #             beacons_xyz[0],            # only one ego in this edge
+     #               [ego_h, ego_w, ego_l]) > 0.10:
+     #       print(f"Skipping ego vehicle {obj} at {obj.location}.")
+     #       continue                                     # ego vehicle → skip
         GUID_COUNTER += 1
         #det_rows.append([loc.x, loc.y, loc.z, h, w, l, 0.0])
         det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])  # KITTI order: [h,w,l,x,y,z,yaw]
@@ -1125,7 +1299,7 @@ class EdgeManager(object):
         for vm in self.vehicle_manager_list:
             vm.agent.generated_predictions[:] = [
                 p for p in preds
-                if not _belongs_to_vehicle(p, vm, self.track_to_carla)
+                #if not _belongs_to_vehicle(p, vm, self.track_to_carla)
             ]
             #print("Vehicle manager", vm, "has predictions:", vm.agent.generated_predictions, flush=True)
 
@@ -1201,9 +1375,9 @@ class EdgeManager(object):
         to_remove = []
         for track_id, traj in self.tracked_trajectories.items():
             if track_id not in updated_ids:
-                traj.step(dt)
-                if traj.time_since_update >= 1.0:
-                    to_remove.append(track_id)
+                #traj.step(dt)
+                #if traj.time_since_update >= 1.0:
+                to_remove.append(track_id)
 
         for tid in to_remove:
             del self.tracked_trajectories[tid]
