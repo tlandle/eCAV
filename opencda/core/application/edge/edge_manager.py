@@ -82,7 +82,7 @@ def _xyz(loc):
 def collect_ab3d_detections(edge,
                             objects_dict: dict,
                             frame_idx: int,
-                            dup_radius: float = 2.0):
+                            dup_radius: float = 3.0):
     """
     Build the dict that AB3DMOT.track() wants and remove any perception
     detection that is closer than <dup_radius> m to a self-beacon.
@@ -1202,7 +1202,7 @@ class EdgeManager(object):
         for track_id, traj in self.tracked_trajectories.items():
             if track_id not in updated_ids:
                 traj.step(dt)
-                if traj.time_since_update >= 2.0:
+                if traj.time_since_update >= 1.0:
                     to_remove.append(track_id)
 
         for tid in to_remove:
