@@ -625,20 +625,7 @@ class BehaviorAgent(object):
         #logger.debug("generated predictions: %s" %self.generated_predictions)
 
         pred_carla_objects = {}
-
-        # find closest prediction to ego
-        closest_to_ego, closest_to_ego_dist = None, 1000
-        ego_loc = self.vehicle.get_location()
-        for pred in self.generated_predictions:
-            traj = pred.obstacle_trajectory.trajectory
-            if len(traj) == 0:
-                continue
-            last_loc = traj[-1].location
-            dist_from_obstacle = math.hypot(last_loc.x-ego_loc.x, last_loc.y-ego_loc.y)
-            if dist_from_obstacle < closest_to_ego_dist:
-                closest_to_ego_dist = dist_from_obstacle
-                closest_to_ego = pred
-
+        
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             logger.debug("Vehicle Id: %s" %vehicle.carla_id)
@@ -683,7 +670,7 @@ class BehaviorAgent(object):
             #continue
             if is_likely_ego(pred, self._ego_pos):
                 logger.debug("Prediction is likely ego, removing it")
-                self.generated_predictions.remove(pred)
+                # self.generated_predictions.remove(pred)
                 continue
 
             for transform in pred.obstacle_trajectory.trajectory:
