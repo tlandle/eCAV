@@ -130,6 +130,7 @@ def _xyz(loc):
 
 def collect_ab3d_detections(edge,
                             objects_dict: dict,
+                            beacons_dict: dict,
                             frame_idx: int,
                             dup_radius: float = 3.0):
 
@@ -139,8 +140,7 @@ def collect_ab3d_detections(edge,
     # 1 ─────────────── beacons ────────────────────────────────────────
     for vm in edge.vehicle_manager_list:
         veh   = vm.vehicle
-        loc   = veh.get_location()
-        ext   = veh.bounding_box.extent
+        loc, ext = beacons_dict[veh.id]
         h, w, l = ext.z * 2, ext.y * 2, ext.x * 2   # KITTI order: h, w, l
         det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])
         GUID_COUNTER += 1
@@ -208,22 +208,16 @@ def collect_ab3d_detections_old(edge,
     det_rows, info_rows, beacons_xyz = [], [], []
 
     # 1. ground-truth beacon for every managed vehicle
+
     for vm in edge.vehicle_manager_list:
-        veh   = vm.vehicle
-        loc   = veh.get_location()
-        ext   = veh.bounding_box.extent
-        h, w, l = ext.z * 2, ext.y * 2, ext.x * 2         # KITTI = [h,w,l]
-        ry = 0.0                                          # yaw unused here
-
-        print(f"Vehicle {veh.id} at {loc} with extents {ext} added as beacon.")
-
+        veh_id = vm.vehicle.id
+        loc, ext = beacons__dict[veh_id]          # ← delayed pose
+        h, w, l  = ext.z*2, ext.y*2, ext.x*2
+        det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])
         GUID_COUNTER += 1
-        #det_rows.append([loc.x, loc.y, loc.z, h, w, l, ry])  # 7 floats
-        det_rows.append([h, w, l, loc.x, loc.y, loc.z, ry])  # KITTI order: [h,w,l,x,y,z,yaw]
-        info_rows.append([frame_idx, GUID_COUNTER, veh.id])   # 3 ints only
-        #info_rows.append(np.zeros(7, dtype=np.int64))  # no carla_id, so -1
+        info_rows.append([frame_idx, GUID_COUNTER, veh_id])
         beacons_xyz.append(_xyz(loc))
-        ego_h, ego_w, ego_l = h, w, l    
+        ego_h, ego_w, ego_l = h, w, l
 
     ego_xy = np.array([beacons_xyz[0][0], beacons_xyz[0][1]], dtype=np.float32)
     ego_wh = np.array([ego_w, ego_l], dtype=np.float32)          # width, length
@@ -390,6 +384,7 @@ class EdgeManager(object):
         self.linear_predictor_manager = LinearPredictorManager(num_future_steps=self.num_future_steps)
         self.track_to_carla = {}
         self.carla_to_track = {}
+        self.beacon_history = defaultdict(lambda: deque(maxlen=30))
 
         self.debug_helper = EdgeDebugHelper(0)
 
@@ -823,7 +818,7 @@ class EdgeManager(object):
 
                 dest[otype].append(obj)
 
-    def update_information(self):
+    def update_information(self, frame_idx=0):
         """Collect world-state for the edge; never store ‘self’ objects."""
 
         self.objects       = {}          # reset global object dict
@@ -850,6 +845,15 @@ class EdgeManager(object):
                                vm.agent.objects,
                                owner_id       = vm.vehicle.id,
                                track_to_carla = self.track_to_carla)
+
+                for vm in self.vehicle_manager_list:
+                    veh = vm.vehicle
+                    # we only need (x,y,z) + extents; add yaw etc. if desired
+                    self.beacon_history[veh.id].appendleft((
+                        frame_idx,
+                        veh.get_location(),          # carla.Location
+                        veh.bounding_box.extent      # carla.Vector3D
+                    ))
 
         # ──────────────────────────────────────────────────────────────
         #  Merge RSU objects (RSU never equals a vehicle, so no filter)
@@ -1256,8 +1260,22 @@ class EdgeManager(object):
 
         objects_snapshot = self.objects_deque[lag_steps].copy()
 
+
+        beacons_dict = {}
+        for vm in self.vehicle_manager_list:
+            hist = self.beacon_history[vm.vehicle.id]
+            if len(hist) > lag_steps:
+                print("Using delayed pose for vehicle", vm.vehicle.id, flush=True)
+                _, loc, ext = hist[lag_steps]
+            else:
+                # not enough history yet
+                print("Using current pose for vehicle", vm.vehicle.id, flush=True)
+                loc, ext = vm.vehicle.get_location(), vm.vehicle.bounding_box.extent
+            beacons_dict[vm.vehicle.id] = (loc, ext)
+
         dets_all = collect_ab3d_detections(self,
                                    objects_snapshot,
+                                   beacons_dict,
                                    frame_idx=step_id)
 
         # ------------------------------------------------ AB3DMOT tracking

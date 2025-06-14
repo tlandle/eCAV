@@ -82,7 +82,13 @@ def patch_yaml(d, latency, speed):
         for edge in d["scenario"]["edge_list"]:
             edge["latency"] = float(latency) / 1000.0  # ms → s 
     if speed is not None:
+        # set ego behaviour
         d["scenario"]["edge_list"][0]["vehicles"][0]["behavior"]["max_speed"] = int(speed)
+
+        # pass the same value to ScenarioRunner
+        d["scenario_runner"]["openscenarioparams"] = [
+             f"ego_vehicle_max_speed={int(speed)}"
+        ]
 
 # ─────────────────────── single run helper ──────────────────────────────
 def run_once(lat, spd, rep):

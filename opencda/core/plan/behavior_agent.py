@@ -669,9 +669,9 @@ class BehaviorAgent(object):
             #if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
             #continue
             if is_likely_ego(pred, self._ego_pos):
-                logger.debug("Prediction is likely ego, removing it")
+                logger.debug("Prediction is likely ego, skipping it")
                 # self.generated_predictions.remove(pred)
-                continue
+                #continue
 
             for transform in pred.obstacle_trajectory.trajectory:
                 print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
@@ -694,7 +694,7 @@ class BehaviorAgent(object):
                     dot = dx * heading_x + dy * heading_y
                     if dot < 0:
                         print("found vehicle behind ego")
-                        continue
+                        #continue
             
             # get speed from pred
             dt = 0.05 # time step duration for simulator
