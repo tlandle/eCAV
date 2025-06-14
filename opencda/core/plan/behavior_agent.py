@@ -732,7 +732,8 @@ class BehaviorAgent(object):
                 check_full_path=check_full_path
             )
 
-            self.ttc = ttc
+            if ttc is not None:
+                self.ttc = ttc
 
             if collision:
                 self.debug_helper.update(self._ego_speed / 3.6, ttc)
@@ -1021,7 +1022,9 @@ class BehaviorAgent(object):
         delta_v = max(1, (self._ego_speed - vehicle_speed) / 3.6)
         ttc = distance / delta_v if delta_v != 0 else distance / \
                                                       np.nextafter(0., 1.)
-        self.ttc = ttc
+
+        if self.ttc is not None:
+            self.ttc = ttc
         # Under safety time distance, slow down.
         if self.safety_time > ttc > 0.0:
             target_speed = min(positive(vehicle_speed - self.speed_decrease),

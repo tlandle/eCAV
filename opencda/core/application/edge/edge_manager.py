@@ -1283,6 +1283,8 @@ class EdgeManager(object):
         tracks_np, _ = self.ab3dmot_tracker.track(dets_all, step_id)
         tracker_ms = (time.perf_counter() - t0) * 1000.0
 
+        print("Tracker Time (AB3DMOT):", tracker_ms, "ms", flush=True)
+
         print("Tracks after AB3DMOT:", tracks_np, flush=True)
 
         # ------------------------------------------------ convert to trajectories
