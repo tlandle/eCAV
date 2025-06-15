@@ -55,7 +55,7 @@ scenario_runner:
   host: *host
   port: *port
   timeout: 10
-  debug: true
+  debug: false
   sync: false
   repetitions: 1
   agent: null

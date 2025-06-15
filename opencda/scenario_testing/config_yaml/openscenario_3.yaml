@@ -13,15 +13,15 @@ world:
   client_host: &host localhost
   client_port: &port 2000
 
-# Parameters needed for ScenarioRunner
+
 scenario_runner:
   town: town03
 
   # E.g., for the Overtake scenario
   scenario: Scenario_3
   num_actors: 2
-  configFile: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_3.xml'
-  additionalScenario: '/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/scenario_testing/scenarios/scenario_3.py'
+  configFile: opencda/scenario_testing/scenarios/scenario_3.xml
+  additionalScenario: opencda/scenario_testing/scenarios/scenario_3.py
 
   host: *host
   port: *port
@@ -42,7 +42,8 @@ scenario_runner:
   json: false
   junit: false
   list: false
-  penscenarioparams: null
+  openscenarioparams: 
+    - ego_vehicle_max_speed=50
   output: false
   outputDir: ''
   randomize: false

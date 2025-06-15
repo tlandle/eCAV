@@ -28,6 +28,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.prediction.obstacle_prediction import ObstaclePrediction
 from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
+from opencda.core.prediction.linear_predictor_manager import LinearPredictorManager
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
@@ -36,7 +37,7 @@ SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
 def is_likely_ego(pred: ObstaclePrediction,
                   ego_latest_tf: carla.Transform,
-                  safety_margin: float = 4.0) -> bool:
+                  safety_margin: float = 3.0) -> bool:
     """
     Return True if the edge prediction is almost certainly *my own* vehicle.
 
@@ -292,6 +293,44 @@ class BehaviorAgent(object):
         self.other_car_speeds = {}
         self.generated_predictions = [] # ObstaclePrediction list
 
+        # Local+Edge prediction pipelines
+        self.tracked_obstacles   = {}   # {track_id: ObstacleTrajectory}
+        self._num_future_steps = 25 # number of future steps to predict
+        self._linear_predictor   = LinearPredictorManager(num_future_steps=self._num_future_steps)
+        self.local_predictions   = []   # produced on-board each tick
+        self.edge_predictions    = []   # filled when the edge sends predictions
+
+
+    def _maintain_tracks_and_predict(self, dt: float):
+        """
+        • Updates/creates ObstacleTrajectory objects for every currently
+          detected local obstacle vehicle.
+        • Removes trajectories unseen for >2 s.
+        • Runs the linear predictor to populate self.local_predictions.
+        """
+        # 1. Update or create trajectories
+        print("Obstacle Vehicles: %s" %self.obstacle_vehicles)
+        for obs in self.obstacle_vehicles:
+            tid = getattr(obs, "carla_id", None) or obs.id      # robust id
+            if tid not in self.tracked_obstacles:
+                self.tracked_obstacles[tid] = ObstacleTrajectory(obs, [])
+            self.tracked_obstacles[tid].update(obs.get_transform())
+
+        # 2. Prune stale trajectories (>2 s since last update)
+        stale_ids = []
+        for tid, traj in self.tracked_obstacles.items():
+            if hasattr(traj, "time_since_update"):
+                traj.step(dt)          # advance internal timer
+                if traj.time_since_update > 1.0:
+                    stale_ids.append(tid)
+        for tid in stale_ids:
+            self.tracked_obstacles.pop(tid, None)
+
+        # 3. Generate local predictions
+        self.local_predictions = self._linear_predictor.generate_predicted_trajectories(
+            self.tracked_obstacles
+        )
+
     def update_information(self, ego_pos, ego_speed, objects):
         """
         Update the perception and localization information
@@ -318,6 +357,18 @@ class BehaviorAgent(object):
         # update the localization info to trajectory planner
         self.get_local_planner().update_information(ego_pos, ego_speed)
         self.objects = objects
+
+
+        # ─── 1. Cache any edge-supplied predictions (may be an empty list) ────────
+        #self.edge_predictions = list(self.generated_predictions)     # shallow copy
+
+        # ─── 2. Decide which pipeline to use ──────────────────────────────────────
+        if self.edge_predictions:            # → edge is active; trust it exclusively
+            self.generated_predictions = self.edge_predictions
+
+        else:                                # → no edge data; run local predictor
+            self._maintain_tracks_and_predict(dt=0.05)   # ≈ sim-step seconds
+            self.generated_predictions = self.local_predictions
 
         # current version only consider about vehicles
         obstacle_vehicles = objects['vehicles']
@@ -671,7 +722,7 @@ class BehaviorAgent(object):
             if is_likely_ego(pred, self._ego_pos):
                 logger.debug("Prediction is likely ego, skipping it")
                 # self.generated_predictions.remove(pred)
-                #continue
+                continue
 
             for transform in pred.obstacle_trajectory.trajectory:
                 print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))

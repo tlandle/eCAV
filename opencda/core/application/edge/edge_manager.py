@@ -1317,7 +1317,7 @@ class EdgeManager(object):
         #print("Predictions generated:", preds, flush=True)
 
         for vm in self.vehicle_manager_list:
-            vm.agent.generated_predictions[:] = [
+            vm.agent.edge_predictions[:] = [
                 p for p in preds
                 #if not _belongs_to_vehicle(p, vm, self.track_to_carla)
             ]

@@ -207,6 +207,10 @@ class EvaluationManager(object):
         """
         lprint(log_file, "***********Edge Analysis***********")
 
+        if len(self.cav_world.get_edge_dict()) == 0:
+            lprint(log_file, "No edge CAVs found, skipping edge evaluation.")
+            return
+
         edge_cav_config = self.scenario_params['edge_base']
         if edge_cav_config is None:
             lprint(log_file, "No edge configuration provided, skipping edge evaluation.")

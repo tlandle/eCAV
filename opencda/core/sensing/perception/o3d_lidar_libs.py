@@ -8,6 +8,7 @@ and processing by utilizing open3d.
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import time
+import carla
 
 import open3d as o3d
 import numpy as np
@@ -278,6 +279,15 @@ def o3d_camera_lidar_fusion(objects,
 
     return objects
 
+def _make_transform_from_corners(corner_pts):
+    """Return a carla.Transform whose location is the center of the 3-D bbox.
+       (Rotation left at zero; refine later if you estimate yaw.)"""
+    cx = np.mean(corner_pts[:, 0])
+    cy = np.mean(corner_pts[:, 1])
+    cz = np.mean(corner_pts[:, 2])
+    loc = carla.Location(x=cx, y=cy, z=cz)
+    return carla.Transform(location=loc)   # zero rotation
+
 def o3d_camera_lidar_fusion_from_tracker(objects,
                             track,
                             lidar_3d,
@@ -375,10 +385,14 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         corner = st.sensor_to_world(corner, lidar_sensor.get_transform())
         corner = corner.transpose()[:, :3]
 
+        vehicle_tf = _make_transform_from_corners(corner)
+
         #logger.debug("corner shape: ", corner.shape)
 
         if len(objects['vehicles']) == 0:
             vehicle_obstacle = ObstacleVehicle(corner, aabb, tick_id=tick_id, track_id=track_id)
+            vehicle_obstacle.transform = vehicle_tf
+            vehicle_obstacle.location = vehicle_tf.location
             if 'vehicles' in objects:
                 objects['vehicles'].append(vehicle_obstacle)
             else:
@@ -398,6 +412,8 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
             vehicle_obstacle = ObstacleVehicle(corner, aabb,
                                                tick_id=tick_id,
                                                track_id=track_id)
+            vehicle_obstacle.transform = vehicle_tf
+            vehicle_obstacle.location = vehicle_tf.location
             objects.setdefault("vehicles", []).append(vehicle_obstacle)
         
         for static in objects.get("static", []):
