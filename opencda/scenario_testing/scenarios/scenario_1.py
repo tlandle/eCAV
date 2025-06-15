@@ -32,7 +32,7 @@ class Scenario_1(BasicScenario):
     timeout = 1200
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
-                 timeout=600):
+                 timeout=600, scenario_params=None):
         """
         Setup all relevant parameters and create scenario
         """

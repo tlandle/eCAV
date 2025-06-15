@@ -137,7 +137,7 @@ def run_scenario(opt, scenario_params):
 
             # Apply the control to the ego vehicle
             for edge in edge_list:
-                edge.update_information()
+                edge.update_information(step)
                 edge.run_step(step)
             step = step + 1
             if step >= MAX_STEPS:

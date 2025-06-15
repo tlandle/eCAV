@@ -15,7 +15,7 @@ from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 from threading import Thread
 
-
+MAX_STEP = 600
 SCENARIO_NAME = 'openscenario_3_edge'
 scenario_runner = None
 
@@ -61,6 +61,8 @@ def run_scenario(opt, scenario_params):
 
         # Create a background process to init and execute scenario runner
 
+        print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
+
         sr_process = Process(target=exec_scenario_runner,
                              args=(scenario_params,))
         sr_process.start()
@@ -101,11 +103,11 @@ def run_scenario(opt, scenario_params):
 
         edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
 
-        # Create evaluation manager
-        # eval_manager = \
-        #      EvaluationManager(scenario_manager.cav_world,
-        #                        script_name=SCENARIO_NAME,
-        #                        current_time=scenario_params['current_time'])
+        eval_manager = EvaluationManager(scenario_manager.cav_world, 
+                                         script_name=SCENARIO_NAME, 
+                                         scenario_params=scenario_params,
+                                         current_time=scenario_params['current_time'],
+                                         output_dir=opt.output_dir)
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
@@ -141,9 +143,12 @@ def run_scenario(opt, scenario_params):
 
             # Apply the control to the ego vehicle
             for edge in edge_list:
-                edge.update_information()
+                edge.update_information(step)
                 edge.run_step(step)
             step = step + 1
+            if step >= MAX_STEP:
+                print("Reached maximum step limit, exiting")
+                break
             time.sleep(0.001)
 
     except SystemExit as e:
@@ -157,8 +162,8 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
-        # if eval_manager is not None:
-        #     eval_manager.evaluate()
+        if eval_manager is not None:
+             eval_manager.evaluate()
         if scenario_manager is not None:
             scenario_manager.close()
         print("Destroyed scenario_manager")
