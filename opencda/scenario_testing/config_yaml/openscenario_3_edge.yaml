@@ -115,7 +115,7 @@ vehicle_base: &vehicle_base
         x_scale: 1.0 # used to multiply with the x coordinate to make the error on x axis clearer
         y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
   behavior: &base_behavior
-    max_speed: 50 # km/h, the maximum speed of the ego vehicle
+    max_speed: 25 # km/h, the maximum speed of the ego vehicle
     tailgate_speed: 121 # when a vehicles needs to be close to another vehicle asap
     speed_lim_dist: 3 # max_speed - speed_lim_dist = target speed
     speed_decrease: 15 # used in car following mode to decrease speed for distance keeping

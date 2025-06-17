@@ -618,7 +618,7 @@ class CollisionChecker:
             length = min(len(ego_x_points), len(obs_x_points))
             ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
             obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-            is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=5, dt=time_step)
+            is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=3, dt=time_step)
 
         if world is not None:
             for i in range(len(ego_x_points)):

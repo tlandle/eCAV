@@ -37,7 +37,7 @@ SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
 def is_likely_ego(pred: ObstaclePrediction,
                   ego_latest_tf: carla.Transform,
-                  safety_margin: float = 3.0) -> bool:
+                  safety_margin: float = 4.0) -> bool:
     """
     Return True if the edge prediction is almost certainly *my own* vehicle.
 
@@ -270,7 +270,7 @@ class BehaviorAgent(object):
         self.destination_push_flag = 0
 
         # overtaking
-        self.overtake_wait_time = 20    # TODO: make this a parameter
+        self.overtake_wait_time = 18    # TODO: make this a parameter
         self.overtake_wait_counter = self.overtake_wait_time
         self.do_overtake = False
         self.num_overtake_collisions = 0
@@ -314,6 +314,7 @@ class BehaviorAgent(object):
             tid = getattr(obs, "carla_id", None) or obs.id      # robust id
             if tid not in self.tracked_obstacles:
                 self.tracked_obstacles[tid] = ObstacleTrajectory(obs, [])
+                self.tracked_obstacles[tid].time_since_update = 0.0
             self.tracked_obstacles[tid].update(obs.get_transform())
 
         # 2. Prune stale trajectories (>2 s since last update)
@@ -745,7 +746,7 @@ class BehaviorAgent(object):
                     dot = dx * heading_x + dy * heading_y
                     if dot < 0:
                         print("found vehicle behind ego")
-                        #continue
+                        continue
             
             # get speed from pred
             dt = 0.05 # time step duration for simulator
@@ -794,8 +795,12 @@ class BehaviorAgent(object):
                     min_distance = distance
                     # target_vehicle = pred.obstacle_trajectory.obstacle
                 collisions.append(pred)
-                print("detected collision with %s" %pred.predicted_trajectory)
-                # input("ok")
+                print("Collision detected")
+                for point in pred.predicted_trajectory:
+                    self.vehicle.get_world().debug.draw_point(point.location, size=.1, life_time=0.2,
+                                                color=carla.Color(255, 0, 0))
+                    print("Predicted Trajectory Point: (%s, %s, %s)" %(point.location.x, point.location.y, point.location.z))
+                    input("Collision")
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -1406,6 +1411,8 @@ class BehaviorAgent(object):
         end_time_8 = start_time
         end_time_9 = start_time
         logger.debug("Hazard: %s" %(is_hazard))
+        if is_hazard:
+            input("Hazard: %s" %(is_hazard))
         if not self.lane_change_allowed and \
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \

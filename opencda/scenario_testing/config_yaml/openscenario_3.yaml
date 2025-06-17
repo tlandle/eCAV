@@ -57,8 +57,8 @@ scenario:
         enabled: false
       behavior:
         local_planner:
-          debug_trajectory: true
-          debug: true
+          debug_trajectory: false
+          debug: false
   rsu_list:
     - name: rsu1
       spawn_position: [-88.0, 140, 3.0]
@@ -82,4 +82,4 @@ vehicle_base: &vehicle_base
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         visualize: true # whether to visualize lidar points using open3d
   behavior: &base_behavior
-    max_speed: 50 # maximum speed, 60km/h
+    max_speed: 25 # maximum speed, 60km/h
