@@ -725,8 +725,8 @@ class BehaviorAgent(object):
                 # self.generated_predictions.remove(pred)
                 continue
 
-            for transform in pred.obstacle_trajectory.trajectory:
-                print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
+            # for transform in pred.obstacle_trajectory.trajectory:
+            #     print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
 
             # ignore any predictions for obstacles behind the ego
             if pred in pred_carla_objects:
@@ -762,10 +762,6 @@ class BehaviorAgent(object):
             if obstacle_speed > 120:
                 # we can just assume something bugged
                 obstacle_speed = 0
-            if obstacle_speed < 1:
-                # if the speed is too low, we assume the obstacle is stationary
-                obstacle_speed = 0
-
 
             if obstacle_speed < 1:
                 continue
@@ -796,11 +792,11 @@ class BehaviorAgent(object):
                     # target_vehicle = pred.obstacle_trajectory.obstacle
                 collisions.append(pred)
                 print("Collision detected")
-                for point in pred.predicted_trajectory:
-                    self.vehicle.get_world().debug.draw_point(point.location, size=.1, life_time=0.2,
-                                                color=carla.Color(255, 0, 0))
-                    print("Predicted Trajectory Point: (%s, %s, %s)" %(point.location.x, point.location.y, point.location.z))
-                    input("Collision")
+                # for point in pred.predicted_trajectory:
+                #     self.vehicle.get_world().debug.draw_point(point.location, size=.1, life_time=0.2,
+                #                                 color=carla.Color(255, 0, 0))
+                #     print("Predicted Trajectory Point: (%s, %s, %s)" %(point.location.x, point.location.y, point.location.z))
+                #     input("Collision")
 
         return vehicle_state, target_vehicle, min_distance
 
@@ -1411,8 +1407,8 @@ class BehaviorAgent(object):
         end_time_8 = start_time
         end_time_9 = start_time
         logger.debug("Hazard: %s" %(is_hazard))
-        if is_hazard:
-            input("Hazard: %s" %(is_hazard))
+        # if is_hazard:
+        #     input("Hazard: %s" %(is_hazard))
         if not self.lane_change_allowed and \
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \

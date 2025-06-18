@@ -339,8 +339,8 @@ class Scenario_3(BasicScenario):
             set_transform_behavior = ActorTransformSetter(actor, transform)
             if i == 0:
                 waypoint = [carla.Location(x=-108.6, y=129.5, z=0.5), carla.Location(x=-120.6, y=129.5, z=0.5), carla.Location(x=-140.6, y=115.2, z=0.5), carla.Location(x=-142.0, y=87.6, z=0.5)]
-                #ego_velocity = self.ego_max_speed_kmh  # km h⁻¹
-                #velocity = _oncoming_speed_for(ego_velocity)  # convert to km h⁻¹
+                # ego_velocity = self.ego_vehicles[0].get_speed_limit()  # km h⁻¹
+                # velocity = _oncoming_speed_for(ego_velocity * 3.6)  # convert to km h⁻¹
                 velocity = 5
                 print(f"Vehicle 01 velocity: {velocity} km/h")
                 drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
