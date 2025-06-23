@@ -230,8 +230,8 @@ class RandomHardBrake(py_trees.behaviour.Behaviour):
 # Helper: ego-speed  →  on-coming speed  (km h⁻¹)
 # Anchor points:   (50 → 10) , (70 → 25) , (100 → 35)
 def _oncoming_speed_for(ego_kmh):
-    x = [50.0, 70.0, 100.0]            # ego target-speed
-    y = [10.0, 25.0,  50.0]            # desired on-coming speed
+    x = [25.0, 50.0, 70.0, 100.0]            # ego target-speed
+    y = [5.0, 12.0, 25.0,  50.0]            # desired on-coming speed
 
     # below first anchor → extrapolate with first segment slope
     if ego_kmh <= x[0]:
@@ -285,7 +285,8 @@ class Scenario_3(BasicScenario):
         # scenario_params is now **a list of "key=value" strings**
         kv = dict(p.split("=", 1) for p in (scenario_params or []))
 
-        self.ego_max_speed_kmh = float(kv.get("ego_vehicle_max_speed", 50)) 
+        self.ego_max_speed_kmh = float(kv.get("ego_vehicle_max_speed", 70))
+        self.oncoming_speed_kmh = float(kv.get("oncoming_vehicle_speed", 25))
         print(f"Ego vehicle max speed: {self.ego_max_speed_kmh} km/h")
 
         
@@ -339,9 +340,10 @@ class Scenario_3(BasicScenario):
             set_transform_behavior = ActorTransformSetter(actor, transform)
             if i == 0:
                 waypoint = [carla.Location(x=-108.6, y=129.5, z=0.5), carla.Location(x=-120.6, y=129.5, z=0.5), carla.Location(x=-140.6, y=115.2, z=0.5), carla.Location(x=-142.0, y=87.6, z=0.5)]
-                # ego_velocity = self.ego_vehicles[0].get_speed_limit()  # km h⁻¹
-                # velocity = _oncoming_speed_for(ego_velocity * 3.6)  # convert to km h⁻¹
-                velocity = 5
+                ego_velocity = self.ego_max_speed_kmh  # km h⁻¹
+                #velocity = _oncoming_speed_for(ego_velocity)  # convert to km h⁻¹
+                velocity = self.oncoming_speed_kmh  # km h⁻¹
+                #velocity = 3
                 print(f"Vehicle 01 velocity: {velocity} km/h")
                 drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
                 #drive_behavior = sync_arrival

@@ -44,6 +44,7 @@ scenario_runner:
   list: false
   openscenarioparams: 
     - ego_vehicle_max_speed=50
+    - oncoming_vehicle_speed=10
   output: false
   outputDir: ''
   randomize: false
@@ -82,4 +83,4 @@ vehicle_base: &vehicle_base
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         visualize: true # whether to visualize lidar points using open3d
   behavior: &base_behavior
-    max_speed: 30 # maximum speed, 60km/h
+    max_speed: 50 # maximum speed, 60km/h

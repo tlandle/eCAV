@@ -40,7 +40,7 @@ carla_traffic_manager:
   vehicle_list:
   range: []
 
-ego_vehicle_max_speed: 50 # km/h, the maximum speed of the ego vehicle
+ego_vehicle_max_speed: 70 # km/h, the maximum speed of the ego vehicle
 
   # Parameters needed for ScenarioRunner
 scenario_runner:
@@ -72,7 +72,7 @@ scenario_runner:
   junit: false
   list: false
   openscenarioparams: 
-    - ego_vehicle_max_speed=50
+    - ego_vehicle_max_speed=70
   output: false
   outputDir: ''
   randomize: false
@@ -115,7 +115,7 @@ vehicle_base: &vehicle_base
         x_scale: 1.0 # used to multiply with the x coordinate to make the error on x axis clearer
         y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
   behavior: &base_behavior
-    max_speed: 50 # km/h, the maximum speed of the ego vehicle
+    max_speed: 70 # km/h, the maximum speed of the ego vehicle
     tailgate_speed: 121 # when a vehicles needs to be close to another vehicle asap
     speed_lim_dist: 3 # max_speed - speed_lim_dist = target speed
     speed_decrease: 15 # used in car following mode to decrease speed for distance keeping
@@ -229,7 +229,9 @@ edge_base: &edge_base
   target_speed: 100 # kph
   edge_dt: 0.2 # must be an even multiple of world_dt 
   search_dt: 2
-  latency: 0.0 # seconds 
+  latency: 0.2 # seconds 
+  jitter_std: 0.0 # seconds
+  latency_distribution: normal # distribution of the latency, can be normal or lognormal
   edge_sets_destination: false # otherwise, edge sets WP
   mode: PREDICTION 
 

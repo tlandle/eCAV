@@ -169,4 +169,8 @@ def run_scenario(opt, scenario_params):
         print("Destroyed scenario_manager")
         if scenario_runner is not None:
             scenario_runner.destroy()
+        if sr_process is not None:
+            sr_process.terminate()
+            sr_process.join()
+            print("Joined scenario_runner process")
         print("Destroyed scenario_runner")

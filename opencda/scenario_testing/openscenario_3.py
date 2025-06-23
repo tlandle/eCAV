@@ -76,12 +76,12 @@ def run_scenario(opt, scenario_params):
             vehicle=ego_vehicle,
         )
         
-
-        eval_manager = \
-            EvaluationManager(scenario_manager.cav_world,
-                              script_name=SCENARIO_NAME,
-                              current_time=scenario_params['current_time'],
-                              scenario_params=scenario_params)
+        
+        eval_manager = EvaluationManager(scenario_manager.cav_world, 
+                                         script_name=SCENARIO_NAME, 
+                                         scenario_params=scenario_params,
+                                         current_time=scenario_params['current_time'],
+                                         output_dir=opt.output_dir)
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
         spectator_altitude = 100
@@ -120,14 +120,16 @@ def run_scenario(opt, scenario_params):
         for i, single_cav in enumerate(single_cav_list):
             for vid, step_number in single_cav.vehicles_detected.items():    
                 print("VID: %s found VID %s at step %s" %(single_cav.vehicle.id, vid, step_number))
+            single_cav.destroy()
         eval_manager.evaluate()
-        if cav_world is not None:
-            cav_world.destroy()
-        print("Destroyed cav_world")
         if scenario_manager is not None:
             scenario_manager.close()
         print("Destroyed scenario_manager")
         if scenario_runner is not None:
             scenario_runner.destroy()
+        if sr_process is not None:
+            sr_process.terminate()
+            sr_process.join()
+            print("Joined scenario_runner process")
         print("Destroyed scenario_runner")
 

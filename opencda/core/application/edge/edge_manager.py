@@ -345,6 +345,8 @@ class EdgeManager(object):
         if 'rsus' in config_yaml:
             self.numrsus = len(config_yaml['rsus'])
         self.latency = config_yaml['latency'] if 'latency' in config_yaml else 0
+        self.latency_distribution = config_yaml['latency_distribution'] if 'latency_distribution' in config_yaml else 'normal'
+        self.jitter_std = config_yaml['jitter_std'] if 'jitter_std' in config_yaml else 0
         self.activate = config_yaml["mode"]
         #self.locations = []
         self.destination = None
@@ -1249,9 +1251,23 @@ class EdgeManager(object):
     def run_step_prediction(self, step_id):
         # ------------------------------------------------ latency filter ---
         print("Running prediction step for edge", self.edgeid, flush=True)
-        if step_id < int(self.latency / self.dt):
+        if step_id < int((self.latency + self.jitter_std) / self.dt):
             return
-        lag_steps = int(self.latency / self.dt)
+
+
+        if self.latency_distribution == "normal":
+            total_latency_ms = np.random.normal(loc=self.latency * 1000,  # convert to milliseconds
+                                            scale=self.jitter_std * 1000)
+        elif self.latency_distribution == "lognormal":
+            total_latency_ms = np.random.lognormal(mean=np.log(self.latency * 1000),  # convert to milliseconds
+                                            sigma=.5)
+
+        lag_steps = int(total_latency_ms / (self.dt * 1000))  # convert back to steps
+        print("Total latency in ms:", total_latency_ms, "Lag steps:", lag_steps, flush=True)
+
+        if objects_deque_len := len(self.objects_deque) < lag_steps + 1:
+            print("Not enough history in objects_deque, skipping step", flush=True)
+            return
 
         # ------------------------------------------------ collect detections
         det_rows, info_rows = [], []

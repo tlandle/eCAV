@@ -41,11 +41,28 @@ STAMP      = datetime.now().strftime("%Y%m%d_%H%M%S")
 EXP_ROOT   = ROOT / "experiment_results" / args.scenario / STAMP
 OUT_BASE   = ROOT / "opencda/scenario_testing/evaluation_outputs"
 
+
 print(f"\n▶  Results under: {EXP_ROOT}\n", flush=True)
 
 # ───────────────── CARLA watchdog helpers ────────────────────────────────
 CARLA_SH   = Path.home() / "carla-0.9.15/CarlaUE4.sh"
 CARLA_PORT = 2000
+
+
+# ─────────── on-coming speed helper (same mapping as Scenario_3) ──────────
+def oncoming_speed_for(ego_kmh: int) -> float:
+    """Piece-wise linear mapping from ego→on-coming speed (km/h)."""
+    x = [20, 25.0, 30.0, 40.0, 50.0, 70.0, 100.0]     # ego speed anchors
+    y = [4.5, 5.0, 5.0, 10, 13.0, 25.0,  52.0]     # desired on-coming speed
+
+    if ego_kmh <= x[0]:                               # below first anchor
+        m = (y[1]-y[0]) / (x[1]-x[0]); return y[0] + m*(ego_kmh-x[0])
+    if ego_kmh >= x[-1]:                              # above last anchor
+        m = (y[-1]-y[-2]) / (x[-1]-x[-2]); return y[-1] + m*(ego_kmh-x[-1])
+    for i in range(1, len(x)):                        # inside the range
+        if ego_kmh <= x[i]:
+            m = (y[i]-y[i-1]) / (x[i]-x[i-1])
+            return y[i-1] + m*(ego_kmh-x[i-1])
 
 def carla_running() -> bool:
     """True if server proc exists AND port answers."""
@@ -95,16 +112,37 @@ shutil.copy(CFG_FILE, CFG_BAK)
 with CFG_BAK.open() as f:
     ORIGINAL_CFG = yaml.safe_load(f)
 
+# ───── detect whether this YAML actually contains an edge section ─────
+EDGE_PRESENT = bool(ORIGINAL_CFG.get("scenario", {})
+                                   .get("edge_list", []))   # True ⇢ at least one edge
+
+
 def patch_yaml(d, latency_ms, speed_kmh):
-    if latency_ms is not None:
+    global EDGE_PRESENT
+    if EDGE_PRESENT and latency_ms is not None:
         print("   ↳  setting edge latency to", latency_ms/1000, "s")
         d["edge_base"]["latency"] = latency_ms / 1000.0
         for edge in d["scenario"]["edge_list"]:
             edge["latency"] = latency_ms / 1000.0
+
+
+    # ---------------------- ego / on-coming speed ----------------------
     if speed_kmh is not None:
-        d["scenario"]["edge_list"][0]["vehicles"][0]["behavior"]["max_speed"] = int(speed_kmh)
-        d["scenario_runner"]["openscenarioparams"] = [
-            f"ego_vehicle_max_speed={int(speed_kmh)}"
+        # ---- OpenCDA ego vehicle ----
+        if "edge_list" in d.get("scenario", {}):          # old “edge” YAMLs
+            beh = (d["scenario"]["edge_list"][0]
+                     .setdefault("vehicles", [{}])[0]
+                     .setdefault("behavior", {}))
+        else:                                             # single_cav_list YAMLs
+            beh = (d["scenario"]["single_cav_list"][0]
+                     .setdefault("behavior", {}))
+        beh["max_speed"] = int(speed_kmh)
+
+        # ---- ScenarioRunner parameters ----
+        oc_speed = oncoming_speed_for(speed_kmh)
+        d.setdefault("scenario_runner", {})["openscenarioparams"] = [
+            f"ego_vehicle_max_speed={int(speed_kmh)}",
+            f"oncoming_vehicle_speed={int(oc_speed)}"
         ]
 
 # ───────────────────── single run helper ─────────────────────────────────
@@ -137,7 +175,9 @@ def run_once(lat_ms, spd_kmh, rep):
         metrics = {"success_rate": 0.0, "error": str(e)}
 
     if lat_ms is not None: metrics["edge_latency_s"] = lat_ms / 1000.0
-    if spd_kmh is not None: metrics["target_speed_kmh"] = spd_kmh
+    if spd_kmh is not None:
+        metrics["target_speed_kmh"]   = spd_kmh
+        metrics["oncoming_speed_kmh"] = int(oncoming_speed_for(spd_kmh))
     (run_dir / "simulation_metrics.json").write_text(json.dumps(metrics, indent=2))
 
 # ───────────────────── sweep loop ────────────────────────────────────────
