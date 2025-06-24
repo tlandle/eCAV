@@ -1411,9 +1411,9 @@ class EdgeManager(object):
         to_remove = []
         for track_id, traj in self.tracked_trajectories.items():
             if track_id not in updated_ids:
-                #traj.step(dt)
-                #if traj.time_since_update >= 1.0:
-                to_remove.append(track_id)
+                traj.step(dt)
+                if traj.time_since_update >= 0.5:
+                    to_remove.append(track_id)
 
         for tid in to_remove:
             del self.tracked_trajectories[tid]

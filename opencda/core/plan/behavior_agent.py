@@ -730,23 +730,48 @@ class BehaviorAgent(object):
         collisions = []
         print("num predictions: %s" %len(self.generated_predictions))
         for pred in self.generated_predictions:
+            print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
+            print("My Id: %s" %self.vehicle.id)
+            if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
+                print("Skipping prediction for ego vehicle")
+                self.generated_predictions.remove(pred)
+                continue
+
             # ignore any predictions that match the ego vehicle
             #if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
             #continue
-            if is_likely_ego(pred, self._ego_pos) or pred == closest_to_ego:
-                logger.debug("Prediction is likely ego, removing it")
+            # if is_likely_ego(pred, self._ego_pos) or pred == closest_to_ego:
+            #     logger.debug("Prediction is likely ego, removing it")
                 # self.generated_predictions.remove(pred)
                 #continue
 
             # for transform in pred.obstacle_trajectory.trajectory:
             #     print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
+            
+            # get speed from pred
+            dt = 0.05 # time step duration for simulator
+            detected_traj = pred.obstacle_trajectory.trajectory
+            if len(detected_traj) > 1:
+                prev_pos, current_pos = detected_traj[-2].location, detected_traj[-1].location
+                distance = current_pos.distance(prev_pos)
+                obstacle_speed = distance / dt
+            else:
+                obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
+
+            if obstacle_speed > 120:
+                # we can just assume something bugged
+                obstacle_speed = 0
+
+            print("Obstacle speed: %s" %obstacle_speed)
+
+            if obstacle_speed < 3:
+                print("Obstacle too slow, ignored")
+                continue
 
             # ignore any predictions for obstacles behind the ego
             if pred in pred_carla_objects:
                 obstacle_vehicle = pred_carla_objects[pred]
                 if obstacle_vehicle is not None:
-                    if obstacle_vehicle == self.vehicle:
-                        continue
                     obstacle_vehicle_loc = obstacle_vehicle.get_location()
                     obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
                     ego_wpt = self._map.get_waypoint(self.vehicle.get_location())
@@ -763,32 +788,7 @@ class BehaviorAgent(object):
                         if dot < 0:
                             print("found vehicle behind ego")
                             continue
-            
-            # get speed from pred
-            dt = 0.05 # time step duration for simulator
-            detected_traj = pred.obstacle_trajectory.trajectory
-            if len(detected_traj) > 1:
-                prev_pos, current_pos = detected_traj[-2].location, detected_traj[-1].location
-                distance = current_pos.distance(prev_pos)
-                obstacle_speed = distance / dt
-            else:
-                obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
 
-            print("Obstacle speed: %s" %obstacle_speed)
-
-            if obstacle_speed > 120:
-                # we can just assume something bugged
-                obstacle_speed = 0
-
-            if obstacle_speed < 3:
-                continue
-
-            print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
-            print("My Id: %s" %self.vehicle.id)
-            if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
-                print("Skipping prediction for ego vehicle")
-                continue
-            
             collision, ttc = self._collision_check.trajectory_collision_check(
                 rx, ry, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
