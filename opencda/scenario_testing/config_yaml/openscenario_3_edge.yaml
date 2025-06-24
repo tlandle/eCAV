@@ -230,7 +230,7 @@ edge_base: &edge_base
   edge_dt: 0.2 # must be an even multiple of world_dt 
   search_dt: 2
   latency: 0.2 # seconds 
-  jitter_std: 0.0 # seconds
+  jitter_std: 0.05 # seconds
   latency_distribution: normal # distribution of the latency, can be normal or lognormal
   edge_sets_destination: false # otherwise, edge sets WP
   mode: PREDICTION 

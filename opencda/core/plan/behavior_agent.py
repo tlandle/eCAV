@@ -677,25 +677,37 @@ class BehaviorAgent(object):
         #logger.debug("generated predictions: %s" %self.generated_predictions)
 
         pred_carla_objects = {}
-        
-        for vehicle in self.obstacle_vehicles:
-            logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
-            logger.debug("Vehicle Id: %s" %vehicle.carla_id)
 
-            obstacle_loc = vehicle.get_location()
-
+        # find closest prediction to ego
+        closest_to_ego, closest_to_ego_dist = None, 1000
+        ego_loc = self.vehicle.get_location()
+        for pred in self.generated_predictions:
+            traj = pred.obstacle_trajectory.trajectory
+            if len(traj) == 0:
+                continue
+            last_loc = traj[-1].location
+            dist_from_ego = math.hypot(last_loc.x-ego_loc.x, last_loc.y-ego_loc.y)
+            if dist_from_ego < closest_to_ego_dist:
+                closest_to_ego_dist = dist_from_ego
+                closest_to_ego = pred
+            
             # find which vehicle is which
-            closest_pred, dist_to_closest = None, 1000
-            for pred in self.generated_predictions:
-                traj = pred.obstacle_trajectory.trajectory
-                if len(traj) == 0:
-                    continue
-                last_loc = traj[-1].location
+            closest_obstacle, dist_to_closest = None, 1000
+            for vehicle in self.obstacle_vehicles:
+                obstacle_loc = vehicle.get_location()
                 dist_from_obstacle = math.hypot(last_loc.x-obstacle_loc.x, last_loc.y-obstacle_loc.y)
                 if dist_from_obstacle < dist_to_closest:
                     dist_to_closest = dist_from_obstacle
-                    closest_pred = pred
-            pred_carla_objects[closest_pred] = vehicle
+                    closest_obstacle = vehicle
+            # check if ego is closer than obstacle
+            if dist_from_ego < dist_to_closest and closest_obstacle is not None:
+                pred_carla_objects[pred] = self.vehicle
+            else:
+                pred_carla_objects[pred] = closest_obstacle
+
+        for vehicle in self.obstacle_vehicles:
+            logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
+            logger.debug("Vehicle Id: %s" %vehicle.carla_id)
          
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
@@ -721,8 +733,8 @@ class BehaviorAgent(object):
             # ignore any predictions that match the ego vehicle
             #if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
             #continue
-            if is_likely_ego(pred, self._ego_pos):
-                logger.debug("Prediction is likely ego, skipping it")
+            if is_likely_ego(pred, self._ego_pos) or pred == closest_to_ego:
+                logger.debug("Prediction is likely ego, removing it")
                 # self.generated_predictions.remove(pred)
                 #continue
 
@@ -732,22 +744,25 @@ class BehaviorAgent(object):
             # ignore any predictions for obstacles behind the ego
             if pred in pred_carla_objects:
                 obstacle_vehicle = pred_carla_objects[pred]
-                obstacle_vehicle_loc = obstacle_vehicle.get_location()
-                obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
-                ego_wpt = self._map.get_waypoint(self.vehicle.get_location())
-                if ego_wpt.lane_id == obstacle_vehicle_wpt.lane_id:
-                    # get the heading
-                    theta = ego_wpt.transform.rotation.yaw
-                    
-                    ego_loc = ego_wpt.transform.location
-                    dx = obstacle_vehicle_loc.x - ego_loc.x
-                    dy = obstacle_vehicle_loc.y - ego_loc.y
-                    heading_x = math.cos(math.radians(theta))
-                    heading_y = math.sin(math.radians(theta))
-                    dot = dx * heading_x + dy * heading_y
-                    if dot < 0:
-                        print("found vehicle behind ego")
-                        #continue
+                if obstacle_vehicle is not None:
+                    if obstacle_vehicle == self.vehicle:
+                        continue
+                    obstacle_vehicle_loc = obstacle_vehicle.get_location()
+                    obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
+                    ego_wpt = self._map.get_waypoint(self.vehicle.get_location())
+                    if ego_wpt.lane_id == obstacle_vehicle_wpt.lane_id:
+                        # get the heading
+                        theta = ego_wpt.transform.rotation.yaw
+                        
+                        ego_loc = ego_wpt.transform.location
+                        dx = obstacle_vehicle_loc.x - ego_loc.x
+                        dy = obstacle_vehicle_loc.y - ego_loc.y
+                        heading_x = math.cos(math.radians(theta))
+                        heading_y = math.sin(math.radians(theta))
+                        dot = dx * heading_x + dy * heading_y
+                        if dot < 0:
+                            print("found vehicle behind ego")
+                            continue
             
             # get speed from pred
             dt = 0.05 # time step duration for simulator
