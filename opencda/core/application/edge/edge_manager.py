@@ -172,9 +172,9 @@ def collect_ab3d_detections(edge,
             continue
 
         # ── 2-c  2-D IoU gate (optional)  ────────────────────────────
-        if _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh) > 0.25:
+        #if _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh) > 0.25:
             # overlaps beacon footprint too much – treat as ego
-            continue
+        #    continue
 
         # ── 2-d  keep it  ────────────────────────────────────────────
         det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])
