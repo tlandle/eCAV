@@ -598,7 +598,7 @@ class CollisionChecker:
 
             # check collision (naive arc-based)
             dists = spatial.distance.cdist(ego_path, obs_path)
-            collision_dists = np.subtract(dists, self._circle_radius)
+            collision_dists = np.subtract(dists, self._circle_radius * 2)
             is_collision = np.any(collision_dists < 0)
         else:
             # naively resample the ego path
@@ -610,7 +610,7 @@ class CollisionChecker:
 
             # check for intersection point
             dists = spatial.distance.cdist(ego_path, obs_path)
-            intersection = np.any(dists < 1)
+            intersection = np.any(dists < 2)
             if intersection:
                 # time reparameterize
                 ego_xt, ego_yt, ego_tp = time_reparametrize(ego_path, ego_sp, ego_speed)

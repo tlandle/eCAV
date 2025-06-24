@@ -716,6 +716,7 @@ class BehaviorAgent(object):
                     target_vehicle = vehicle
 
         collisions = []
+        print("num predictions: %s" %len(self.generated_predictions))
         for pred in self.generated_predictions:
             # ignore any predictions that match the ego vehicle
             #if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
@@ -751,22 +752,22 @@ class BehaviorAgent(object):
             # get speed from pred
             dt = 0.05 # time step duration for simulator
             detected_traj = pred.obstacle_trajectory.trajectory
-            if len(detected_traj) > 2:
-                prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
-                vel_x = (current_pos.location.x - prev_pos.location.x) / dt
-                vel_y = (current_pos.location.y - prev_pos.location.y) / dt
-                obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
+            if len(detected_traj) > 1:
+                prev_pos, current_pos = detected_traj[-2].location, detected_traj[-1].location
+                distance = current_pos.distance(prev_pos)
+                obstacle_speed = distance / dt
             else:
                 obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
+
+            print("Obstacle speed: %s" %obstacle_speed)
 
             if obstacle_speed > 120:
                 # we can just assume something bugged
                 obstacle_speed = 0
 
-            if obstacle_speed < 1:
+            if obstacle_speed < 3:
                 continue
 
-            print("Obstacle speed: %s" %obstacle_speed)
             print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
             print("My Id: %s" %self.vehicle.id)
             if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
