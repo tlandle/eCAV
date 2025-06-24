@@ -734,16 +734,20 @@ class BehaviorAgent(object):
             print("My Id: %s" %self.vehicle.id)
             if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
                 print("Skipping prediction for ego vehicle")
-                self.generated_predictions.remove(pred)
+                # self.generated_predictions.remove(pred)
                 continue
 
             # ignore any predictions that match the ego vehicle
-            #if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
-            #continue
-            # if is_likely_ego(pred, self._ego_pos) or pred == closest_to_ego:
-            #     logger.debug("Prediction is likely ego, removing it")
+            if is_likely_ego(pred, self._ego_pos) or pred == closest_to_ego:
+                logger.debug("Prediction is likely ego, removing it")
                 # self.generated_predictions.remove(pred)
-                #continue
+                continue
+
+            # print prediction
+            print("Predicted Trajectory:")
+            for pred_transform in pred.predicted_trajectory:
+                pred_loc = pred_transform.location
+                print(f"({pred_loc.x}, {pred_loc.y})")
 
             # for transform in pred.obstacle_trajectory.trajectory:
             #     print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
@@ -751,10 +755,15 @@ class BehaviorAgent(object):
             # get speed from pred
             dt = 0.05 # time step duration for simulator
             detected_traj = pred.obstacle_trajectory.trajectory
-            if len(detected_traj) > 1:
-                prev_pos, current_pos = detected_traj[-2].location, detected_traj[-1].location
+            obstacle_speed = 0
+            count = 0
+            for i in range(len(detected_traj)-1, 0, -1):
+                prev_pos, current_pos = detected_traj[i-1].location, detected_traj[i].location
                 distance = current_pos.distance(prev_pos)
-                obstacle_speed = distance / dt
+                obstacle_speed += distance / dt
+                count += 1
+            if count > 0:
+                obstacle_speed /= count
             else:
                 obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
 
@@ -778,14 +787,20 @@ class BehaviorAgent(object):
                     if ego_wpt.lane_id == obstacle_vehicle_wpt.lane_id:
                         # get the heading
                         theta = ego_wpt.transform.rotation.yaw
-                        
                         ego_loc = ego_wpt.transform.location
+
                         dx = obstacle_vehicle_loc.x - ego_loc.x
                         dy = obstacle_vehicle_loc.y - ego_loc.y
                         heading_x = math.cos(math.radians(theta))
                         heading_y = math.sin(math.radians(theta))
-                        dot = dx * heading_x + dy * heading_y
-                        if dot < 0:
+                        
+                        heading_rev = -np.array([heading_x, heading_y])
+                        v = np.array([dx, dy])
+                        norm_v = np.linalg.norm(v)
+                        v_unit = v / norm_v
+                        dot = np.dot(heading_rev, v_unit)
+                        
+                        if dot > np.cos(np.radians(15)):
                             print("found vehicle behind ego")
                             continue
 
