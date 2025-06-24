@@ -12,8 +12,10 @@ import psutil
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
 import scenario_runner.scenario_runner as sr
 from threading import Thread
+from opencda.scenario_testing.evaluations.evaluate_manager import \
+    EvaluationManager
 
-MAX_STEPS = 1000  # Maximum number of steps to run the scenario
+MAX_STEPS = 500  # Maximum number of steps to run the scenario
 SCENARIO_NAME = 'openscenario_1_edge'
 scenario_runner = None
 
@@ -101,6 +103,13 @@ def run_scenario(opt, scenario_params):
         edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
 
 
+        eval_manager = EvaluationManager(scenario_manager.cav_world, 
+                                         script_name=SCENARIO_NAME, 
+                                         scenario_params=scenario_params,
+                                         current_time=scenario_params['current_time'],
+                                         output_dir=opt.output_dir)
+
+
         # create evaluation manager
         # eval_manager = \
         #     EvaluationManager(scenario_manager.cav_world,
@@ -131,6 +140,9 @@ def run_scenario(opt, scenario_params):
             # Bird view following
             view_transform = carla.Transform()
             view_transform.location = ego_cav.get_transform().location
+
+            if ego_cav.get_transform().location.x == 0 and ego_cav.get_transform().location.y == 0:
+                break;
             view_transform.location.z = view_transform.location.z + spectator_altitude
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
@@ -150,14 +162,16 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
-
-        if cav_world is not None:
-            cav_world.destroy()
-        print("Destroyed cav_world")
+        if eval_manager is not None:
+            eval_manager.evaluate()
         if scenario_manager is not None:
             scenario_manager.close()
         print("Destroyed scenario_manager")
         if scenario_runner is not None:
             scenario_runner.destroy()
+        if sr_process is not None:
+            sr_process.terminate()
+            sr_process.join()
+            print("Joined scenario_runner process")
         print("Destroyed scenario_runner")
 

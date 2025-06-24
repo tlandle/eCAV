@@ -567,6 +567,9 @@ class CollisionChecker:
         if obstacle_speed < 5:
             return False, 1000    # ignore "stationary" obstacles
 
+        is_collision = False
+        ttc = 2
+
         # get interpolation of obstacle trajectory
         obs_points = []
         for i, pred_transform in enumerate(obstacle_trajectory):
@@ -576,9 +579,9 @@ class CollisionChecker:
         obs_points = np.asarray(obs_points)
         obs_sp, obs_path = linear_interp_trajectory(obs_points)
 
-        print("Obstacle Path Length: %s" %len(obs_path))
+        # print("Obstacle Path Length: %s" %len(obs_path))
 
-        if check_full_path:
+        if check_full_path or ego_speed < 3:
             logger.debug("check full paths")
 
             ego_x_points = ego_path_x
@@ -597,7 +600,6 @@ class CollisionChecker:
             dists = spatial.distance.cdist(ego_path, obs_path)
             collision_dists = np.subtract(dists, self._circle_radius)
             is_collision = np.any(collision_dists < 0)
-            ttc = 2
         else:
             # naively resample the ego path
             ego_distance_check = min(max(int(self.time_ahead * ego_speed / 0.1), 50), len(ego_path_x))    # minimum number of points can be tuned
@@ -606,19 +608,26 @@ class CollisionChecker:
             ego_points = np.stack((ego_x_points, ego_y_points), axis=1)
             ego_sp, ego_path = linear_interp_trajectory(ego_points)
 
-            # time reparameterize
-            ego_xt, ego_yt, ego_tp = time_reparametrize(ego_path, ego_sp, ego_speed)
-            obs_xt, obs_yt, obs_tp = time_reparametrize(obs_path, obs_sp, obstacle_speed)
+            # check for intersection point
+            dists = spatial.distance.cdist(ego_path, obs_path)
+            intersection = np.any(dists < 1)
+            if intersection:
+                # time reparameterize
+                ego_xt, ego_yt, ego_tp = time_reparametrize(ego_path, ego_sp, ego_speed)
+                obs_xt, obs_yt, obs_tp = time_reparametrize(obs_path, obs_sp, obstacle_speed)
 
-            # get lookahead paths
-            ego_x_points, ego_y_points = lookahead_interp(ego_xt, ego_yt, self.time_ahead, t_max=ego_tp[-1], dt=time_step)
-            obs_x_points, obs_y_points = lookahead_interp(obs_xt, obs_yt, self.time_ahead, t_max=obs_tp[-1], dt=time_step)
+                # get lookahead paths
+                ego_x_points, ego_y_points = lookahead_interp(ego_xt, ego_yt, self.time_ahead, t_max=ego_tp[-1], dt=time_step)
+                obs_x_points, obs_y_points = lookahead_interp(obs_xt, obs_yt, self.time_ahead, t_max=obs_tp[-1], dt=time_step)
 
-            # check collision (time-based)
-            length = min(len(ego_x_points), len(obs_x_points))
-            ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
-            obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-            is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=5, dt=time_step)
+                # check collision (time-based)
+                length = min(len(ego_x_points), len(obs_x_points))
+                ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
+                obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
+                is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=5, dt=time_step)
+            else:
+                obs_x_points = obs_path[:, 0]
+                obs_y_points = obs_path[:, 1]
 
         if world is not None:
             for i in range(len(ego_x_points)):
