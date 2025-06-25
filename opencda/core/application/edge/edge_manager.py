@@ -154,6 +154,7 @@ def collect_ab3d_detections(edge,
 
     # 2 ─────────────── sensor detections ──────────────────────────────
     for obj in objects_dict.get("vehicles", []):
+        print(f"Processing object at {obj.bounding_box.location}.")
         bbx = obj.bounding_box.extent
         h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
 
@@ -167,14 +168,16 @@ def collect_ab3d_detections(edge,
         box_wh  = np.array([w, l],        dtype=np.float32)
 
         # ── 2-b  3-D distance gate (fast)  ───────────────────────────
-        if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.7 * max(ego_wh):
+        if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.5 * max(ego_wh):
+            print(f"Skipping obj at {loc} – too close to ego beacon.")
             # too close to our own beacon – most likely ego points
             continue
 
         # ── 2-c  2-D IoU gate (optional)  ────────────────────────────
-        #if _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh) > 0.25:
+        if _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh) > 0.25:
+            print(f"Skipping at {loc} – overlaps ego beacon too much.")
             # overlaps beacon footprint too much – treat as ego
-        #    continue
+            continue
 
         # ── 2-d  keep it  ────────────────────────────────────────────
         det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])
@@ -1304,7 +1307,7 @@ class EdgeManager(object):
         print("Tracks after AB3DMOT:", tracks_np, flush=True)
 
         # ------------------------------------------------ convert to trajectories
-        tracks_np = self.filter_stale_tracks(tracks_np, max_age=5)
+        tracks_np = self.filter_stale_tracks(tracks_np, max_age=10)
         print("Tracks after filtering:", tracks_np, flush=True)
         self.convert_ab3dmot_history_to_trajectories(
             tracks_np, trajectory_length=10, dt=self.dt)
@@ -1333,10 +1336,7 @@ class EdgeManager(object):
         #print("Predictions generated:", preds, flush=True)
 
         for vm in self.vehicle_manager_list:
-            vm.agent.edge_predictions[:] = [
-                p for p in preds
-                #if not _belongs_to_vehicle(p, vm, self.track_to_carla)
-            ]
+            vm.agent.edge_predictions = preds.copy()
             #print("Vehicle manager", vm, "has predictions:", vm.agent.generated_predictions, flush=True)
 
         print("Completed prediction step for edge", self.edgeid, flush=True)
@@ -1411,9 +1411,9 @@ class EdgeManager(object):
         to_remove = []
         for track_id, traj in self.tracked_trajectories.items():
             if track_id not in updated_ids:
-                traj.step(dt)
-                if traj.time_since_update >= 0.5:
-                    to_remove.append(track_id)
+                #traj.step(dt)
+                #if traj.time_since_update >= .5:
+                to_remove.append(track_id)
 
         for tid in to_remove:
             del self.tracked_trajectories[tid]

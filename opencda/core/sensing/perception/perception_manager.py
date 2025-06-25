@@ -548,11 +548,14 @@ class PerceptionManager:
         detection_start_time = time.time()
         yolo_detection = self.ml_manager.object_detector(rgb_images)
 
+
         
 
         detection_end_time = time.time()
         self.debug_helper.update_detections_time(
             detection_end_time - detection_start_time * 1000)
+        if self.vehicle is None:
+            print("RSU Yolo Detection: %s" %yolo_detection)
         logger.debug("Yolo Detection: %s" %yolo_detection)
 
         # rgb_images for drawing
@@ -578,6 +581,9 @@ class PerceptionManager:
 
             tracking_start_time = time.time()
             tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            if self.vehicle is None:
+                print("RSU Tracking Detection: %s" %tracking_detection)
+                print("Yolo Frame %d Detection: %s" %(i, yolo_detection.xyxy[i]))
             tracking_end_time = time.time()
             total_tracking_time += tracking_end_time - tracking_start_time
 
@@ -593,6 +599,8 @@ class PerceptionManager:
                 self.cav_world.tick_id)
             lidar_fusion_end_time = time.time()
             total_lidar_fusion_time += lidar_fusion_end_time - lidar_fusion_start_time
+            if self.vehicle is None:
+                print("RSU Objects after Fusion: %s" %objects)
             logger.debug("Objects after lidar fusion: %s" %objects)
 
             # calculate the speed. current we retrieve from the server

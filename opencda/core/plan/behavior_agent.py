@@ -365,7 +365,7 @@ class BehaviorAgent(object):
 
         # ─── 2. Decide which pipeline to use ──────────────────────────────────────
         if self.edge_predictions:            # → edge is active; trust it exclusively
-            self.generated_predictions = self.edge_predictions
+            self.generated_predictions = self.edge_predictions.copy()
 
         else:                                # → no edge data; run local predictor
             self._maintain_tracks_and_predict(dt=0.05)   # ≈ sim-step seconds
@@ -802,8 +802,16 @@ class BehaviorAgent(object):
                         
                         if dot > np.cos(np.radians(15)):
                             print("found vehicle behind ego")
-                            continue
+                            #continue
 
+            print("Obstacle speed: %s" %obstacle_speed)
+            print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
+            #print("Obstacle Vehicle Trajectory Id: %s" %pred.obstacle_trajectory.id)
+            print("My Id: %s" %self.vehicle.id)
+            if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
+                print("Skipping prediction for ego vehicle")
+                continue
+            
             collision, ttc = self._collision_check.trajectory_collision_check(
                 rx, ry, self._ego_speed / 3.6,
                 pred.predicted_trajectory, obstacle_speed,
