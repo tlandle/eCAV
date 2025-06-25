@@ -676,35 +676,6 @@ class BehaviorAgent(object):
         #logger.debug(adjacent_check)
         #logger.debug("generated predictions: %s" %self.generated_predictions)
 
-        pred_carla_objects = {}
-
-        # find closest prediction to ego
-        closest_to_ego, closest_to_ego_dist = None, 1000
-        ego_loc = self.vehicle.get_location()
-        for pred in self.generated_predictions:
-            traj = pred.obstacle_trajectory.trajectory
-            if len(traj) == 0:
-                continue
-            last_loc = traj[-1].location
-            dist_from_ego = math.hypot(last_loc.x-ego_loc.x, last_loc.y-ego_loc.y)
-            if dist_from_ego < closest_to_ego_dist:
-                closest_to_ego_dist = dist_from_ego
-                closest_to_ego = pred
-            
-            # find which vehicle is which
-            closest_obstacle, dist_to_closest = None, 1000
-            for vehicle in self.obstacle_vehicles:
-                obstacle_loc = vehicle.get_location()
-                dist_from_obstacle = math.hypot(last_loc.x-obstacle_loc.x, last_loc.y-obstacle_loc.y)
-                if dist_from_obstacle < dist_to_closest:
-                    dist_to_closest = dist_from_obstacle
-                    closest_obstacle = vehicle
-            # check if ego is closer than obstacle
-            if dist_from_ego < dist_to_closest and closest_obstacle is not None:
-                pred_carla_objects[pred] = self.vehicle
-            else:
-                pred_carla_objects[pred] = closest_obstacle
-
         for vehicle in self.obstacle_vehicles:
             logger.debug("Self Vehicle Location: (%s, %s, %s)" %(self.vehicle.get_location().x, self.vehicle.get_location().y, self.vehicle.get_location().z))
             logger.debug("Vehicle Id: %s" %vehicle.carla_id)
@@ -738,16 +709,10 @@ class BehaviorAgent(object):
                 continue
 
             # ignore any predictions that match the ego vehicle
-            if is_likely_ego(pred, self._ego_pos) or pred == closest_to_ego:
+            if is_likely_ego(pred, self._ego_pos):
                 logger.debug("Prediction is likely ego, removing it")
                 # self.generated_predictions.remove(pred)
                 continue
-
-            # print prediction
-            print("Predicted Trajectory:")
-            for pred_transform in pred.predicted_trajectory:
-                pred_loc = pred_transform.location
-                print(f"({pred_loc.x}, {pred_loc.y})")
 
             # for transform in pred.obstacle_trajectory.trajectory:
             #     print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
@@ -777,32 +742,11 @@ class BehaviorAgent(object):
                 print("Obstacle too slow, ignored")
                 continue
 
-            # ignore any predictions for obstacles behind the ego
-            if pred in pred_carla_objects:
-                obstacle_vehicle = pred_carla_objects[pred]
-                if obstacle_vehicle is not None:
-                    obstacle_vehicle_loc = obstacle_vehicle.get_location()
-                    obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
-                    ego_wpt = self._map.get_waypoint(self.vehicle.get_location())
-                    if ego_wpt.lane_id == obstacle_vehicle_wpt.lane_id:
-                        # get the heading
-                        theta = ego_wpt.transform.rotation.yaw
-                        ego_loc = ego_wpt.transform.location
-
-                        dx = obstacle_vehicle_loc.x - ego_loc.x
-                        dy = obstacle_vehicle_loc.y - ego_loc.y
-                        heading_x = math.cos(math.radians(theta))
-                        heading_y = math.sin(math.radians(theta))
-                        
-                        heading_rev = -np.array([heading_x, heading_y])
-                        v = np.array([dx, dy])
-                        norm_v = np.linalg.norm(v)
-                        v_unit = v / norm_v
-                        dot = np.dot(heading_rev, v_unit)
-                        
-                        if dot > np.cos(np.radians(15)):
-                            print("found vehicle behind ego")
-                            continue
+            # print prediction
+            print("Predicted Trajectory:")
+            for pred_transform in pred.predicted_trajectory:
+                pred_loc = pred_transform.location
+                print(f"({pred_loc.x}, {pred_loc.y})")
 
             collision, ttc = self._collision_check.trajectory_collision_check(
                 rx, ry, self._ego_speed / 3.6,
