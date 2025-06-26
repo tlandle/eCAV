@@ -108,8 +108,8 @@ def linear_interp_trajectory(points):
     ry = ys(sp)
     return sp, np.stack((rx, ry), axis=1)
 
-def time_reparametrize(points, sp, speed):
-    tp = sp / max(speed, 5)
+def time_reparametrize(points, sp, speed, min_speed=3):
+    tp = sp / max(speed, 3)
     x, y = points[:, 0], points[:, 1]
     xt = interp1d(tp, x, kind='linear')
     yt = interp1d(tp, y, kind='linear')
@@ -564,9 +564,6 @@ class CollisionChecker:
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
-        if obstacle_speed < 5:
-            return False, 1000    # ignore "stationary" obstacles
-
         is_collision = False
         ttc = 1000
 
@@ -610,7 +607,7 @@ class CollisionChecker:
 
             # check for intersection point
             dists = spatial.distance.cdist(ego_path, obs_path)
-            intersection = np.any(dists < 3)
+            intersection = np.any(dists < 2)
             if intersection:
                 # time reparameterize
                 ego_xt, ego_yt, ego_tp = time_reparametrize(ego_path, ego_sp, ego_speed)
