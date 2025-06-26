@@ -610,7 +610,7 @@ class CollisionChecker:
 
             # check for intersection point
             dists = spatial.distance.cdist(ego_path, obs_path)
-            intersection = np.any(dists < 2)
+            intersection = np.any(dists < 3)
             if intersection:
                 # time reparameterize
                 ego_xt, ego_yt, ego_tp = time_reparametrize(ego_path, ego_sp, ego_speed)

@@ -386,7 +386,7 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         corner = corner.transpose()[:, :3]
 
         vehicle_tf = _make_transform_from_corners(corner)
-        print("vehicle tf location: ", vehicle_tf.location)
+        #print("vehicle tf location: ", vehicle_tf.location)
 
         #logger.debug("corner shape: ", corner.shape)
 
