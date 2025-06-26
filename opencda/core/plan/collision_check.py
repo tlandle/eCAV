@@ -109,7 +109,7 @@ def linear_interp_trajectory(points):
     return sp, np.stack((rx, ry), axis=1)
 
 def time_reparametrize(points, sp, speed, min_speed=3):
-    tp = sp / max(speed, 3)
+    tp = sp / max(speed, min_speed)
     x, y = points[:, 0], points[:, 1]
     xt = interp1d(tp, x, kind='linear')
     yt = interp1d(tp, y, kind='linear')
