@@ -28,9 +28,10 @@ class EdgeDebugHelper(PlanDebugHelper):
         self.algorithm_time_list = [[]]
         self.tracking_time_list = [[]]
         self.prediction_time_list = [[]]
+        self.latency_list = [[]]
         
 
-    def update_edge(self, algorithm_time_step=None, tracking_time=None, prediction_time=None):
+    def update_edge(self, algorithm_time_step=None, tracking_time=None, prediction_time=None, latency=None):
         """
         Update the platoon related vehicle information.
 
@@ -40,4 +41,5 @@ class EdgeDebugHelper(PlanDebugHelper):
         self.algorithm_time_list[0].append(algorithm_time_step)
         self.tracking_time_list[0].append(tracking_time)
         self.prediction_time_list[0].append(prediction_time)
+        self.latency_list[0].append(latency)
 

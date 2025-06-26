@@ -568,7 +568,7 @@ class CollisionChecker:
             return False, 1000    # ignore "stationary" obstacles
 
         is_collision = False
-        ttc = 2
+        ttc = 1000
 
         # get interpolation of obstacle trajectory
         obs_points = []
@@ -624,7 +624,7 @@ class CollisionChecker:
                 length = min(len(ego_x_points), len(obs_x_points))
                 ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
                 obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-                proximity_check = min(10, ego_speed / 2)
+                proximity_check = min(10, ego_speed / 1.6)
                 is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=proximity_check, dt=time_step)
             else:
                 obs_x_points = obs_path[:, 0]

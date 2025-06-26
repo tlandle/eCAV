@@ -168,7 +168,7 @@ def collect_ab3d_detections(edge,
         box_wh  = np.array([w, l],        dtype=np.float32)
 
         # ── 2-b  3-D distance gate (fast)  ───────────────────────────
-        if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.5 * max(ego_wh):
+        if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.7 * max(ego_wh):
             print(f"Skipping obj at {loc} – too close to ego beacon.")
             # too close to our own beacon – most likely ego points
             continue
@@ -1307,7 +1307,7 @@ class EdgeManager(object):
         print("Tracks after AB3DMOT:", tracks_np, flush=True)
 
         # ------------------------------------------------ convert to trajectories
-        tracks_np = self.filter_stale_tracks(tracks_np, max_age=10)
+        tracks_np = self.filter_stale_tracks(tracks_np, max_age=5)
         print("Tracks after filtering:", tracks_np, flush=True)
         self.convert_ab3dmot_history_to_trajectories(
             tracks_np, trajectory_length=10, dt=self.dt)
@@ -1329,7 +1329,8 @@ class EdgeManager(object):
         # ------------------------------------------------ debug/telemetry
         self.debug_helper.update_edge(0,
                                       tracking_time=tracker_ms,
-                                      prediction_time=predict_ms)
+                                      prediction_time=predict_ms,
+                                      latency=total_latency_ms)
 
         # ------------------------------------------------ forward to vehicles
 
@@ -1611,6 +1612,10 @@ class EdgeManager(object):
         prediction_time_list_mean = np.mean(prediction_time_list)
         prediction_time_list_std = np.std(prediction_time_list)
 
+        latency_list = self.debug_helper.latency_list
+        latency_list_mean = np.mean(latency_list)
+        latency_list_std = np.std(latency_list)
+
 
         perform_txt += 'Algorithm time mean: %f, std: %f \n' % (
                 np.mean(algorithm_time_list_tmp), np.std(algorithm_time_list_tmp))
@@ -1621,13 +1626,18 @@ class EdgeManager(object):
         perform_txt += 'Prediction time mean: %f, std: %f \n' % (
                 prediction_time_list_mean, prediction_time_list_std)
 
+        perform_txt += 'Latency mean: %f, std: %f \n' % (
+                latency_list_mean, latency_list_std)
+
         metrics = {
             'algorithm_time_mean': np.mean(algorithm_time_list_tmp),
             'algorithm_time_std': np.std(algorithm_time_list_tmp),
             'tracking_time_mean': tracking_time_list_mean,
             'tracking_time_std': tracking_time_list_std,
             'prediction_time_mean': prediction_time_list_mean,
-            'prediction_time_std': prediction_time_list_std
+            'prediction_time_std': prediction_time_list_std,
+            'latency_mean': latency_list_mean,
+            'latency_std': latency_list_std
         }
 
 

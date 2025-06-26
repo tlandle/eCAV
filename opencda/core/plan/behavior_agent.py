@@ -712,7 +712,7 @@ class BehaviorAgent(object):
             if is_likely_ego(pred, self._ego_pos):
                 logger.debug("Prediction is likely ego, removing it")
                 # self.generated_predictions.remove(pred)
-                continue
+                #continue
 
             # for transform in pred.obstacle_trajectory.trajectory:
             #     print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
