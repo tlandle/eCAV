@@ -624,7 +624,7 @@ class CollisionChecker:
                 length = min(len(ego_x_points), len(obs_x_points))
                 ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
                 obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-                proximity_check = min(10, ego_speed / 1.6)
+                proximity_check = min(10, ego_speed / 2.0)
                 is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=proximity_check, dt=time_step)
             else:
                 obs_x_points = obs_path[:, 0]

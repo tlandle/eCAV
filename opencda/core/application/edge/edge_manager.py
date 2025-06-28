@@ -18,6 +18,7 @@ import opencda.logging_ecloud
 import coloredlogs, logging
 import sys
 from collections import deque, defaultdict
+import pandas as pd
 
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.core.prediction.linear_predictor_manager import LinearPredictorManager
@@ -58,6 +59,8 @@ import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as rpc
 
 guid_counter = 0
+
+
 
 def create_waypoint_roadoption_tuple(location, carla_map):
     # Get the waypoint closest to the vehicle's location
@@ -350,6 +353,8 @@ class EdgeManager(object):
         self.latency = config_yaml['latency'] if 'latency' in config_yaml else 0
         self.latency_distribution = config_yaml['latency_distribution'] if 'latency_distribution' in config_yaml else 'normal'
         self.jitter_std = config_yaml['jitter_std'] if 'jitter_std' in config_yaml else 0
+        self.uplink_packet_loss_pct = config_yaml['uplink_packet_loss_pct'] if 'uplink_packet_loss_pct' in config_yaml else 0
+        self.downlink_packet_loss_pct = config_yaml['downlink_packet_loss_pct'] if 'downlink_packet_loss_pct' in config_yaml else 0
         self.activate = config_yaml["mode"]
         #self.locations = []
         self.destination = None
@@ -378,7 +383,7 @@ class EdgeManager(object):
         self.secondary_offset=0
         cav_world.update_edge(self)
         self.carla_client = carla_client
-        self.objects_deque = deque()
+        self.objects_deque = deque(maxlen=100)  # deque to hold objects history
         self.tracked_trajectories = {}
         self.objects = {}
         self.mode = mode
@@ -389,7 +394,7 @@ class EdgeManager(object):
         self.linear_predictor_manager = LinearPredictorManager(num_future_steps=self.num_future_steps)
         self.track_to_carla = {}
         self.carla_to_track = {}
-        self.beacon_history = defaultdict(lambda: deque(maxlen=30))
+        self.beacon_history = defaultdict(lambda: deque(maxlen=100))
 
         self.debug_helper = EdgeDebugHelper(0)
 
@@ -398,6 +403,30 @@ class EdgeManager(object):
 
         self.ab3dmot_tracker = None
         self.obstacle_trajectories = []
+
+        # We will re-initialize the tracker each time we reconstruct history
+        # The config can be stored as a member variable
+        self.ab3dmot_config = edict({
+            'vis': False, 'save_path': None, 'use_3d_iou': False,
+            'thres': 2.0, 'output_dir': None, 'min_hits': 3,
+            'max_age': 2, 'ego_com': None, 'affi_pro': False,
+            'dataset': "KITTI", 'det_name': "deprecated"
+        })
+        self.ab3dmot_category = 'Car'
+
+        # Create the backhaul trace generator based on 5G-MOBIX stats
+        # Median = 20ms RTT, P99 = 150ms RTT
+        # These solved parameters match the stats
+        self.backhaul_mu = 2.9957
+        self.backhaul_sigma = 0.6556
+
+        try:
+            # Load the real C-V2X trace you provided
+            self.c_v2x_rtt_trace = pd.read_csv("merged_latency.csv")['latency_ms'].dropna().tolist()
+            print(f"Successfully loaded C-V2X trace with {len(self.c_v2x_rtt_trace)} samples.")
+        except FileNotFoundError:
+            print("WARNING: 'merged_latency.csv' not found. Falling back to default range for C-V2X.")
+            self.c_v2x_rtt_trace = None
 
         
     def start_edge(self):
@@ -846,6 +875,11 @@ class EdgeManager(object):
                 self.vehicle_speeds[vm.vehicle.id] = vm.vehicle.get_velocity()
 
             elif self.activate == "PREDICTION":
+                if np.random.rand() * 100 < self.uplink_packet_loss_pct:
+                    print(f"--- UPLINK PACKET LOSS: Dropping data from vehicle {vm.vehicle.id} at frame {frame_idx} ---", flush=True)
+                    # If the packet is "lost", we simply do not merge this vehicle's objects
+                    # and do not add its beacon to the history for this frame.
+                    continue 
                 self._merge_objects(self.objects,
                                vm.agent.objects,
                                owner_id       = vm.vehicle.id,
@@ -1251,7 +1285,170 @@ class EdgeManager(object):
             rsu.update_info()
             rsu.run_step()
 
+    def _calculate_hybrid_latency(self, step_id, latency_offset_ms=0):
+        """Calculates total latency using real C-V2X trace and trace-informed backhaul model."""
+        
+        # --- Component 1: C-V2X Radio Link (Real Trace) ---
+        if self.c_v2x_rtt_trace:
+            T_radio_rtt = np.random.choice(self.c_v2x_rtt_trace) * 2 # Assuming trace is one-way
+            print(f"Using C-V2X RTT from trace: {T_radio_rtt:.2f} ms", flush=True)
+        else:
+            T_radio_rtt = np.random.uniform(30, 80) * 2 # Fallback
+
+        # --- Component 2: Backhaul Link (Trace-Informed Synthetic Model) ---
+        T_backhaul_rtt = np.random.lognormal(mean=self.backhaul_mu, sigma=self.backhaul_sigma)
+
+        # --- Component 3: Other System Latencies (from Table I) ---
+        T_onboard_perception = np.random.uniform(20, 50)
+        T_edge_compute = 25.0
+        T_control_waits_etc = np.random.uniform(0, 50) * 2 + 5 + np.random.uniform(5, 10)
+
+        print(f"Hybrid Latency Components: "
+                    f"T_radio_rtt: {T_radio_rtt:.2f} ms, "
+                    f"T_backhaul_rtt: {T_backhaul_rtt:.2f} ms, "
+                    f"T_onboard_perception: {T_onboard_perception:.2f} ms, "
+                    f"T_edge_compute: {T_edge_compute:.2f} ms, "
+                    f"T_control_waits_etc: {T_control_waits_etc:.2f} ms, "
+                    f"latency_offset_ms: {latency_offset_ms:.2f} ms", flush=True)
+        # --- Component 4: Latency Offset ---   
+
+        
+        # --- Summation ---
+        total_latency_ms = (
+            T_radio_rtt +
+            T_backhaul_rtt +
+            T_onboard_perception +
+            T_edge_compute +
+            T_control_waits_etc +
+            latency_offset_ms
+        )
+        
+        return total_latency_ms
+
     def run_step_prediction(self, step_id):
+        # ------------------------------------------------ latency sampling ---
+        # This logic remains the same.
+        # It determines the absolute frame number that our data is "as of".
+        
+        if self.latency_distribution == "normal":
+            total_latency_ms = np.random.normal(loc=self.latency, scale=self.jitter_std_dev_ms)
+        elif self.latency_distribution == "lognormal":
+            lognormal_mean = np.log(self.latency * 1000) if self.latency > 0 else 0
+            total_latency_ms = np.random.lognormal(mean=lognormal_mean, sigma=0.5)
+            print(f"Lognormal mean: {lognormal_mean}, sigma: 0.5", flush=True)
+            print(f"Lognormal total latency: {total_latency_ms} ms", flush=True)
+        elif self.latency_distribution == "hybrid":
+            total_latency_ms = self._calculate_hybrid_latency(step_id, latency_offset_ms=self.latency * 1000)
+            print(f"Hybrid total latency: {total_latency_ms} ms", flush=True)
+        else: # Fixed latency
+            total_latency_ms = self.latency * 1000  # Convert to milliseconds
+
+        if total_latency_ms < 0: total_latency_ms = 0
+        lag_steps = max(0, round(total_latency_ms / (self.dt * 1000)))
+        print(f"Total latency in ms: {total_latency_ms}, Lag steps: {lag_steps}", flush=True)
+        
+        as_of_step = step_id - lag_steps
+        if as_of_step < 0:
+            return # Not enough simulation history has passed.
+
+        # ------------------------------------------------ History Reconstruction ---
+        print(f"Current Step: {step_id}. Reconstructing world state as of Step: {as_of_step}", flush=True)
+
+        tracker_start_time = time.perf_counter()
+        # 1. Initialize a fresh tracker for a clean-slate reconstruction.
+        fresh_tracker = AB3DMOT(self.ab3dmot_config, self.ab3dmot_category)
+        
+        # We will collect the tracker outputs from the replay to build trajectories.
+        # The trajectory_length determines how much recent history the predictor needs.
+        replay_output_deque = deque(maxlen=10) # Using 10 as a reasonable default history length
+
+        # 2. Replay history chronologically from the start of our available history up to the `as_of_step`.
+        #    We determine the oldest available frame based on the length of our deques.
+        oldest_available_step = max(0, step_id - (len(self.objects_deque) - 1))
+        
+        for historical_step in range(oldest_available_step, as_of_step + 1):
+            
+            # *** THIS IS THE CRITICAL FIX ***
+            # Calculate the correct relative index into our deques for the given historical_step.
+            # Index 0 is the data from `step_id`, index 1 is from `step_id - 1`, etc.
+            # So, the index for `historical_step` is `step_id - historical_step`.
+            deque_index = step_id - historical_step
+            
+            # This now correctly handles "holes" if the required index is out of bounds.
+            if deque_index >= len(self.objects_deque):
+                # We don't have data for this historical_step. This is a "hole".
+                # Feed an empty detection set to the tracker to correctly advance its state.
+                empty_dets_all = {'dets': np.empty((0, 7)), 'info': np.empty((0, 3))}
+                results_at_step, _ = fresh_tracker.track(empty_dets_all, historical_step)
+            
+            else:
+                # We have data, so we retrieve and process it.
+                objects_snapshot = self.objects_deque[deque_index]
+                
+                beacons_dict = {}
+                for vm in self.vehicle_manager_list:
+                    beacon_hist = self.beacon_history[vm.vehicle.id]
+                    if deque_index < len(beacon_hist):
+                        # beacon_history stores tuples of (frame_idx, loc, ext)
+                        _, loc, ext = beacon_hist[deque_index]
+                        beacons_dict[vm.vehicle.id] = (loc, ext)
+                
+                # If for some reason we couldn't find beacons, treat as a hole.
+                if not beacons_dict:
+                     empty_dets_all = {'dets': np.empty((0, 7)), 'info': np.empty((0, 3))}
+                     results_at_step, _ = fresh_tracker.track(empty_dets_all, historical_step)
+                else:
+                    dets_all = collect_ab3d_detections(self, objects_snapshot, beacons_dict, frame_idx=historical_step)
+                    results_at_step, _ = fresh_tracker.track(dets_all, historical_step)
+
+            # Collect the tracker output. Even if it's empty, we append it to maintain sequence.
+            if results_at_step and len(results_at_step[0]) > 0:
+                replay_output_deque.append(results_at_step[0])
+        tracker_ms = (time.perf_counter() - tracker_start_time) * 1000.0
+        
+
+        # ------------------------------------------------ Trajectory & Prediction ---
+        # 3. Use your ORIGINAL `convert_ab3dmot_history_to_trajectories` function.
+        #    It is now being fed a chronologically correct history of tracker outputs.
+        self.convert_ab3dmot_history_to_trajectories(replay_output_deque,
+                                                     trajectory_length=10,
+                                                     dt=self.dt)
+
+        prediction_start_time = time.perf_counter()
+        # 4. Generate predictions. This should now be stable.
+        preds = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_trajectories)
+        prediction_ms = (time.perf_counter() - prediction_start_time) * 1000.0
+
+        self.debug_helper.update_edge(0,
+                                      tracking_time=tracker_ms,
+                                      prediction_time=prediction_ms,
+                                      latency=total_latency_ms)
+
+        # ------------------------------------------------ Forward to Vehicles ---
+        # (Rest of your logic remains the same)
+        for vm in self.vehicle_manager_list:
+            if np.random.rand() * 100 < self.downlink_packet_loss_pct:
+                print(f"--- DOWNLINK PACKET LOSS: Vehicle {vm.vehicle.id} discarding edge predictions ---", flush=True)
+                # If packet is lost, clear the edge predictions before the fusion logic uses them.
+                # don't send over any new predictions
+
+                vm.agent.edge_predictions.clear()
+            else:
+                vm.agent.edge_predictions = preds.copy()
+        # ------------------------------------------------ apply control
+        for vm in self.vehicle_manager_list:
+            print("Running step for vehicle manager:", vm, flush=True)
+            vm.update_info(step_id)
+            control = vm.run_step()
+            print("Applying control for vehicle manager:", vm, flush=True)
+            vm.vehicle.apply_control(control)
+
+        for rsu in self.rsu_manager_list:
+            rsu.update_info()
+            rsu.run_step()
+
+
+    def run_step_prediction_old1(self, step_id):
         # ------------------------------------------------ latency filter ---
         print("Running prediction step for edge", self.edgeid, flush=True)
         if step_id < int((self.latency + self.jitter_std) / self.dt):

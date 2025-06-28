@@ -229,10 +229,12 @@ edge_base: &edge_base
   target_speed: 100 # kph
   edge_dt: 0.2 # must be an even multiple of world_dt 
   search_dt: 2
-  latency: 0.0 # seconds 
+  latency: 0.2 # seconds 
   jitter_std: 0.05 # seconds
-  latency_distribution: lognormal # distribution of the latency, can be normal or lognormal
+  latency_distribution: hybrid # distribution of the latency, can be normal or lognormal
   edge_sets_destination: false # otherwise, edge sets WP
+  uplink_packet_loss_pct: 10.0 # percentage of uplink packet loss
+  downlink_packet_loss_pct: 10.0 # percentage of downlink packet loss
   mode: PREDICTION 
 
 # Define OpenCDA scenario

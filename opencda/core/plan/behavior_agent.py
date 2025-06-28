@@ -368,8 +368,9 @@ class BehaviorAgent(object):
             self.generated_predictions = self.edge_predictions.copy()
 
         else:                                # → no edge data; run local predictor
-            self._maintain_tracks_and_predict(dt=0.05)   # ≈ sim-step seconds
-            self.generated_predictions = self.local_predictions
+            #self._maintain_tracks_and_predict(dt=0.05)   # ≈ sim-step seconds
+            #self.generated_predictions = self.local_predictions
+            self.generated_predictions = []
 
         # current version only consider about vehicles
         obstacle_vehicles = objects['vehicles']
