@@ -20,6 +20,15 @@ import coloredlogs, logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='INFO', logger=logger)
 
+import opencood.models.point_pillar_bm2cp
+import os
+print("\n" * 5)
+print("=" * 80)
+print(f"CRITICAL DEBUG: Python is loading the model from this exact file:")
+print(f"{opencood.models.point_pillar_bm2cp.__file__}")
+print("=" * 80)
+print("\n" * 5)
+
 def arg_parse():
     # create an argument parser
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")

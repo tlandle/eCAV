@@ -1,4 +1,6 @@
 import numpy as np
+if not hasattr(np, "long"):
+    np.long = np.int_  # for compatibility with Python 3
 from numba import jit
 from copy import deepcopy
 from .kitti_oxts import roty

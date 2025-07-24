@@ -7,12 +7,24 @@ This script contains the transformations between world and different sensors.
 
 import numpy as np
 from matplotlib import cm
+import carla
 
 from opencda.opencda_carla import Transform
 
 VIRIDIS = np.array(cm.get_cmap('viridis').colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 
+
+def get_rotation(transform: carla.Transform) -> np.ndarray:
+    r = transform.rotation
+    cy, sy = np.cos(np.radians(r.yaw)),   np.sin(np.radians(r.yaw))
+    cp, sp = np.cos(np.radians(r.pitch)), np.sin(np.radians(r.pitch))
+    cr, sr = np.cos(np.radians(r.roll)),  np.sin(np.radians(r.roll))
+
+    return np.array([
+        [ cp*cy,  cy*sp*sr - sy*cr,  -cy*sp*cr - sy*sr],
+        [ cp*sy,  sy*sp*sr + cy*cr,  -sy*sp*cr + cy*sr],
+        [ sp,    -cp*sr,              cp*cr         ]], dtype=np.float32)
 
 def get_camera_intrinsic(sensor):
     """

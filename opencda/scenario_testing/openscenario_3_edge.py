@@ -101,7 +101,30 @@ def run_scenario(opt, scenario_params):
         edge_dt = scenario_params['edge_base']['edge_dt']
         assert( edge_dt % world_dt == 0 ) # we need edge time to be an exact multiple of world time because we send waypoints every Nth tick 
 
-        edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
+        edge_list = []                      # make sure the name exists
+        try:
+            edge_list = scenario_manager.create_edge_manager_from_scenario_runner(
+                application=['edge'],
+                edge_dt=edge_dt,
+                world_dt=world_dt,
+                ego_vehicle=ego_vehicle,
+                other_vehicles=other_vehicles,
+            )
+        except AssertionError as err:
+            # print the message carried by the assert – that’s what we need
+            import traceback, sys
+            print("\n\n>>> ASSERTION INSIDE create_edge_manager_from_scenario_runner <<<")
+            traceback.print_exc()           # full stack-trace
+            sys.exit(1)                     # stop cleanly so we can read it
+        except Exception:
+            # any other bug – still show the full trace
+            import traceback, sys
+            traceback.print_exc()
+            sys.exit(1)
+
+        #edge_list = scenario_manager.create_edge_manager_from_scenario_runner(application=['edge'], edge_dt=edge_dt, world_dt=world_dt,ego_vehicle=ego_vehicle, other_vehicles=other_vehicles)
+
+
 
         eval_manager = EvaluationManager(scenario_manager.cav_world, 
                                          script_name=SCENARIO_NAME, 

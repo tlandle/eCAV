@@ -374,7 +374,7 @@ class PerceptionManager:
     """
 
     def __init__(self, vehicle, config_yaml, cav_world,
-                 data_dump=False, carla_world=None, infra_id=None, tracking_manager=None, debug_helper=None):
+                 data_dump=False, carla_world=None, infra_id=None, tracking_manager=None, debug_helper=None, cooperative_perception_path=None):
         self.vehicle = vehicle
  
         if hasattr(vehicle, 'get_world'): 

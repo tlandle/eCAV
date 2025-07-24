@@ -58,8 +58,8 @@ from opencda.core.common.rsu_manager import RSUManager
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
-from opencda.core.application.edge.edge_manager import \
-     EdgeManager
+# Edge-manager implementations ──────────────────────────────────────────────
+from opencda.core.application.edge.edge_manager import get_edge_class
 from opencda.sim_debug_helper import SimDebugHelper
 from opencda.client_debug_helper import ClientDebugHelper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
@@ -89,6 +89,32 @@ TIMEOUT_S = 10
 TIMEOUT_MS = TIMEOUT_S * 1000
 NSEC_TO_MSEC = 1/1000000
 ECLOUD_PUSH_API_PORT = 50061 # TODO: config
+
+
+
+# ---------------------------------------------------------------------------
+# Pick the right concrete Edge-manager class for an edge YAML block
+# ---------------------------------------------------------------------------
+def _select_edge_manager(edge_yaml_block):
+    """
+    Translate edge['manager_type'] into a registered edge-manager class.
+
+    Known aliases:
+        bm2cp         →  BM2CPEdge  (BM2CP→AB3DMOT→LinearPredictor pipeline)
+        late_fusion   →  LateFusionEdge
+        perception    →  PerceptionEdge
+        maneuver      →  ManeuverEdge
+    Anything else is sent straight to the registry.
+    """
+    key = edge_yaml_block.get('manager_type', 'late_fusion').upper()
+
+    alias = {
+        'BM2CP':        'BM2CP_PRED',
+        'LATE_FUSION':  'LATE_FUSION',
+        'PERCEPTION':   'PERCEPTION',
+        'MANEUVER':     'MANEUVER',
+    }
+    return get_edge_class(alias.get(key, key))
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
     """
@@ -1203,7 +1229,16 @@ class ScenarioManager:
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'])
+
+            manager_cls  = _select_edge_manager(edge)
+            edge_manager = manager_cls(
+                self.world, edge, self.cav_world,
+                carla_client=self.client,
+                world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt,
+                mode=config_yaml['edge_base']['mode'],
+                other_vehicles=other_vehicles if 'other_vehicles' in locals() else None
+            )
+            #edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'])
             if 'rsus' in edge:
                 for index, cav in enumerate(edge['rsus']):
                     rsu_manager = RSUManager(self.world, cav,
@@ -1215,7 +1250,7 @@ class ScenarioManager:
                     self.rsu_managers[index] = rsu_manager
             if 'vehicles' in edge:
                 for index, cav in enumerate(edge['vehicles']): 
-                    logger.debug("Creating VehiceManagerProxy for vehicle %s", index)
+                    logger.debug("Creating VehiceManager for vehicle %s", index)
                     # create vehicle manager for each cav
                     #vehicle_manager = VehicleManagerProxy(
                     #      vehicle_index=index, config_yaml=config_yaml, application=application,
@@ -1304,7 +1339,16 @@ class ScenarioManager:
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-            edge_manager = EdgeManager(self.world, edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'], other_vehicles=other_vehicles)
+                
+            manager_cls  = _select_edge_manager(edge)
+            edge_manager = manager_cls(
+                self.world, edge, self.cav_world,
+                carla_client=self.client,
+                world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt,
+                mode=config_yaml['edge_base']['mode'],
+                other_vehicles=other_vehicles if 'other_vehicles' in locals() else None
+            )
+            #edge_manager = EdgeManager(self.world, edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'], other_vehicles=other_vehicles)
             if 'rsus' in edge:
                 for index, cav in enumerate(edge['rsus']):
                     rsu_manager = RSUManager(self.world, cav,
@@ -1316,7 +1360,7 @@ class ScenarioManager:
                     self.rsu_managers[index] = rsu_manager
             if 'vehicles' in edge:
                 for index, cav in enumerate(edge['vehicles']): 
-                    logger.debug("Creating VehiceManagerProxy for vehicle %s", index)
+                    logger.debug("Creating VehiceManager for vehicle %s", index)
                     # create vehicle manager for each cav
                     #vehicle_manager = VehicleManagerProxy(
                     #      vehicle_index=index, config_yaml=config_yaml, application=application,

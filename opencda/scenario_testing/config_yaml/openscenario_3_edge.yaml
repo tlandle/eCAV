@@ -85,10 +85,15 @@ vehicle_base: &vehicle_base
     perception: &base_perception
       activate: true
       camera:
-        visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
-        num: 1 # how many cameras are mounted on the vehicle.
-        positions:  # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
-          - [2.5, 0, 1.0, 0]
+        visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
+        num: 4
+        positions:
+          # existing three (front / left / right) …
+          - [ 1.5,  0.0, 1.7,   0]     # front
+          - [ 0.0, -1.5, 1.7, -90]     # left
+          - [ 0.0,  1.5, 1.7,  90]     # right
+          # NEW – rear (or any direction you like)
+          - [-1.5,  0.0, 1.7, 180]     # rear
       lidar: # lidar sensor configuration, check CARLA sensor reference for more details
         visualize: false
         channels: 32
@@ -237,14 +242,32 @@ edge_base: &edge_base
   downlink_packet_loss_pct: 10.0 # percentage of downlink packet loss
   mode: PREDICTION 
 
-# Define OpenCDA scenario
 scenario:
   edge_list:
     - <<: *edge_base
+      manager_type: bm2cp
+      
+      # This top-level block is good for reference but not used by the perception manager init
+      bm2cp_model:            
+        hypes_yaml: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/config.yaml
+        checkpoint: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/net_epoch50.pth
+
       rsus:
         - <<: *rsu_base
           name: rsu1
           spawn_position: [-88.0, 140, 3.0]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: bm2cp
+              
+              # --- FIX START: ADD THIS BLOCK TO THE RSU ---
+              bm2cp_model:
+                hypes_yaml: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/config.yaml
+                checkpoint: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/net_epoch50.pth
+              # --- FIX END ---
+
           id: -1
       vehicles:
         - <<: *vehicle_base
@@ -252,13 +275,25 @@ scenario:
           destination: [-28.8, 134.7, 0.5]
           sensing:
             <<: *base_sensing
-          perception:
-            <<: *base_perception
-          localization:
-            <<: *base_localize
-            debug_helper:
-              <<: *loc_debug_helper
-              show_animation: false
+            perception:
+              <<: *base_perception
+              camera:
+                visualize: 4
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              type: bm2cp
+              bm2cp_model:
+                hypes_yaml: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/config.yaml
+                checkpoint: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/net_epoch50.pth
+            localization:
+              <<: *base_localize
+              debug_helper:
+                <<: *loc_debug_helper
+                show_animation: false
           v2x:
             <<: *base_v2x
             enabled: false

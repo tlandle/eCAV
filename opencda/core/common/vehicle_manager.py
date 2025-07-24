@@ -29,6 +29,8 @@ from opencda.core.sensing.localization.localization_manager \
     import LocalizationManager
 from opencda.core.sensing.perception.perception_manager \
     import PerceptionManager
+from opencda.core.sensing.perception.bm2cp_perception_manager import \
+     BM2CPPerceptionManager
 from opencda.core.sensing.tracking.tracking_manager \
     import TrackingManager
 from opencda.core.safety.safety_manager import SafetyManager
@@ -330,12 +332,26 @@ class VehicleManager(object):
         assert self.perception_active and sensing_config['perception']['activate'] or \
                 not self.perception_active
 
-        self.tracking_manager = TrackingManager(self.vehicle, cav_world, data_dumping, tracker_type = "SORT")
+        print("Perception Active: ", self.perception_active)
 
-        self.perception_manager = PerceptionManager(
-            self.vehicle, sensing_config['perception'], cav_world,
-            data_dumping, tracking_manager=self.tracking_manager, debug_helper=self.debug_helper)
+        self.tracking_manager = TrackingManager(self.vehicle, cav_world, data_dumping, tracker_type = "SORT")
+        percep_cfg = sensing_config['perception']
+        print("Perception Config: ", percep_cfg)
+        if percep_cfg.get('type', 'default') == 'bm2cp':
+            self.perception_manager = BM2CPPerceptionManager(
+                self.vehicle, percep_cfg, cav_world,
+                data_dumping, tracking_manager=self.tracking_manager,
+                debug_helper=self.debug_helper)
+            print("Using BM2CP Perception Manager in VehicleManager, press enter to continue...")
+        else:
+            self.perception_manager = PerceptionManager(
+                self.vehicle, percep_cfg, cav_world,
+                data_dumping, tracking_manager=self.tracking_manager,
+                debug_helper=self.debug_helper)
+            print("Using default Perception Manager")
         logger.debug("PerceptionManager created")
+
+        input("Perception Manager created, press enter to continue...")
 
         
         # map manager
@@ -575,7 +591,7 @@ class VehicleManager(object):
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
-        logger.debug("Objects", objects)
+        #logger.debug(f"Objects", {objects})
 
         #self.tracked_local_trajectories = self.update_local_trajectories(objects, self.localizer.get_sim_time())
 
@@ -612,7 +628,7 @@ class VehicleManager(object):
         
         # if self.rsu_manager:
           #objects = {**objects ,  **self.rsu_manager.perception_manager.detect(ego_pos, self.vehicle.id)}
-        logger.debug("Combined Objects: " , objects)
+        logger.debug(f"Combined Objects: {objects}")
         end_time = time.time()
         logger.debug("Perception time: %s" %(end_time - start_time))
         self.debug_helper.update_perception_time((end_time-start_time)*1000)
