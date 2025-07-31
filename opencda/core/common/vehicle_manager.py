@@ -351,7 +351,7 @@ class VehicleManager(object):
             print("Using default Perception Manager")
         logger.debug("PerceptionManager created")
 
-        input("Perception Manager created, press enter to continue...")
+        #input("Perception Manager created, press enter to continue...")
 
         
         # map manager

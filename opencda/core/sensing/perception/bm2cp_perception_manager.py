@@ -56,6 +56,7 @@ class BM2CPPerceptionManager(PerceptionManager):
         ckpt_path = pathlib.Path(model_config['checkpoint'])
 
         self.hypes = load_yaml(str(hypes_path))
+        print('[HYPES DEBUG] ybound =', self.hypes['fusion']['args']['grid_conf']['ybound'])
         print("[BM2CP] Hypes loaded and parsed successfully.")
         
         pre_config = self.hypes["preprocess"]

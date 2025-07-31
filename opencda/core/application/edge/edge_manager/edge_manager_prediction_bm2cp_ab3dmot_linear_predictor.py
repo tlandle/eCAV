@@ -53,6 +53,7 @@ class BM2CPEdge(_BaseEdgeManager):
         bm_cfg = cfg['bm2cp_model']
         hypes = load_yaml(bm_cfg['hypes_yaml'])
         self.hypes = hypes
+        print('[HYPES DEBUG] ybound =', hypes['fusion']['args']['grid_conf']['ybound'])
         print("[EDGE DEBUG] [__init__] Hypes loaded.")
 
         self.model = train_utils.create_model(hypes).cuda().eval()
@@ -113,6 +114,63 @@ class BM2CPEdge(_BaseEdgeManager):
         else:
             print(f"[EDGE DEBUG] [update_information] No features available for frame {frame_idx}.")
 
+    def _world_to_ego(self, world_xyz1: np.ndarray, ego_tf: carla.Transform) -> np.ndarray:
+        """world_xyz1: [x,y,z,1] homogeneous. Return xyz in ego frame."""
+        T_ego_inv = np.linalg.inv(np.array(ego_tf.get_matrix()))
+        return (T_ego_inv @ world_xyz1)[:3]
+
+    def _ego_to_voxel(self, p_ego: np.ndarray) -> Tuple[float, float]:
+        """Return (ix, iy) fractional voxel indices for BEV tensors."""
+        # grab the SAME ranges actually used by runtime model
+        vx = self.hypes['model']['args']['pc_params']['voxel_size'][0]  # 0.4
+        vy = self.hypes['model']['args']['pc_params']['voxel_size'][1]  # 0.4
+        x_min, y_min, _, x_max, y_max, _ = self.hypes['preprocess']['cav_lidar_range']
+        W = self.hypes['postprocess']['anchor_args']['W']               # 704
+        H = self.hypes['postprocess']['anchor_args']['H']               # 192
+
+        # OpenCOOD convention: +Y left. CARLA: +Y right. Flip Y here:
+        y_ego_lidar = -p_ego[1]
+        ix = (p_ego[0] - x_min) / vx
+        iy = (y_ego_lidar - y_min) / vy
+        return ix, iy
+
+    def print_other_car(self, ego_actor: carla.Actor, ego_tf: carla.Transform, target_id=None):
+        """
+        Print GT vehicle pose in world, ego and voxel coordinates.
+        ego_actor: the ego actor to exclude.
+        ego_tf: ego Transform (same as ego_actor.get_transform()).
+        """
+        world = ego_actor.get_world()
+        all_vehicles = world.get_actors().filter('vehicle.*')
+
+        if target_id is not None:
+            target = world.get_actor(target_id)
+        else:
+            # choose closest non-ego by 2D distance
+            non_ego = [a for a in all_vehicles if a.id != ego_actor.id]
+            if not non_ego:
+                return None
+            ego_xy = np.array([ego_tf.location.x, ego_tf.location.y])
+            target = min(non_ego, key=lambda a: np.linalg.norm(
+                np.array([a.get_transform().location.x, a.get_transform().location.y]) - ego_xy))
+
+        tf = target.get_transform()
+        p_world = np.array([tf.location.x, tf.location.y, tf.location.z, 1.0])
+        p_ego   = self._world_to_ego(p_world, ego_tf)
+        ix, iy  = self._ego_to_voxel(p_ego)
+
+        print(f"[GT TARGET] id={target.id} world=({tf.location.x:.2f},{tf.location.y:.2f}) "
+              f"ego=({p_ego[0]:.2f},{p_ego[1]:.2f}) yaw={tf.rotation.yaw:.1f}")
+        print(f"[GT TARGET] voxel ix={ix:.1f}/{self.hypes['postprocess']['anchor_args']['W']}, "
+              f"iy={iy:.1f}/{self.hypes['postprocess']['anchor_args']['H']}")
+
+        # Optional: warn if out-of-crop
+        if not (0 <= ix < self.hypes['postprocess']['anchor_args']['W'] and 
+                0 <= iy < self.hypes['postprocess']['anchor_args']['H']):
+            print("[WARN] GT target outside current BEV crop.")
+
+        return {'id': target.id, 'world': tf, 'ego_xyz': p_ego, 'ixiy': (ix, iy)}
+
     def run_step(self, tick: int):
         ### DEBUG ###
         print("\n[EDGE DEBUG] >>> run_step() called.")
@@ -136,12 +194,88 @@ class BM2CPEdge(_BaseEdgeManager):
         start_time = time.time()
         #print("[EDGE DEBUG] Preparing for fusion...")
         features_tensor = torch.cat([d['spatial_features'] for d in feature_dicts], dim=0).cuda()
+        psm_tensor = torch.cat([d['psm'] for d in feature_dicts], dim=0).cuda()
         rm_tensor = torch.cat([d['rm'] for d in feature_dicts], dim=0).cuda()
         thres_map_tensor = torch.cat([d['thres_map'] for d in feature_dicts], dim=0).cuda()
         record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
         pairwise_t_matrix = self._get_pairwise_transform(poses)
+
+        if thres_map_tensor.size(0) > 1:          # make sure we really have an RSU slicve
+            thres_map_tensor[1] *= 0.03           # 0.3 ≈ drop the threshold by 70 %
+
+
+
+        # inside run_step, after you compute pairwise_t_matrix
+        obj_world     = np.array([-42.4, 127.7, 0 , 1])          # from XML
+        P_rsu2ego     = pairwise_t_matrix[0, 0, 1].cpu().numpy() # RSU→ego 4×4
+        obj_ego       = P_rsu2ego @ obj_world
+        #print(f"[EDGE DEBUG] Object in RSU frame: {obj_world[:3]}, Object in Ego frame: {obj_ego[:3]}")  # expected y ≈ −117  (> 40 so out of range)
         #print(f"[EDGE DEBUG] Features tensor shape: {features_tensor.shape}, RM tensor shape: {rm_tensor.shape}, Threshold map tensor shape: {thres_map_tensor.shape}")
         #print(f"[EDGE DEBUG] Record length: {record_len.item()}, Pairwise transformation matrix shape: {pairwise_t_matrix.shape}")
+        #print(f"[EDGE DEBUG] Ego pose for fusion: {ego_pose_for_fusion.location.x}, {ego_pose_for_fusion.location.y}, {ego_pose_for_fusion.rotation.yaw}")
+        #print(f"[EDGE DEBUG] Distance to objct in Ego frame: {np.linalg.norm(obj_ego[:3])}")
+        #other_car = self.print_other_car(self.world, ego_pose_for_fusion)
+        #vx = self.hypes['model']['args']['pc_params']['voxel_size'][0]  # 0.4
+        #vy = self.hypes['model']['args']['pc_params']['voxel_size'][1]
+        #x_min, y_min, _, x_max, y_max, _ = self.hypes['preprocess']['cav_lidar_range']
+        #W = self.hypes['postprocess']['anchor_args']['W']
+        #H = self.hypes['postprocess']['anchor_args']['H']
+        gt = self.print_other_car(self.vehicle_manager_list[0].vehicle, ego_pose_for_fusion)
+
+
+        # Example: want the RSU car to be inside [y_min, y_max]
+        #obj_ego = obj_ego[:3]
+        #iy = (obj_ego[1] - y_min) / vy   # voxel index in ego BEV Y axis
+        #ix = (obj_ego[0] - x_min) / vx
+
+        #print(f"[DEBUG] ix={ix:.1f}/{W}, iy={iy:.1f}/{H}")
+
+        # === DEBUGGING TRANSFORMATION MATRIX ===
+        #print("[EDGE DEBUG] Pairwise transformation matrix:")
+        #for i in range(pairwise_t_matrix.shape[1]):
+        #    for j in range(pairwise_t_matrix.shape[2]):
+        #        print(f"[EDGE DEBUG] Transformation from agent {i} to agent {j}:")
+        #        print(pairwise_t_matrix[0, i, j].cpu().numpy())
+        # === END DEBUGGING TRANSFORMATION MATRIX ===
+        # === DEBUGGING FEATURE MAPS ===
+        print("[EDGE DEBUG] Feature maps shape:", features_tensor.shape)
+        for i in range(features_tensor.shape[0]):
+            print(f"[EDGE DEBUG] Feature map {i} shape: {features_tensor[i].shape}")
+        # === END DEBUGGING FEATURE MAPS ===
+        # === DEBUGGING RM TENSOR ===
+        print("[EDGE DEBUG] RM tensor shape:", rm_tensor.shape)
+        for i in range(rm_tensor.shape[0]):
+            print(f"[EDGE DEBUG] RM tensor {i} shape: {rm_tensor[i].shape}")
+        # === END DEBUGGING RM TENSOR ===
+        # === DEBUGGING THRESHOLD MAP TENSOR ===
+        print("[EDGE DEBUG] Threshold map tensor shape:", thres_map_tensor.shape)
+        for i in range(thres_map_tensor.shape[0]):
+            print(f"[EDGE DEBUG] Threshold map tensor {i} shape: {thres_map_tensor[i].shape}")
+        # === END DEBUGGING THRESHOLD MAP TENSOR ===
+        # === DEBUGGING RECORD LENGTH ===
+        print("[EDGE DEBUG] Record length tensor:", record_len)
+        # === END DEBUGGING RECORD LENGTH ===
+        # === DEBUGGING POSES ===
+        print("[EDGE DEBUG] Poses:")
+        for i, pose in enumerate(poses):
+            print(f"[EDGE DEBUG] Pose {i}: Location ({pose.location.x}, {pose.location.y}, {pose.location.z}), "
+                  f"Rotation ({pose.rotation.roll}, {pose.rotation.yaw}, {pose.rotation.pitch})")
+        # === END DEBUGGING POSES ===
+        for rsu in self.rsu_manager_list:
+            print(f"[EDGE DEBUG] RSU pose: Location ({rsu.localizer.get_ego_pos().location.x}, "
+                  f"{rsu.localizer.get_ego_pos().location.y}, {rsu.localizer.get_ego_pos().location.z}), "
+                  f"Rotation ({rsu.localizer.get_ego_pos().rotation.roll}, "
+                  f"{rsu.localizer.get_ego_pos().rotation.yaw}, {rsu.localizer.get_ego_pos().rotation.pitch})")
+
+        for vehicle_manager in self.vehicle_manager_list:
+            print(f"[EDGE DEBUG] Vehicle pose: Location "
+                    f"({vehicle_manager.localizer.get_ego_pos().location.x}, "
+                    f"{vehicle_manager.localizer.get_ego_pos().location.y}, "
+                    f"{vehicle_manager.localizer.get_ego_pos().location.z}), "
+                    f"Rotation ({vehicle_manager.localizer.get_ego_pos().rotation.roll}, "
+                    f"{vehicle_manager.localizer.get_ego_pos().rotation.yaw}, "
+                    f"{vehicle_manager.localizer.get_ego_pos().rotation.pitch})")
+
 
         # 2. Warp all feature maps to the anchor vehicle's frame BEFORE fusion
         #aligned_features_list = [features_tensor[0]] # The anchor is already aligned
@@ -212,34 +346,110 @@ class BM2CPEdge(_BaseEdgeManager):
             #print("RSU origin (0,0,0) transformed into Ego's frame:", np.round(rsu_origin_in_ego_frame[:3], 2))
             #print("--- END TRANSFORM DEBUG ---\n")
 
-        #print("[EDGE DEBUG] Calling fusion_net...")
-        fused_feature, _, _ = self.model.fusion_net(
+            #print("[EDGE DEBUG] Running detection heads...")
+        
+        RSU_IDX = 1               # adapt if your ordering differs
+        rsu_raw   = features_tensor[RSU_IDX:RSU_IDX+1]          # [1,C,H,W]
+        rsu_rm     = rm_tensor[RSU_IDX:RSU_IDX+1]
+        rsu_thres  = thres_map_tensor[RSU_IDX:RSU_IDX+1]
+
+
+        print("[EDGE DEBUG] RSU raw :", rsu_raw.shape)
+
+        # --- call backbone the way it expects ---
+        data_dict = {'spatial_features': rsu_raw}
+        data_dict = self.model.backbone(data_dict)          # <- dict in, dict out
+        rsu_feat  = data_dict['spatial_features_2d']        # [1,384,96,352]
+        print("[EDGE DEBUG] RSU feat after backbone:", rsu_feat.shape)
+
+        rsu_feat = self.model.shrink_conv(rsu_feat) if self.model.shrink_flag else rsu_feat
+
+        print(f"[EDGE DEBUG] RSU feature shape after backbone and shrink: {rsu_feat.shape}, RM shape: {rsu_rm.shape}, Threshold map shape: {rsu_thres.shape}")
+
+
+        # ---- forward heads (no shrink‑conv) ----
+        psm_rsu = self.model.cls_head(rsu_feat)                  # [1,2,H,W]
+        rm_rsu  = self.model.reg_head(rsu_feat)                  # [1,14,H/2,W/2]
+
+        # ---- build a faux‑batch dict for post_processor ----
+        anchor_box_rsu = self.post_processor.generate_anchor_box()
+        data_dict_rsu  = {
+            'ego': {
+                'anchor_box'          : torch.from_numpy(anchor_box_rsu).cuda(),
+                'transformation_matrix': torch.eye(4).cuda()     # RSU frame ↔ RSU frame
+            }
+        }
+        out_dict_rsu = {'ego': {'psm': psm_rsu, 'rm': rm_rsu}}
+
+        boxes_rsu, scores_rsu = self.post_processor.post_process(
+                data_dict_rsu, out_dict_rsu)
+
+
+        if boxes_rsu is None:
+            print(">>> RSU‑only heads produced **no** boxes")
+        else:
+            # convert 8×3 corners → centre lwh yaw for nicer print
+            ctr = box_utils.corner_to_center(boxes_rsu.detach().cpu().numpy(), order='hwl')
+            print("\n=== RSU‑ONLY DETECTIONS ===")
+            for i,b in enumerate(ctr):
+                print(f"[{i:02}] RSU‑frame xyz=({b[0]:6.2f},{b[1]:6.2f},{b[2]:4.1f}) "
+                      f"lwh=({b[5]:.2f},{b[4]:.2f},{b[3]:.2f}) "
+                      f"yaw={np.degrees(b[6]):6.1f}°  score={scores_rsu[i]:.3f}")
+            # --- 1.  Ground‑truth vehicle in RSU frame ---------------------------
+            rsu_tf   = poses[1]                 # carla.Transform of the RSU
+            gt_world = np.array([gt['world'].location.x,
+                                 gt['world'].location.y,
+                                 gt['world'].location.z, 1.0])
+            T_w2rsu  = np.linalg.inv(np.array(rsu_tf.get_matrix()))
+            gt_rsu   = T_w2rsu @ gt_world
+            print("[DBG] GT in RSU frame xyz =", gt_rsu[:3])
+
+            # --- 2.  Compare with the RSU box you printed ------------------------
+            for i,b in enumerate(ctr):
+                print(f"[DBG] box[{i}] delta‑RSU‑frame (dx,dy) =",
+                      f"{b[0]-gt_rsu[0]:.2f} {b[1]-gt_rsu[1]:.2f}")
+
+
+            # …optionally move them to **world** to compare with GT
+            rsu_world_T = np.array(poses[RSU_IDX].get_matrix())      # 4×4
+            b_corners_h = np.hstack((ctr[:,:3], np.ones((len(ctr),1))))
+            b_world     = (rsu_world_T @ b_corners_h.T).T
+            print("--- same boxes in WORLD coords (x,y) ---")
+            for i,p in enumerate(b_world):
+                print(f"[{i:02}] (x={p[0]:7.2f}, y={p[1]:7.2f})")
+
+        print("[EDGE DEBUG] Calling fusion_net...")
+        print(features_tensor.shape)  # expect (..., 1000) as the last dim
+        fused_feature, communication_rates, result_dict = self.model.fusion_net(
             features_tensor,
-            rm_tensor,
+            psm_tensor,
             thres_map_tensor,
             record_len,
             pairwise_t_matrix,
             backbone=self.model.backbone,
             heads=[self.model.shrink_conv, self.model.cls_head, self.model.reg_head]
         )
-        #print(f"[EDGE DEBUG] Fusion complete. Fused feature shape: {fused_feature.shape}")
-        
-        #print("[EDGE DEBUG] Running detection heads...")
+        print(f"[EDGE DEBUG] Fusion complete. Fused feature shape: {fused_feature.shape}")
+
         if self.model.shrink_flag:
             fused_feature = self.model.shrink_conv(fused_feature)
         
         pred_dict = {'psm': self.model.cls_head(fused_feature), 'rm': self.model.reg_head(fused_feature)}
 
-        print(f"[EDGE DEBUG] Time taken for fusion and detection: {time.time() - start_time:.2f} milliseconds")
+
+        
+        
+        print(f"[EDGE DEBUG] Time taken for fusion and detection in ms: {(time.time() - start_time) * 1000} ms")
         det_results_ab3d = self._to_ab3dmot_format(pred_dict, frame_id, ego_pose_for_fusion)
         print(f"[EDGE DEBUG] Detection complete. Found {len(det_results_ab3d.get('dets', []))} objects.")
         print(f"[EDGE DEBUG] Detection results: {det_results_ab3d.get('dets', [])[:5]}... (showing first 5 detections)")
         
-        #print("[EDGE DEBUG] Calling tracker...")
+        print("[EDGE DEBUG] Calling tracker...")
         tracker = AB3DMOT(self.ab3dmot_config, self.ab3dmot_category)
-        #print(f"[EDGE DEBUG] Tracker initialized with config: {self.ab3dmot_config}")
+        print(f"[EDGE DEBUG] Tracker initialized with config: {self.ab3dmot_config}")
         tracked_dets = tracker.track(det_results_ab3d, tick)
-        #print(f"[EDGE DEBUG] Tracking complete. Found {len(tracked_dets) if tracked_dets is not None else 0} tracks.")
+        print(f"[EDGE DEBUG] Tracks result: {tracked_dets[:5]}... (showing first 5 tracks)" if tracked_dets is not None else "[EDGE DEBUG] No tracks found.")
+        print(f"[EDGE DEBUG] Tracking complete. Found {len(tracked_dets) if tracked_dets is not None else 0} tracks.")
         
         #self._update_trajectories(tracked_dets)
         #edge_predictions = self.lin_pred.generate_predicted_trajectories(self.tracked_trajectories)
@@ -266,12 +476,15 @@ class BM2CPEdge(_BaseEdgeManager):
         # Create the 5D tensor expected by the fusion network
         pairwise_t_matrix = np.tile(np.eye(4), (1, max_cav, max_cav, 1, 1))
 
+
+        
+
         for i in range(L):
             for j in range(L):
-                # Use the repository's own utility function to get the
-                # correct transformation from agent j to agent i.
-                # This function correctly handles all internal coordinate system conversions.
-                pairwise_t_matrix[0, i, j] = transformation_utils.x1_to_x2(pose_list[j], pose_list[i])
+                # correct direction:  i -> j  (anchor -> neighbour)
+                pairwise_t_matrix[0, i, j] = transformation_utils.x1_to_x2(
+                    pose_list[i],   # FROM  (source / anchor)
+                    pose_list[j])   # TO    (target / neighbour)
 
         return torch.from_numpy(pairwise_t_matrix).float().cuda()
 
@@ -373,6 +586,15 @@ class BM2CPEdge(_BaseEdgeManager):
         # 5. Reorder columns for AB3DMOT's required format (h,w,l,x,y,z,ry)
         ab3d_boxes = world_frame_boxes[:, [3, 4, 5, 0, 1, 2, 6]]
         info = np.array([[frame_id, i, -1] for i in range(len(scores_np))])
+
+
+        # ── at the end of _to_ab3dmot_format ───────────────────────────────────
+        print("DEBUG‑BOX  world_frame_boxes[:5] =\n", world_frame_boxes[:5])
+        print("DEBUG‑INFO anchor world pose (x,y,yaw) =",
+              anchor_pose.location.x, anchor_pose.location.y, anchor_pose.rotation.yaw)
+        print("DEBUG‑INFO first lidar corner (local) =", box_corners_local_np[0,0])
+        print("DEBUG‑INFO anchor_world_matrix =\n", anchor_world_matrix)
+        # ───────────────────────────────────────────────────────────────────────
         
         return {'dets': ab3d_boxes, 'info': info, 'scores': scores_np}
 
