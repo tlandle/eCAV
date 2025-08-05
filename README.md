@@ -1,4 +1,4 @@
-# eCAV 2.0 – Conductor Branch
+# eCAV 2.0
 
 This repository contains **eCAV 2.0**, a cooperative driving simulator designed for large‑scale (100+ vehicles), cloud‑hosted experiments.
 ## Key Features
