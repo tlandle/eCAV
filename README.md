@@ -1,33 +1,28 @@
-# eCAV
+# eCAV 2.0 – Conductor Branch
 
-This software is an extension of the [OpenCDA simulation tool](https://github.com/ucla-mobility/OpenCDA). The following features are added as an extension of OpenCDA:
+This repository contains **eCAV 2.0**, a cooperative driving simulator designed for large‑scale (100+ vehicles), cloud‑hosted experiments.
+## Key Features
 
-- Distrbuted/Asynchronous communication between OpenCDA(Edge)/Carla and Vehicle clients using gRPC
-- Containerization of vehicle clients using Nvidia Docker 2 (supports local vehicle planning/perception)
-- Plugable Algorithm for vehicle autonomous driving
-- Support for Propagation Models
-- Automation scripts for Cloud deployment of simulation using Ansible
-- Metric/Evaluation gathering for simulation performance
+The conductor branch builds on the core functionality of OpenCDA and adds several features tailored for cloud‑native experiments:
 
+- **Asynchronous communication between clients and server:** vehicle and edge clients interact with the simulator via gRPC, enabling non‑blocking data exchange and scalable distributed deployment:contentReference[oaicite:0]{index=0}.
+- **Containerised vehicle clients:** each vehicle runs in its own Docker container using Nvidia Docker 2 for GPU‑accelerated perception:contentReference[oaicite:1]{index=1}.  Containers make it easy to scale to hundreds of vehicles and isolate experiments.
+- **Pluggable driving algorithms:** vehicle control and perception modules can be swapped out to test new planners or sensors:contentReference[oaicite:2]{index=2}.  For example, you can integrate the BM2CP LiDAR–camera fusion model or other perception networks.
+- **Propagation models:** support for radio‑propagation models to emulate realistic V2X communication channels:contentReference[oaicite:3]{index=3}.
+- **Automation scripts for cloud deployment:** Ansible scripts automate provisioning of hosts and deployment of simulation components:contentReference[oaicite:4]{index=4}.
+- **Metrics and evaluation gathering:** built‑in logging collects performance metrics to analyse perception latency, network throughput and control accuracy:contentReference[oaicite:5]{index=5}.
 
 ## Installation
 
-Install Carla and OpenCDA:
-https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html
+### Prerequisites
 
+1. **CARLA & OpenCDA:** Follow the [OpenCDA installation guide](https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html) to install CARLA and OpenCDA:contentReference[oaicite:6]{index=6}.
+2. **Dependencies:** You will need additional Python packages such as `ortools` and `k-means-constrained`.  They can be installed with
 
-Install Ortools
-
-```bash
-pip install --user ortools==9.3.10497 
-```
-
-Install k-means-constrained
-
-```bash
-pip install k-means-constrained==0.7.0
-python -c "from k_means_constrained import KMeansConstrained"
-```
+   ```bash
+   pip install --user ortools==9.3.10497  # optimisation library:contentReference[oaicite:7]{index=7}
+   pip install k-means-constrained==0.7.0 # clustering algorithm:contentReference[oaicite:8]{index=8}
+   python -c "from k_means_constrained import KMeansConstrained"
 
 Create gRPC stubs
 
