@@ -1472,7 +1472,7 @@ class ScenarioManager:
         self.debug_helper.shutdown_time_ms = time.time() - start_time
 
     def do_pickling(self, column_key, flat_list, file_path):
-        logger.info("run stats for %s:\nmean %s: %s \nmedian %s: %s \n95th percentile %s %s",
+        logger.debug("run stats for %s:\nmean %s: %s \nmedian %s: %s \n95th percentile %s %s",
                     column_key, column_key, np.mean(flat_list),
                     column_key, np.median(flat_list),
                     column_key, np.percentile(flat_list, 95))

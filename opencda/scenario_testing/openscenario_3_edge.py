@@ -30,12 +30,15 @@ def exec_scenario_runner(scenario_params):
     Returns
     -------
     """
-    #global scenario_runner
-    scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
-    #print(scenario_runner)
-    scenario_runner.run()
-    scenario_runner.destroy()
-
+    try:
+        #global scenario_runner
+        scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
+        #print(scenario_runner)
+        scenario_runner.run()
+        scenario_runner.destroy()
+    except Exception as e:
+        print(f"vehicle_index: {scenario_params.scenario_runner.vehicle_index}")
+        raise e
 
 def run_scenario(opt, scenario_params):
     #scenario_runner = None
@@ -63,9 +66,17 @@ def run_scenario(opt, scenario_params):
 
         print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
 
+        scenario_params.scenario_runner.vehicle_index = 0
+        sr_process_ego = Process(target=exec_scenario_runner,
+                             args=(scenario_params,))
+        sr_process_ego.start()
+
+        scenario_params.scenario_runner.vehicle_index = 1
+        scenario_params.scenario_runner.trafficManagerPort = int(scenario_params.scenario_runner.trafficManagerPort) + 1
         sr_process = Process(target=exec_scenario_runner,
                              args=(scenario_params,))
         sr_process.start()
+        
         #sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params.scenario_runner,))
         #sr_thread.start()
 

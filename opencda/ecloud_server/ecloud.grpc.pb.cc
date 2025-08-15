@@ -32,6 +32,7 @@ static const char* Ecloud_method_names[] = {
   "/ecloud.Ecloud/Server_EndScenario",
   "/ecloud.Ecloud/Server_GetVehicleUpdates",
   "/ecloud.Ecloud/Server_PushEdgeWaypoints",
+  "/ecloud.Ecloud/Server_PushEdgeObjects",
 };
 
 std::unique_ptr< Ecloud::Stub> Ecloud::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -51,6 +52,7 @@ Ecloud::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, co
   , rpcmethod_Server_EndScenario_(Ecloud_method_names[7], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Server_GetVehicleUpdates_(Ecloud_method_names[8], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Server_PushEdgeWaypoints_(Ecloud_method_names[9], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Server_PushEdgeObjects_(Ecloud_method_names[10], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status Ecloud::Stub::PushTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::ecloud::Empty* response) {
@@ -283,6 +285,29 @@ void Ecloud::Stub::async::Server_PushEdgeWaypoints(::grpc::ClientContext* contex
   return result;
 }
 
+::grpc::Status Ecloud::Stub::Server_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::ecloud::Empty* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::ecloud::EdgeObjects, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Server_PushEdgeObjects_, context, request, response);
+}
+
+void Ecloud::Stub::async::Server_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::ecloud::EdgeObjects, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Server_PushEdgeObjects_, context, request, response, std::move(f));
+}
+
+void Ecloud::Stub::async::Server_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Server_PushEdgeObjects_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::PrepareAsyncServer_PushEdgeObjectsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::ecloud::Empty, ::ecloud::EdgeObjects, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Server_PushEdgeObjects_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::AsyncServer_PushEdgeObjectsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncServer_PushEdgeObjectsRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 Ecloud::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       Ecloud_method_names[0],
@@ -384,6 +409,16 @@ Ecloud::Service::Service() {
              ::ecloud::Empty* resp) {
                return service->Server_PushEdgeWaypoints(ctx, req, resp);
              }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Ecloud_method_names[10],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::EdgeObjects, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](Ecloud::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::ecloud::EdgeObjects* req,
+             ::ecloud::Empty* resp) {
+               return service->Server_PushEdgeObjects(ctx, req, resp);
+             }, this)));
 }
 
 Ecloud::Service::~Service() {
@@ -453,6 +488,13 @@ Ecloud::Service::~Service() {
 }
 
 ::grpc::Status Ecloud::Service::Server_PushEdgeWaypoints(::grpc::ServerContext* context, const ::ecloud::EdgeWaypoints* request, ::ecloud::Empty* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status Ecloud::Service::Server_PushEdgeObjects(::grpc::ServerContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response) {
   (void) context;
   (void) request;
   (void) response;

@@ -32,19 +32,19 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
 
-#from scenario_runner.srunner.scenarioconfigs.openscenario_configuration import OpenScenarioConfiguration 
-from scenario_runner.srunner.scenariomanager.carla_data_provider import CarlaDataProvider 
-from scenario_runner.srunner.scenariomanager.scenario_manager import ScenarioManager 
-from scenario_runner.srunner.scenarios.open_scenario import OpenScenario 
-from scenario_runner.srunner.scenarios.route_scenario import RouteScenario 
-from scenario_runner.srunner.tools.scenario_parser import ScenarioConfigurationParser
+#from srunner.scenarioconfigs.openscenario_configuration import OpenScenarioConfiguration 
+from srunner.scenariomanager.carla_data_provider import CarlaDataProvider 
+from srunner.scenariomanager.scenario_manager import ScenarioManager 
+from srunner.scenarios.open_scenario import OpenScenario 
+from srunner.scenarios.route_scenario import RouteScenario 
+from srunner.tools.scenario_parser import ScenarioConfigurationParser
 from srunner.scenarioconfigs.scenario_configuration import ScenarioConfiguration, ActorConfigurationData 
-from scenario_runner.srunner.tools.route_parser import RouteParser 
-from scenario_runner.srunner.scenarios.opposite_vehicle_taking_priority_no_ego import OppositeVehicleRunningRedLight
+from srunner.tools.route_parser import RouteParser 
+from srunner.scenarios.opposite_vehicle_taking_priority_no_ego import OppositeVehicleRunningRedLight
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
-#from scenario_runner.srunner.tools.osc2_helper import OSC2Helper 
-#from scenario_runner.srunner.scenarios.osc2_scenario import OSC2Scenario 
-#from scenario_runner.srunner.scenarioconfigs.osc2_scenario_configuration import OSC2ScenarioConfiguration 
+#from srunner.tools.osc2_helper import OSC2Helper 
+#from srunner.scenarios.osc2_scenario import OSC2Scenario 
+#from srunner.scenarioconfigs.osc2_scenario_configuration import OSC2ScenarioConfiguration 
 
 # ONLY *required* for 2 Lane highway scenarios
 # import opencda.scenario_testing.utils.customized_map_api as map_api

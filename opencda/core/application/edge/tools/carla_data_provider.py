@@ -141,8 +141,9 @@ class CarlaDataProvider(object):  # pylint: disable=too-many-public-methods
 
         # We are intentionally not throwing here
         # This may cause exception loops in py_trees
-        print('{}.get_location: {} not found!' .format(__name__, actor))
-        return None
+        print(format('{}.get_location: {} not found...' .format(__name__, actor)))
+        raise RuntimeError('{}.get_location: {} not found...' .format(__name__, actor))
+        #return None
 
     @staticmethod
     def get_transform(actor):

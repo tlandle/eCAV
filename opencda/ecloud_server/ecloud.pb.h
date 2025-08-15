@@ -66,6 +66,9 @@ extern CollisionEventDefaultTypeInternal _CollisionEvent_default_instance_;
 class EcloudResponse;
 struct EcloudResponseDefaultTypeInternal;
 extern EcloudResponseDefaultTypeInternal _EcloudResponse_default_instance_;
+class EdgeObjects;
+struct EdgeObjectsDefaultTypeInternal;
+extern EdgeObjectsDefaultTypeInternal _EdgeObjects_default_instance_;
 class EdgeObstacleObject;
 struct EdgeObstacleObjectDefaultTypeInternal;
 extern EdgeObstacleObjectDefaultTypeInternal _EdgeObstacleObject_default_instance_;
@@ -139,6 +142,8 @@ template <>
 ::ecloud::CollisionEvent* Arena::CreateMaybeMessage<::ecloud::CollisionEvent>(Arena*);
 template <>
 ::ecloud::EcloudResponse* Arena::CreateMaybeMessage<::ecloud::EcloudResponse>(Arena*);
+template <>
+::ecloud::EdgeObjects* Arena::CreateMaybeMessage<::ecloud::EdgeObjects>(Arena*);
 template <>
 ::ecloud::EdgeObstacleObject* Arena::CreateMaybeMessage<::ecloud::EdgeObstacleObject>(Arena*);
 template <>
@@ -5515,16 +5520,16 @@ class ObjectRequest final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kVehicleIdFieldNumber = 1,
+    kVehicleIndexFieldNumber = 1,
   };
-  // int32 vehicle_id = 1;
-  void clear_vehicle_id() ;
-  ::int32_t vehicle_id() const;
-  void set_vehicle_id(::int32_t value);
+  // int32 vehicle_index = 1;
+  void clear_vehicle_index() ;
+  ::int32_t vehicle_index() const;
+  void set_vehicle_index(::int32_t value);
 
   private:
-  ::int32_t _internal_vehicle_id() const;
-  void _internal_set_vehicle_id(::int32_t value);
+  ::int32_t _internal_vehicle_index() const;
+  void _internal_set_vehicle_index(::int32_t value);
 
   public:
   // @@protoc_insertion_point(class_scope:ecloud.ObjectRequest)
@@ -5535,7 +5540,172 @@ class ObjectRequest final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
-    ::int32_t vehicle_id_;
+    ::int32_t vehicle_index_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};// -------------------------------------------------------------------
+
+class EdgeObjects final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:ecloud.EdgeObjects) */ {
+ public:
+  inline EdgeObjects() : EdgeObjects(nullptr) {}
+  ~EdgeObjects() override;
+  template<typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeObjects(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  EdgeObjects(const EdgeObjects& from);
+  EdgeObjects(EdgeObjects&& from) noexcept
+    : EdgeObjects() {
+    *this = ::std::move(from);
+  }
+
+  inline EdgeObjects& operator=(const EdgeObjects& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeObjects& operator=(EdgeObjects&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
+  }
+  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeObjects& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const EdgeObjects* internal_default_instance() {
+    return reinterpret_cast<const EdgeObjects*>(
+               &_EdgeObjects_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    25;
+
+  friend void swap(EdgeObjects& a, EdgeObjects& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(EdgeObjects* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeObjects* other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeObjects* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<EdgeObjects>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const EdgeObjects& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const EdgeObjects& from) {
+    EdgeObjects::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  ::size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  ::uint8_t* _InternalSerialize(
+      ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(EdgeObjects* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::absl::string_view FullMessageName() {
+    return "ecloud.EdgeObjects";
+  }
+  protected:
+  explicit EdgeObjects(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kAllObjectBuffersFieldNumber = 1,
+  };
+  // repeated .ecloud.ObjectBuffer all_object_buffers = 1;
+  int all_object_buffers_size() const;
+  private:
+  int _internal_all_object_buffers_size() const;
+
+  public:
+  void clear_all_object_buffers() ;
+  ::ecloud::ObjectBuffer* mutable_all_object_buffers(int index);
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ecloud::ObjectBuffer >*
+      mutable_all_object_buffers();
+  private:
+  const ::ecloud::ObjectBuffer& _internal_all_object_buffers(int index) const;
+  ::ecloud::ObjectBuffer* _internal_add_all_object_buffers();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<::ecloud::ObjectBuffer>& _internal_all_object_buffers() const;
+  ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<::ecloud::ObjectBuffer>* _internal_mutable_all_object_buffers();
+  public:
+  const ::ecloud::ObjectBuffer& all_object_buffers(int index) const;
+  ::ecloud::ObjectBuffer* add_all_object_buffers();
+  const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ecloud::ObjectBuffer >&
+      all_object_buffers() const;
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeObjects)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ecloud::ObjectBuffer > all_object_buffers_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -9760,24 +9930,76 @@ inline void EdgeObstacleObject::set_allocated_velocity(::ecloud::Velocity* veloc
 
 // ObjectRequest
 
-// int32 vehicle_id = 1;
-inline void ObjectRequest::clear_vehicle_id() {
-  _impl_.vehicle_id_ = 0;
+// int32 vehicle_index = 1;
+inline void ObjectRequest::clear_vehicle_index() {
+  _impl_.vehicle_index_ = 0;
 }
-inline ::int32_t ObjectRequest::vehicle_id() const {
-  // @@protoc_insertion_point(field_get:ecloud.ObjectRequest.vehicle_id)
-  return _internal_vehicle_id();
+inline ::int32_t ObjectRequest::vehicle_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.ObjectRequest.vehicle_index)
+  return _internal_vehicle_index();
 }
-inline void ObjectRequest::set_vehicle_id(::int32_t value) {
-  _internal_set_vehicle_id(value);
-  // @@protoc_insertion_point(field_set:ecloud.ObjectRequest.vehicle_id)
+inline void ObjectRequest::set_vehicle_index(::int32_t value) {
+  _internal_set_vehicle_index(value);
+  // @@protoc_insertion_point(field_set:ecloud.ObjectRequest.vehicle_index)
 }
-inline ::int32_t ObjectRequest::_internal_vehicle_id() const {
-  return _impl_.vehicle_id_;
+inline ::int32_t ObjectRequest::_internal_vehicle_index() const {
+  return _impl_.vehicle_index_;
 }
-inline void ObjectRequest::_internal_set_vehicle_id(::int32_t value) {
+inline void ObjectRequest::_internal_set_vehicle_index(::int32_t value) {
   ;
-  _impl_.vehicle_id_ = value;
+  _impl_.vehicle_index_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// EdgeObjects
+
+// repeated .ecloud.ObjectBuffer all_object_buffers = 1;
+inline int EdgeObjects::_internal_all_object_buffers_size() const {
+  return _impl_.all_object_buffers_.size();
+}
+inline int EdgeObjects::all_object_buffers_size() const {
+  return _internal_all_object_buffers_size();
+}
+inline void EdgeObjects::clear_all_object_buffers() {
+  _internal_mutable_all_object_buffers()->Clear();
+}
+inline ::ecloud::ObjectBuffer* EdgeObjects::mutable_all_object_buffers(int index) {
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeObjects.all_object_buffers)
+  return _internal_mutable_all_object_buffers()->Mutable(index);
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ecloud::ObjectBuffer >*
+EdgeObjects::mutable_all_object_buffers() {
+  // @@protoc_insertion_point(field_mutable_list:ecloud.EdgeObjects.all_object_buffers)
+  return _internal_mutable_all_object_buffers();
+}
+inline const ::ecloud::ObjectBuffer& EdgeObjects::_internal_all_object_buffers(int index) const {
+  return _internal_all_object_buffers().Get(index);
+}
+inline const ::ecloud::ObjectBuffer& EdgeObjects::all_object_buffers(int index) const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeObjects.all_object_buffers)
+  return _internal_all_object_buffers(index);
+}
+inline ::ecloud::ObjectBuffer* EdgeObjects::_internal_add_all_object_buffers() {
+  return _internal_mutable_all_object_buffers()->Add();
+}
+inline ::ecloud::ObjectBuffer* EdgeObjects::add_all_object_buffers() {
+  ::ecloud::ObjectBuffer* _add = _internal_add_all_object_buffers();
+  // @@protoc_insertion_point(field_add:ecloud.EdgeObjects.all_object_buffers)
+  return _add;
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ecloud::ObjectBuffer >&
+EdgeObjects::all_object_buffers() const {
+  // @@protoc_insertion_point(field_list:ecloud.EdgeObjects.all_object_buffers)
+  return _internal_all_object_buffers();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<::ecloud::ObjectBuffer>&
+EdgeObjects::_internal_all_object_buffers() const {
+  return _impl_.all_object_buffers_;
+}
+inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<::ecloud::ObjectBuffer>*
+EdgeObjects::_internal_mutable_all_object_buffers() {
+  return &_impl_.all_object_buffers_;
 }
 
 #ifdef __GNUC__

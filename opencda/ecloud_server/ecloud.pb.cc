@@ -563,7 +563,7 @@ PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
 template <typename>
 PROTOBUF_CONSTEXPR ObjectRequest::ObjectRequest(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.vehicle_id_)*/ 0
+    /*decltype(_impl_.vehicle_index_)*/ 0
 
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct ObjectRequestDefaultTypeInternal {
@@ -576,8 +576,23 @@ struct ObjectRequestDefaultTypeInternal {
 
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ObjectRequestDefaultTypeInternal _ObjectRequest_default_instance_;
+template <typename>
+PROTOBUF_CONSTEXPR EdgeObjects::EdgeObjects(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.all_object_buffers_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct EdgeObjectsDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR EdgeObjectsDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~EdgeObjectsDefaultTypeInternal() {}
+  union {
+    EdgeObjects _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeObjectsDefaultTypeInternal _EdgeObjects_default_instance_;
 }  // namespace ecloud
-static ::_pb::Metadata file_level_metadata_ecloud_2eproto[25];
+static ::_pb::Metadata file_level_metadata_ecloud_2eproto[26];
 static const ::_pb::EnumDescriptor* file_level_enum_descriptors_ecloud_2eproto[2];
 static constexpr const ::_pb::ServiceDescriptor**
     file_level_service_descriptors_ecloud_2eproto = nullptr;
@@ -919,7 +934,16 @@ const ::uint32_t TableStruct_ecloud_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
     ~0u,  // no _inlined_string_donated_
     ~0u,  // no _split_
     ~0u,  // no sizeof(Split)
-    PROTOBUF_FIELD_OFFSET(::ecloud::ObjectRequest, _impl_.vehicle_id_),
+    PROTOBUF_FIELD_OFFSET(::ecloud::ObjectRequest, _impl_.vehicle_index_),
+    ~0u,  // no _has_bits_
+    PROTOBUF_FIELD_OFFSET(::ecloud::EdgeObjects, _internal_metadata_),
+    ~0u,  // no _extensions_
+    ~0u,  // no _oneof_case_
+    ~0u,  // no _weak_field_map_
+    ~0u,  // no _inlined_string_donated_
+    ~0u,  // no _split_
+    ~0u,  // no sizeof(Split)
+    PROTOBUF_FIELD_OFFSET(::ecloud::EdgeObjects, _impl_.all_object_buffers_),
 };
 
 static const ::_pbi::MigrationSchema
@@ -949,6 +973,7 @@ static const ::_pbi::MigrationSchema
         { 302, -1, -1, sizeof(::ecloud::ObjectBuffer)},
         { 312, 324, -1, sizeof(::ecloud::EdgeObstacleObject)},
         { 328, -1, -1, sizeof(::ecloud::ObjectRequest)},
+        { 337, -1, -1, sizeof(::ecloud::EdgeObjects)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -977,6 +1002,7 @@ static const ::_pb::Message* const file_default_instances[] = {
     &::ecloud::_ObjectBuffer_default_instance_._instance,
     &::ecloud::_EdgeObstacleObject_default_instance_._instance,
     &::ecloud::_ObjectRequest_default_instance_._instance,
+    &::ecloud::_EdgeObjects_default_instance_._instance,
 };
 const char descriptor_table_protodef_ecloud_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
     "\n\014ecloud.proto\022\006ecloud\032\037google/protobuf/"
@@ -1057,30 +1083,33 @@ const char descriptor_table_protodef_ecloud_2eproto[] PROTOBUF_SECTION_VARIABLE(
     "eObject\0221\n\014bounding_box\030\001 \001(\0132\033.ecloud.O"
     "bstacleBoundingBox\022\"\n\010location\030\002 \001(\0132\020.e"
     "cloud.Location\022\020\n\010carla_id\030\003 \001(\005\022\"\n\010velo"
-    "city\030\004 \001(\0132\020.ecloud.Velocity\"#\n\rObjectRe"
-    "quest\022\022\n\nvehicle_id\030\001 \001(\005*Q\n\007Command\022\010\n\004"
-    "TICK\020\000\022\007\n\003END\020\001\022\026\n\022REQUEST_DEBUG_INFO\020\002\022"
-    "\033\n\027PULL_WAYPOINTS_AND_TICK\020\003*\240\001\n\014Vehicle"
-    "State\022\017\n\013REGISTERING\020\000\022\020\n\014CARLA_UPDATE\020\001"
-    "\022\022\n\016UPDATE_INFO_OK\020\002\022\023\n\017GET_DESTINATION\020"
-    "\003\022\013\n\007TICK_OK\020\004\022\r\n\tTICK_DONE\020\005\022\006\n\002OK\020\006\022\t\n"
-    "\005ERROR\020\007\022\025\n\021DEBUG_INFO_UPDATE\020\0102\350\004\n\006Eclo"
-    "ud\022\'\n\010PushTick\022\014.ecloud.Tick\032\r.ecloud.Em"
-    "pty\0229\n\021Client_SendUpdate\022\025.ecloud.Vehicl"
-    "eUpdate\032\r.ecloud.Empty\022J\n\026Client_Registe"
-    "rVehicle\022\030.ecloud.RegistrationInfo\032\026.ecl"
-    "oud.SimulationInfo\022F\n\023Client_GetWaypoint"
-    "s\022\027.ecloud.WaypointRequest\032\026.ecloud.Wayp"
-    "ointBuffer\022@\n\021Client_GetObjects\022\025.ecloud"
-    ".ObjectRequest\032\024.ecloud.ObjectBuffer\022,\n\r"
-    "Server_DoTick\022\014.ecloud.Tick\032\r.ecloud.Emp"
-    "ty\022=\n\024Server_StartScenario\022\026.ecloud.Simu"
-    "lationInfo\032\r.ecloud.Empty\0222\n\022Server_EndS"
-    "cenario\022\r.ecloud.Empty\032\r.ecloud.Empty\022A\n"
-    "\030Server_GetVehicleUpdates\022\r.ecloud.Empty"
-    "\032\026.ecloud.EcloudResponse\022@\n\030Server_PushE"
-    "dgeWaypoints\022\025.ecloud.EdgeWaypoints\032\r.ec"
-    "loud.Emptyb\006proto3"
+    "city\030\004 \001(\0132\020.ecloud.Velocity\"&\n\rObjectRe"
+    "quest\022\025\n\rvehicle_index\030\001 \001(\005\"\?\n\013EdgeObje"
+    "cts\0220\n\022all_object_buffers\030\001 \003(\0132\024.ecloud"
+    ".ObjectBuffer*Q\n\007Command\022\010\n\004TICK\020\000\022\007\n\003EN"
+    "D\020\001\022\026\n\022REQUEST_DEBUG_INFO\020\002\022\033\n\027PULL_WAYP"
+    "OINTS_AND_TICK\020\003*\240\001\n\014VehicleState\022\017\n\013REG"
+    "ISTERING\020\000\022\020\n\014CARLA_UPDATE\020\001\022\022\n\016UPDATE_I"
+    "NFO_OK\020\002\022\023\n\017GET_DESTINATION\020\003\022\013\n\007TICK_OK"
+    "\020\004\022\r\n\tTICK_DONE\020\005\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021"
+    "DEBUG_INFO_UPDATE\020\0102\246\005\n\006Ecloud\022\'\n\010PushTi"
+    "ck\022\014.ecloud.Tick\032\r.ecloud.Empty\0229\n\021Clien"
+    "t_SendUpdate\022\025.ecloud.VehicleUpdate\032\r.ec"
+    "loud.Empty\022J\n\026Client_RegisterVehicle\022\030.e"
+    "cloud.RegistrationInfo\032\026.ecloud.Simulati"
+    "onInfo\022F\n\023Client_GetWaypoints\022\027.ecloud.W"
+    "aypointRequest\032\026.ecloud.WaypointBuffer\022@"
+    "\n\021Client_GetObjects\022\025.ecloud.ObjectReque"
+    "st\032\024.ecloud.ObjectBuffer\022,\n\rServer_DoTic"
+    "k\022\014.ecloud.Tick\032\r.ecloud.Empty\022=\n\024Server"
+    "_StartScenario\022\026.ecloud.SimulationInfo\032\r"
+    ".ecloud.Empty\0222\n\022Server_EndScenario\022\r.ec"
+    "loud.Empty\032\r.ecloud.Empty\022A\n\030Server_GetV"
+    "ehicleUpdates\022\r.ecloud.Empty\032\026.ecloud.Ec"
+    "loudResponse\022@\n\030Server_PushEdgeWaypoints"
+    "\022\025.ecloud.EdgeWaypoints\032\r.ecloud.Empty\022<"
+    "\n\026Server_PushEdgeObjects\022\023.ecloud.EdgeOb"
+    "jects\032\r.ecloud.Emptyb\006proto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_ecloud_2eproto_deps[1] =
     {
@@ -1090,13 +1119,13 @@ static ::absl::once_flag descriptor_table_ecloud_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_ecloud_2eproto = {
     false,
     false,
-    4058,
+    4188,
     descriptor_table_protodef_ecloud_2eproto,
     "ecloud.proto",
     &descriptor_table_ecloud_2eproto_once,
     descriptor_table_ecloud_2eproto_deps,
     1,
-    25,
+    26,
     schemas,
     file_default_instances,
     TableStruct_ecloud_2eproto::offsets,
@@ -8564,7 +8593,7 @@ ObjectRequest::ObjectRequest(const ObjectRequest& from)
 inline void ObjectRequest::SharedCtor(::_pb::Arena* arena) {
   (void)arena;
   new (&_impl_) Impl_{
-      decltype(_impl_.vehicle_id_) { 0 }
+      decltype(_impl_.vehicle_index_) { 0 }
 
     , /*decltype(_impl_._cached_size_)*/{}
   };
@@ -8593,7 +8622,7 @@ void ObjectRequest::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  _impl_.vehicle_id_ = 0;
+  _impl_.vehicle_index_ = 0;
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -8603,10 +8632,10 @@ const char* ObjectRequest::_InternalParse(const char* ptr, ::_pbi::ParseContext*
     ::uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
-      // int32 vehicle_id = 1;
+      // int32 vehicle_index = 1;
       case 1:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 8)) {
-          _impl_.vehicle_id_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          _impl_.vehicle_index_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
           CHK_(ptr);
         } else {
           goto handle_unusual;
@@ -8641,11 +8670,11 @@ failure:
   ::uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  // int32 vehicle_id = 1;
-  if (this->_internal_vehicle_id() != 0) {
+  // int32 vehicle_index = 1;
+  if (this->_internal_vehicle_index() != 0) {
     target = stream->EnsureSpace(target);
     target = ::_pbi::WireFormatLite::WriteInt32ToArray(
-        1, this->_internal_vehicle_id(), target);
+        1, this->_internal_vehicle_index(), target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -8664,10 +8693,10 @@ failure:
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // int32 vehicle_id = 1;
-  if (this->_internal_vehicle_id() != 0) {
+  // int32 vehicle_index = 1;
+  if (this->_internal_vehicle_index() != 0) {
     total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
-        this->_internal_vehicle_id());
+        this->_internal_vehicle_index());
   }
 
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
@@ -8688,8 +8717,8 @@ void ObjectRequest::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::
   ::uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  if (from._internal_vehicle_id() != 0) {
-    _this->_internal_set_vehicle_id(from._internal_vehicle_id());
+  if (from._internal_vehicle_index() != 0) {
+    _this->_internal_set_vehicle_index(from._internal_vehicle_index());
   }
   _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
 }
@@ -8709,13 +8738,195 @@ void ObjectRequest::InternalSwap(ObjectRequest* other) {
   using std::swap;
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
 
-  swap(_impl_.vehicle_id_, other->_impl_.vehicle_id_);
+  swap(_impl_.vehicle_index_, other->_impl_.vehicle_index_);
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata ObjectRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
       file_level_metadata_ecloud_2eproto[24]);
+}
+// ===================================================================
+
+class EdgeObjects::_Internal {
+ public:
+};
+
+EdgeObjects::EdgeObjects(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.EdgeObjects)
+}
+EdgeObjects::EdgeObjects(const EdgeObjects& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  EdgeObjects* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.all_object_buffers_){from._impl_.all_object_buffers_}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  // @@protoc_insertion_point(copy_constructor:ecloud.EdgeObjects)
+}
+
+inline void EdgeObjects::SharedCtor(::_pb::Arena* arena) {
+  (void)arena;
+  new (&_impl_) Impl_{
+      decltype(_impl_.all_object_buffers_){arena}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+}
+
+EdgeObjects::~EdgeObjects() {
+  // @@protoc_insertion_point(destructor:ecloud.EdgeObjects)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void EdgeObjects::SharedDtor() {
+  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+  _internal_mutable_all_object_buffers()->~RepeatedPtrField();
+}
+
+void EdgeObjects::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void EdgeObjects::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.EdgeObjects)
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _internal_mutable_all_object_buffers()->Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* EdgeObjects::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    ::uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // repeated .ecloud.ObjectBuffer all_object_buffers = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 10)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_all_object_buffers(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<10>(ptr));
+        } else {
+          goto handle_unusual;
+        }
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+::uint8_t* EdgeObjects::_InternalSerialize(
+    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.EdgeObjects)
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // repeated .ecloud.ObjectBuffer all_object_buffers = 1;
+  for (unsigned i = 0,
+      n = static_cast<unsigned>(this->_internal_all_object_buffers_size()); i < n; i++) {
+    const auto& repfield = this->_internal_all_object_buffers(i);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+        InternalWriteMessage(1, repfield, repfield.GetCachedSize(), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.EdgeObjects)
+  return target;
+}
+
+::size_t EdgeObjects::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:ecloud.EdgeObjects)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // repeated .ecloud.ObjectBuffer all_object_buffers = 1;
+  total_size += 1UL * this->_internal_all_object_buffers_size();
+  for (const auto& msg : this->_internal_all_object_buffers()) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData EdgeObjects::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    EdgeObjects::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*EdgeObjects::GetClassData() const { return &_class_data_; }
+
+
+void EdgeObjects::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<EdgeObjects*>(&to_msg);
+  auto& from = static_cast<const EdgeObjects&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.EdgeObjects)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  _this->_internal_mutable_all_object_buffers()->MergeFrom(from._internal_all_object_buffers());
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void EdgeObjects::CopyFrom(const EdgeObjects& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.EdgeObjects)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool EdgeObjects::IsInitialized() const {
+  return true;
+}
+
+void EdgeObjects::InternalSwap(EdgeObjects* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  _internal_mutable_all_object_buffers()->InternalSwap(other->_internal_mutable_all_object_buffers());
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata EdgeObjects::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
+      file_level_metadata_ecloud_2eproto[25]);
 }
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace ecloud
@@ -8819,6 +9030,10 @@ Arena::CreateMaybeMessage< ::ecloud::EdgeObstacleObject >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::ecloud::ObjectRequest*
 Arena::CreateMaybeMessage< ::ecloud::ObjectRequest >(Arena* arena) {
   return Arena::CreateMessageInternal< ::ecloud::ObjectRequest >(arena);
+}
+template<> PROTOBUF_NOINLINE ::ecloud::EdgeObjects*
+Arena::CreateMaybeMessage< ::ecloud::EdgeObjects >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::ecloud::EdgeObjects >(arena);
 }
 PROTOBUF_NAMESPACE_CLOSE
 // @@protoc_insertion_point(global_scope)

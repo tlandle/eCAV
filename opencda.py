@@ -35,7 +35,7 @@ def arg_parse():
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-v', "--version", type=str, default='0.9.11',
+    parser.add_argument('-v', "--version", type=str, default='0.9.15',
                         help='Specify the CARLA simulator version, default'
                              'is 0.9.14')
     parser.add_argument("--verbose", action="store_true",
@@ -51,6 +51,9 @@ def arg_parse():
 
 
 def main():
+    # Set environment variable before anything else
+    os.environ['SCENARIO_RUNNER_ROOT'] = '/HDD/eCloudSimDistributed/scenario_runner'
+
     # parse the arguments
     opt = arg_parse()
     # print the version of OpenCDA
@@ -91,6 +94,9 @@ def main():
 
 if __name__ == '__main__':
     try:
+        int("\nModule search paths:")
+        for p in sys.path:
+            print(p)
         main()
     except KeyboardInterrupt:
          logger.info('exited by user.')
