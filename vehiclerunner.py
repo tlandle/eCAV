@@ -44,6 +44,8 @@ def arg_parse():
                             help="Make no noise")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
+    parser.add_argument('-i', "--vehicle_index", type=int, default=0,
+                            help="Index of the vehicle to run the scenario")
     parser.add_argument("--output_dir", default=None)
     # parse the arguments and return the result
     opt = parser.parse_args()
@@ -87,9 +89,10 @@ def main():
         subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
 
     # get the function for running the scenario from the testing script
-    scenario_runner = getattr(testing_scenario, 'run_scenario')
+    vehicle_runner = getattr(testing_scenario, 'run_vehicle')
     # run the scenario testing
-    scenario_runner(opt, scene_dict)
+    scene_dict.scenario_runner.vehicle_index = opt.vehicle_index
+    vehicle_runner(opt, scene_dict)
 
 
 if __name__ == '__main__':

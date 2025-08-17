@@ -1,25 +1,22 @@
 # -*- coding: utf-8 -*-
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import time
+from multiprocessing import Process
+
 import carla
+import scenario_runner.scenario_runner as sr
 import opencda.scenario_testing.utils.sim_api as sim_api
 from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
-# from opencda.scenario_testing.utils.keyboard_listener import KeyListener
-
-import time
-from multiprocessing import Process
-import psutil
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
-import scenario_runner.scenario_runner as sr
-from threading import Thread
 
 MAX_STEP = 600
 SCENARIO_NAME = 'openscenario_3_edge'
 scenario_runner = None
 
-def exec_scenario_runner(scenario_params):
+def run_vehicle(opt, scenario_params):
     """
     Execute the ScenarioRunner process
 
@@ -31,9 +28,7 @@ def exec_scenario_runner(scenario_params):
     -------
     """
     try:
-        #global scenario_runner
         scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
-        #print(scenario_runner)
         scenario_runner.run()
         scenario_runner.destroy()
     except Exception as e:
@@ -41,8 +36,6 @@ def exec_scenario_runner(scenario_params):
         raise e
 
 def run_scenario(opt, scenario_params):
-    #scenario_runner = None
-    global scenario_runner
     cav_world = None
     scenario_manager = None
     step = 0
@@ -59,30 +52,8 @@ def run_scenario(opt, scenario_params):
                                                    town=scenario_params.scenario_runner.town,
                                                    cav_world=cav_world)
 
-        #scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
-        #scenario_runner.run()
-
-        # Create a background process to init and execute scenario runner
-
         print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
-
-        scenario_params.scenario_runner.vehicle_index = 0
-        sr_process_ego = Process(target=exec_scenario_runner,
-                             args=(scenario_params,))
-        sr_process_ego.start()
-
-        scenario_params.scenario_runner.vehicle_index = 1
-        scenario_params.scenario_runner.trafficManagerPort = int(scenario_params.scenario_runner.trafficManagerPort) + 1
-        sr_process = Process(target=exec_scenario_runner,
-                             args=(scenario_params,))
-        sr_process.start()
-        
-        #sr_thread = Thread(target=exec_scenario_runner, args=(scenario_params.scenario_runner,))
-        #sr_thread.start()
-
-        # key_listener = KeyListener()
-        # key_listener.start()
-
+    
         world = scenario_manager.world
         ego_vehicle = None
         num_actors = 0
@@ -99,13 +70,6 @@ def run_scenario(opt, scenario_params):
             num_actors = len(vehicles) + len(walkers)
         print(f'Found all {num_actors} actors')
 
-        # Get all vehicle actor ids and add them to the edge manager
-        #other_vehicles = scenario_runner.manager.scenario.agents
-        #input("Other vehicles: %s" %other_vehicles)
-    
-        #for vehicle in other_vehicles:
-        #    print(vehicle._actor.id)
-        #    print(vehicle._local_planner_dict)
         other_vehicles = []
 
         world_dt = scenario_params['world']['fixed_delta_seconds']
@@ -126,16 +90,6 @@ def run_scenario(opt, scenario_params):
         spectator_bird_pitch = -90
 
         while True:
-            # if key_listener.keys['esc']:
-            #     sr_process.kill()
-            #     # Terminate the main process
-            #     return
-            # if key_listener.keys['p']:
-            #     psutil.Process(sr_process.pid).suspend()
-            #     continue
-            # if not key_listener.keys['p']:
-            #     psutil.Process(sr_process.pid).resume()
-
             scenario_manager.tick()
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
@@ -173,15 +127,11 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
+        
         if eval_manager is not None:
              eval_manager.evaluate()
+        
         if scenario_manager is not None:
             scenario_manager.close()
-        print("Destroyed scenario_manager")
-        if scenario_runner is not None:
-            scenario_runner.destroy()
-        if sr_process is not None:
-            sr_process.terminate()
-            sr_process.join()
-            print("Joined scenario_runner process")
-        print("Destroyed scenario_runner")
+            print("Destroyed scenario_manager")
+
