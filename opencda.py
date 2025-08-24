@@ -37,13 +37,15 @@ def arg_parse():
                              'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-v', "--version", type=str, default='0.9.15',
                         help='Specify the CARLA simulator version, default'
-                             'is 0.9.14')
+                             'is 0.9.15')
     parser.add_argument("--verbose", action="store_true",
                             help="Make more noise")
     parser.add_argument('-q', "--quiet", action="store_true",
                             help="Make no noise")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
+    parser.add_argument('-i', "--vehicle_index", type=int, default=-1,
+                        help='Specify the vehicle index, default is -1')
     parser.add_argument("--output_dir", default=None)
     # parse the arguments and return the result
     opt = parser.parse_args()
@@ -51,9 +53,6 @@ def arg_parse():
 
 
 def main():
-    # Set environment variable before anything else
-    os.environ['SCENARIO_RUNNER_ROOT'] = '/HDD/eCloudSimDistributed/scenario_runner'
-
     # parse the arguments
     opt = arg_parse()
     # print the version of OpenCDA
@@ -86,14 +85,25 @@ def main():
     if opt.build:
         subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
 
-    # get the function for running the scenario from the testing script
-    scenario_runner = getattr(testing_scenario, 'run_scenario')
-    # run the scenario testing
-    scenario_runner(opt, scene_dict)
+    if opt.vehicle_index == -1:
+        # get the function for running the scenario from the testing script
+        scenario_runner = getattr(testing_scenario, 'run_scenario')
+        # run the scenario testing
+        scenario_runner(opt, scene_dict)
+
+    else: # we're running a specific vehicle
+        # get the function for running the scenario from the testing script
+        vehicle_runner = getattr(testing_scenario, 'run_vehicle')
+        # run the scenario testing
+        scene_dict.scenario_runner.vehicle_index = opt.vehicle_index
+        vehicle_runner(opt, scene_dict)
 
 
 if __name__ == '__main__':
     try:
+        sys.path.insert(0, os.path.join(os.getcwd(), 'opencda'))
+        sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
+        sys.path.insert(0, os.getcwd())
         print("\nModule search paths:")
         for p in sys.path:
             print(p)
