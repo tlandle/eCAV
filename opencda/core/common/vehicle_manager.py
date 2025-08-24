@@ -117,6 +117,7 @@ class VehicleManager(object):
     def __init__(
             self,
             vehicle=None,
+            vehicle_index=-1,
             config_yaml=None,
             application=['single'],
             carla_world=None,
@@ -135,6 +136,7 @@ class VehicleManager(object):
         self.vid = str(uuid.uuid1())
 
         self.vehicle = vehicle
+        self.vehicle_index = vehicle_index
         self.location_type = location_type
         self.run_distributed = run_distributed
         self.scenario_params = config_yaml
@@ -162,7 +164,7 @@ class VehicleManager(object):
 
         self.initialize_process() # get world & map info
         self.carla_version = carla_version
-        
+
         self.debug_helper = ClientDebugHelper(0)
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']
