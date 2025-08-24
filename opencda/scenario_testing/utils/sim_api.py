@@ -526,8 +526,8 @@ class ScenarioManager:
 
         if self.run_distributed:
             self.apply_ml = False
-            if apply_ml == True:
-                assert False, logger.exception("ML should only be run on the distributed clients")
+            #if apply_ml == True:
+            #    assert False, logger.exception("ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
             target=f"{ECLOUD_IP}:50051",

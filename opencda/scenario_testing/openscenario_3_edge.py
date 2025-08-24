@@ -3,6 +3,7 @@
 
 import time
 from multiprocessing import Process
+import asyncio
 
 import carla
 import scenario_runner.scenario_runner as sr
@@ -50,8 +51,10 @@ def run_scenario(opt, scenario_params):
                                                    opt.apply_ml,
                                                    opt.version,
                                                    town=scenario_params.scenario_runner.town,
-                                                   cav_world=cav_world)
+                                                   cav_world=cav_world,
+                                                   distributed=True)
 
+        asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
         print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
     
         world = scenario_manager.world

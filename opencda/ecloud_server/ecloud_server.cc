@@ -312,21 +312,21 @@ public:
             {
                 buffer->set_vehicle_index(request->vehicle_index());
                 WaypointBuffer waypointBuf;
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
                 const std::string buf = wpPair.second;
                 waypointBuf.ParseFromString(buf);
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
                 for ( Waypoint wp : waypointBuf.waypoint_buffer())
                 {
                     Waypoint *p = buffer->add_waypoint_buffer();
                     p->CopyFrom(wp);
-                    //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
+                    LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
                 }
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
                 break;
             }
         }
-        //LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+        LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
 
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -348,21 +348,21 @@ public:
             {
                 buffer->set_vehicle_id(request->vehicle_index());
                 ObjectBuffer objBuf;
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
                 const std::string buf = objPair.second;
                 objBuf.ParseFromString(buf);
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
                 for ( EdgeObstacleObject obj : objBuf.object())
                 {
                     EdgeObstacleObject *p = buffer->add_object();
                     p->CopyFrom(obj);
-                    //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
+                    LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
                 }
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
                 break;
             }
         }
-        //LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+        LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
 
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -469,16 +469,16 @@ public:
                                Empty* empty) override {
         serializedEdgeWaypoints_.clear();
 
-        //LOG(INFO) << "updated waypoints received";
+        LOG(INFO) << "updated waypoints received";
         for ( WaypointBuffer wpBuf : edgeWaypoints->all_waypoint_buffers() )
         {   
             std::string serializedWPs;
             wpBuf.SerializeToString(&serializedWPs);
             const std::pair< int16_t, std::string > wpPair = std::make_pair( wpBuf.vehicle_index(), serializedWPs );
             serializedEdgeWaypoints_.push_back(wpPair);
-            //LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
+            LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
         }
-        //LOG(INFO) << "updated waypoints processed";
+        LOG(INFO) << "updated waypoints processed";
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -490,16 +490,16 @@ public:
                                Empty* empty) override {
         serializedEdgeObjects_.clear();
 
-        //LOG(INFO) << "updated waypoints received";
+        LOG(INFO) << "updated waypoints received";
         for ( ObjectBuffer objBuf : edgeObjects->all_object_buffers() )
         {   
             std::string serializedObjs;
             objBuf.SerializeToString(&serializedObjs);
             const std::pair< int16_t, std::string > objPair = std::make_pair( objBuf.vehicle_id(), serializedObjs );
             serializedEdgeObjects_.push_back(objPair);
-            //LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
+            LOG(INFO) << "updated waypoints for vehicle index " << objBuf.vehicle_id();
         }
-        //LOG(INFO) << "updated waypoints processed";
+        LOG(INFO) << "updated waypoints processed";
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);

@@ -54,10 +54,11 @@ class Ecav2VehicleClient:
     # default params which can be over-written from the simulation controller
     SPECTATOR_INDEX = 0
 
-    def __init__(self, ecav_vehicle_index):
+    def __init__(self, vehicle=None):
         self.ecloud_server = None
         self.channel = None
-        self.vehicle_index = ecav_vehicle_index
+        self.vehicle = vehicle
+        self.vehicle_index = 0 # TODO: fix me
         self.actor_id = None
         self.push_port = None
         self.push_server = None
@@ -66,7 +67,6 @@ class Ecav2VehicleClient:
         self.vehicle_manager = None
         self.network_emulator = None
 
-        self.target_speed = None
         self.is_edge = False # TODO: added this to the actual protobuf message
         self.network_emulator = None
         self.edge_sets_destination = False
@@ -130,10 +130,6 @@ class Ecav2VehicleClient:
         self.verbose_updates = ecloud_config.do_verbose_update()
         if 'edge_list' in scenario_yaml['scenario']:
             self.is_edge = True
-            # TODO: support multiple edges...
-            #self.target_speed = scenario_yaml['scenario']['edge_list'][0]['target_speed']
-            self.target_speed = scenario_yaml['scenario']['edge_list'][0]['members'][int(f'{self.vehicle_index}')]['behavior']['max_speed']
-            print(self.target_speed)
             time.sleep(5)
             self.edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
                 if 'edge_sets_destination' in scenario_yaml['scenario']['edge_list'][0] else False
@@ -141,7 +137,7 @@ class Ecav2VehicleClient:
         if self.opt.apply_ml:
             await asyncio.sleep(self.vehicle_index + 1)
 
-        self.vehicle_manager = VehicleManager(vehicle_index=self.vehicle_index, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
+        self.vehicle_manager = VehicleManager(vehicle=self.vehicle, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
                                         carla_version=version, location_type=self.location_type, run_distributed=True, is_edge=self.is_edge, perception_active=self.opt.apply_ml)
 
         if self.is_edge:
@@ -324,9 +320,6 @@ class Ecav2VehicleClient:
             if self.is_edge:
                 self.network_emulator.update_waypoints()
 
-            if self.reported_done:
-                self.target_speed = 0
-            control = self.vehicle_manager.run_step(target_speed=self.target_speed)
             logger.debug("run_step complete")
 
             vehicle_update.tick_id = self.tick_id
