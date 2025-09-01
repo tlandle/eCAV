@@ -3,7 +3,7 @@
 Perception module base.
 """
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
+# Author: Runsheng Xu <rxx3386@ucla.edu>, tyler.landle <tlandle3@gatech.edu>`
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import weakref

@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-bm2cp_perception_manager.py – Final Instrumented Version
+bm2cp_perception_manager.pu
+Author: Tyler Landle <tlandle3@gatech.edu>
+Description: Perception manager for BM2CP model integration in eCAV.
+TDG non-commercial use license.
 """
 from __future__ import annotations
 import pathlib

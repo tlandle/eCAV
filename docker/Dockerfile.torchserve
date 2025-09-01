@@ -1,0 +1,36 @@
+# 1. Base image with PyTorch and CUDA (adjust version to match your GPU/drivers)
+FROM pytorch/pytorch:2.2.0-cuda11.8-cudnn8-runtime
+
+USER root
+
+# 2. Install required tools and Python packages
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir \
+    litserve \
+    ultralytics \
+    opencv-python \
+    pyyaml
+
+# 3. Copy your local BM2CP implementation from the repository into /opt/BM2CP
+#    The source path is relative to the build context (your project root).
+#    Here we assume you run docker build from the ecloudsim directory.
+COPY opencda/BM2CP /opt/BM2CP
+# 4. Install it in editable mode so that `import bm2cp` works
+RUN pip install -e /opt/BM2CP
+
+# 5. Copy YOLO and BM2CP model weights.  You must place your .pt/.pth files and hypes.yaml
+#    into a local 'weights/' directory before building the image.
+#COPY weights/ /opt/weights/
+
+# 6. Copy your LitServe server script (ml_manager.py) into the container
+COPY opencda/ml_manager/ml_manager.py /opt/ml_manager.py
+
+# Expose LitServe’s default port
+EXPOSE 8000
+
+# Switch back to a non‑privileged user if desired; otherwise TorchServe runs as root
+# USER nobody
+
+# 7. Start the LitServe server when the container starts
+CMD ["python", "/opt/ml_manager.py"]
+

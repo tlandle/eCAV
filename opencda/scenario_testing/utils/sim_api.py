@@ -4,7 +4,7 @@ Utilize scenario manager to manage CARLA simulation construction. This script
 is used for carla simulation only, and if you want to manage the Co-simulation,
 please use cosim_api.py.
 """
-# Author: Runsheng Xu <rxx3386@ucla.edu>
+# Author: Tyler Landle <tlandle3@gatech.edu>, Jordan Rapp <jrapp7@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import math

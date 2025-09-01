@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+# Author: Tyler Landle <tlandle3@gatech.edu>
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
@@ -34,8 +35,16 @@ class CavWorld(object):
 
     """
 
-    def __init__(self, apply_ml=False, run_distributed=False):
+    def __init__(self, apply_ml, config=None):
+        """
+        Parameters
+        ----------
+        apply_ml : bool
+            Whether apply ml/dl models in the simulations
 
+        config : dict, optional
+            Configuration for ML manager
+        """
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
         self._platooning_dict = {}
@@ -45,14 +54,25 @@ class CavWorld(object):
         self.ml_manager = None
         self.run_distributed = run_distributed
         self.tick_id = 0
-
-        if apply_ml and (self.run_distributed == False):
-            # we import in this way so the user don't need to install ml
-            # packages unless they require to
-            ml_manager = getattr(importlib.import_module(
-                "opencda.customize.ml_libs.ml_manager"), 'MLManager')
-            # initialize the ml manager to load the DL/ML models into memory
-            self.ml_manager = ml_manager()
+        self.apply_ml = apply_ml
+        
+        # Determine if running distributed from config
+        run_distributed = config.get('distributed', False) if config else False
+        
+        # Get ML configuration
+        ml_config = config.get('ml_manager', {}) if config else {}
+        
+        # Initialize ML Manager with mode selection
+        if apply_ml:
+            from opencda.ml_manager.ml_manager import MLManager
+            self.ml_manager = MLManager(
+                apply_ml=apply_ml, 
+                rank=0,
+                run_distributed=run_distributed,
+                config=ml_config
+            )
+        else:
+            self.ml_manager = None
 
         # this is used only when co-simulation activated.
         self.sumo2carla_ids = {}
