@@ -1,4 +1,6 @@
 """Implements an operator that fits a linear model to predict trajectories."""
+# Author: Tyler Landle <tlandle3@gatech.edu>
+# License: TDG Non-Commercial Non-Distributable License
 
 import carla
 import numpy as np

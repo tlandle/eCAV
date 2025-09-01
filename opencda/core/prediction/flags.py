@@ -1,4 +1,5 @@
 from absl import flags
+# Author: Tyler Landle <tlandle3@gatech.edu>
 
 flags.DEFINE_integer(
     'prediction_num_past_steps', None,

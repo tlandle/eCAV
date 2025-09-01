@@ -1,6 +1,7 @@
 
 # -*- coding: utf-8 -*-
 """
+# Author: Tyler Landle <tlandle3@gatech.edu>
 Edge-manager package initialiser.
 
 It makes the individual manager classes directly importable and provides a

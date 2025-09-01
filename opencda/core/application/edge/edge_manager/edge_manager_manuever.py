@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+# Author: Tyler Landle <tlandle3@gatech.edu>
 edge_manager.maneuver
 =====================
 

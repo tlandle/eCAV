@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+# Author: Tyler Landle <tlandle3@gatech.edu>
 edge_manager_prediction_bm2cp_ab3dmot_linear_predictor.py
 =========================================================
 This is the final, instrumented Edge Manager. It is designed to work with
@@ -55,6 +56,26 @@ class BM2CPEdge(_BaseEdgeManager):
         self.hypes = hypes
         print('[HYPES DEBUG] ybound =', hypes['fusion']['args']['grid_conf']['ybound'])
         print("[EDGE DEBUG] [__init__] Hypes loaded.")
+
+        # Get ML manager from cav_world
+        self.ml_manager = cav_world.ml_manager if cav_world else None
+
+        if not self.run_distributed:
+            # Local mode - model already loaded in ml_manager
+            print("[EDGE] Using local BM2CP model")
+            bm_cfg = cfg['bm2cp_model']
+            hypes = load_yaml(bm_cfg['hypes_yaml'])
+            self.hypes = hypes
+            print('[HYPES DEBUG] ybound =', hypes['fusion']['args']['grid_conf']['ybound'])
+            
+            # Create the post-processor instance using the loaded config
+            self.post_processor = VoxelPostprocessor(self.hypes['postprocess'],
+                                                     dataset=None,
+                                                     train=False)
+        else:
+            print("[EDGE] Using distributed BM2CP services")
+            # In distributed mode, post-processing happens on the edge service
+            self.post_processor = None
 
         self.model = train_utils.create_model(hypes).cuda().eval()
         ckpt_dir = os.path.dirname(bm_cfg['checkpoint'])

@@ -5,6 +5,7 @@
 
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+# Author: Tyler Landle <tlandle3@gatech.edu>
 
 import uuid
 import weakref

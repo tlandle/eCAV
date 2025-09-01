@@ -1,5 +1,5 @@
 description: |-
-  Author: Wei Shao <phdweishao@gmail.com>
+  Author: Tyler Landle <tlandle3@gatech.edu>
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
     # Scenario 14
     # Highway Merge on Town 06. Non perception and perception collision

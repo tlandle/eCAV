@@ -1,12 +1,20 @@
 description: |-
-  Author: Wei Shao <phdweishao@gmail.com>
+  Author: Tyler Landle <tlandle3@gatech.edu>
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
 
 # Carla server settings
-
-distributed: false
+# distributed: true enables distributed ML inference using litserve endpoints
+# distributed: false uses local ML models loaded in memory
+distributed: true
 define: &perception_is_active true
 perception_active: *perception_is_active
+
+# Optional: ML Manager configuration for distributed mode
+# Uncomment and configure if using distributed: true
+ ml_manager:
+   yolo_endpoint: 'http://localhost:8000'  # YOLO service endpoint
+   bm2cp_vehicle_endpoint: 'http://localhost:8001'  # BM2CP vehicle service
+   bm2cp_edge_endpoint: 'http://localhost:8002'  # BM2CP edge service
 
 world:
   sync_mode: true
@@ -236,15 +244,20 @@ edge_base: &edge_base
   search_dt: 2
   latency: 0.2 # seconds 
   jitter_std: 0.05 # seconds
-  latency_distribution: hybrid # distribution of the latency, can be normal or lognormal
+  latency_distribution: hybrid # distribution of the latency, can be normal, lognormal, or hybrid
   edge_sets_destination: false # otherwise, edge sets WP
   uplink_packet_loss_pct: 10.0 # percentage of uplink packet loss
   downlink_packet_loss_pct: 10.0 # percentage of downlink packet loss
-  mode: PREDICTION 
+  mode: PREDICTION # can be MANEUVER, PERCEPTION, or PREDICTION 
 
 scenario:
   edge_list:
     - <<: *edge_base
+      # Available manager_type options:
+      # - bm2cp: BM2CP with AB3DMOT tracker and linear predictor
+      # - late_fusion: Late fusion with AB3DMOT tracker and linear predictor  
+      # - perception: Perception-only edge manager
+      # - maneuver: Maneuver planning edge manager
       manager_type: bm2cp
       
       # This top-level block is good for reference but not used by the perception manager init
@@ -261,12 +274,9 @@ scenario:
             perception:
               <<: *base_perception
               backend: bm2cp
-              
-              # --- FIX START: ADD THIS BLOCK TO THE RSU ---
               bm2cp_model:
                 hypes_yaml: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/config.yaml
                 checkpoint: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/net_epoch50.pth
-              # --- FIX END ---
 
           id: -1
       vehicles:
@@ -285,7 +295,7 @@ scenario:
                   - [ 0.0, -1.5, 1.7, -90]
                   - [ 0.0,  1.5, 1.7,  90]
                   - [-1.5,  0.0, 1.7, 180]
-              type: bm2cp
+              backend: bm2cp
               bm2cp_model:
                 hypes_yaml: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/config.yaml
                 checkpoint: opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/net_epoch50.pth

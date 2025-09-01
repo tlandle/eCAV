@@ -447,6 +447,35 @@ class ScenarioManager:
         simulation_config = scenario_params['world']
 
         self.run_distributed = distributed
+
+        # Initialize ML Manager with mode selection
+        if cav_world:
+            # Update scenario params with distributed flag
+            scenario_params['distributed'] = distributed
+            
+            # Get ML configuration
+            ml_config = scenario_params.get('ml_manager', {})
+            
+            # Add service endpoints if distributed
+            if self.run_distributed:
+                ml_config.update({
+                    'yolo_endpoint': scenario_params.get('yolo_endpoint', 'http://localhost:8000'),
+                    'bm2cp_vehicle_endpoint': scenario_params.get('bm2cp_vehicle_endpoint', 'http://localhost:8001'),
+                    'bm2cp_edge_endpoint': scenario_params.get('bm2cp_edge_endpoint', 'http://localhost:8002'),
+                })
+            
+            # Add BM2CP model config if present
+            if 'edge_base' in scenario_params and 'bm2cp_model' in scenario_params['edge_base']:
+                ml_config['bm2cp_model'] = scenario_params['edge_base']['bm2cp_model']
+            
+            # Create/update ML manager
+            from opencda.ml_manager.ml_manager import MLManager
+            cav_world.ml_manager = MLManager(
+                apply_ml=apply_ml,
+                rank=0,
+                run_distributed=self.run_distributed,
+                config=ml_config
+            )
         if distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else \
                                 1 if logger.getEffectiveLevel() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
