@@ -29,9 +29,18 @@ from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.prediction.obstacle_prediction import ObstaclePrediction
 from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
 from opencda.core.prediction.linear_predictor_manager import LinearPredictorManager
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
+
+cloud_config = load_yaml("cloud_config.yaml")
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
 
 SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
@@ -365,7 +374,7 @@ class BehaviorAgent(object):
 
         # ─── 2. Decide which pipeline to use ──────────────────────────────────────
         if self.edge_predictions:            # → edge is active; trust it exclusively
-            self.generated_predictions = self.edge_predictions.copy()
+            self.generated_predictions = self.edge_predictions.copy() # TODO: these need to come over the wire
 
         else:                                # → no edge data; run local predictor
             #self._maintain_tracks_and_predict(dt=0.05)   # ≈ sim-step seconds
@@ -741,17 +750,17 @@ class BehaviorAgent(object):
                 print("Obstacle too slow, ignored")
                 continue
 
-            print("Predicted Trajectory:")
+            logger.debug("Predicted Trajectory:")
             for pred_transform in pred.predicted_trajectory:
                 pred_loc = pred_transform.location
-                print(f"({pred_loc.x}, {pred_loc.y})")
+                logger.debug("(%s, %s)", pred_loc.x, pred_loc.y)
 
-            print("Obstacle speed: %s" %obstacle_speed)
-            print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
-            #print("Obstacle Vehicle Trajectory Id: %s" %pred.obstacle_trajectory.id)
-            print("My Id: %s" %self.vehicle.id)
+            logger.debug("Obstacle speed: %s", obstacle_speed)
+            logger.debug("Obstacle Vehicle ID: %s", pred.obstacle_trajectory.obstacle.carla_id)
+            #logger.debug("Obstacle Vehicle Trajectory Id: %s", pred.obstacle_trajectory.id)
+            logger.debug("My Id: %s", self.vehicle.id)
             if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
-                print("Skipping prediction for ego vehicle")
+                logger.debug("Skipping prediction for ego vehicle")
                 continue
             
             collision, ttc = self._collision_check.trajectory_collision_check(

@@ -88,7 +88,6 @@ elif cloud_config["log_level"] == "info":
 TIMEOUT_S = 10
 TIMEOUT_MS = TIMEOUT_S * 1000
 NSEC_TO_MSEC = 1/1000000
-ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 
 def car_blueprint_filter(blueprint_library, carla_version='0.9.15'):
     """
@@ -422,8 +421,8 @@ class ScenarioManager:
 
         self.run_distributed = distributed
         if distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
-            server_log_level = 0 if logger.getEffectiveLevel() == logging.DEBUG else \
-                                1 if logger.getEffectiveLevel() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
+            server_log_level = 0 #if logger.getEffectiveLevel() == logging.DEBUG else \
+                                #1 if logger.getEffectiveLevel() == logging.WARNING else 2 # 1: WARNING | 2: ERROR
             try:
                 ecloud_pid = subprocess.check_output(['pgrep','ecloud_server'])
             except subprocess.CalledProcessError as e:
@@ -1408,12 +1407,14 @@ class ScenarioManager:
         returns bool
         """
         pre_client_tick_time = time.time()
+        self.tick_id = self.tick_id + 1
 
         if command == ecloud.Command.REQUEST_DEBUG_INFO:
             self.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE
 
         tick = ecloud.Tick()
         tick.tick_id = self.tick_id
+        logger.critical("Broadcasting tick_id: %s", self.tick_id)
         tick.command = command
 
         logger.debug("Getting timestamp")

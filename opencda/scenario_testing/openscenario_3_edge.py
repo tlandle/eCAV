@@ -12,6 +12,7 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
+from scenario_runner.srunner.scenariomanager import scenario_manager
 
 MAX_STEP = 600
 SCENARIO_NAME = 'openscenario_3_edge'
@@ -92,8 +93,11 @@ def run_scenario(opt, scenario_params):
         spectator_altitude = 100
         spectator_bird_pitch = -90
 
-        while True:
-            scenario_manager.tick()
+        flag = True
+        while flag:
+            scenario_manager.tick_world()
+            scenario_manager.broadcast_tick()
+
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
             print("bird view following")
@@ -103,20 +107,21 @@ def run_scenario(opt, scenario_params):
             view_transform.location = ego_cav.get_transform().location
             print("ego_cav.get_transform().location: %s" %ego_cav.get_transform().location)
             if ego_cav.get_transform().location.x == 0 and ego_cav.get_transform().location.y == 0:
-                break;
+                break
             view_transform.location.z = view_transform.location.z + spectator_altitude
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
             
-
             # Apply the control to the ego vehicle
             for edge in edge_list:
                 edge.update_information(step)
                 edge.run_step(step)
+
             step = step + 1
             if step >= MAX_STEP:
                 print("Reached maximum step limit, exiting")
                 break
+
             time.sleep(0.001)
 
     except SystemExit as e:
@@ -131,6 +136,8 @@ def run_scenario(opt, scenario_params):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
         
+        scenario_manager.end()
+
         if eval_manager is not None:
              eval_manager.evaluate()
         

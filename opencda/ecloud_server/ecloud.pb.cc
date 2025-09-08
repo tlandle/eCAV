@@ -1086,30 +1086,31 @@ const char descriptor_table_protodef_ecloud_2eproto[] PROTOBUF_SECTION_VARIABLE(
     "city\030\004 \001(\0132\020.ecloud.Velocity\"&\n\rObjectRe"
     "quest\022\025\n\rvehicle_index\030\001 \001(\005\"\?\n\013EdgeObje"
     "cts\0220\n\022all_object_buffers\030\001 \003(\0132\024.ecloud"
-    ".ObjectBuffer*Q\n\007Command\022\010\n\004TICK\020\000\022\007\n\003EN"
+    ".ObjectBuffer*l\n\007Command\022\010\n\004TICK\020\000\022\007\n\003EN"
     "D\020\001\022\026\n\022REQUEST_DEBUG_INFO\020\002\022\033\n\027PULL_WAYP"
-    "OINTS_AND_TICK\020\003*\240\001\n\014VehicleState\022\017\n\013REG"
-    "ISTERING\020\000\022\020\n\014CARLA_UPDATE\020\001\022\022\n\016UPDATE_I"
-    "NFO_OK\020\002\022\023\n\017GET_DESTINATION\020\003\022\013\n\007TICK_OK"
-    "\020\004\022\r\n\tTICK_DONE\020\005\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021"
-    "DEBUG_INFO_UPDATE\020\0102\246\005\n\006Ecloud\022\'\n\010PushTi"
-    "ck\022\014.ecloud.Tick\032\r.ecloud.Empty\0229\n\021Clien"
-    "t_SendUpdate\022\025.ecloud.VehicleUpdate\032\r.ec"
-    "loud.Empty\022J\n\026Client_RegisterVehicle\022\030.e"
-    "cloud.RegistrationInfo\032\026.ecloud.Simulati"
-    "onInfo\022F\n\023Client_GetWaypoints\022\027.ecloud.W"
-    "aypointRequest\032\026.ecloud.WaypointBuffer\022@"
-    "\n\021Client_GetObjects\022\025.ecloud.ObjectReque"
-    "st\032\024.ecloud.ObjectBuffer\022,\n\rServer_DoTic"
-    "k\022\014.ecloud.Tick\032\r.ecloud.Empty\022=\n\024Server"
-    "_StartScenario\022\026.ecloud.SimulationInfo\032\r"
-    ".ecloud.Empty\0222\n\022Server_EndScenario\022\r.ec"
-    "loud.Empty\032\r.ecloud.Empty\022A\n\030Server_GetV"
-    "ehicleUpdates\022\r.ecloud.Empty\032\026.ecloud.Ec"
-    "loudResponse\022@\n\030Server_PushEdgeWaypoints"
-    "\022\025.ecloud.EdgeWaypoints\032\r.ecloud.Empty\022<"
-    "\n\026Server_PushEdgeObjects\022\023.ecloud.EdgeOb"
-    "jects\032\r.ecloud.Emptyb\006proto3"
+    "OINTS_AND_TICK\020\003\022\031\n\025PULL_OBJECTS_AND_TIC"
+    "K\020\004*\240\001\n\014VehicleState\022\017\n\013REGISTERING\020\000\022\020\n"
+    "\014CARLA_UPDATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002\022\023\n\017G"
+    "ET_DESTINATION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTICK_DO"
+    "NE\020\005\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_INFO_UP"
+    "DATE\020\0102\246\005\n\006Ecloud\022\'\n\010PushTick\022\014.ecloud.T"
+    "ick\032\r.ecloud.Empty\0229\n\021Client_SendUpdate\022"
+    "\025.ecloud.VehicleUpdate\032\r.ecloud.Empty\022J\n"
+    "\026Client_RegisterVehicle\022\030.ecloud.Registr"
+    "ationInfo\032\026.ecloud.SimulationInfo\022F\n\023Cli"
+    "ent_GetWaypoints\022\027.ecloud.WaypointReques"
+    "t\032\026.ecloud.WaypointBuffer\022@\n\021Client_GetO"
+    "bjects\022\025.ecloud.ObjectRequest\032\024.ecloud.O"
+    "bjectBuffer\022,\n\rServer_DoTick\022\014.ecloud.Ti"
+    "ck\032\r.ecloud.Empty\022=\n\024Server_StartScenari"
+    "o\022\026.ecloud.SimulationInfo\032\r.ecloud.Empty"
+    "\0222\n\022Server_EndScenario\022\r.ecloud.Empty\032\r."
+    "ecloud.Empty\022A\n\030Server_GetVehicleUpdates"
+    "\022\r.ecloud.Empty\032\026.ecloud.EcloudResponse\022"
+    "@\n\030Server_PushEdgeWaypoints\022\025.ecloud.Edg"
+    "eWaypoints\032\r.ecloud.Empty\022<\n\026Server_Push"
+    "EdgeObjects\022\023.ecloud.EdgeObjects\032\r.eclou"
+    "d.Emptyb\006proto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_ecloud_2eproto_deps[1] =
     {
@@ -1119,7 +1120,7 @@ static ::absl::once_flag descriptor_table_ecloud_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_ecloud_2eproto = {
     false,
     false,
-    4188,
+    4215,
     descriptor_table_protodef_ecloud_2eproto,
     "ecloud.proto",
     &descriptor_table_ecloud_2eproto_once,
@@ -1162,6 +1163,7 @@ bool Command_IsValid(int value) {
     case 1:
     case 2:
     case 3:
+    case 4:
       return true;
     default:
       return false;

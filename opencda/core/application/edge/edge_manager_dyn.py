@@ -17,10 +17,6 @@ import opencda.logging_ecloud
 import coloredlogs, logging
 import sys
 
-logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
-
 sys.path.append("/home/chattsgpu/Documents/Carla_opencda/TrafficSimulator_eCloud/OpenCDA/")
 
 import opencda.core.plan.drive_profile_plotting as open_plt
@@ -29,6 +25,18 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.application.edge.transform_utils import *
+from opencda.scenario_testing.utils.yaml_utils import load_yaml
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level='DEBUG', logger=logger)
+
+cloud_config = load_yaml("cloud_config.yaml")
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
 
 import grpc
 import ecloud_pb2 as ecloud

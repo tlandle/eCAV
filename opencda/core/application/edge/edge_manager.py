@@ -32,7 +32,6 @@ import open3d as o3d
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
 
 cloud_config = load_yaml("cloud_config.yaml")
 
@@ -141,6 +140,7 @@ def collect_ab3d_detections(edge,
     det_rows, info_rows, beacons_xyz = [], [], []
 
     # 1 ─────────────── beacons ────────────────────────────────────────
+    ego_h, ego_w, ego_l = 0.0, 0.0, 0.0
     for vm in edge.vehicle_manager_list:
         veh   = vm.vehicle
         loc, ext = beacons_dict[veh.id]
@@ -157,7 +157,7 @@ def collect_ab3d_detections(edge,
 
     # 2 ─────────────── sensor detections ──────────────────────────────
     for obj in objects_dict.get("vehicles", []):
-        print(f"Processing object at {obj.bounding_box.location}.")
+        logger.debug(f"Processing object at {obj.bounding_box.location}.")
         bbx = obj.bounding_box.extent
         h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
 
@@ -172,14 +172,14 @@ def collect_ab3d_detections(edge,
 
         # ── 2-b  3-D distance gate (fast)  ───────────────────────────
         if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.7 * max(ego_wh):
-            print(f"Skipping obj at {loc} – too close to ego beacon.")
+            logger.debug(f"Skipping obj at {loc} – too close to ego beacon.")
             # too close to our own beacon – most likely ego points
             continue
 
         # ── 2-c  2-D IoU gate (optional)  ────────────────────────────
         if _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh) > 0.25:
-            print(f"Skipping at {loc} – overlaps ego beacon too much.")
-            # overlaps beacon footprint too much – treat as ego
+            logger.debug(f"Skipping at {loc} – overlaps ego beacon too much.")
+            # overlaps beacon footlogger.debug too much – treat as ego
             continue
 
         # ── 2-d  keep it  ────────────────────────────────────────────
@@ -192,7 +192,7 @@ def collect_ab3d_detections(edge,
         'dets': np.asarray(det_rows,  dtype=np.float32),
         'info': np.asarray(info_rows, dtype=np.int64)
     }
-# beacon centre and footprint in the x-y plane
+# beacon centre and footlogger.debug in the x-y plane
 # ...
 
 #GUID_COUNTER = 0                         # keep it global as before
@@ -239,12 +239,12 @@ def collect_ab3d_detections_old(edge,
                         beacons_xyz[0],            # only one ego in this edge
                         [ego_h, ego_w, ego_l])
 
-        print(f"IoU ego vehicle {obj} at {loc}: {_iou:.2f}")
+        logger.debug(f"IoU ego vehicle {obj} at {loc}: {_iou:.2f}")
 
         if _iou_ego([loc.x, loc.y, loc.z, h, w, l],
                      beacons_xyz[0],            # only one ego in this edge
                     [ego_h, ego_w, ego_l]) > 0.10:
-            print(f"Skipping ego vehicle {obj} at {obj.location}.")
+            logger.debug(f"Skipping ego vehicle {obj} at {obj.location}.")
             continue                                     # ego vehicle → skip
 
 
@@ -255,20 +255,20 @@ def collect_ab3d_detections_old(edge,
 
         dist = np.linalg.norm(box_xy - ego_xy)
         thr  = 0.7 * max(ego_wh)                      # ≈ 3 m for a 4 m-long bus
-        print(f"Beacon at {ego_xy} with size {ego_wh} m")
-        print(f"Object {obj} at {box_xy} with size {box_wh} m")
-        print(f"Threshold for {obj}: {thr:.2f} m")
-        print(f"dist={dist:.2f} m  thr={thr:.2f} m  keep? {dist>=thr}")
+        logger.debug(f"Beacon at {ego_xy} with size {ego_wh} m")
+        logger.debug(f"Object {obj} at {box_xy} with size {box_wh} m")
+        logger.debug(f"Threshold for {obj}: {thr:.2f} m")
+        logger.debug(f"dist={dist:.2f} m  thr={thr:.2f} m  keep? {dist>=thr}")
 
         if dist < thr:
-            print(f"→ skip   {obj}  (dist={dist:.2f})")
+            logger.debug(f"→ skip   {obj}  (dist={dist:.2f})")
             continue
 
         # softer 2-D IoU gate (rarely triggered after distance, but nice to have) ---
         iou = _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh)
-        print(f"IoU vs ego for {obj}: {iou:.2f}")
+        logger.debug(f"IoU vs ego for {obj}: {iou:.2f}")
         if iou > 0.25:                                           # generous overlap
-            print(f"→ skip   {obj}  (IoU test)")
+            logger.debug(f"→ skip   {obj}  (IoU test)")
             continue
 
 
@@ -282,12 +282,12 @@ def collect_ab3d_detections_old(edge,
     #                    beacons_xyz[0],            # only one ego in this edge
     #                    [ego_h, ego_w, ego_l])
 
-    #    print(f"IoU ego vehicle {obj} at {loc}: {_iou:.2f}")
+    #    logger.debug(f"IoU ego vehicle {obj} at {loc}: {_iou:.2f}")
 
      #   if _iou_ego([loc.x, loc.y, loc.z, h, w, l],
     #             beacons_xyz[0],            # only one ego in this edge
      #               [ego_h, ego_w, ego_l]) > 0.10:
-     #       print(f"Skipping ego vehicle {obj} at {obj.location}.")
+     #       logger.debug(f"Skipping ego vehicle {obj} at {obj.location}.")
      #       continue                                     # ego vehicle → skip
         GUID_COUNTER += 1
         #det_rows.append([loc.x, loc.y, loc.z, h, w, l, 0.0])
@@ -295,7 +295,7 @@ def collect_ab3d_detections_old(edge,
         info_rows.append([frame_idx, GUID_COUNTER, -1])
         #info_rows.append(np.zeros(7, dtype=np.int64))  # no carla_id, so -1
 
-        print(f"Obstacle {obj} at {loc} with extents {bbx} added as detection.")
+        logger.debug(f"Obstacle {obj} at {loc} with extents {bbx} added as detection.")
 
     return {
         'dets': np.asarray(det_rows,  dtype=np.float32),
@@ -423,9 +423,9 @@ class EdgeManager(object):
         try:
             # Load the real C-V2X trace you provided
             self.c_v2x_rtt_trace = pd.read_csv("merged_latency.csv")['latency_ms'].dropna().tolist()
-            print(f"Successfully loaded C-V2X trace with {len(self.c_v2x_rtt_trace)} samples.")
+            logger.debug(f"Successfully loaded C-V2X trace with {len(self.c_v2x_rtt_trace)} samples.")
         except FileNotFoundError:
-            print("WARNING: 'merged_latency.csv' not found. Falling back to default range for C-V2X.")
+            logger.debug("WARNING: 'merged_latency.csv' not found. Falling back to default range for C-V2X.")
             self.c_v2x_rtt_trace = None
 
         
@@ -876,7 +876,7 @@ class EdgeManager(object):
 
             elif self.activate == "PREDICTION":
                 if np.random.rand() * 100 < self.uplink_packet_loss_pct:
-                    print(f"--- UPLINK PACKET LOSS: Dropping data from vehicle {vm.vehicle.id} at frame {frame_idx} ---", flush=True)
+                    logger.debug(f"--- UPLINK PACKET LOSS: Dropping data from vehicle {vm.vehicle.id} at frame {frame_idx} ---")
                     # If the packet is "lost", we simply do not merge this vehicle's objects
                     # and do not add its beacon to the history for this frame.
                     continue 
@@ -918,90 +918,6 @@ class EdgeManager(object):
 
             for vm, car in zip(self.vehicle_manager_list, self.Traffic_Tracker.cars_on_road):
                 car.target_velocity = vm.agent.max_speed * 0.277778  # km/h → m/s
-
-    def update_information_old(self):
-        """
-        Update CAV world information for every member in the list.
-        """
-
-        self.spawn_x.clear()
-        self.spawn_y.clear()
-        self.spawn_v.clear()
-        self.objects.clear()
-        # start_time = time.time()
-        # # for i in range(len(self.vehicle_manager_list)):
-        # #     self.vehicle_manager_list[i].update_info()
-        # #     logger.info("Updated location for vehicle %s - x:%s, y:%s", i, self.vehicle_manager_list[i].vehicle.get_location().x, self.vehicle_manager_list[i].vehicle.get_location().y)
-        # end_time = time.time()
-        # logger.debug("Vehicle Manager Update Info Time: %s", (end_time - start_time))
-        start_time = time.time()
-        for i in range(len(self.vehicle_manager_list)):
-            if(self.activate == "MANEUVER"):
-              x,y = self.processor.process_single_waypoint_forward(self.vehicle_manager_list[i].vehicle.get_location().x, self.vehicle_manager_list[i].vehicle.get_location().y)
-              v = self.vehicle_manager_list[i].vehicle.get_velocity()
-              v_scalar = math.sqrt(v.x**2 + v.y**2 + v.z**2)
-              self.spawn_x.append(x)
-              self.spawn_y.append(y)
-              self.spawn_v.append(v_scalar)
-            elif(self.activate == "PERCEPTION"):
-                self.traj_dict[self.vehicle_manager_list[i].vehicle.id] = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().copy()
-                self.vehicle_speeds[self.vehicle_manager_list[i].vehicle.id] = self.vehicle_manager_list[i].vehicle.get_velocity()
-                logger.debug("Vehicle id: %s" %self.vehicle_manager_list[i].vehicle.id)
-            elif(self.activate == "PREDICTION"):
-                self.objects = {**self.objects, **self.vehicle_manager_list[i].agent.objects}
-        if(self.activate == "PERCEPTION"):
-            for sequenced_vehicle in self.other_vehicles:
-                #logger.debug("Sequenced Vehicle: ", sequenced_vehicle._actor.id)
-                #logger.debug("Sequenced Vehicle Local Planner: ", sequenced_vehicle._local_planner_dict)
-                if sequenced_vehicle._actor in sequenced_vehicle._local_planner_dict and sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor] is not None:
-                    #logger.debug("Sequenced Vehicle in planner dict: ", sequenced_vehicle._actor.id)
-                    self.traj_dict[sequenced_vehicle._actor.id] = sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor]._waypoints_queue.copy()
-                    waypoint_roadoption_tuple = create_waypoint_roadoption_tuple(sequenced_vehicle._actor.get_location(), sequenced_vehicle._local_planner_dict[sequenced_vehicle._actor]._map)
-                    logger.debug("Waypoint Roadoption Tuple: ", waypoint_roadoption_tuple)
-                    logger.debug("Waypoint Roadoption Tuple Location (%s, %s): ", waypoint_roadoption_tuple[0].transform.location.x, waypoint_roadoption_tuple[0].transform.location.y)
-                    self.traj_dict[sequenced_vehicle._actor.id].appendleft(waypoint_roadoption_tuple)
-                    #logger.debug("Traj Dict: ", self.traj_dict[sequenced_vehicle._actor.id])
-                    self.vehicle_speeds[sequenced_vehicle._actor.id] = sequenced_vehicle._actor.get_velocity()
-                    #logger.debug("Sequenced Velocity: ", self.vehicle_speeds[sequenced_vehicle._actor.id])
-                    #logger.debug("Waypoint Queue: ", self.traj_dict[sequenced_vehicle._actor.id])
-                #logger.debug(self.vehicle_manager_list[i].agent.objects)
-                #self.objects =  {**self.objects,  **self.vehicle_manager_list[i].agent.objects}
-                #logger.debug(self.objects)
-                #logger.info("update_information for vehicle_%s - x:%s, y:%s", i, x, y)
-        
-        #logger.debug("Traj Dict: ", self.traj_dict)
-        end_time = time.time()
-        logger.debug("Update Info Transform Forward Time: %s", (end_time - start_time))
-        #logger.debug(self.spawn_x)
-        #logger.debug(self.spawn_y)
-        #logger.debug(self.spawn_v)
-        for i in range(len(self.rsu_manager_list)):
-            #if len(self.objects_deque) == 10:
-                #self.objects_deque.pop()
-            self.objects = {**self.objects, **self.rsu_manager_list[i].objects}
-            #logger.debug("RSU Objects: ", self.rsu_manager_list[i].objects)
-        self.objects_deque.appendleft(self.objects.copy())
-
-
-        logger.debug(self.objects)
-          
-
-        start_time = time.time()
-        #Added in to check if traffic tracker updating would fix waypoint deque issue
-        # TODO: data drive num cars
-        if(self.activate == "MANEUVER"):
-          self.Traffic_Tracker = Traffic(self.search_dt,self.numlanes,numcars=self.numcars,map_length=200,x_initial=self.spawn_x,y_initial=self.spawn_y,v_initial=self.spawn_v)
-          end_time = time.time()
-          logger.debug("Traffic Tracker Time: %s", (end_time - start_time))
-
-          for i, car in enumerate(self.Traffic_Tracker.cars_on_road):
-            logger.debug(i)
-            logger.debug(self.vehicle_manager_list[i].agent.max_speed)
-            car.target_velocity = self.vehicle_manager_list[i].agent.max_speed * 0.277778 # convert to m/s! NOT kph
-
-        # sys.exit()
-
-        #logger.debug("Updated Info")
 
     def algorithm_step(self):
         self.locations = []
@@ -1150,140 +1066,7 @@ class EdgeManager(object):
         #logger.debug("running prediction_step edge")
         self.run_step_prediction(step_id)
       elif(self.activate == "MANEUVER"):
-        self.run_step_maneuver(step_id) 
-
-    def run_step_prediction_old(self, step_id):
-        #self.tracked_trajectories.clear()
-        generated_predictions = []
-        logger.debug("Latency: ", self.latency)
-        logger.debug("DT: ", self.dt)
-
-        if step_id < int(self.latency/self.dt):
-            return
-        
-        number_of_steps = int(self.latency/self.dt)
-        logger.debug("Number of Steps for Latency: ", number_of_steps)
-        ab3dmot_vehicles = []
-        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-            vehicle_manager.agent.generated_predictions.clear() # surely this will work
-
-            # Get vehicle objects
-            objects = self.objects_deque[number_of_steps].copy()
-            # Convert obstacle vehicle objects to AB3DMOT format
-            start_time = time.perf_counter()
-            for object_type, object_list in objects.items():
-                if object_type == 'vehicles':
-                    for obj in object_list:
-                        # Convert to AB3DMOT format
-                        #logger.debug("Object Location: ", obj.get_location())
-                        #detection = self.convert_aabb_to_ab3dmot_dict(obj.o3d_bbx)
-                        detection = self.convert_boundingbox_to_ab3dmot_dict(obj.bounding_box, obj.get_location())
-                        # Append to objects list
-                        #logger.debug("Detection: ", detection)
-                        ab3dmot_vehicles.append(detection)
-
-
-
-        detection_array = []
-        for det in ab3dmot_vehicles:  # your list of dicts
-            x, y, z = det['location']
-            h, w, l = det['dimensions']
-            ry = det['rotation_y']
-            detection_array.append([x, y, z, h, w, l, ry])
-
-        dets_all = {
-            'dets': np.array(detection_array),
-            'info': np.zeros((len(detection_array), 7))
-        }
-
-        # Use AB3DMOT to track and deduplicate
-        ab3dmot_output_objects, _ = self.ab3dmot_tracker.track(dets_all, step_id)
-        #logger.debug("AB3DMOT Output Objects: ", ab3dmot_output_objects)
-
-        # check for stale ab3dmot output
-        ab3dmot_output_objects = self.filter_stale_tracks(ab3dmot_output_objects, max_age=5)
-        #logger.debug("AB3DMOT Output Objects after filtering: ", ab3dmot_output_objects)
-
-
-        # Convert AB3DMOT output to ObstacleTrajectory objects
-        self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10, dt=self.dt)
-
-        end_tracker_time = time.perf_counter()
-        tracker_time = (end_tracker_time - start_time) * 1000  # Convert to milliseconds
-
-
-        start_prediction_time = time.perf_counter()        
-        #tracked_trajectories = self.convert_ab3dmot_history_to_trajectories(ab3dmot_output_objects, trajectory_length=10)
-
-        #self.tracked_trajectories_deque.appendleft(tracked_trajectories.copy())
-
-        #logger.debug("Number of tracked trajectories: ", len(self.tracked_trajectories))
-
-        # Run the linear operator predictor on the tracked trajectories
-        # Type ObstaclePrediction list is returned
-        generated_predictions = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_trajectories)
-
-        end_prediction_time = time.perf_counter()
-        prediction_time = (end_prediction_time - start_prediction_time) * 1000  # Convert to milliseconds
-
-        self.debug_helper.update_edge(0,
-                                 tracking_time=tracker_time,
-                                 prediction_time=prediction_time)
-
-        #logger.debug("Number of generated predictions: ", len(generated_predictions))
-
-
-        self.track_color_map = {}
-
-        for prediction in generated_predictions:
-            track_id = prediction.obstacle_trajectory.obstacle.track_id
-
-            # Generate or reuse color for this track ID
-            if track_id not in self.track_color_map:
-                random.seed(track_id)  # consistent color per ID
-                self.track_color_map[track_id] = carla.Color(
-                    r=random.randint(50, 255),
-                    g=random.randint(50, 255),
-                    b=random.randint(50, 255)
-                )
-
-            color = self.track_color_map[track_id]
-            #logger.debug(track_id)
-            #for transform in prediction.obstacle_trajectory.trajectory:
-                #logger.debug("Obstacle Trajectory: ", transform)
-                #self.world.debug.draw_point(
-                #    transform.location,
-                #    size=0.1,
-                #    color=color,
-                #    life_time=.1,
-                #    persistent_lines=False
-                #)
-
-            #for transform in prediction.predicted_trajectory:
-            #    #logger.debug("Predicted Trajectory: ", transform)
-            #    self.world.debug.draw_point(
-            #        transform.location,
-            #        size=0.1,
-            #        color=color,
-            #        life_time=.1,
-            #        persistent_lines=False
-            #    )
-
-        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-            predictions_to_send = generated_predictions.copy()
-            for obstacle_prediction in predictions_to_send:
-                    vehicle_manager.agent.generated_predictions.append(obstacle_prediction)
-
-        for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-
-            # Apply Control; Run Step 
-            vehicle_manager.update_info(step_id)
-            control = vehicle_manager.run_step()
-            vehicle_manager.vehicle.apply_control(control)
-            #logger.debug("Applied control")
-        for rsu in self.rsu_manager_list:
-            rsu.update_info()
-            rsu.run_step()
+        self.run_step_maneuvering(step_id)
 
     def _calculate_hybrid_latency(self, step_id, latency_offset_ms=0):
         """Calculates total latency using real C-V2X trace and trace-informed backhaul model."""
@@ -1291,7 +1074,7 @@ class EdgeManager(object):
         # --- Component 1: C-V2X Radio Link (Real Trace) ---
         if self.c_v2x_rtt_trace:
             T_radio_rtt = np.random.choice(self.c_v2x_rtt_trace) * 2 # Assuming trace is one-way
-            print(f"Using C-V2X RTT from trace: {T_radio_rtt:.2f} ms", flush=True)
+            logger.debug(f"Using C-V2X RTT from trace: {T_radio_rtt:.2f} ms")
         else:
             T_radio_rtt = np.random.uniform(30, 80) * 2 # Fallback
 
@@ -1303,13 +1086,13 @@ class EdgeManager(object):
         T_edge_compute = 25.0
         T_control_waits_etc = np.random.uniform(0, 50) * 2 + 5 + np.random.uniform(5, 10)
 
-        print(f"Hybrid Latency Components: "
+        logger.debug(f"Hybrid Latency Components: "
                     f"T_radio_rtt: {T_radio_rtt:.2f} ms, "
                     f"T_backhaul_rtt: {T_backhaul_rtt:.2f} ms, "
                     f"T_onboard_perception: {T_onboard_perception:.2f} ms, "
                     f"T_edge_compute: {T_edge_compute:.2f} ms, "
                     f"T_control_waits_etc: {T_control_waits_etc:.2f} ms, "
-                    f"latency_offset_ms: {latency_offset_ms:.2f} ms", flush=True)
+                    f"latency_offset_ms: {latency_offset_ms:.2f} ms")
         # --- Component 4: Latency Offset ---   
 
         
@@ -1335,24 +1118,24 @@ class EdgeManager(object):
         elif self.latency_distribution == "lognormal":
             lognormal_mean = np.log(self.latency * 1000) if self.latency > 0 else 0
             total_latency_ms = np.random.lognormal(mean=lognormal_mean, sigma=0.5)
-            print(f"Lognormal mean: {lognormal_mean}, sigma: 0.5", flush=True)
-            print(f"Lognormal total latency: {total_latency_ms} ms", flush=True)
+            logger.debug(f"Lognormal mean: {lognormal_mean}, sigma: 0.5")
+            logger.debug(f"Lognormal total latency: {total_latency_ms} ms")
         elif self.latency_distribution == "hybrid":
             total_latency_ms = self._calculate_hybrid_latency(step_id, latency_offset_ms=self.latency * 1000)
-            print(f"Hybrid total latency: {total_latency_ms} ms", flush=True)
+            logger.debug(f"Hybrid total latency: {total_latency_ms} ms")
         else: # Fixed latency
             total_latency_ms = self.latency * 1000  # Convert to milliseconds
 
         if total_latency_ms < 0: total_latency_ms = 0
         lag_steps = max(0, round(total_latency_ms / (self.dt * 1000)))
-        print(f"Total latency in ms: {total_latency_ms}, Lag steps: {lag_steps}", flush=True)
+        logger.debug(f"Total latency in ms: {total_latency_ms}, Lag steps: {lag_steps}")
         
         as_of_step = step_id - lag_steps
         if as_of_step < 0:
             return # Not enough simulation history has passed.
 
         # ------------------------------------------------ History Reconstruction ---
-        print(f"Current Step: {step_id}. Reconstructing world state as of Step: {as_of_step}", flush=True)
+        logger.debug(f"Current Step: {step_id}. Reconstructing world state as of Step: {as_of_step}")
 
         tracker_start_time = time.perf_counter()
         # 1. Initialize a fresh tracker for a clean-slate reconstruction.
@@ -1404,8 +1187,8 @@ class EdgeManager(object):
             # Collect the tracker output. Even if it's empty, we append it to maintain sequence.
             if results_at_step and len(results_at_step[0]) > 0:
                 replay_output_deque.append(results_at_step[0])
+
         tracker_ms = (time.perf_counter() - tracker_start_time) * 1000.0
-        
 
         # ------------------------------------------------ Trajectory & Prediction ---
         # 3. Use your ORIGINAL `convert_ab3dmot_history_to_trajectories` function.
@@ -1425,126 +1208,24 @@ class EdgeManager(object):
                                       latency=total_latency_ms)
 
         # ------------------------------------------------ Forward to Vehicles ---
+
         # (Rest of your logic remains the same)
         for vm in self.vehicle_manager_list:
             if np.random.rand() * 100 < self.downlink_packet_loss_pct:
-                print(f"--- DOWNLINK PACKET LOSS: Vehicle {vm.vehicle.id} discarding edge predictions ---", flush=True)
+                logger.debug(f"--- DOWNLINK PACKET LOSS: Vehicle {vm.vehicle.id} discarding edge predictions ---")
                 # If packet is lost, clear the edge predictions before the fusion logic uses them.
                 # don't send over any new predictions
 
                 vm.agent.edge_predictions.clear()
             else:
-                vm.agent.edge_predictions = preds.copy()
-        # ------------------------------------------------ apply control
-        for vm in self.vehicle_manager_list:
-            print("Running step for vehicle manager:", vm, flush=True)
-            vm.update_info(step_id)
-            control = vm.run_step()
-            print("Applying control for vehicle manager:", vm, flush=True)
-            vm.vehicle.apply_control(control)
-
-        for rsu in self.rsu_manager_list:
-            rsu.update_info()
-            rsu.run_step()
-
-
-    def run_step_prediction_old1(self, step_id):
-        # ------------------------------------------------ latency filter ---
-        print("Running prediction step for edge", self.edgeid, flush=True)
-        if step_id < int((self.latency + self.jitter_std) / self.dt):
-            return
-
-
-        if self.latency_distribution == "normal":
-            total_latency_ms = np.random.normal(loc=self.latency * 1000,  # convert to milliseconds
-                                            scale=self.jitter_std * 1000)
-        elif self.latency_distribution == "lognormal":
-            total_latency_ms = np.random.lognormal(mean=np.log(self.latency * 1000),  # convert to milliseconds
-                                            sigma=.5)
-
-        lag_steps = int(total_latency_ms / (self.dt * 1000))  # convert back to steps
-        print("Total latency in ms:", total_latency_ms, "Lag steps:", lag_steps, flush=True)
-
-        if objects_deque_len := len(self.objects_deque) < lag_steps + 1:
-            print("Not enough history in objects_deque, skipping step", flush=True)
-            return
-
-        # ------------------------------------------------ collect detections
-        det_rows, info_rows = [], []
-
-        # 1. all vehicle obstacles from the lagged deque snapshot
-
-        objects_snapshot = self.objects_deque[lag_steps].copy()
-
-
-        beacons_dict = {}
-        for vm in self.vehicle_manager_list:
-            hist = self.beacon_history[vm.vehicle.id]
-            if len(hist) > lag_steps:
-                print("Using delayed pose for vehicle", vm.vehicle.id, flush=True)
-                _, loc, ext = hist[lag_steps]
-            else:
-                # not enough history yet
-                print("Using current pose for vehicle", vm.vehicle.id, flush=True)
-                loc, ext = vm.vehicle.get_location(), vm.vehicle.bounding_box.extent
-            beacons_dict[vm.vehicle.id] = (loc, ext)
-
-        dets_all = collect_ab3d_detections(self,
-                                   objects_snapshot,
-                                   beacons_dict,
-                                   frame_idx=step_id)
-
-        # ------------------------------------------------ AB3DMOT tracking
-        t0 = time.perf_counter()
-        tracks_np, _ = self.ab3dmot_tracker.track(dets_all, step_id)
-        tracker_ms = (time.perf_counter() - t0) * 1000.0
-
-        print("Tracker Time (AB3DMOT):", tracker_ms, "ms", flush=True)
-
-        print("Tracks after AB3DMOT:", tracks_np, flush=True)
-
-        # ------------------------------------------------ convert to trajectories
-        tracks_np = self.filter_stale_tracks(tracks_np, max_age=5)
-        print("Tracks after filtering:", tracks_np, flush=True)
-        self.convert_ab3dmot_history_to_trajectories(
-            tracks_np, trajectory_length=10, dt=self.dt)
-
-        print("Tracked trajectories:", self.tracked_trajectories, flush=True)
-        for traj_id, traj in self.tracked_trajectories.items():
-            print(f"Trajectory ID {traj_id}", flush=True)
-            for t in traj.trajectory:
-                print(f"  Transform: {t}", flush=True)
-            
-        # ------------------------------------------------ prediction
-        t1 = time.perf_counter()
-        preds = self.linear_predictor_manager.generate_predicted_trajectories(
-                     self.tracked_trajectories)
-
-
-        predict_ms = (time.perf_counter() - t1) * 1000.0
-
-        # ------------------------------------------------ debug/telemetry
-        self.debug_helper.update_edge(0,
-                                      tracking_time=tracker_ms,
-                                      prediction_time=predict_ms,
-                                      latency=total_latency_ms)
-
-        # ------------------------------------------------ forward to vehicles
-
-        #print("Predictions generated:", preds, flush=True)
-
-        for vm in self.vehicle_manager_list:
-            vm.agent.edge_predictions = preds.copy()
-            #print("Vehicle manager", vm, "has predictions:", vm.agent.generated_predictions, flush=True)
-
-        print("Completed prediction step for edge", self.edgeid, flush=True)
+                vm.agent.edge_predictions = preds.copy() # TODO: send these over the wire
 
         # ------------------------------------------------ apply control
-        for vm in self.vehicle_manager_list:
-            print("Running step for vehicle manager:", vm, flush=True)
+        for vm in self.vehicle_manager_list: # TODO: needs to be done on remote vehicle clients
+            logger.debug("Running step for vehicle manager: %s", vm)
             vm.update_info(step_id)
             control = vm.run_step()
-            print("Applying control for vehicle manager:", vm, flush=True)
+            logger.debug("Applying control for vehicle manager: %s", vm)
             vm.vehicle.apply_control(control)
 
         for rsu in self.rsu_manager_list:
@@ -1578,7 +1259,7 @@ class EdgeManager(object):
                 rot = carla.Rotation(yaw=np.degrees(rotation_y))
                 transform = carla.Transform(location=loc, rotation=rot)
 
-                print("Processing track ID:", track_id, "at location:", loc, "rotation:", rot, flush=True)
+                logger.debug("Processing track ID: %s at location: %s rotation: %s", track_id, loc, rot)
 
                 updated_ids.add(track_id)
 
@@ -1655,32 +1336,7 @@ class EdgeManager(object):
             #logger.debug("Applied control")
         for rsu in self.rsu_manager_list:
             rsu.update_info()
-            rsu.run_step()
-        #logger.debug("Objects Deque Before After Run Step: ", self.objects_deque)
-        
-        #for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-        #  objects_to_send = self.objects.copy()
-        #  if 'vehicles' in objects_to_send:
-        #    logger.debug(len(objects_to_send['vehicles']))
-        #  logger.debug("Vehicle %s" %idx)
-        #  for object_type, object_list in objects_to_send.items():
-        #    for obj in object_list:
-        #      logger.debug("Object Distance: %s"%obj.get_location().distance(vehicle_manager.vehicle.get_location()))
-        #      if obj.get_location().distance(vehicle_manager.vehicle.get_location()) < 3:
-        #        object_list.remove(obj)
-        #  vehicle_manager.edge_objects.clear()
-        #  vehicle_manager.edge_objects = objects_to_send
-        #  logger.debug(objects_to_send)
-        #  if 'vehicles' in objects_to_send:
-        #    logger.debug(len(objects_to_send['vehicles']))
-        #  vehicle_manager.update_info(step_id)
-        #  control = vehicle_manager.run_step()
-        #  vehicle_manager.vehicle.apply_control(control)
-        #  logger.debug("Applied control")
-        #for rsu in self.rsu_manager_list:
-        #  rsu.update_info()
-        # rsu.run_step() 
-          
+            rsu.run_step()       
           
           
     def run_step_maneuvering(self, step_id):
@@ -1702,47 +1358,16 @@ class EdgeManager(object):
         logger.debug("Algorithm completion time: %s", (post_algo_time - pre_algo_time))
         self.debug_helper.update_edge((post_algo_time - pre_algo_time)*1000)
         all_waypoint_buffers = []
-        #logger.debug("completed Algorithm Step")
-        # output algorithm waypoints to waypoint buffer of each vehicle
         for idx, vehicle_manager in enumerate(self.vehicle_manager_list):
-        #   # logger.debug(i)
-        #   waypoint_buffer = vehicle_manager.agent.get_local_planner().get_waypoint_buffer()
-        #   # logger.debug(waypoint_buffer)
-        #   # for waypoints in waypoint_buffer:
-        #   #   logger.debug("Waypoints transform for Vehicle Before Clearing: " + str(i) + " : ", waypoints[0].transform)
-        #   waypoint_buffer.clear() #EDIT MADE 16/03
             waypoint_buffer_proto = ecloud.WaypointBuffer()
             waypoint_buffer_proto.vehicle_index = idx
 
             for k in range(0,1):
                 waypoint_buffer_proto.waypoint_buffer.extend([serialize_waypoint(self.locations[idx*1+k])])#, RoadOption.STRAIGHT)) #Accounting for horizon of 4 here. To generate a waypoint _buffer_
 
-            #logger.debug(waypoint_buffer_proto.SerializeToString())
-
             all_waypoint_buffers.append(waypoint_buffer_proto)
-          # for waypoints in waypoint_buffer:
-          #   logger.debug("Waypoints transform for Vehicle After Clearing: " + str(i) + " : ", waypoints[0].transform)
-          # sys.exit()
-          # # logger.debug(waypoint_buffer)
 
         return all_waypoint_buffers
-
-        # #logger.debug("\n ########################\n")
-        # #logger.debug("Length of vehicle manager list: ", len(self.vehicle_manager_list))
-
-        # control_list = []
-        # for i in range(len(self.vehicle_manager_list)):
-        #     waypoints_buffer_logger.debuger = self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer()
-        #     #for waypoints in waypoints_buffer_logger.debuger:
-        #         #logger.debug("Waypoints transform for Vehicle: " + str(i) + " : ", waypoints[0].transform)
-        #     # logger.debug(self.vehicle_manager_list[i].agent.get_local_planner().get_waypoint_buffer().transform())
-        #     control = self.vehicle_manager_list[i].run_step(self.target_speed)
-        #     control_list.append(control)
-
-        # for (i, control) in enumerate(control_list):
-        #     self.vehicle_manager_list[i].vehicle.apply_control(control)
-
-        # return control_list
 
     def evaluate(self):
         """

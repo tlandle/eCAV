@@ -194,6 +194,7 @@ enum Command : int {
   END = 1,
   REQUEST_DEBUG_INFO = 2,
   PULL_WAYPOINTS_AND_TICK = 3,
+  PULL_OBJECTS_AND_TICK = 4,
   Command_INT_MIN_SENTINEL_DO_NOT_USE_ =
       std::numeric_limits<::int32_t>::min(),
   Command_INT_MAX_SENTINEL_DO_NOT_USE_ =
@@ -202,8 +203,8 @@ enum Command : int {
 
 bool Command_IsValid(int value);
 constexpr Command Command_MIN = static_cast<Command>(0);
-constexpr Command Command_MAX = static_cast<Command>(3);
-constexpr int Command_ARRAYSIZE = 3 + 1;
+constexpr Command Command_MAX = static_cast<Command>(4);
+constexpr int Command_ARRAYSIZE = 4 + 1;
 const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor*
 Command_descriptor();
 template <typename T>
@@ -216,7 +217,7 @@ const std::string& Command_Name(T value) {
 template <>
 inline const std::string& Command_Name(Command value) {
   return ::PROTOBUF_NAMESPACE_ID::internal::NameOfDenseEnum<Command_descriptor,
-                                                 0, 3>(
+                                                 0, 4>(
       static_cast<int>(value));
 }
 inline bool Command_Parse(absl::string_view name, Command* value) {

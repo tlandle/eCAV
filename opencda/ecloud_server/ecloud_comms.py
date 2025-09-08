@@ -140,7 +140,7 @@ async def ecloud_run_push_server(port,
             server.add_insecure_port(listen_addr)
             server_started = True
         except Exception as port_exception: # pylint: disable=broad-exception-caught
-            logger.warning("failed to start push server on port %s - incrementing port & retrying", 
+            logger.error("failed to start push server on port %s - incrementing port & retrying", 
                            port)
             port += 1
             continue

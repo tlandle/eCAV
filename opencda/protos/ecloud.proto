@@ -22,6 +22,7 @@ enum Command {
   END = 1;
   REQUEST_DEBUG_INFO = 2;
   PULL_WAYPOINTS_AND_TICK = 3;
+  PULL_OBJECTS_AND_TICK = 4;
 }
 
 enum VehicleState {

@@ -13,6 +13,7 @@ import sys
 import subprocess
 from omegaconf import OmegaConf
 import torch
+import warnings
 
 from opencda.version import __version__
 import coloredlogs, logging
@@ -55,8 +56,14 @@ def arg_parse():
 def main():
     # parse the arguments
     opt = arg_parse()
+
+    if opt.verbose:
+        logger.setLevel(logging.DEBUG)
+    elif opt.quiet:
+        logger.setLevel(logging.WARNING)
+
     # print the version of OpenCDA
-    print("eCAV Version: %s" % __version__)
+    logger.info("eCAV Version: %s", __version__)
 
     # set the default yaml file
     default_yaml = config_yaml = os.path.join(
@@ -101,6 +108,8 @@ def main():
 
 if __name__ == '__main__':
     try:
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
         sys.path.insert(0, os.path.join(os.getcwd(), 'opencda'))
         sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
         sys.path.insert(0, os.getcwd())

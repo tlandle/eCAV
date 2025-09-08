@@ -157,8 +157,18 @@ class VehicleManager(object):
         random.seed(seed)
 
         #cav_config = self.scenario_params['scenario']['single_cav_list'][0] 
-        cav_config = self.scenario_params['vehicle_base']
-        #print(cav_config)
+        cav_config = self.scenario_params['scenario']['edge_list'][0]['vehicles'][0]
+        logger.critical(cav_config)
+
+        self.destination = {}
+        self.destination['x'] = cav_config['destination'][0]
+        self.destination['y'] = cav_config['destination'][1]
+        self.destination['z'] = cav_config['destination'][2]
+
+        self.destination_location = carla.Location(
+                x=self.destination['x'],
+                y=self.destination['y'],
+                z=self.destination['z'])
 
         self.linear_predictor_manager = LinearPredictorManager(num_future_steps=25)        
 
@@ -510,6 +520,8 @@ class VehicleManager(object):
         end_time = time.time()
         logger.debug("Controller update time: %s" %(end_time - start_time))
         self.debug_helper.update_controller_update_info_time((end_time-start_time)*1000)
+
+        # TODO: send over the wire here?
 
     def run_step(self, target_speed=None):
         """

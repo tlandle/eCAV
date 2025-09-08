@@ -22,6 +22,7 @@ import numpy as np
 import coloredlogs
 import pickle
 
+from opencda.core.common import vehicle_manager
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
@@ -47,6 +48,13 @@ CARLA_IP = cloud_config["carla_server_public_ip"]
 ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
 VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
 ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
+
+if cloud_config["log_level"] == "error":
+    logger.setLevel(logging.ERROR)
+elif cloud_config["log_level"] == "warning":
+    logger.setLevel(logging.WARNING)
+elif cloud_config["log_level"] == "info":
+    logger.setLevel(logging.INFO)
 
 class Ecav2VehicleClient:
 
@@ -150,15 +158,21 @@ class Ecav2VehicleClient:
 
         await self.send_carla_data_to_opencda()
 
+        logger.info("send_carla_data_to_opencda completed")
+
         assert self.push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", self.push_q.get_nowait())
         self.pong = await self.push_q.get()
         self.push_q.task_done()
+
+        logger.info("pong received")
 
         self.vehicle_manager.update_info()
         self.vehicle_manager.set_destination(
                     self.vehicle_manager.vehicle.get_location(),
                     self.vehicle_manager.destination_location,
                     clean=True)
+        
+        logger.info("udpate_info & set_destination complete")
 
     async def connect(self) -> ecloud.SimulationInfo:
         # spawn push server
@@ -298,8 +312,8 @@ class Ecav2VehicleClient:
         
         vehicle_update = ecloud.VehicleUpdate()
         
-        if self.pong.command != ecloud.Command.TICK: # don't print tick message since there are too many
-            logger.info("Vehicle: received cmd %s", self.pong.command)
+        #if self.pong.command != ecloud.Command.TICK: # don't print tick message since there are too many
+        logger.info("Vehicle: received cmd %s", self.pong.command)
 
         # HANDLE DEBUG DATA REQUEST
         if self.pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
@@ -315,53 +329,16 @@ class Ecav2VehicleClient:
             self.vehicle_manager.update_info()
             update_info_end_time = time.time()
             self.vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
-            logger.debug("update_info complete")
+            logger.info("update_info complete")
 
             if self.is_edge:
                 self.network_emulator.update_waypoints()
 
-            logger.debug("run_step complete")
+            logger.info("run_step complete")
 
             vehicle_update.tick_id = self.tick_id
 
-            if control is None or self.vehicle_manager.is_close_to_scenario_destination():
-                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_DONE
-                if not self.reported_done:
-                    self.serialize_debug_info(vehicle_update, self.vehicle_manager)
-
-                if control is not None and self.done_behavior == eDoneBehavior.CONTROL:
-                    self.vehicle_manager.apply_control(control)
-
-            else:
-                self.vehicle_manager.apply_control(control)
-                logger.debug("apply_control complete")
-
-                step_timestamps = ecloud.Timestamps()
-                step_timestamps.tick_id = self.tick_id
-                step_timestamps.client_end_tstamp.GetCurrentTime()
-                step_timestamps.client_start_tstamp.CopyFrom(client_start_timestamp)
-                self.vehicle_manager.debug_helper.update_timestamp(step_timestamps)
-
-                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
-                vehicle_update.duration_ns = step_timestamps.client_end_tstamp.ToNanoseconds() - step_timestamps.client_start_tstamp.ToNanoseconds()
-
-            if self.is_edge or self.vehicle_index == eCloudClient.SPECTATOR_INDEX or self.verbose_updates:
-                velocity = self.vehicle_manager.vehicle.get_velocity()
-                pv = ecloud.Velocity()
-                pv.x = velocity.x
-                pv.y = velocity.y
-                pv.z = velocity.z
-                vehicle_update.velocity.CopyFrom(pv)
-
-                transform = self.vehicle_manager.vehicle.get_transform()
-                pt = ecloud.Transform()
-                pt.location.x = transform.location.x
-                pt.location.y = transform.location.y
-                pt.location.z = transform.location.z
-                pt.rotation.roll = transform.rotation.roll
-                pt.rotation.yaw = transform.rotation.yaw
-                pt.rotation.pitch = transform.rotation.pitch
-                vehicle_update.transform.CopyFrom(pt)
+            vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: placeholder
 
             # vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
             # logger.error("ecloud_client error")
@@ -374,7 +351,7 @@ class Ecav2VehicleClient:
             if not self.reported_done:
                 vehicle_update.tick_id = self.tick_id
                 vehicle_update.vehicle_index = self.vehicle_index
-                logger.debug('vehicle_update: \n vehicle_index: %s \n tick_id: %s \n %s', self.vehicle_index, self.tick_id, vehicle_update)
+                logger.info('vehicle_update: \n vehicle_index: %s \n tick_id: %s \n %s', self.vehicle_index, self.tick_id, vehicle_update)
                 await self.send_vehicle_update( vehicle_update)
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
