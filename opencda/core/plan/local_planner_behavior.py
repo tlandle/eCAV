@@ -18,6 +18,7 @@ import numpy as np
 from opencda.core.common.misc import distance_vehicle, draw_trajetory_points, \
     cal_distance_angle, compute_distance
 from opencda.core.plan.spline import Spline2D
+from opencda.opencda_carla import Location, Rotation, Transform
 
 logger = logging.getLogger(__name__)
 
@@ -389,7 +390,7 @@ class LocalPlanner(object):
                 continue
             if i <= len(s) // 2:
                 self._long_plan_debug.append(
-                    carla.Transform(carla.Location(ix, iy, 0)))
+                    Transform(Location(ix, iy, 0)))
             rx.append(ix)
             ry.append(iy)
             rk.append(max(min(sp.calc_curvature(i_s), 0.2), -0.2))
@@ -461,8 +462,8 @@ class LocalPlanner(object):
                 sample_y = ry[max(0, int(sample_resolution // ds - 1))]
 
             self._trajectory_buffer.append(
-                (carla.Transform(
-                    carla.Location(
+                (Transform(
+                    Location(
                         sample_x,
                         sample_y,
                         self._waypoint_buffer[0][0].transform.location.z +

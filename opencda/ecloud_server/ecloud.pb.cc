@@ -462,6 +462,7 @@ PROTOBUF_CONSTEXPR VehicleUpdate::VehicleUpdate(
   , /*decltype(_impl_.client_debug_helper_)*/nullptr
   , /*decltype(_impl_.transform_)*/nullptr
   , /*decltype(_impl_.velocity_)*/nullptr
+  , /*decltype(_impl_.vehicle_manager_)*/nullptr
   , /*decltype(_impl_.tick_id_)*/ 0
 
   , /*decltype(_impl_.vehicle_index_)*/ 0
@@ -498,6 +499,41 @@ struct EcloudResponseDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EcloudResponseDefaultTypeInternal _EcloudResponse_default_instance_;
 template <typename>
+PROTOBUF_CONSTEXPR ObstacleVehicle::ObstacleVehicle(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.carla_id_)*/ 0
+
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct ObstacleVehicleDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ObstacleVehicleDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ObstacleVehicleDefaultTypeInternal() {}
+  union {
+    ObstacleVehicle _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ObstacleVehicleDefaultTypeInternal _ObstacleVehicle_default_instance_;
+template <typename>
+PROTOBUF_CONSTEXPR GeneratedTrajectory::GeneratedTrajectory(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_._has_bits_)*/{}
+  , /*decltype(_impl_._cached_size_)*/{}
+  , /*decltype(_impl_.predicted_trajectory_)*/{}
+  , /*decltype(_impl_.obstacle_)*/nullptr
+  , /*decltype(_impl_.probability_)*/ 0
+} {}
+struct GeneratedTrajectoryDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR GeneratedTrajectoryDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~GeneratedTrajectoryDefaultTypeInternal() {}
+  union {
+    GeneratedTrajectory _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 GeneratedTrajectoryDefaultTypeInternal _GeneratedTrajectory_default_instance_;
+template <typename>
 PROTOBUF_CONSTEXPR ObstacleBoundingBox::ObstacleBoundingBox(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.center_x_)*/ 0
@@ -526,7 +562,10 @@ PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
 template <typename>
 PROTOBUF_CONSTEXPR ObjectBuffer::ObjectBuffer(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.object_)*/{}
+    /*decltype(_impl_.pickled_edge_predictions_)*/ {
+    &::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized {}
+  }
+
   , /*decltype(_impl_.vehicle_id_)*/ 0
 
   , /*decltype(_impl_._cached_size_)*/{}} {}
@@ -591,8 +630,26 @@ struct EdgeObjectsDefaultTypeInternal {
 
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeObjectsDefaultTypeInternal _EdgeObjects_default_instance_;
+template <typename>
+PROTOBUF_CONSTEXPR PickledVehicleManager::PickledVehicleManager(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.vehicle_manager_)*/ {
+    &::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized {}
+  }
+
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct PickledVehicleManagerDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR PickledVehicleManagerDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~PickledVehicleManagerDefaultTypeInternal() {}
+  union {
+    PickledVehicleManager _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 PickledVehicleManagerDefaultTypeInternal _PickledVehicleManager_default_instance_;
 }  // namespace ecloud
-static ::_pb::Metadata file_level_metadata_ecloud_2eproto[26];
+static ::_pb::Metadata file_level_metadata_ecloud_2eproto[29];
 static const ::_pb::EnumDescriptor* file_level_enum_descriptors_ecloud_2eproto[2];
 static constexpr const ::_pb::ServiceDescriptor**
     file_level_service_descriptors_ecloud_2eproto = nullptr;
@@ -867,6 +924,7 @@ const ::uint32_t TableStruct_ecloud_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
     PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.transform_),
     PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.velocity_),
     PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.duration_ns_),
+    PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.vehicle_manager_),
     ~0u,
     ~0u,
     ~0u,
@@ -876,6 +934,7 @@ const ::uint32_t TableStruct_ecloud_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
     3,
     4,
     ~0u,
+    5,
     ~0u,  // no _has_bits_
     PROTOBUF_FIELD_OFFSET(::ecloud::EcloudResponse, _internal_metadata_),
     ~0u,  // no _extensions_
@@ -886,6 +945,29 @@ const ::uint32_t TableStruct_ecloud_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
     ~0u,  // no sizeof(Split)
     PROTOBUF_FIELD_OFFSET(::ecloud::EcloudResponse, _impl_.tick_id_),
     PROTOBUF_FIELD_OFFSET(::ecloud::EcloudResponse, _impl_.vehicle_update_),
+    ~0u,  // no _has_bits_
+    PROTOBUF_FIELD_OFFSET(::ecloud::ObstacleVehicle, _internal_metadata_),
+    ~0u,  // no _extensions_
+    ~0u,  // no _oneof_case_
+    ~0u,  // no _weak_field_map_
+    ~0u,  // no _inlined_string_donated_
+    ~0u,  // no _split_
+    ~0u,  // no sizeof(Split)
+    PROTOBUF_FIELD_OFFSET(::ecloud::ObstacleVehicle, _impl_.carla_id_),
+    PROTOBUF_FIELD_OFFSET(::ecloud::GeneratedTrajectory, _impl_._has_bits_),
+    PROTOBUF_FIELD_OFFSET(::ecloud::GeneratedTrajectory, _internal_metadata_),
+    ~0u,  // no _extensions_
+    ~0u,  // no _oneof_case_
+    ~0u,  // no _weak_field_map_
+    ~0u,  // no _inlined_string_donated_
+    ~0u,  // no _split_
+    ~0u,  // no sizeof(Split)
+    PROTOBUF_FIELD_OFFSET(::ecloud::GeneratedTrajectory, _impl_.obstacle_),
+    PROTOBUF_FIELD_OFFSET(::ecloud::GeneratedTrajectory, _impl_.probability_),
+    PROTOBUF_FIELD_OFFSET(::ecloud::GeneratedTrajectory, _impl_.predicted_trajectory_),
+    0,
+    ~0u,
+    ~0u,
     ~0u,  // no _has_bits_
     PROTOBUF_FIELD_OFFSET(::ecloud::ObstacleBoundingBox, _internal_metadata_),
     ~0u,  // no _extensions_
@@ -909,7 +991,7 @@ const ::uint32_t TableStruct_ecloud_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
     ~0u,  // no _split_
     ~0u,  // no sizeof(Split)
     PROTOBUF_FIELD_OFFSET(::ecloud::ObjectBuffer, _impl_.vehicle_id_),
-    PROTOBUF_FIELD_OFFSET(::ecloud::ObjectBuffer, _impl_.object_),
+    PROTOBUF_FIELD_OFFSET(::ecloud::ObjectBuffer, _impl_.pickled_edge_predictions_),
     PROTOBUF_FIELD_OFFSET(::ecloud::EdgeObstacleObject, _impl_._has_bits_),
     PROTOBUF_FIELD_OFFSET(::ecloud::EdgeObstacleObject, _internal_metadata_),
     ~0u,  // no _extensions_
@@ -944,6 +1026,15 @@ const ::uint32_t TableStruct_ecloud_2eproto::offsets[] PROTOBUF_SECTION_VARIABLE
     ~0u,  // no _split_
     ~0u,  // no sizeof(Split)
     PROTOBUF_FIELD_OFFSET(::ecloud::EdgeObjects, _impl_.all_object_buffers_),
+    ~0u,  // no _has_bits_
+    PROTOBUF_FIELD_OFFSET(::ecloud::PickledVehicleManager, _internal_metadata_),
+    ~0u,  // no _extensions_
+    ~0u,  // no _oneof_case_
+    ~0u,  // no _weak_field_map_
+    ~0u,  // no _inlined_string_donated_
+    ~0u,  // no _split_
+    ~0u,  // no sizeof(Split)
+    PROTOBUF_FIELD_OFFSET(::ecloud::PickledVehicleManager, _impl_.vehicle_manager_),
 };
 
 static const ::_pbi::MigrationSchema
@@ -967,13 +1058,16 @@ static const ::_pbi::MigrationSchema
         { 207, 216, -1, sizeof(::ecloud::LaneInvasionEvent)},
         { 217, -1, -1, sizeof(::ecloud::ClientDebugHelper)},
         { 237, -1, -1, sizeof(::ecloud::RegistrationInfo)},
-        { 252, 269, -1, sizeof(::ecloud::VehicleUpdate)},
-        { 278, -1, -1, sizeof(::ecloud::EcloudResponse)},
-        { 288, -1, -1, sizeof(::ecloud::ObstacleBoundingBox)},
-        { 302, -1, -1, sizeof(::ecloud::ObjectBuffer)},
-        { 312, 324, -1, sizeof(::ecloud::EdgeObstacleObject)},
-        { 328, -1, -1, sizeof(::ecloud::ObjectRequest)},
-        { 337, -1, -1, sizeof(::ecloud::EdgeObjects)},
+        { 252, 270, -1, sizeof(::ecloud::VehicleUpdate)},
+        { 280, -1, -1, sizeof(::ecloud::EcloudResponse)},
+        { 290, -1, -1, sizeof(::ecloud::ObstacleVehicle)},
+        { 299, 310, -1, sizeof(::ecloud::GeneratedTrajectory)},
+        { 313, -1, -1, sizeof(::ecloud::ObstacleBoundingBox)},
+        { 327, -1, -1, sizeof(::ecloud::ObjectBuffer)},
+        { 337, 349, -1, sizeof(::ecloud::EdgeObstacleObject)},
+        { 353, -1, -1, sizeof(::ecloud::ObjectRequest)},
+        { 362, -1, -1, sizeof(::ecloud::EdgeObjects)},
+        { 371, -1, -1, sizeof(::ecloud::PickledVehicleManager)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
@@ -998,11 +1092,14 @@ static const ::_pb::Message* const file_default_instances[] = {
     &::ecloud::_RegistrationInfo_default_instance_._instance,
     &::ecloud::_VehicleUpdate_default_instance_._instance,
     &::ecloud::_EcloudResponse_default_instance_._instance,
+    &::ecloud::_ObstacleVehicle_default_instance_._instance,
+    &::ecloud::_GeneratedTrajectory_default_instance_._instance,
     &::ecloud::_ObstacleBoundingBox_default_instance_._instance,
     &::ecloud::_ObjectBuffer_default_instance_._instance,
     &::ecloud::_EdgeObstacleObject_default_instance_._instance,
     &::ecloud::_ObjectRequest_default_instance_._instance,
     &::ecloud::_EdgeObjects_default_instance_._instance,
+    &::ecloud::_PickledVehicleManager_default_instance_._instance,
 };
 const char descriptor_table_protodef_ecloud_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
     "\n\014ecloud.proto\022\006ecloud\032\037google/protobuf/"
@@ -1063,7 +1160,7 @@ const char descriptor_table_protodef_ecloud_2eproto[] PROTOBUF_SECTION_VARIABLE(
     "hicleState\022\025\n\rvehicle_index\030\002 \001(\005\022\013\n\003vid"
     "\030\003 \001(\t\022\020\n\010actor_id\030\004 \001(\005\022\026\n\016container_na"
     "me\030\005 \001(\t\022\022\n\nvehicle_ip\030\006 \001(\t\022\024\n\014vehicle_"
-    "port\030\007 \001(\005\"\345\002\n\rVehicleUpdate\022\017\n\007tick_id\030"
+    "port\030\007 \001(\005\"\235\003\n\rVehicleUpdate\022\017\n\007tick_id\030"
     "\001 \001(\005\022\025\n\rvehicle_index\030\002 \001(\005\022+\n\rvehicle_"
     "state\030\003 \001(\0162\024.ecloud.VehicleState\0220\n\020loc"
     "_debug_helper\030\004 \001(\0132\026.ecloud.LocDebugHel"
@@ -1072,45 +1169,52 @@ const char descriptor_table_protodef_ecloud_2eproto[] PROTOBUF_SECTION_VARIABLE(
     "er\030\006 \001(\0132\031.ecloud.ClientDebugHelper\022$\n\tt"
     "ransform\030\007 \001(\0132\021.ecloud.Transform\022\"\n\010vel"
     "ocity\030\010 \001(\0132\020.ecloud.Velocity\022\023\n\013duratio"
-    "n_ns\030\t \001(\003\"P\n\016EcloudResponse\022\017\n\007tick_id\030"
-    "\001 \001(\005\022-\n\016vehicle_update\030\002 \003(\0132\025.ecloud.V"
-    "ehicleUpdate\"\201\001\n\023ObstacleBoundingBox\022\020\n\010"
-    "center_x\030\001 \001(\005\022\020\n\010center_y\030\002 \001(\005\022\020\n\010cent"
-    "er_z\030\003 \001(\005\022\020\n\010extent_x\030\004 \001(\005\022\020\n\010extent_y"
-    "\030\005 \001(\005\022\020\n\010extent_z\030\006 \001(\005\"N\n\014ObjectBuffer"
-    "\022\022\n\nvehicle_id\030\001 \001(\005\022*\n\006object\030\002 \003(\0132\032.e"
-    "cloud.EdgeObstacleObject\"\241\001\n\022EdgeObstacl"
-    "eObject\0221\n\014bounding_box\030\001 \001(\0132\033.ecloud.O"
-    "bstacleBoundingBox\022\"\n\010location\030\002 \001(\0132\020.e"
-    "cloud.Location\022\020\n\010carla_id\030\003 \001(\005\022\"\n\010velo"
-    "city\030\004 \001(\0132\020.ecloud.Velocity\"&\n\rObjectRe"
-    "quest\022\025\n\rvehicle_index\030\001 \001(\005\"\?\n\013EdgeObje"
-    "cts\0220\n\022all_object_buffers\030\001 \003(\0132\024.ecloud"
-    ".ObjectBuffer*l\n\007Command\022\010\n\004TICK\020\000\022\007\n\003EN"
-    "D\020\001\022\026\n\022REQUEST_DEBUG_INFO\020\002\022\033\n\027PULL_WAYP"
-    "OINTS_AND_TICK\020\003\022\031\n\025PULL_OBJECTS_AND_TIC"
-    "K\020\004*\240\001\n\014VehicleState\022\017\n\013REGISTERING\020\000\022\020\n"
-    "\014CARLA_UPDATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002\022\023\n\017G"
-    "ET_DESTINATION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTICK_DO"
-    "NE\020\005\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_INFO_UP"
-    "DATE\020\0102\246\005\n\006Ecloud\022\'\n\010PushTick\022\014.ecloud.T"
-    "ick\032\r.ecloud.Empty\0229\n\021Client_SendUpdate\022"
-    "\025.ecloud.VehicleUpdate\032\r.ecloud.Empty\022J\n"
-    "\026Client_RegisterVehicle\022\030.ecloud.Registr"
-    "ationInfo\032\026.ecloud.SimulationInfo\022F\n\023Cli"
-    "ent_GetWaypoints\022\027.ecloud.WaypointReques"
-    "t\032\026.ecloud.WaypointBuffer\022@\n\021Client_GetO"
-    "bjects\022\025.ecloud.ObjectRequest\032\024.ecloud.O"
-    "bjectBuffer\022,\n\rServer_DoTick\022\014.ecloud.Ti"
-    "ck\032\r.ecloud.Empty\022=\n\024Server_StartScenari"
-    "o\022\026.ecloud.SimulationInfo\032\r.ecloud.Empty"
-    "\0222\n\022Server_EndScenario\022\r.ecloud.Empty\032\r."
-    "ecloud.Empty\022A\n\030Server_GetVehicleUpdates"
-    "\022\r.ecloud.Empty\032\026.ecloud.EcloudResponse\022"
-    "@\n\030Server_PushEdgeWaypoints\022\025.ecloud.Edg"
-    "eWaypoints\032\r.ecloud.Empty\022<\n\026Server_Push"
-    "EdgeObjects\022\023.ecloud.EdgeObjects\032\r.eclou"
-    "d.Emptyb\006proto3"
+    "n_ns\030\t \001(\003\0226\n\017vehicle_manager\030\n \001(\0132\035.ec"
+    "loud.PickledVehicleManager\"P\n\016EcloudResp"
+    "onse\022\017\n\007tick_id\030\001 \001(\005\022-\n\016vehicle_update\030"
+    "\002 \003(\0132\025.ecloud.VehicleUpdate\"#\n\017Obstacle"
+    "Vehicle\022\020\n\010carla_id\030\001 \001(\005\"\206\001\n\023GeneratedT"
+    "rajectory\022)\n\010obstacle\030\001 \001(\0132\027.ecloud.Obs"
+    "tacleVehicle\022\023\n\013probability\030\002 \001(\002\022/\n\024pre"
+    "dicted_trajectory\030\003 \003(\0132\021.ecloud.Transfo"
+    "rm\"\201\001\n\023ObstacleBoundingBox\022\020\n\010center_x\030\001"
+    " \001(\005\022\020\n\010center_y\030\002 \001(\005\022\020\n\010center_z\030\003 \001(\005"
+    "\022\020\n\010extent_x\030\004 \001(\005\022\020\n\010extent_y\030\005 \001(\005\022\020\n\010"
+    "extent_z\030\006 \001(\005\"D\n\014ObjectBuffer\022\022\n\nvehicl"
+    "e_id\030\001 \001(\005\022 \n\030pickled_edge_predictions\030\002"
+    " \001(\014\"\241\001\n\022EdgeObstacleObject\0221\n\014bounding_"
+    "box\030\001 \001(\0132\033.ecloud.ObstacleBoundingBox\022\""
+    "\n\010location\030\002 \001(\0132\020.ecloud.Location\022\020\n\010ca"
+    "rla_id\030\003 \001(\005\022\"\n\010velocity\030\004 \001(\0132\020.ecloud."
+    "Velocity\"&\n\rObjectRequest\022\025\n\rvehicle_ind"
+    "ex\030\001 \001(\005\"\?\n\013EdgeObjects\0220\n\022all_object_bu"
+    "ffers\030\001 \003(\0132\024.ecloud.ObjectBuffer\"0\n\025Pic"
+    "kledVehicleManager\022\027\n\017vehicle_manager\030\001 "
+    "\001(\014*l\n\007Command\022\010\n\004TICK\020\000\022\007\n\003END\020\001\022\026\n\022REQ"
+    "UEST_DEBUG_INFO\020\002\022\033\n\027PULL_WAYPOINTS_AND_"
+    "TICK\020\003\022\031\n\025PULL_OBJECTS_AND_TICK\020\004*\240\001\n\014Ve"
+    "hicleState\022\017\n\013REGISTERING\020\000\022\020\n\014CARLA_UPD"
+    "ATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002\022\023\n\017GET_DESTINA"
+    "TION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTICK_DONE\020\005\022\006\n\002OK"
+    "\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_INFO_UPDATE\020\0102\246\005\n"
+    "\006Ecloud\022\'\n\010PushTick\022\014.ecloud.Tick\032\r.eclo"
+    "ud.Empty\0229\n\021Client_SendUpdate\022\025.ecloud.V"
+    "ehicleUpdate\032\r.ecloud.Empty\022J\n\026Client_Re"
+    "gisterVehicle\022\030.ecloud.RegistrationInfo\032"
+    "\026.ecloud.SimulationInfo\022F\n\023Client_GetWay"
+    "points\022\027.ecloud.WaypointRequest\032\026.ecloud"
+    ".WaypointBuffer\022@\n\021Client_GetObjects\022\025.e"
+    "cloud.ObjectRequest\032\024.ecloud.ObjectBuffe"
+    "r\022,\n\rServer_DoTick\022\014.ecloud.Tick\032\r.eclou"
+    "d.Empty\022=\n\024Server_StartScenario\022\026.ecloud"
+    ".SimulationInfo\032\r.ecloud.Empty\0222\n\022Server"
+    "_EndScenario\022\r.ecloud.Empty\032\r.ecloud.Emp"
+    "ty\022A\n\030Server_GetVehicleUpdates\022\r.ecloud."
+    "Empty\032\026.ecloud.EcloudResponse\022@\n\030Server_"
+    "PushEdgeWaypoints\022\025.ecloud.EdgeWaypoints"
+    "\032\r.ecloud.Empty\022<\n\026Server_PushEdgeObject"
+    "s\022\023.ecloud.EdgeObjects\032\r.ecloud.Emptyb\006p"
+    "roto3"
 };
 static const ::_pbi::DescriptorTable* const descriptor_table_ecloud_2eproto_deps[1] =
     {
@@ -1120,13 +1224,13 @@ static ::absl::once_flag descriptor_table_ecloud_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_ecloud_2eproto = {
     false,
     false,
-    4215,
+    4485,
     descriptor_table_protodef_ecloud_2eproto,
     "ecloud.proto",
     &descriptor_table_ecloud_2eproto_once,
     descriptor_table_ecloud_2eproto_deps,
     1,
-    26,
+    29,
     schemas,
     file_default_instances,
     TableStruct_ecloud_2eproto::offsets,
@@ -6998,6 +7102,10 @@ class VehicleUpdate::_Internal {
   static void set_has_velocity(HasBits* has_bits) {
     (*has_bits)[0] |= 16u;
   }
+  static const ::ecloud::PickledVehicleManager& vehicle_manager(const VehicleUpdate* msg);
+  static void set_has_vehicle_manager(HasBits* has_bits) {
+    (*has_bits)[0] |= 32u;
+  }
 };
 
 const ::ecloud::LocDebugHelper&
@@ -7020,6 +7128,10 @@ const ::ecloud::Velocity&
 VehicleUpdate::_Internal::velocity(const VehicleUpdate* msg) {
   return *msg->_impl_.velocity_;
 }
+const ::ecloud::PickledVehicleManager&
+VehicleUpdate::_Internal::vehicle_manager(const VehicleUpdate* msg) {
+  return *msg->_impl_.vehicle_manager_;
+}
 VehicleUpdate::VehicleUpdate(::PROTOBUF_NAMESPACE_ID::Arena* arena)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
   SharedCtor(arena);
@@ -7036,6 +7148,7 @@ VehicleUpdate::VehicleUpdate(const VehicleUpdate& from)
     , decltype(_impl_.client_debug_helper_){nullptr}
     , decltype(_impl_.transform_){nullptr}
     , decltype(_impl_.velocity_){nullptr}
+    , decltype(_impl_.vehicle_manager_){nullptr}
     , decltype(_impl_.tick_id_) {}
 
     , decltype(_impl_.vehicle_index_) {}
@@ -7061,6 +7174,9 @@ VehicleUpdate::VehicleUpdate(const VehicleUpdate& from)
   if ((from._impl_._has_bits_[0] & 0x00000010u) != 0) {
     _this->_impl_.velocity_ = new ::ecloud::Velocity(*from._impl_.velocity_);
   }
+  if ((from._impl_._has_bits_[0] & 0x00000020u) != 0) {
+    _this->_impl_.vehicle_manager_ = new ::ecloud::PickledVehicleManager(*from._impl_.vehicle_manager_);
+  }
   ::memcpy(&_impl_.tick_id_, &from._impl_.tick_id_,
     static_cast<::size_t>(reinterpret_cast<char*>(&_impl_.vehicle_state_) -
     reinterpret_cast<char*>(&_impl_.tick_id_)) + sizeof(_impl_.vehicle_state_));
@@ -7077,6 +7193,7 @@ inline void VehicleUpdate::SharedCtor(::_pb::Arena* arena) {
     , decltype(_impl_.client_debug_helper_){nullptr}
     , decltype(_impl_.transform_){nullptr}
     , decltype(_impl_.velocity_){nullptr}
+    , decltype(_impl_.vehicle_manager_){nullptr}
     , decltype(_impl_.tick_id_) { 0 }
 
     , decltype(_impl_.vehicle_index_) { 0 }
@@ -7104,6 +7221,7 @@ inline void VehicleUpdate::SharedDtor() {
   if (this != internal_default_instance()) delete _impl_.client_debug_helper_;
   if (this != internal_default_instance()) delete _impl_.transform_;
   if (this != internal_default_instance()) delete _impl_.velocity_;
+  if (this != internal_default_instance()) delete _impl_.vehicle_manager_;
 }
 
 void VehicleUpdate::SetCachedSize(int size) const {
@@ -7117,7 +7235,7 @@ void VehicleUpdate::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000001fu) {
+  if (cached_has_bits & 0x0000003fu) {
     if (cached_has_bits & 0x00000001u) {
       ABSL_DCHECK(_impl_.loc_debug_helper_ != nullptr);
       _impl_.loc_debug_helper_->Clear();
@@ -7137,6 +7255,10 @@ void VehicleUpdate::Clear() {
     if (cached_has_bits & 0x00000010u) {
       ABSL_DCHECK(_impl_.velocity_ != nullptr);
       _impl_.velocity_->Clear();
+    }
+    if (cached_has_bits & 0x00000020u) {
+      ABSL_DCHECK(_impl_.vehicle_manager_ != nullptr);
+      _impl_.vehicle_manager_->Clear();
     }
   }
   ::memset(&_impl_.tick_id_, 0, static_cast<::size_t>(
@@ -7230,6 +7352,15 @@ const char* VehicleUpdate::_InternalParse(const char* ptr, ::_pbi::ParseContext*
       case 9:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 72)) {
           _impl_.duration_ns_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else {
+          goto handle_unusual;
+        }
+        continue;
+      // .ecloud.PickledVehicleManager vehicle_manager = 10;
+      case 10:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 82)) {
+          ptr = ctx->ParseMessage(_internal_mutable_vehicle_manager(), ptr);
           CHK_(ptr);
         } else {
           goto handle_unusual;
@@ -7329,6 +7460,13 @@ failure:
         9, this->_internal_duration_ns(), target);
   }
 
+  // .ecloud.PickledVehicleManager vehicle_manager = 10;
+  if (cached_has_bits & 0x00000020u) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(10, _Internal::vehicle_manager(this),
+        _Internal::vehicle_manager(this).GetCachedSize(), target, stream);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -7346,7 +7484,7 @@ failure:
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000001fu) {
+  if (cached_has_bits & 0x0000003fu) {
     // .ecloud.LocDebugHelper loc_debug_helper = 4;
     if (cached_has_bits & 0x00000001u) {
       total_size += 1 +
@@ -7380,6 +7518,13 @@ failure:
       total_size += 1 +
         ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
           *_impl_.velocity_);
+    }
+
+    // .ecloud.PickledVehicleManager vehicle_manager = 10;
+    if (cached_has_bits & 0x00000020u) {
+      total_size += 1 +
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+          *_impl_.vehicle_manager_);
     }
 
   }
@@ -7426,7 +7571,7 @@ void VehicleUpdate::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::
   (void) cached_has_bits;
 
   cached_has_bits = from._impl_._has_bits_[0];
-  if (cached_has_bits & 0x0000001fu) {
+  if (cached_has_bits & 0x0000003fu) {
     if (cached_has_bits & 0x00000001u) {
       _this->_internal_mutable_loc_debug_helper()->::ecloud::LocDebugHelper::MergeFrom(
           from._internal_loc_debug_helper());
@@ -7446,6 +7591,10 @@ void VehicleUpdate::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::
     if (cached_has_bits & 0x00000010u) {
       _this->_internal_mutable_velocity()->::ecloud::Velocity::MergeFrom(
           from._internal_velocity());
+    }
+    if (cached_has_bits & 0x00000020u) {
+      _this->_internal_mutable_vehicle_manager()->::ecloud::PickledVehicleManager::MergeFrom(
+          from._internal_vehicle_manager());
     }
   }
   if (from._internal_tick_id() != 0) {
@@ -7705,6 +7854,467 @@ void EcloudResponse::InternalSwap(EcloudResponse* other) {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
       file_level_metadata_ecloud_2eproto[20]);
+}
+// ===================================================================
+
+class ObstacleVehicle::_Internal {
+ public:
+};
+
+ObstacleVehicle::ObstacleVehicle(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.ObstacleVehicle)
+}
+ObstacleVehicle::ObstacleVehicle(const ObstacleVehicle& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message(), _impl_(from._impl_) {
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(
+      from._internal_metadata_);
+  // @@protoc_insertion_point(copy_constructor:ecloud.ObstacleVehicle)
+}
+
+inline void ObstacleVehicle::SharedCtor(::_pb::Arena* arena) {
+  (void)arena;
+  new (&_impl_) Impl_{
+      decltype(_impl_.carla_id_) { 0 }
+
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+}
+
+ObstacleVehicle::~ObstacleVehicle() {
+  // @@protoc_insertion_point(destructor:ecloud.ObstacleVehicle)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void ObstacleVehicle::SharedDtor() {
+  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+}
+
+void ObstacleVehicle::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void ObstacleVehicle::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.ObstacleVehicle)
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.carla_id_ = 0;
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* ObstacleVehicle::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    ::uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // int32 carla_id = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 8)) {
+          _impl_.carla_id_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else {
+          goto handle_unusual;
+        }
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+::uint8_t* ObstacleVehicle::_InternalSerialize(
+    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.ObstacleVehicle)
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // int32 carla_id = 1;
+  if (this->_internal_carla_id() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteInt32ToArray(
+        1, this->_internal_carla_id(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.ObstacleVehicle)
+  return target;
+}
+
+::size_t ObstacleVehicle::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:ecloud.ObstacleVehicle)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // int32 carla_id = 1;
+  if (this->_internal_carla_id() != 0) {
+    total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+        this->_internal_carla_id());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData ObstacleVehicle::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    ObstacleVehicle::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*ObstacleVehicle::GetClassData() const { return &_class_data_; }
+
+
+void ObstacleVehicle::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<ObstacleVehicle*>(&to_msg);
+  auto& from = static_cast<const ObstacleVehicle&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.ObstacleVehicle)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (from._internal_carla_id() != 0) {
+    _this->_internal_set_carla_id(from._internal_carla_id());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ObstacleVehicle::CopyFrom(const ObstacleVehicle& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.ObstacleVehicle)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool ObstacleVehicle::IsInitialized() const {
+  return true;
+}
+
+void ObstacleVehicle::InternalSwap(ObstacleVehicle* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+
+  swap(_impl_.carla_id_, other->_impl_.carla_id_);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata ObstacleVehicle::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
+      file_level_metadata_ecloud_2eproto[21]);
+}
+// ===================================================================
+
+class GeneratedTrajectory::_Internal {
+ public:
+  using HasBits = decltype(std::declval<GeneratedTrajectory>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+    8 * PROTOBUF_FIELD_OFFSET(GeneratedTrajectory, _impl_._has_bits_);
+  static const ::ecloud::ObstacleVehicle& obstacle(const GeneratedTrajectory* msg);
+  static void set_has_obstacle(HasBits* has_bits) {
+    (*has_bits)[0] |= 1u;
+  }
+};
+
+const ::ecloud::ObstacleVehicle&
+GeneratedTrajectory::_Internal::obstacle(const GeneratedTrajectory* msg) {
+  return *msg->_impl_.obstacle_;
+}
+GeneratedTrajectory::GeneratedTrajectory(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.GeneratedTrajectory)
+}
+GeneratedTrajectory::GeneratedTrajectory(const GeneratedTrajectory& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  GeneratedTrajectory* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_._has_bits_){from._impl_._has_bits_}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , decltype(_impl_.predicted_trajectory_){from._impl_.predicted_trajectory_}
+    , decltype(_impl_.obstacle_){nullptr}
+    , decltype(_impl_.probability_) {}
+  };
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  if ((from._impl_._has_bits_[0] & 0x00000001u) != 0) {
+    _this->_impl_.obstacle_ = new ::ecloud::ObstacleVehicle(*from._impl_.obstacle_);
+  }
+  _this->_impl_.probability_ = from._impl_.probability_;
+  // @@protoc_insertion_point(copy_constructor:ecloud.GeneratedTrajectory)
+}
+
+inline void GeneratedTrajectory::SharedCtor(::_pb::Arena* arena) {
+  (void)arena;
+  new (&_impl_) Impl_{
+      decltype(_impl_._has_bits_){}
+    , /*decltype(_impl_._cached_size_)*/{}
+    , decltype(_impl_.predicted_trajectory_){arena}
+    , decltype(_impl_.obstacle_){nullptr}
+    , decltype(_impl_.probability_) { 0 }
+
+  };
+}
+
+GeneratedTrajectory::~GeneratedTrajectory() {
+  // @@protoc_insertion_point(destructor:ecloud.GeneratedTrajectory)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void GeneratedTrajectory::SharedDtor() {
+  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+  _internal_mutable_predicted_trajectory()->~RepeatedPtrField();
+  if (this != internal_default_instance()) delete _impl_.obstacle_;
+}
+
+void GeneratedTrajectory::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void GeneratedTrajectory::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.GeneratedTrajectory)
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _internal_mutable_predicted_trajectory()->Clear();
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    ABSL_DCHECK(_impl_.obstacle_ != nullptr);
+    _impl_.obstacle_->Clear();
+  }
+  _impl_.probability_ = 0;
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* GeneratedTrajectory::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  _Internal::HasBits has_bits{};
+  while (!ctx->Done(&ptr)) {
+    ::uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // .ecloud.ObstacleVehicle obstacle = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 10)) {
+          ptr = ctx->ParseMessage(_internal_mutable_obstacle(), ptr);
+          CHK_(ptr);
+        } else {
+          goto handle_unusual;
+        }
+        continue;
+      // float probability = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 21)) {
+          _impl_.probability_ = ::PROTOBUF_NAMESPACE_ID::internal::UnalignedLoad<float>(ptr);
+          ptr += sizeof(float);
+        } else {
+          goto handle_unusual;
+        }
+        continue;
+      // repeated .ecloud.Transform predicted_trajectory = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 26)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(_internal_add_predicted_trajectory(), ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<26>(ptr));
+        } else {
+          goto handle_unusual;
+        }
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  _impl_._has_bits_.Or(has_bits);
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+::uint8_t* GeneratedTrajectory::_InternalSerialize(
+    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.GeneratedTrajectory)
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  // .ecloud.ObstacleVehicle obstacle = 1;
+  if (cached_has_bits & 0x00000001u) {
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+      InternalWriteMessage(1, _Internal::obstacle(this),
+        _Internal::obstacle(this).GetCachedSize(), target, stream);
+  }
+
+  // float probability = 2;
+  static_assert(sizeof(::uint32_t) == sizeof(float), "Code assumes ::uint32_t and float are the same size.");
+  float tmp_probability = this->_internal_probability();
+  ::uint32_t raw_probability;
+  memcpy(&raw_probability, &tmp_probability, sizeof(tmp_probability));
+  if (raw_probability != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteFloatToArray(
+        2, this->_internal_probability(), target);
+  }
+
+  // repeated .ecloud.Transform predicted_trajectory = 3;
+  for (unsigned i = 0,
+      n = static_cast<unsigned>(this->_internal_predicted_trajectory_size()); i < n; i++) {
+    const auto& repfield = this->_internal_predicted_trajectory(i);
+    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
+        InternalWriteMessage(3, repfield, repfield.GetCachedSize(), target, stream);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.GeneratedTrajectory)
+  return target;
+}
+
+::size_t GeneratedTrajectory::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:ecloud.GeneratedTrajectory)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // repeated .ecloud.Transform predicted_trajectory = 3;
+  total_size += 1UL * this->_internal_predicted_trajectory_size();
+  for (const auto& msg : this->_internal_predicted_trajectory()) {
+    total_size +=
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  }
+
+  // .ecloud.ObstacleVehicle obstacle = 1;
+  cached_has_bits = _impl_._has_bits_[0];
+  if (cached_has_bits & 0x00000001u) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
+        *_impl_.obstacle_);
+  }
+
+  // float probability = 2;
+  static_assert(sizeof(::uint32_t) == sizeof(float), "Code assumes ::uint32_t and float are the same size.");
+  float tmp_probability = this->_internal_probability();
+  ::uint32_t raw_probability;
+  memcpy(&raw_probability, &tmp_probability, sizeof(tmp_probability));
+  if (raw_probability != 0) {
+    total_size += 5;
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData GeneratedTrajectory::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    GeneratedTrajectory::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GeneratedTrajectory::GetClassData() const { return &_class_data_; }
+
+
+void GeneratedTrajectory::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<GeneratedTrajectory*>(&to_msg);
+  auto& from = static_cast<const GeneratedTrajectory&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.GeneratedTrajectory)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  _this->_internal_mutable_predicted_trajectory()->MergeFrom(from._internal_predicted_trajectory());
+  if ((from._impl_._has_bits_[0] & 0x00000001u) != 0) {
+    _this->_internal_mutable_obstacle()->::ecloud::ObstacleVehicle::MergeFrom(
+        from._internal_obstacle());
+  }
+  static_assert(sizeof(::uint32_t) == sizeof(float), "Code assumes ::uint32_t and float are the same size.");
+  float tmp_probability = from._internal_probability();
+  ::uint32_t raw_probability;
+  memcpy(&raw_probability, &tmp_probability, sizeof(tmp_probability));
+  if (raw_probability != 0) {
+    _this->_internal_set_probability(from._internal_probability());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void GeneratedTrajectory::CopyFrom(const GeneratedTrajectory& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.GeneratedTrajectory)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool GeneratedTrajectory::IsInitialized() const {
+  return true;
+}
+
+void GeneratedTrajectory::InternalSwap(GeneratedTrajectory* other) {
+  using std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  _internal_mutable_predicted_trajectory()->InternalSwap(other->_internal_mutable_predicted_trajectory());
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(GeneratedTrajectory, _impl_.probability_)
+      + sizeof(GeneratedTrajectory::_impl_.probability_)
+      - PROTOBUF_FIELD_OFFSET(GeneratedTrajectory, _impl_.obstacle_)>(
+          reinterpret_cast<char*>(&_impl_.obstacle_),
+          reinterpret_cast<char*>(&other->_impl_.obstacle_));
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata GeneratedTrajectory::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
+      file_level_metadata_ecloud_2eproto[22]);
 }
 // ===================================================================
 
@@ -8019,7 +8629,7 @@ void ObstacleBoundingBox::InternalSwap(ObstacleBoundingBox* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ObstacleBoundingBox::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
-      file_level_metadata_ecloud_2eproto[21]);
+      file_level_metadata_ecloud_2eproto[23]);
 }
 // ===================================================================
 
@@ -8036,12 +8646,20 @@ ObjectBuffer::ObjectBuffer(const ObjectBuffer& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   ObjectBuffer* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_.object_){from._impl_.object_}
+      decltype(_impl_.pickled_edge_predictions_) {}
+
     , decltype(_impl_.vehicle_id_) {}
 
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _impl_.pickled_edge_predictions_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        _impl_.pickled_edge_predictions_.Set("", GetArenaForAllocation());
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_pickled_edge_predictions().empty()) {
+    _this->_impl_.pickled_edge_predictions_.Set(from._internal_pickled_edge_predictions(), _this->GetArenaForAllocation());
+  }
   _this->_impl_.vehicle_id_ = from._impl_.vehicle_id_;
   // @@protoc_insertion_point(copy_constructor:ecloud.ObjectBuffer)
 }
@@ -8049,11 +8667,16 @@ ObjectBuffer::ObjectBuffer(const ObjectBuffer& from)
 inline void ObjectBuffer::SharedCtor(::_pb::Arena* arena) {
   (void)arena;
   new (&_impl_) Impl_{
-      decltype(_impl_.object_){arena}
+      decltype(_impl_.pickled_edge_predictions_) {}
+
     , decltype(_impl_.vehicle_id_) { 0 }
 
     , /*decltype(_impl_._cached_size_)*/{}
   };
+  _impl_.pickled_edge_predictions_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        _impl_.pickled_edge_predictions_.Set("", GetArenaForAllocation());
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
 ObjectBuffer::~ObjectBuffer() {
@@ -8067,7 +8690,7 @@ ObjectBuffer::~ObjectBuffer() {
 
 inline void ObjectBuffer::SharedDtor() {
   ABSL_DCHECK(GetArenaForAllocation() == nullptr);
-  _internal_mutable_object()->~RepeatedPtrField();
+  _impl_.pickled_edge_predictions_.Destroy();
 }
 
 void ObjectBuffer::SetCachedSize(int size) const {
@@ -8080,7 +8703,7 @@ void ObjectBuffer::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  _internal_mutable_object()->Clear();
+  _impl_.pickled_edge_predictions_.ClearToEmpty();
   _impl_.vehicle_id_ = 0;
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
@@ -8100,16 +8723,12 @@ const char* ObjectBuffer::_InternalParse(const char* ptr, ::_pbi::ParseContext* 
           goto handle_unusual;
         }
         continue;
-      // repeated .ecloud.EdgeObstacleObject object = 2;
+      // bytes pickled_edge_predictions = 2;
       case 2:
         if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 18)) {
-          ptr -= 1;
-          do {
-            ptr += 1;
-            ptr = ctx->ParseMessage(_internal_add_object(), ptr);
-            CHK_(ptr);
-            if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<18>(ptr));
+          auto str = _internal_mutable_pickled_edge_predictions();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
         } else {
           goto handle_unusual;
         }
@@ -8150,12 +8769,10 @@ failure:
         1, this->_internal_vehicle_id(), target);
   }
 
-  // repeated .ecloud.EdgeObstacleObject object = 2;
-  for (unsigned i = 0,
-      n = static_cast<unsigned>(this->_internal_object_size()); i < n; i++) {
-    const auto& repfield = this->_internal_object(i);
-    target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-        InternalWriteMessage(2, repfield, repfield.GetCachedSize(), target, stream);
+  // bytes pickled_edge_predictions = 2;
+  if (!this->_internal_pickled_edge_predictions().empty()) {
+    const std::string& _s = this->_internal_pickled_edge_predictions();
+    target = stream->WriteBytesMaybeAliased(2, _s, target);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -8174,11 +8791,10 @@ failure:
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // repeated .ecloud.EdgeObstacleObject object = 2;
-  total_size += 1UL * this->_internal_object_size();
-  for (const auto& msg : this->_internal_object()) {
-    total_size +=
-      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
+  // bytes pickled_edge_predictions = 2;
+  if (!this->_internal_pickled_edge_predictions().empty()) {
+    total_size += 1 + ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
+                                    this->_internal_pickled_edge_predictions());
   }
 
   // int32 vehicle_id = 1;
@@ -8205,7 +8821,9 @@ void ObjectBuffer::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::P
   ::uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  _this->_internal_mutable_object()->MergeFrom(from._internal_object());
+  if (!from._internal_pickled_edge_predictions().empty()) {
+    _this->_internal_set_pickled_edge_predictions(from._internal_pickled_edge_predictions());
+  }
   if (from._internal_vehicle_id() != 0) {
     _this->_internal_set_vehicle_id(from._internal_vehicle_id());
   }
@@ -8225,8 +8843,11 @@ bool ObjectBuffer::IsInitialized() const {
 
 void ObjectBuffer::InternalSwap(ObjectBuffer* other) {
   using std::swap;
+  auto* lhs_arena = GetArenaForAllocation();
+  auto* rhs_arena = other->GetArenaForAllocation();
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
-  _internal_mutable_object()->InternalSwap(other->_internal_mutable_object());
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pickled_edge_predictions_, lhs_arena,
+                                       &other->_impl_.pickled_edge_predictions_, rhs_arena);
 
   swap(_impl_.vehicle_id_, other->_impl_.vehicle_id_);
 }
@@ -8234,7 +8855,7 @@ void ObjectBuffer::InternalSwap(ObjectBuffer* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ObjectBuffer::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
-      file_level_metadata_ecloud_2eproto[22]);
+      file_level_metadata_ecloud_2eproto[24]);
 }
 // ===================================================================
 
@@ -8572,7 +9193,7 @@ void EdgeObstacleObject::InternalSwap(EdgeObstacleObject* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata EdgeObstacleObject::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
-      file_level_metadata_ecloud_2eproto[23]);
+      file_level_metadata_ecloud_2eproto[25]);
 }
 // ===================================================================
 
@@ -8746,7 +9367,7 @@ void ObjectRequest::InternalSwap(ObjectRequest* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata ObjectRequest::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
-      file_level_metadata_ecloud_2eproto[24]);
+      file_level_metadata_ecloud_2eproto[26]);
 }
 // ===================================================================
 
@@ -8928,7 +9549,200 @@ void EdgeObjects::InternalSwap(EdgeObjects* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata EdgeObjects::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
-      file_level_metadata_ecloud_2eproto[25]);
+      file_level_metadata_ecloud_2eproto[27]);
+}
+// ===================================================================
+
+class PickledVehicleManager::_Internal {
+ public:
+};
+
+PickledVehicleManager::PickledVehicleManager(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena) {
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.PickledVehicleManager)
+}
+PickledVehicleManager::PickledVehicleManager(const PickledVehicleManager& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  PickledVehicleManager* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.vehicle_manager_) {}
+
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _impl_.vehicle_manager_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        _impl_.vehicle_manager_.Set("", GetArenaForAllocation());
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_vehicle_manager().empty()) {
+    _this->_impl_.vehicle_manager_.Set(from._internal_vehicle_manager(), _this->GetArenaForAllocation());
+  }
+  // @@protoc_insertion_point(copy_constructor:ecloud.PickledVehicleManager)
+}
+
+inline void PickledVehicleManager::SharedCtor(::_pb::Arena* arena) {
+  (void)arena;
+  new (&_impl_) Impl_{
+      decltype(_impl_.vehicle_manager_) {}
+
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+  _impl_.vehicle_manager_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        _impl_.vehicle_manager_.Set("", GetArenaForAllocation());
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+}
+
+PickledVehicleManager::~PickledVehicleManager() {
+  // @@protoc_insertion_point(destructor:ecloud.PickledVehicleManager)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void PickledVehicleManager::SharedDtor() {
+  ABSL_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.vehicle_manager_.Destroy();
+}
+
+void PickledVehicleManager::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void PickledVehicleManager::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.PickledVehicleManager)
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.vehicle_manager_.ClearToEmpty();
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* PickledVehicleManager::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    ::uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // bytes vehicle_manager = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<::uint8_t>(tag) == 10)) {
+          auto str = _internal_mutable_vehicle_manager();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+        } else {
+          goto handle_unusual;
+        }
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+::uint8_t* PickledVehicleManager::_InternalSerialize(
+    ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.PickledVehicleManager)
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // bytes vehicle_manager = 1;
+  if (!this->_internal_vehicle_manager().empty()) {
+    const std::string& _s = this->_internal_vehicle_manager();
+    target = stream->WriteBytesMaybeAliased(1, _s, target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.PickledVehicleManager)
+  return target;
+}
+
+::size_t PickledVehicleManager::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:ecloud.PickledVehicleManager)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // bytes vehicle_manager = 1;
+  if (!this->_internal_vehicle_manager().empty()) {
+    total_size += 1 + ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::BytesSize(
+                                    this->_internal_vehicle_manager());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData PickledVehicleManager::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    PickledVehicleManager::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*PickledVehicleManager::GetClassData() const { return &_class_data_; }
+
+
+void PickledVehicleManager::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<PickledVehicleManager*>(&to_msg);
+  auto& from = static_cast<const PickledVehicleManager&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.PickledVehicleManager)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (!from._internal_vehicle_manager().empty()) {
+    _this->_internal_set_vehicle_manager(from._internal_vehicle_manager());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void PickledVehicleManager::CopyFrom(const PickledVehicleManager& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.PickledVehicleManager)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool PickledVehicleManager::IsInitialized() const {
+  return true;
+}
+
+void PickledVehicleManager::InternalSwap(PickledVehicleManager* other) {
+  using std::swap;
+  auto* lhs_arena = GetArenaForAllocation();
+  auto* rhs_arena = other->GetArenaForAllocation();
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.vehicle_manager_, lhs_arena,
+                                       &other->_impl_.vehicle_manager_, rhs_arena);
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata PickledVehicleManager::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_ecloud_2eproto_getter, &descriptor_table_ecloud_2eproto_once,
+      file_level_metadata_ecloud_2eproto[28]);
 }
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace ecloud
@@ -9017,6 +9831,14 @@ template<> PROTOBUF_NOINLINE ::ecloud::EcloudResponse*
 Arena::CreateMaybeMessage< ::ecloud::EcloudResponse >(Arena* arena) {
   return Arena::CreateMessageInternal< ::ecloud::EcloudResponse >(arena);
 }
+template<> PROTOBUF_NOINLINE ::ecloud::ObstacleVehicle*
+Arena::CreateMaybeMessage< ::ecloud::ObstacleVehicle >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::ecloud::ObstacleVehicle >(arena);
+}
+template<> PROTOBUF_NOINLINE ::ecloud::GeneratedTrajectory*
+Arena::CreateMaybeMessage< ::ecloud::GeneratedTrajectory >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::ecloud::GeneratedTrajectory >(arena);
+}
 template<> PROTOBUF_NOINLINE ::ecloud::ObstacleBoundingBox*
 Arena::CreateMaybeMessage< ::ecloud::ObstacleBoundingBox >(Arena* arena) {
   return Arena::CreateMessageInternal< ::ecloud::ObstacleBoundingBox >(arena);
@@ -9036,6 +9858,10 @@ Arena::CreateMaybeMessage< ::ecloud::ObjectRequest >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::ecloud::EdgeObjects*
 Arena::CreateMaybeMessage< ::ecloud::EdgeObjects >(Arena* arena) {
   return Arena::CreateMessageInternal< ::ecloud::EdgeObjects >(arena);
+}
+template<> PROTOBUF_NOINLINE ::ecloud::PickledVehicleManager*
+Arena::CreateMaybeMessage< ::ecloud::PickledVehicleManager >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::ecloud::PickledVehicleManager >(arena);
 }
 PROTOBUF_NAMESPACE_CLOSE
 // @@protoc_insertion_point(global_scope)

@@ -273,16 +273,17 @@ public:
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
         {
             numCompletedVehicles_++;
-            DLOG(INFO) << "Client_SendUpdate - TICK_DONE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
+            DLOG(INFO) << "Client_SendUpdate - TICK_DONE - tick id: " << request->tick_id() << " vehicle id: " << request->vehicle_index();
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
             numRepliedVehicles_++;
+            DLOG(INFO) << "Client_SendUpdate - TICK_OK - tick id: " << request->tick_id() << " vehicle id: " << request->vehicle_index();
         }
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {
             numCompletedVehicles_++;
-            DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
+            DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << request->tick_id() << " vehicle id: " << request->vehicle_index();
         }
     
         const bool complete = ( numRepliedVehicles_.load() + numCompletedVehicles_.load() ) == numCars_;
@@ -293,7 +294,6 @@ public:
             simAPIClient_->PushTick( request->tick_id(), command_, lastClientDurationNS );
             LOG(INFO) << "tick " << request->tick_id() << " COMPLETE";
         }
-        DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
         
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -348,21 +348,16 @@ public:
             {
                 buffer->set_vehicle_id(request->vehicle_index());
                 ObjectBuffer objBuf;
-                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " objects starting parse";
                 const std::string buf = objPair.second;
                 objBuf.ParseFromString(buf);
-                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
-                for ( EdgeObstacleObject obj : objBuf.object())
-                {
-                    EdgeObstacleObject *p = buffer->add_object();
-                    p->CopyFrom(obj);
-                    LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
-                }
-                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " objects parsed";
+                buffer->set_pickled_edge_predictions(objBuf.pickled_edge_predictions());
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all objects copied";
                 break;
             }
         }
-        LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+        LOG(INFO) << "vehicle " << request->vehicle_index() << " objects sent";
 
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -490,16 +485,16 @@ public:
                                Empty* empty) override {
         serializedEdgeObjects_.clear();
 
-        LOG(INFO) << "updated waypoints received";
+        LOG(INFO) << "updated edge objects received";
         for ( ObjectBuffer objBuf : edgeObjects->all_object_buffers() )
         {   
             std::string serializedObjs;
             objBuf.SerializeToString(&serializedObjs);
             const std::pair< int16_t, std::string > objPair = std::make_pair( objBuf.vehicle_id(), serializedObjs );
             serializedEdgeObjects_.push_back(objPair);
-            LOG(INFO) << "updated waypoints for vehicle index " << objBuf.vehicle_id();
+            LOG(INFO) << "updated generated predictions for vehicle index " << objBuf.vehicle_id();
         }
-        LOG(INFO) << "updated waypoints processed";
+        LOG(INFO) << "updated edge objects processed";
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);

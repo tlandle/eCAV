@@ -14,7 +14,7 @@ import time
 
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.common.misc import get_speed_sumo
-
+from opencda.opencda_carla import Location, Rotation, Transform, Vector3D
 
 
 def is_vehicle_cococlass(label):
@@ -54,8 +54,8 @@ class BoundingBox(object):
         extent_y = (np.max(corners[:, 1]) - np.min(corners[:, 1])) / 2
         extent_z = (np.max(corners[:, 2]) - np.min(corners[:, 2])) / 2
 
-        self.location = carla.Location(x=center_x, y=center_y, z=center_z)
-        self.extent = carla.Vector3D(x=extent_x, y=extent_y, z=extent_z)
+        self.location = Location(x=center_x, y=center_y, z=center_z)
+        self.extent = Vector3D(x=extent_x, y=extent_y, z=extent_z)
 
 
 class ObstacleVehicle(object):
@@ -111,7 +111,7 @@ class ObstacleVehicle(object):
             self.transform = None
             self.o3d_bbx = o3d_bbx
             self.carla_id = -1
-            self.velocity = carla.Vector3D(0.0, 0.0, 0.0)
+            self.velocity = Vector3D(0.0, 0.0, 0.0)
             # monotonically increasing unique id for the obstacle vehicle starting from 0
             # and doesn't collide with other obstacle vehicle ids
             self.obstacle_id = int(time.time() * 1000) % sys.maxsize 
@@ -200,7 +200,7 @@ class ObstacleVehicle(object):
             sumo_speed = get_speed_sumo(sumo2carla_ids, self.carla_id)
             if sumo_speed > 0:
                 # todo: consider the yaw angle in the future
-                speed_vector = carla.Vector3D(sumo_speed, 0, 0)
+                speed_vector = Vector3D(sumo_speed, 0, 0)
                 self.set_velocity(speed_vector)
 
         # find the min and max boundary

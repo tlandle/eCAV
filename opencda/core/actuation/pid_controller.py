@@ -68,6 +68,7 @@ class Controller:
 
         # simulation time-step
         self.dt = args['dt']
+        print("JRDBG: %s" % self.dt)
 
         # current speed and localization retrieved from sensing layer
         self.current_transform = None

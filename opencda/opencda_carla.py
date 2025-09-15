@@ -56,6 +56,9 @@ class Location(Vector3D):
     def __init__(self, x: float = 0, y: float = 0, z: float = 0):
         super(Location, self).__init__(x, y, z)
 
+    def distance(self, location):
+        return ((self.x - location.x) ** 2 + (self.y - location.y) ** 2 + (self.z - location.z) ** 2) ** 0.5
+
     @classmethod
     def from_simulator_location(cls, location):
         """Creates a pylot Location from a simulator location.

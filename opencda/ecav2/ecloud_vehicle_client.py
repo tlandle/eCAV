@@ -91,7 +91,7 @@ class Ecav2VehicleClient:
 
         self.application = ["single"]
         self.version = "0.9.15"
-        self.tick_id = 0
+        self.tick_id = 1
         self.reported_done = False
         self.push_q = asyncio.Queue()
 
@@ -327,6 +327,11 @@ class Ecav2VehicleClient:
             # update info runs BEFORE waypoint injection
             update_info_start_time = time.time()
             self.vehicle_manager.update_info()
+            
+            control = self.vehicle_manager.run_step()
+            logger.debug("Applying control for vehicle manager: %s", self.vehicle_manager)
+            self.vehicle_manager.vehicle.apply_control(control)
+
             update_info_end_time = time.time()
             self.vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
             logger.info("update_info complete")
@@ -381,7 +386,41 @@ class Ecav2VehicleClient:
                 obj_request.vehicle_index = self.vehicle_index
 
                 object_proto = await self.ecloud_server.Client_GetObjects(obj_request)
-                self.network_emulator.enqueue_obj(object_proto)
+                def recursive_print_object(obj, indent=0, visited=None):
+                    if visited is None:
+                        visited = set()
+
+                    # Prevent infinite recursion for circular references
+                    if id(obj) in visited:
+                        print(f"{'  ' * indent}<Circular Reference to {type(obj).__name__} object at {hex(id(obj))}>")
+                        return
+                    visited.add(id(obj))
+
+                    print(f"{'  ' * indent}{type(obj).__name__} object at {hex(id(obj))}:")
+                    indent += 1
+
+                    if isinstance(obj, dict):
+                        for key, value in obj.items():
+                            print(f"{'  ' * indent}{key}:")
+                            recursive_print_object(value, indent + 1, visited)
+                    elif isinstance(obj, list):
+                        for i, item in enumerate(obj):
+                            print(f"{'  ' * indent}[{i}]:")
+                            recursive_print_object(item, indent + 1, visited)
+                    elif hasattr(obj, '__dict__'):
+                        for attr_name, attr_value in obj.__dict__.items():
+                            if hasattr(attr_value, '__dict__'):  # Check if the attribute is another object
+                                print(f"{'  ' * indent}{attr_name}:")
+                                recursive_print_object(attr_value, indent + 1, visited)
+                            else:
+                                print(f"{'  ' * indent}{attr_name}: {attr_value}")
+                    else:
+                        print(f"{'  ' * indent}{obj}")
+
+                preds = pickle.loads(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
+                print("Edge Predictions:")
+                recursive_print_object(preds)
+                self.vehicle_manager.agent.edge_predictions = preds
                 self.pong.command = ecloud.Command.TICK
 
             # HANDLE END

@@ -25,6 +25,7 @@ from opencda.core.prediction.linear_predictor_manager import LinearPredictorMana
 from opencda.core.prediction.obstacle_prediction import ObstaclePrediction
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle, BoundingBox
+from opencda.opencda_carla import Location, Rotation, Transform
 from easydict import EasyDict as edict
 from AB3DMOT_libs.model import AB3DMOT
 from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
@@ -1064,7 +1065,7 @@ class EdgeManager(object):
         self.run_step_perception(step_id)
       elif(self.activate == "PREDICTION"):
         #logger.debug("running prediction_step edge")
-        self.run_step_prediction(step_id)
+        return self.run_step_prediction(step_id)
       elif(self.activate == "MANEUVER"):
         self.run_step_maneuvering(step_id)
 
@@ -1112,7 +1113,7 @@ class EdgeManager(object):
         # ------------------------------------------------ latency sampling ---
         # This logic remains the same.
         # It determines the absolute frame number that our data is "as of".
-        
+
         if self.latency_distribution == "normal":
             total_latency_ms = np.random.normal(loc=self.latency, scale=self.jitter_std_dev_ms)
         elif self.latency_distribution == "lognormal":
@@ -1210,7 +1211,60 @@ class EdgeManager(object):
         # ------------------------------------------------ Forward to Vehicles ---
 
         # (Rest of your logic remains the same)
-        for vm in self.vehicle_manager_list:
+        serialized_preds = ecloud.EdgeObjects()
+        def recursive_print_object(obj, indent=0, visited=None):
+            if visited is None:
+                visited = set()
+
+            # Prevent infinite recursion for circular references
+            if id(obj) in visited:
+                print(f"{'  ' * indent}<Circular Reference to {type(obj).__name__} object at {hex(id(obj))}>")
+                return
+            visited.add(id(obj))
+
+            print(f"{'  ' * indent}{type(obj).__name__} object at {hex(id(obj))}:")
+            indent += 1
+
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    print(f"{'  ' * indent}{key}:")
+                    recursive_print_object(value, indent + 1, visited)
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    print(f"{'  ' * indent}[{i}]:")
+                    recursive_print_object(item, indent + 1, visited)
+            elif hasattr(obj, '__dict__'):
+                for attr_name, attr_value in obj.__dict__.items():
+                    if hasattr(attr_value, '__dict__'):  # Check if the attribute is another object
+                        print(f"{'  ' * indent}{attr_name}:")
+                        recursive_print_object(attr_value, indent + 1, visited)
+                    else:
+                        print(f"{'  ' * indent}{attr_name}: {attr_value}")
+            else:
+                print(f"{'  ' * indent}{obj}")
+        
+        recursive_print_object(preds)
+        pickled_edge_predictions = None
+        try:
+            pickled_edge_predictions = pickle.dumps(preds)
+        except Exception as e:
+            print(f"Error serializing predictions: {e}", flush=True)
+            def find_unpicklable(obj, path=""):
+                try:
+                    pickle.dumps(obj)
+                    return None  # Object is picklable
+                except Exception as e:
+                    print(f"Failed to pickle {path}: {e}")
+                    if hasattr(obj, '__dict__'):
+                        for key, value in obj.__dict__.items():
+                            result = find_unpicklable(value, f"{path}.{key}")
+                            if result is not None:
+                                return result  # Found the unpicklable item
+                    return obj  # This object itself is unpicklable
+            for p in preds:
+                print(find_unpicklable(p, path=f"preds[{type(p).__name__}]"))
+
+        for index, vm in enumerate(self.vehicle_manager_list):
             if np.random.rand() * 100 < self.downlink_packet_loss_pct:
                 logger.debug(f"--- DOWNLINK PACKET LOSS: Vehicle {vm.vehicle.id} discarding edge predictions ---")
                 # If packet is lost, clear the edge predictions before the fusion logic uses them.
@@ -1218,16 +1272,21 @@ class EdgeManager(object):
 
                 vm.agent.edge_predictions.clear()
             else:
-                vm.agent.edge_predictions = preds.copy() # TODO: send these over the wire
+                object_buffer = ecloud.ObjectBuffer(vehicle_id=index, pickled_edge_predictions=pickled_edge_predictions)
+                serialized_preds.all_object_buffers.append(object_buffer)
+                vm.agent.edge_predictions = preds.copy() # TODO(JR): send these over the wire
 
+        return serialized_preds
+
+    def update_vehicle_infos(self, step_id):
+        # TODO(JR): this should be where barrier and send the tick; split out into a new function
         # ------------------------------------------------ apply control
-        for vm in self.vehicle_manager_list: # TODO: needs to be done on remote vehicle clients
+        for vm in self.vehicle_manager_list:
             logger.debug("Running step for vehicle manager: %s", vm)
-            vm.update_info(step_id)
-            control = vm.run_step()
-            logger.debug("Applying control for vehicle manager: %s", vm)
-            vm.vehicle.apply_control(control)
+            vm.update_info(step_id) # TODO(JR): is the NOP?
+            # moved to remote vehicles
 
+    def update_rsu_infos(self):
         for rsu in self.rsu_manager_list:
             rsu.update_info()
             rsu.run_step()
@@ -1253,11 +1312,11 @@ class EdgeManager(object):
                 carla_id  = int(track[8])    # unchanged
                 guid      = int(track[9])
 
-                loc = carla.Location(x=location[0],
+                loc = Location(x=location[0],
                                      y=location[1],
                                      z=location[2])
-                rot = carla.Rotation(yaw=np.degrees(rotation_y))
-                transform = carla.Transform(location=loc, rotation=rot)
+                rot = Rotation(yaw=np.degrees(rotation_y))
+                transform = Transform(location=loc, rotation=rot)
 
                 logger.debug("Processing track ID: %s at location: %s rotation: %s", track_id, loc, rot)
 

@@ -347,6 +347,11 @@ class ScenarioManager:
         empty = await stub_.Server_PushEdgeWaypoints(wps_)
 
         return empty
+    
+    async def server_push_edge_objects(self, stub_, eos_):
+        empty = await stub_.Server_PushEdgeObjects(eos_)
+
+        return empty
 
     async def server_do_tick(self, stub_, update_):
         empty = await stub_.Server_DoTick(update_)
@@ -542,7 +547,7 @@ class ScenarioManager:
 
             logger.info(type(scenario_params))
 
-            self.scenario = json.dumps(OmegaConf.to_container(scenario_params))
+            self.scenario = json.dumps(OmegaConf.to_container(scenario_params, resolve=True))
             self.carla_version = self.carla_version
 
         # eCLOUD END
@@ -1372,7 +1377,7 @@ class ScenarioManager:
               edge_list.append(edge_manager)
 
             except Exception as e:
-              logger.debug("Can't create edge manager: ", e)
+              logger.error("Can't create edge manager: ", e)
 
         return edge_list
 
@@ -1454,6 +1459,12 @@ class ScenarioManager:
             edge_wp.all_waypoint_buffers.extend([wpb_proto])
 
         asyncio.get_event_loop().run_until_complete(self.server_push_waypoints(self.ecloud_server, edge_wp))
+
+        return True
+    
+    def push_edge_objects(self, edge_objects): #, vehicle_index=None, vid=None, actor_id=None):
+
+        asyncio.get_event_loop().run_until_complete(self.server_push_edge_objects(self.ecloud_server, edge_objects))
 
         return True
 

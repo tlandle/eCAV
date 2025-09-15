@@ -3,7 +3,7 @@ import carla
 #from pylot.perception.tracking.obstacle_trajectory import ObstacleTrajectory
 #from pylot.utils import Transform
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
-
+from opencda.opencda_carla import Location, Rotation, Transform
 
 class ObstaclePrediction(object):
     """Class storing info about an obstacle prediction.
@@ -18,15 +18,22 @@ class ObstaclePrediction(object):
             predicted future trajectory.
     """
     def __init__(self, obstacle_trajectory: ObstacleTrajectory,
-                 transform: carla.Transform, probability: float,
+                 transform, probability: float,
                  predicted_trajectory):
         # Trajectory in ego frame of coordinates.
         self.obstacle_trajectory = obstacle_trajectory
         # The transform is in world coordinates.
+        if isinstance(transform, carla.Transform):
+            transform = Transform.from_simulator_transform(transform)
         self.transform = transform
         self.probability = probability
         # Predicted trajectory in ego frame of coordinates.
-        self.predicted_trajectory = predicted_trajectory
+        pred = []
+        for tr in predicted_trajectory:
+            if isinstance(tr, carla.Transform):
+                tr = Transform.from_simulator_transform(tr)
+            pred.append(tr)
+        self.predicted_trajectory = pred
 
     @property
     def id(self):

@@ -52,6 +52,56 @@ def get_scaling(waypoints):
             scaling.append(count/(rot_1[-1][1,0]-rot_1[0][1,0]))
     return scaling
 
+def serialize_transform(transform_to_serialize):    
+    transform = ecloud.Transform()
+    
+    location   = ecloud.Location()
+    location.x = transform_to_serialize.location.x
+    location.y = transform_to_serialize.location.y
+    location.z = transform_to_serialize.location.z
+
+    rotation       = ecloud.Rotation()
+    rotation.yaw   = transform_to_serialize.rotation.yaw
+    rotation.pitch = transform_to_serialize.rotation.pitch
+    rotation.roll  = transform_to_serialize.rotation.roll
+
+    transform.location.CopyFrom(location)
+    transform.rotation.CopyFrom(rotation)
+
+    return transform    
+
+def deserialize_transform(serialized_transform, dao):
+    '''
+    world = self.vehicle_manager_list[0].vehicle.get_world()
+    self._dao = GlobalRoutePlannerDAO(world.get_map(), 2)
+    location = self._dao.get_waypoint(carla.Location(x=car_array[0][i], y=car_array[1][i], z=0.0))
+    '''
+
+    '''waypoint = carla.Waypoint
+
+    waypoint.id = serialized_waypoint.id
+    
+    waypoint.transform.location.x = serialized_waypoint.transform.location.x 
+    waypoint.transform.location.y = serialized_waypoint.transform.location.y
+    waypoint.transform.location.z = serialized_waypoint.transform.location.z
+
+    waypoint.transform.location.yaw   = serialized_waypoint.transform.rotation.yaw
+    waypoint.transform.rotation.pitch = serialized_waypoint.transform.rotation.pitch
+    waypoint.transform.rotation.roll  = serialized_waypoint.transform.rotation.roll
+
+    waypoint.road_id     = serialized_waypoint.road_id
+    waypoint.section_id  = serialized_waypoint.section_id
+    waypoint.lane_id     = serialized_waypoint.lane_id
+    waypoint.s           = serialized_waypoint.s
+    waypoint.is_junction = serialized_waypoint.is_junction
+    waypoint.lane_width  = serialized_waypoint.lane_width'''
+
+    #print(f"deserializing waypint - x:{serialized_waypoint.transform.location.x}, y:{serialized_waypoint.transform.location.y}, z:{serialized_waypoint.transform.location.z}, rl:{serialized_waypoint.transform.rotation.roll}, pt:{serialized_waypoint.transform.rotation.pitch}, yw:{serialized_waypoint.transform.rotation.yaw}")
+
+    waypoint = dao.get_waypoint(carla.Location(x=serialized_waypoint.transform.location.x, y=serialized_waypoint.transform.location.y, z=serialized_waypoint.transform.location.z))
+
+    return waypoint
+
 def serialize_waypoint(waypoint):
 
     serialized_waypoint = ecloud.Waypoint()

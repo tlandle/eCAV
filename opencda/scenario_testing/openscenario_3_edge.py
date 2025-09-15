@@ -14,6 +14,8 @@ from opencda.scenario_testing.evaluations.evaluate_manager import \
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
 from scenario_runner.srunner.scenariomanager import scenario_manager
 
+import ecloud_pb2 as ecloud
+
 MAX_STEP = 600
 SCENARIO_NAME = 'openscenario_3_edge'
 scenario_runner = None
@@ -95,8 +97,8 @@ def run_scenario(opt, scenario_params):
 
         flag = True
         while flag:
-            scenario_manager.tick_world()
-            scenario_manager.broadcast_tick()
+            scenario_manager.tick_world() # may need to be moved after broadcast tick... need to think about ordering
+            flag = scenario_manager.broadcast_message(ecloud.Command.PULL_OBJECTS_AND_TICK if step > 0 else ecloud.Command.TICK)
 
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
@@ -115,7 +117,10 @@ def run_scenario(opt, scenario_params):
             # Apply the control to the ego vehicle
             for edge in edge_list:
                 edge.update_information(step)
-                edge.run_step(step)
+                serialized_predictions = edge.run_step(step)
+                scenario_manager.push_edge_objects(serialized_predictions)
+                edge.update_vehicle_infos(step)
+                edge.update_rsu_infos()
 
             step = step + 1
             if step >= MAX_STEP:
@@ -129,6 +134,8 @@ def run_scenario(opt, scenario_params):
 
     except Exception as e:
         print(f"Caught exception {type(e).__name__} in run_scenario: {e} — proceeding to evaluation/cleanup")
+        import traceback
+        print(traceback.format_exc())
 
     finally:
         for edge in edge_list:
