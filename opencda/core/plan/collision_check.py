@@ -25,8 +25,8 @@ def create_waypoint_roadoption_tuple(vehicle, carla_map):
     location = vehicle.get_location()
     
     # Get the waypoint closest to the vehicle's location
-    waypoint = carla_map.get_waypoint(location)
-    
+    waypoint = carla_map.get_waypoint(carla.Location(x=location.x, y=location.y, z=location.z))
+
     # Determine the road option (e.g., straight, left, right, etc.)
     # For simplicity, we'll assume a default road option
     road_option = RoadOption.LANEFOLLOW
@@ -300,8 +300,8 @@ class CollisionChecker:
                 candidate_loc.y <= min_y - 2 or candidate_loc.y >= max_y + 2:
             return False
 
-        candidate_wpt = carla_map.get_waypoint(candidate_loc)
-        target_wpt = carla_map.get_waypoint(target_loc)
+        candidate_wpt = carla_map.get_waypoint(carla.Location(x=candidate_loc.x, y=candidate_loc.y, z=candidate_loc.z))
+        target_wpt = carla_map.get_waypoint(carla.Location(x=target_loc.x, y=target_loc.y, z=target_loc.z))
 
         # if the candidate vehicle is right behind the target vehicle, then it
         # is blocking
@@ -452,7 +452,7 @@ class CollisionChecker:
         logger.debug("Obstacle_vehicle Location (%s, %s, %s)" %(obstacle_vehicle_loc.x, obstacle_vehicle_loc.y, obstacle_vehicle_loc.z))
         #logger.debug("Self Location (%s, %s, %s)" %(
         obstacle_vehicle_yaw = \
-            carla_map.get_waypoint(obstacle_vehicle_loc).transform.rotation.yaw
+            carla_map.get_waypoint(carla.Location(x=obstacle_vehicle_loc.x, y=obstacle_vehicle_loc.y, z=obstacle_vehicle_loc.z)).transform.rotation.yaw
 
 
         # every step is 0.1m, so we check every 10 points

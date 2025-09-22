@@ -20,6 +20,7 @@ import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.sensing.perception.obstacle_vehicle import \
     is_vehicle_cococlass, ObstacleVehicle
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
+from opencda.opencda_carla import Location, Rotation, Transform
 
 
 import coloredlogs, logging
@@ -148,7 +149,9 @@ def o3d_visualizer_show(vis, count, point_cloud, objects):
         if key != 'vehicles':
             continue
         for object_ in object_list:
-            aabb = object_.o3d_bbx
+            aabb = \
+                o3d.geometry.AxisAlignedBoundingBox(min_bound=object_.o3d_bbx.min_bound,
+                                                max_bound=object_.o3d_bbx.max_bound)
             vis.add_geometry(aabb)
 
     vis.poll_events()
@@ -160,7 +163,10 @@ def o3d_visualizer_show(vis, count, point_cloud, objects):
         if key != 'vehicles':
             continue
         for object_ in object_list:
-            aabb = object_.o3d_bbx
+            aabb = \
+                o3d.geometry.AxisAlignedBoundingBox(min_bound=object_.o3d_bbx.min_bound,
+                                                max_bound=object_.o3d_bbx.max_bound)
+
             vis.remove_geometry(aabb)
 
 
@@ -285,8 +291,8 @@ def _make_transform_from_corners(corner_pts):
     cx = np.mean(corner_pts[:, 0])
     cy = np.mean(corner_pts[:, 1])
     cz = np.mean(corner_pts[:, 2])
-    loc = carla.Location(x=cx, y=cy, z=cz)
-    return carla.Transform(location=loc)   # zero rotation
+    loc = Location(x=cx, y=cy, z=cz)
+    return Transform(location=loc)   # zero rotation
 
 def o3d_camera_lidar_fusion_from_tracker(objects,
                             track,

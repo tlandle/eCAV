@@ -170,7 +170,7 @@ message VehicleUpdate {
   Transform transform = 7;
   Velocity velocity = 8;
   int64 duration_ns = 9;
-  PickledVehicleManager vehicle_manager = 10;
+  bytes pickled_agent_objects = 10;
 }
 
 message EcloudResponse {
@@ -200,7 +200,7 @@ message ObstacleBoundingBox {
 message ObjectBuffer {
   int32 vehicle_id = 1;
   bytes pickled_edge_predictions = 2;
-  //repeated EdgeObstacleObject object = 2;
+  // repeated EdgeObstacleObject object = 2;
 }
 
 message EdgeObstacleObject {
@@ -216,10 +216,6 @@ message ObjectRequest {
 
 message EdgeObjects {
   repeated ObjectBuffer all_object_buffers = 1;
-}
-
-message PickledVehicleManager {
-  bytes vehicle_manager = 1;
 }
 
 service Ecloud {

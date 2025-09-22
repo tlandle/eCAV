@@ -368,7 +368,38 @@ class BehaviorAgent(object):
         self.get_local_planner().update_information(ego_pos, ego_speed)
         self.objects = objects
 
+        def recursive_print_object(obj, indent=0, visited=None):
+            if visited is None:
+                visited = set()
 
+            # Prevent infinite recursion for circular references
+            if id(obj) in visited:
+                print(f"{'  ' * indent}<Circular Reference to {type(obj).__name__} object at {hex(id(obj))}>")
+                return
+            visited.add(id(obj))
+
+            print(f"{'  ' * indent}{type(obj).__name__} object at {hex(id(obj))}:")
+            indent += 1
+
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    print(f"{'  ' * indent}{key}:")
+                    recursive_print_object(value, indent + 1, visited)
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    print(f"{'  ' * indent}[{i}]:")
+                    recursive_print_object(item, indent + 1, visited)
+            elif hasattr(obj, '__dict__'):
+                for attr_name, attr_value in obj.__dict__.items():
+                    if hasattr(attr_value, '__dict__'):  # Check if the attribute is another object
+                        print(f"{'  ' * indent}{attr_name}:")
+                        recursive_print_object(attr_value, indent + 1, visited)
+                    else:
+                        print(f"{'  ' * indent}{attr_name}: {attr_value}")
+            else:
+                print(f"{'  ' * indent}{obj}")
+
+        recursive_print_object(objects)
         # ─── 1. Cache any edge-supplied predictions (may be an empty list) ────────
         #self.edge_predictions = list(self.generated_predictions)     # shallow copy
 
@@ -428,7 +459,7 @@ class BehaviorAgent(object):
             o_x = o.get_location().x
             o_y = o.get_location().y
 
-            o_waypoint = self._map.get_waypoint(o.get_location())
+            o_waypoint = self._map.get_waypoint(carla.Location(x=o_x, y=o_y, z=o.get_location().z))
             o_lane_id = o_waypoint.lane_id
 
             for vm in self.white_list:
@@ -436,7 +467,7 @@ class BehaviorAgent(object):
                 vm_x = pos.location.x
                 vm_y = pos.location.y
 
-                w_waypoint = self._map.get_waypoint(pos.location)
+                w_waypoint = self._map.get_waypoint(carla.Location(x=pos.location.x, y=pos.location.y, z=pos.location.z))
                 w_lane_id = w_waypoint.lane_id
 
                 # if the id is different, then not matched for sure
@@ -497,7 +528,7 @@ class BehaviorAgent(object):
         if clean_history:
             self.get_local_planner().get_history_buffer().clear()
 
-        self.start_waypoint = self._map.get_waypoint(start_location)
+        self.start_waypoint = self._map.get_waypoint(carla.Location(x=start_location.x, y=start_location.y, z=start_location.z))
         logger.debug("Start Location: (%s, %s, %s)" %(start_location.x, start_location.y, start_location.z))
         logger.debug("Start Location Waypoint: (%s, %s, %s) (%s)" %(self.start_waypoint.transform.location.x, self.start_waypoint.transform.location.y, self.start_waypoint.transform.location.z, self.start_waypoint.transform.rotation.yaw))
         """
@@ -524,7 +555,7 @@ class BehaviorAgent(object):
         if unable_to_find_wp:
             return -1
         """
-        end_waypoint = self._map.get_waypoint(end_location)
+        end_waypoint = self._map.get_waypoint(carla.Location(x=end_location.x, y=end_location.y, z=end_location.z))
         logger.debug("End Location: (%s, %s, %s)" %(end_location.x, end_location.y, end_location.z))
         logger.debug("End Location Waypoint: (%s, %s, %s)" %(end_waypoint.transform.location.x, end_waypoint.transform.location.y, end_waypoint.transform.location.z))
         if end_reset:
@@ -807,7 +838,7 @@ class BehaviorAgent(object):
         # obstacle vehicle's location
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
         print(f"obstacle vehicle loc: {obstacle_vehicle_loc.x}, {obstacle_vehicle_loc.y}")
-        obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
+        obstacle_vehicle_wpt = self._map.get_waypoint(carla.Location(x=obstacle_vehicle_loc.x, y=obstacle_vehicle_loc.y, z=obstacle_vehicle_loc.z))
 
         # whether a lane change is allowed
         left_turn = obstacle_vehicle_wpt.left_lane_marking.lane_change
@@ -847,7 +878,7 @@ class BehaviorAgent(object):
                 overtake=True, world=self.vehicle.get_world(), oncoming_lane=True)
             vehicle_state, _, _ = self.collision_manager(
                 rx, ry, ryaw, self._map.get_waypoint(
-                    self._ego_pos.location), True)
+                    carla.Location(x=self._ego_pos.location.x, y=self._ego_pos.location.y, z=self._ego_pos.location.z)), True)
             logger.debug("VehicleState: %s" %vehicle_state)
             #logger.debug("Checked for overtake but possibly saw collision")
             if not vehicle_state:
@@ -926,8 +957,8 @@ class BehaviorAgent(object):
                     rx, ry, rk, ryaw = self._local_planner.generate_path()
                     vehicle_state, _, _ = self.collision_manager(
                         rx, ry, ryaw, self._map.get_waypoint(
-                            self._ego_pos.location), True, check_full_path=True)
-                    
+                            carla.Location(x=self._ego_pos.location.x, y=self._ego_pos.location.y, z=self._ego_pos.location.z)), True, check_full_path=True)
+
                     return vehicle_state
                 else:
                     print("checking for collisions along overtake path")
@@ -976,7 +1007,7 @@ class BehaviorAgent(object):
 
             vehicle_state, _, _ = self.collision_manager(
                 rx, ry, ryaw, self._map.get_waypoint(
-                    self._ego_pos.location), True)
+                    carla.Location(x=self._ego_pos.location.x, y=self._ego_pos.location.y, z=self._ego_pos.location.z)), True)
             if not vehicle_state:
                 logger.debug("right overtake is operated")
                 next_wpt_list = right_wpt.next(self._ego_speed / 3.6 * 6)
@@ -1007,7 +1038,7 @@ class BehaviorAgent(object):
         vehicle_state : boolean
             Whether the lane change is dangerous.
         """
-        ego_wpt = self._map.get_waypoint(self._ego_pos.location)
+        ego_wpt = self._map.get_waypoint(carla.Location(x=self._ego_pos.location.x, y=self._ego_pos.location.y, z=self._ego_pos.location.z))
         ego_lane_id = ego_wpt.lane_id
         target_wpt = None
 
@@ -1027,7 +1058,7 @@ class BehaviorAgent(object):
             world=self.vehicle.get_world())
         vehicle_state, _, _ = self.collision_manager(
             rx, ry, ryaw, self._map.get_waypoint(
-                self._ego_pos.location), adjacent_check=True)
+                carla.Location(x=self._ego_pos.location.x, y=self._ego_pos.location.y, z=self._ego_pos.location.z)), adjacent_check=True)
         return not vehicle_state
 
     def car_following_manager(self, vehicle, distance, target_speed=None):
@@ -1274,7 +1305,7 @@ class BehaviorAgent(object):
         if len(self.ego_location_buffer) == 10:
             self.ego_location_buffer.pop(0)
         self.ego_location_buffer.append(ego_vehicle_loc)
-        ego_vehicle_wp = self._map.get_waypoint(ego_vehicle_loc)
+        ego_vehicle_wp = self._map.get_waypoint(carla.Location(x=ego_vehicle_loc.x, y=ego_vehicle_loc.y, z=ego_vehicle_loc.z))
         waipoint_buffer = self.get_local_planner().get_waypoint_buffer()
         #logger.debug(waipoint_buffer)
         # ttc reset to 1000 at the beginning
@@ -1435,9 +1466,9 @@ class BehaviorAgent(object):
             logger.debug("Overtake Allowed and overtake counter is 0")
             if isinstance(obstacle_vehicle, ObstacleVehicle):
                 obstacle_speed = get_speed(obstacle_vehicle)
-            obstacle_lane_id = self._map.get_waypoint(obstacle_vehicle.get_location()).lane_id
+            obstacle_lane_id = self._map.get_waypoint(carla.Location(x=obstacle_vehicle.get_location().x, y=obstacle_vehicle.get_location().y, z=obstacle_vehicle.get_location().z)).lane_id
             ego_lane_id = self._map.get_waypoint(
-                self._ego_pos.location).lane_id
+                carla.Location(x=self._ego_pos.location.x, y=self._ego_pos.location.y, z=self._ego_pos.location.z)).lane_id
             #logger.debug("Ego Lane Id: %s" %ego_lane_id)
             #logger.debug("Obstacle Lane ID: %s" %obstacle_lane_id)
             # overtake the obstacle vehicle only when speed is bigger and the
@@ -1483,7 +1514,7 @@ class BehaviorAgent(object):
             rx, ry, rk, ryaw = self._local_planner.generate_path()
             car_following_flag, _, _ = self.collision_manager(
                     rx, ry, ryaw, self._map.get_waypoint(
-                        self._ego_pos.location), True)
+                        carla.Location(x=self._ego_pos.location.x, y=self._ego_pos.location.y, z=self._ego_pos.location.z)), True)
         elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) == 0:
             self.overtake_other_direction = False
         elif is_hazard and left_turn:

@@ -1283,8 +1283,7 @@ class EdgeManager(object):
         # ------------------------------------------------ apply control
         for vm in self.vehicle_manager_list:
             logger.debug("Running step for vehicle manager: %s", vm)
-            vm.update_info(step_id) # TODO(JR): is the NOP?
-            # moved to remote vehicles
+            # vm.update_info(step_id) # moved to remote vehicles; needs to be iff distributed
 
     def update_rsu_infos(self):
         for rsu in self.rsu_manager_list:

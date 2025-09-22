@@ -534,12 +534,13 @@ class VehicleManager(object):
             return None # -1 indicates the simulation is over. TODO Need a const here.
 
         pre_vehicle_step_time = time.time()
-        try:
+        if True: #try
             target_speed, target_pos = self.agent.run_step(target_speed)
             # visualize the bev map if needed
             self.map_manager.run_step()
 
-        except Exception as e:
+        #except Exception as e:
+        if False:
             logger.warning("can't successfully complete agent.run_step; setting to done. Error: %s" %(e))
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()

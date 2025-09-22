@@ -342,8 +342,26 @@ class Ecav2VehicleClient:
             logger.info("run_step complete")
 
             vehicle_update.tick_id = self.tick_id
+            try:
+                vehicle_update.pickled_agent_objects = pickle.dumps(self.vehicle_manager.agent.objects)
+            except Exception as e:
+                print(f"Error serializing predictions: {e}", flush=True)
+                def find_unpicklable(obj, path=""):
+                    try:
+                        pickle.dumps(obj)
+                        return None  # Object is picklable
+                    except Exception as e:
+                        print(f"Failed to pickle {path}: {e}")
+                        if hasattr(obj, '__dict__'):
+                            for key, value in obj.__dict__.items():
+                                result = find_unpicklable(value, f"{path}.{key}")
+                                if result is not None:
+                                    return result  # Found the unpicklable item
+                        return obj  # This object itself is unpicklable
+                for o in self.vehicle_manager.agent.objects:
+                    print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"))
 
-            vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # TODO: placeholder
+            vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK if not self.vehicle_manager.is_close_to_scenario_destination() else ecloud.VehicleState.TICK_DONE
 
             # vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
             # logger.error("ecloud_client error")
@@ -419,18 +437,16 @@ class Ecav2VehicleClient:
 
                 preds = pickle.loads(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
                 print("Edge Predictions:")
-                recursive_print_object(preds)
+                # recursive_print_object(preds)
                 self.vehicle_manager.agent.edge_predictions = preds
                 self.pong.command = ecloud.Command.TICK
 
             # HANDLE END
             elif self.pong.command == ecloud.Command.END:
                 logger.critical("END received")
-                #break
 
         else: # done
             logger.info("EXIT destroy-on-done vehicle actor")
-            #break
 
         return self.pong
 

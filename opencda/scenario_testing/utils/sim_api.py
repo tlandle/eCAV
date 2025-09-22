@@ -244,6 +244,7 @@ class ScenarioManager:
     """
 
     tick_id = 0 # current tick counter
+    running = False # is the simulation running?
 
     vehicle_managers = {}
     vehicles = {} # vehicle_index -> tuple (actor_id, vid)
@@ -307,13 +308,25 @@ class ScenarioManager:
         logger.debug("getting vehicle updates")
         ecloud_update = await stub_.Server_GetVehicleUpdates(ecloud.Empty())
         logger.debug("unpacking vehicle updates")
+        running = True
         try:
             for vehicle_update in ecloud_update.vehicle_update:
-                if not vehicle_update.HasField('transform') or not vehicle_update.HasField('velocity'):
+                objects = pickle.loads(vehicle_update.pickled_agent_objects) if vehicle_update.pickled_agent_objects is not None else None
+                if objects is not None:
+                    self.vehicle_managers[ vehicle_update.vehicle_index ].agent.objects = objects
+
+                if vehicle_update.transform is None or vehicle_update.velocity is None:
                     continue
 
                 if not ( self.is_edge or self.verbose_updates ) and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
                     continue
+
+                v = carla.Vector3D(
+                        x=vehicle_update.velocity.x,
+                        y=vehicle_update.velocity.y,
+                        z=vehicle_update.velocity.z)
+
+                running = vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE
 
                 vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
                 if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
@@ -342,6 +355,7 @@ class ScenarioManager:
             logger.exception('%s', vehicle_update)
 
         logger.debug("vehicle updates unpacked")
+        return running
 
     async def server_push_waypoints(self, stub_, wps_):
         empty = await stub_.Server_PushEdgeWaypoints(wps_)
@@ -354,7 +368,7 @@ class ScenarioManager:
         return empty
 
     async def server_do_tick(self, stub_, update_):
-        empty = await stub_.Server_DoTick(update_)
+        await stub_.Server_DoTick(update_)
 
         assert self.push_q.empty(), logger.exception("push_q should have been empty, but had %s", self.push_q.get_nowait())
         tick = await self.push_q.get()
@@ -364,7 +378,7 @@ class ScenarioManager:
         # the first tick time is dramatically slower due to startup, so we don't want it to skew runtime data
         if self.tick_id == 1:
             self.debug_helper.startup_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
-            return empty
+            return True
 
         overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
         step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
@@ -373,12 +387,12 @@ class ScenarioManager:
         self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
-            await self.server_unpack_debug_data(stub_)
+            status = await self.server_unpack_debug_data(stub_)
 
         else:
-            await self.server_unpack_vehicle_updates(stub_)
+            status = await self.server_unpack_vehicle_updates(stub_)
 
-        return empty
+        return status
 
     async def server_start_scenario(self, stub_, update_):
         await stub_.Server_StartScenario(update_)
@@ -1426,14 +1440,19 @@ class ScenarioManager:
         self.sm_start_tstamp.GetCurrentTime()
         logger.debug("Added Timestamp")
 
-        asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, tick))
+        status = asyncio.get_event_loop().run_until_complete(self.server_do_tick(self.ecloud_server, tick))
 
         post_client_tick_time = time.time()
         logger.info("Client tick completion time: %s", (post_client_tick_time - pre_client_tick_time))
         if self.tick_id > 1: # discard the first tick as startup is a major outlier
             self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
-        return True
+        if self.running == True:
+            return status
+        
+        elif status == True:
+            self.running = status
+            return status
 
     def broadcast_tick(self):
         """

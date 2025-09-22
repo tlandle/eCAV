@@ -57,6 +57,10 @@ class BoundingBox(object):
         self.location = Location(x=center_x, y=center_y, z=center_z)
         self.extent = Vector3D(x=extent_x, y=extent_y, z=extent_z)
 
+class AlignedBoundingBox(object):
+    def __init__(self, min_bound, max_bound):
+        self.min_bound = min_bound
+        self.max_bound = max_bound
 
 class ObstacleVehicle(object):
     """
@@ -109,7 +113,8 @@ class ObstacleVehicle(object):
             self.location = self.bounding_box.location
             # todo: next version will add rotation estimation
             self.transform = None
-            self.o3d_bbx = o3d_bbx
+            self.o3d_bbx = AlignedBoundingBox(min_bound=o3d_bbx.min_bound,
+                                       max_bound=o3d_bbx.max_bound) if o3d_bbx is not None else None
             self.carla_id = -1
             self.velocity = Vector3D(0.0, 0.0, 0.0)
             # monotonically increasing unique id for the obstacle vehicle starting from 0
@@ -236,4 +241,5 @@ class ObstacleVehicle(object):
             o3d.geometry.AxisAlignedBoundingBox(min_bound=min_boundary_sensor,
                                                 max_bound=max_boundary_sensor)
         aabb.color = (1, 0, 0)
-        self.o3d_bbx = aabb
+        self.o3d_bbx = AlignedBoundingBox(min_bound=min_boundary_sensor,
+                                    max_bound=max_boundary_sensor)

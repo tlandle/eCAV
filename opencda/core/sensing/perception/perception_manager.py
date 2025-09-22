@@ -635,7 +635,7 @@ class PerceptionManager:
                 self.lidar.o3d_pointcloud,
                 objects)
         # add traffic light
-        objects = self.retrieve_traffic_lights(objects)
+        # objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
 
         return objects
@@ -727,7 +727,7 @@ class PerceptionManager:
                 objects)
 
         # add traffic light
-        objects = self.retrieve_traffic_lights(objects)
+        # objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
         perception_end_time = time.time()
 

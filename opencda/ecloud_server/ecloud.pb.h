@@ -102,9 +102,6 @@ extern ObstacleBoundingBoxDefaultTypeInternal _ObstacleBoundingBox_default_insta
 class ObstacleVehicle;
 struct ObstacleVehicleDefaultTypeInternal;
 extern ObstacleVehicleDefaultTypeInternal _ObstacleVehicle_default_instance_;
-class PickledVehicleManager;
-struct PickledVehicleManagerDefaultTypeInternal;
-extern PickledVehicleManagerDefaultTypeInternal _PickledVehicleManager_default_instance_;
 class PlanerDebugHelper;
 struct PlanerDebugHelperDefaultTypeInternal;
 extern PlanerDebugHelperDefaultTypeInternal _PlanerDebugHelper_default_instance_;
@@ -175,8 +172,6 @@ template <>
 ::ecloud::ObstacleBoundingBox* Arena::CreateMaybeMessage<::ecloud::ObstacleBoundingBox>(Arena*);
 template <>
 ::ecloud::ObstacleVehicle* Arena::CreateMaybeMessage<::ecloud::ObstacleVehicle>(Arena*);
-template <>
-::ecloud::PickledVehicleManager* Arena::CreateMaybeMessage<::ecloud::PickledVehicleManager>(Arena*);
 template <>
 ::ecloud::PlanerDebugHelper* Arena::CreateMaybeMessage<::ecloud::PlanerDebugHelper>(Arena*);
 template <>
@@ -4491,17 +4486,37 @@ class VehicleUpdate final :
   // accessors -------------------------------------------------------
 
   enum : int {
+    kPickledAgentObjectsFieldNumber = 10,
     kLocDebugHelperFieldNumber = 4,
     kPlanerDebugHelperFieldNumber = 5,
     kClientDebugHelperFieldNumber = 6,
     kTransformFieldNumber = 7,
     kVelocityFieldNumber = 8,
-    kVehicleManagerFieldNumber = 10,
     kTickIdFieldNumber = 1,
     kVehicleIndexFieldNumber = 2,
     kDurationNsFieldNumber = 9,
     kVehicleStateFieldNumber = 3,
   };
+  // bytes pickled_agent_objects = 10;
+  void clear_pickled_agent_objects() ;
+  const std::string& pickled_agent_objects() const;
+
+
+
+
+  template <typename Arg_ = const std::string&, typename... Args_>
+  void set_pickled_agent_objects(Arg_&& arg, Args_... args);
+  std::string* mutable_pickled_agent_objects();
+  PROTOBUF_NODISCARD std::string* release_pickled_agent_objects();
+  void set_allocated_pickled_agent_objects(std::string* ptr);
+
+  private:
+  const std::string& _internal_pickled_agent_objects() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_pickled_agent_objects(
+      const std::string& value);
+  std::string* _internal_mutable_pickled_agent_objects();
+
+  public:
   // .ecloud.LocDebugHelper loc_debug_helper = 4;
   bool has_loc_debug_helper() const;
   void clear_loc_debug_helper() ;
@@ -4572,20 +4587,6 @@ class VehicleUpdate final :
   void unsafe_arena_set_allocated_velocity(
       ::ecloud::Velocity* velocity);
   ::ecloud::Velocity* unsafe_arena_release_velocity();
-  // .ecloud.PickledVehicleManager vehicle_manager = 10;
-  bool has_vehicle_manager() const;
-  void clear_vehicle_manager() ;
-  const ::ecloud::PickledVehicleManager& vehicle_manager() const;
-  PROTOBUF_NODISCARD ::ecloud::PickledVehicleManager* release_vehicle_manager();
-  ::ecloud::PickledVehicleManager* mutable_vehicle_manager();
-  void set_allocated_vehicle_manager(::ecloud::PickledVehicleManager* vehicle_manager);
-  private:
-  const ::ecloud::PickledVehicleManager& _internal_vehicle_manager() const;
-  ::ecloud::PickledVehicleManager* _internal_mutable_vehicle_manager();
-  public:
-  void unsafe_arena_set_allocated_vehicle_manager(
-      ::ecloud::PickledVehicleManager* vehicle_manager);
-  ::ecloud::PickledVehicleManager* unsafe_arena_release_vehicle_manager();
   // int32 tick_id = 1;
   void clear_tick_id() ;
   ::int32_t tick_id() const;
@@ -4636,12 +4637,12 @@ class VehicleUpdate final :
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::HasBits<1> _has_bits_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr pickled_agent_objects_;
     ::ecloud::LocDebugHelper* loc_debug_helper_;
     ::ecloud::PlanerDebugHelper* planer_debug_helper_;
     ::ecloud::ClientDebugHelper* client_debug_helper_;
     ::ecloud::Transform* transform_;
     ::ecloud::Velocity* velocity_;
-    ::ecloud::PickledVehicleManager* vehicle_manager_;
     ::int32_t tick_id_;
     ::int32_t vehicle_index_;
     ::int64_t duration_ns_;
@@ -6087,171 +6088,6 @@ class EdgeObjects final :
   typedef void DestructorSkippable_;
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::ecloud::ObjectBuffer > all_object_buffers_;
-    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};// -------------------------------------------------------------------
-
-class PickledVehicleManager final :
-    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:ecloud.PickledVehicleManager) */ {
- public:
-  inline PickledVehicleManager() : PickledVehicleManager(nullptr) {}
-  ~PickledVehicleManager() override;
-  template<typename = void>
-  explicit PROTOBUF_CONSTEXPR PickledVehicleManager(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
-
-  PickledVehicleManager(const PickledVehicleManager& from);
-  PickledVehicleManager(PickledVehicleManager&& from) noexcept
-    : PickledVehicleManager() {
-    *this = ::std::move(from);
-  }
-
-  inline PickledVehicleManager& operator=(const PickledVehicleManager& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline PickledVehicleManager& operator=(PickledVehicleManager&& from) noexcept {
-    if (this == &from) return *this;
-    if (GetOwningArena() == from.GetOwningArena()
-  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
-        && GetOwningArena() != nullptr
-  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
-    ) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet& unknown_fields() const {
-    return _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance);
-  }
-  inline ::PROTOBUF_NAMESPACE_ID::UnknownFieldSet* mutable_unknown_fields() {
-    return _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
-  }
-
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
-    return GetDescriptor();
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const PickledVehicleManager& default_instance() {
-    return *internal_default_instance();
-  }
-  static inline const PickledVehicleManager* internal_default_instance() {
-    return reinterpret_cast<const PickledVehicleManager*>(
-               &_PickledVehicleManager_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages =
-    28;
-
-  friend void swap(PickledVehicleManager& a, PickledVehicleManager& b) {
-    a.Swap(&b);
-  }
-  inline void Swap(PickledVehicleManager* other) {
-    if (other == this) return;
-  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() != nullptr &&
-        GetOwningArena() == other->GetOwningArena()) {
-   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
-    if (GetOwningArena() == other->GetOwningArena()) {
-  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
-      InternalSwap(other);
-    } else {
-      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(PickledVehicleManager* other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetOwningArena() == other->GetOwningArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  PickledVehicleManager* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
-    return CreateMaybeMessage<PickledVehicleManager>(arena);
-  }
-  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
-  void CopyFrom(const PickledVehicleManager& from);
-  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
-  void MergeFrom( const PickledVehicleManager& from) {
-    PickledVehicleManager::MergeImpl(*this, from);
-  }
-  private:
-  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
-  public:
-  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
-  bool IsInitialized() const final;
-
-  ::size_t ByteSizeLong() const final;
-  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
-  ::uint8_t* _InternalSerialize(
-      ::uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
-  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  void SharedDtor();
-  void SetCachedSize(int size) const final;
-  void InternalSwap(PickledVehicleManager* other);
-
-  private:
-  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
-  static ::absl::string_view FullMessageName() {
-    return "ecloud.PickledVehicleManager";
-  }
-  protected:
-  explicit PickledVehicleManager(::PROTOBUF_NAMESPACE_ID::Arena* arena);
-  public:
-
-  static const ClassData _class_data_;
-  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
-
-  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
-
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-
-  enum : int {
-    kVehicleManagerFieldNumber = 1,
-  };
-  // bytes vehicle_manager = 1;
-  void clear_vehicle_manager() ;
-  const std::string& vehicle_manager() const;
-
-
-
-
-  template <typename Arg_ = const std::string&, typename... Args_>
-  void set_vehicle_manager(Arg_&& arg, Args_... args);
-  std::string* mutable_vehicle_manager();
-  PROTOBUF_NODISCARD std::string* release_vehicle_manager();
-  void set_allocated_vehicle_manager(std::string* ptr);
-
-  private:
-  const std::string& _internal_vehicle_manager() const;
-  inline PROTOBUF_ALWAYS_INLINE void _internal_set_vehicle_manager(
-      const std::string& value);
-  std::string* _internal_mutable_vehicle_manager();
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.PickledVehicleManager)
- private:
-  class _Internal;
-
-  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
-  typedef void InternalArenaConstructable_;
-  typedef void DestructorSkippable_;
-  struct Impl_ {
-    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr vehicle_manager_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -9919,91 +9755,51 @@ inline void VehicleUpdate::_internal_set_duration_ns(::int64_t value) {
   _impl_.duration_ns_ = value;
 }
 
-// .ecloud.PickledVehicleManager vehicle_manager = 10;
-inline bool VehicleUpdate::has_vehicle_manager() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000020u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.vehicle_manager_ != nullptr);
-  return value;
+// bytes pickled_agent_objects = 10;
+inline void VehicleUpdate::clear_pickled_agent_objects() {
+  _impl_.pickled_agent_objects_.ClearToEmpty();
 }
-inline void VehicleUpdate::clear_vehicle_manager() {
-  if (_impl_.vehicle_manager_ != nullptr) _impl_.vehicle_manager_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000020u;
+inline const std::string& VehicleUpdate::pickled_agent_objects() const {
+  // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.pickled_agent_objects)
+  return _internal_pickled_agent_objects();
 }
-inline const ::ecloud::PickledVehicleManager& VehicleUpdate::_internal_vehicle_manager() const {
-  const ::ecloud::PickledVehicleManager* p = _impl_.vehicle_manager_;
-  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::PickledVehicleManager&>(
-      ::ecloud::_PickledVehicleManager_default_instance_);
+template <typename Arg_, typename... Args_>
+inline PROTOBUF_ALWAYS_INLINE void VehicleUpdate::set_pickled_agent_objects(Arg_&& arg,
+                                                     Args_... args) {
+  ;
+  _impl_.pickled_agent_objects_.SetBytes(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.pickled_agent_objects)
 }
-inline const ::ecloud::PickledVehicleManager& VehicleUpdate::vehicle_manager() const {
-  // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.vehicle_manager)
-  return _internal_vehicle_manager();
+inline std::string* VehicleUpdate::mutable_pickled_agent_objects() {
+  std::string* _s = _internal_mutable_pickled_agent_objects();
+  // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.pickled_agent_objects)
+  return _s;
 }
-inline void VehicleUpdate::unsafe_arena_set_allocated_vehicle_manager(
-    ::ecloud::PickledVehicleManager* vehicle_manager) {
-  if (GetArenaForAllocation() == nullptr) {
-    delete reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(_impl_.vehicle_manager_);
-  }
-  _impl_.vehicle_manager_ = vehicle_manager;
-  if (vehicle_manager) {
-    _impl_._has_bits_[0] |= 0x00000020u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.vehicle_manager)
+inline const std::string& VehicleUpdate::_internal_pickled_agent_objects() const {
+  return _impl_.pickled_agent_objects_.Get();
 }
-inline ::ecloud::PickledVehicleManager* VehicleUpdate::release_vehicle_manager() {
-  _impl_._has_bits_[0] &= ~0x00000020u;
-  ::ecloud::PickledVehicleManager* temp = _impl_.vehicle_manager_;
-  _impl_.vehicle_manager_ = nullptr;
-#ifdef PROTOBUF_FORCE_COPY_IN_RELEASE
-  auto* old =  reinterpret_cast<::PROTOBUF_NAMESPACE_ID::MessageLite*>(temp);
-  temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  if (GetArenaForAllocation() == nullptr) { delete old; }
-#else  // PROTOBUF_FORCE_COPY_IN_RELEASE
-  if (GetArenaForAllocation() != nullptr) {
-    temp = ::PROTOBUF_NAMESPACE_ID::internal::DuplicateIfNonNull(temp);
-  }
-#endif  // !PROTOBUF_FORCE_COPY_IN_RELEASE
-  return temp;
+inline void VehicleUpdate::_internal_set_pickled_agent_objects(const std::string& value) {
+  ;
+
+
+  _impl_.pickled_agent_objects_.Set(value, GetArenaForAllocation());
 }
-inline ::ecloud::PickledVehicleManager* VehicleUpdate::unsafe_arena_release_vehicle_manager() {
-  // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.vehicle_manager)
-  _impl_._has_bits_[0] &= ~0x00000020u;
-  ::ecloud::PickledVehicleManager* temp = _impl_.vehicle_manager_;
-  _impl_.vehicle_manager_ = nullptr;
-  return temp;
+inline std::string* VehicleUpdate::_internal_mutable_pickled_agent_objects() {
+  ;
+  return _impl_.pickled_agent_objects_.Mutable( GetArenaForAllocation());
 }
-inline ::ecloud::PickledVehicleManager* VehicleUpdate::_internal_mutable_vehicle_manager() {
-  _impl_._has_bits_[0] |= 0x00000020u;
-  if (_impl_.vehicle_manager_ == nullptr) {
-    auto* p = CreateMaybeMessage<::ecloud::PickledVehicleManager>(GetArenaForAllocation());
-    _impl_.vehicle_manager_ = p;
-  }
-  return _impl_.vehicle_manager_;
+inline std::string* VehicleUpdate::release_pickled_agent_objects() {
+  // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.pickled_agent_objects)
+  return _impl_.pickled_agent_objects_.Release();
 }
-inline ::ecloud::PickledVehicleManager* VehicleUpdate::mutable_vehicle_manager() {
-  ::ecloud::PickledVehicleManager* _msg = _internal_mutable_vehicle_manager();
-  // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.vehicle_manager)
-  return _msg;
-}
-inline void VehicleUpdate::set_allocated_vehicle_manager(::ecloud::PickledVehicleManager* vehicle_manager) {
-  ::PROTOBUF_NAMESPACE_ID::Arena* message_arena = GetArenaForAllocation();
-  if (message_arena == nullptr) {
-    delete _impl_.vehicle_manager_;
-  }
-  if (vehicle_manager) {
-    ::PROTOBUF_NAMESPACE_ID::Arena* submessage_arena =
-        ::PROTOBUF_NAMESPACE_ID::Arena::InternalGetOwningArena(vehicle_manager);
-    if (message_arena != submessage_arena) {
-      vehicle_manager = ::PROTOBUF_NAMESPACE_ID::internal::GetOwnedMessage(
-          message_arena, vehicle_manager, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000020u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
-  }
-  _impl_.vehicle_manager_ = vehicle_manager;
-  // @@protoc_insertion_point(field_set_allocated:ecloud.VehicleUpdate.vehicle_manager)
+inline void VehicleUpdate::set_allocated_pickled_agent_objects(std::string* value) {
+  _impl_.pickled_agent_objects_.SetAllocated(value, GetArenaForAllocation());
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+        if (_impl_.pickled_agent_objects_.IsDefault()) {
+          _impl_.pickled_agent_objects_.Set("", GetArenaForAllocation());
+        }
+  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:ecloud.VehicleUpdate.pickled_agent_objects)
 }
 
 // -------------------------------------------------------------------
@@ -10815,57 +10611,6 @@ EdgeObjects::_internal_all_object_buffers() const {
 inline ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField<::ecloud::ObjectBuffer>*
 EdgeObjects::_internal_mutable_all_object_buffers() {
   return &_impl_.all_object_buffers_;
-}
-
-// -------------------------------------------------------------------
-
-// PickledVehicleManager
-
-// bytes vehicle_manager = 1;
-inline void PickledVehicleManager::clear_vehicle_manager() {
-  _impl_.vehicle_manager_.ClearToEmpty();
-}
-inline const std::string& PickledVehicleManager::vehicle_manager() const {
-  // @@protoc_insertion_point(field_get:ecloud.PickledVehicleManager.vehicle_manager)
-  return _internal_vehicle_manager();
-}
-template <typename Arg_, typename... Args_>
-inline PROTOBUF_ALWAYS_INLINE void PickledVehicleManager::set_vehicle_manager(Arg_&& arg,
-                                                     Args_... args) {
-  ;
-  _impl_.vehicle_manager_.SetBytes(static_cast<Arg_&&>(arg), args..., GetArenaForAllocation());
-  // @@protoc_insertion_point(field_set:ecloud.PickledVehicleManager.vehicle_manager)
-}
-inline std::string* PickledVehicleManager::mutable_vehicle_manager() {
-  std::string* _s = _internal_mutable_vehicle_manager();
-  // @@protoc_insertion_point(field_mutable:ecloud.PickledVehicleManager.vehicle_manager)
-  return _s;
-}
-inline const std::string& PickledVehicleManager::_internal_vehicle_manager() const {
-  return _impl_.vehicle_manager_.Get();
-}
-inline void PickledVehicleManager::_internal_set_vehicle_manager(const std::string& value) {
-  ;
-
-
-  _impl_.vehicle_manager_.Set(value, GetArenaForAllocation());
-}
-inline std::string* PickledVehicleManager::_internal_mutable_vehicle_manager() {
-  ;
-  return _impl_.vehicle_manager_.Mutable( GetArenaForAllocation());
-}
-inline std::string* PickledVehicleManager::release_vehicle_manager() {
-  // @@protoc_insertion_point(field_release:ecloud.PickledVehicleManager.vehicle_manager)
-  return _impl_.vehicle_manager_.Release();
-}
-inline void PickledVehicleManager::set_allocated_vehicle_manager(std::string* value) {
-  _impl_.vehicle_manager_.SetAllocated(value, GetArenaForAllocation());
-  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
-        if (_impl_.vehicle_manager_.IsDefault()) {
-          _impl_.vehicle_manager_.Set("", GetArenaForAllocation());
-        }
-  #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
-  // @@protoc_insertion_point(field_set_allocated:ecloud.PickledVehicleManager.vehicle_manager)
 }
 
 #ifdef __GNUC__
