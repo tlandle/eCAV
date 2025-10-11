@@ -60,6 +60,40 @@ python opencda.py -t multi_2lanefree_carla -v 0.9.12
 python opencda.py -t ecloud_edge_scenario -v 0.9.12
 ```
 
+### eCav 2.0 Distributed Edge
+
+Before doing any of this, rebuild the python gRPC protoc libs as above
+
+You will probably also want to build the actual server, but it may work to just grab the latest binary.
+
+To build, just run `make` in the `cmake/build` folder and copy the generated objects into the `ecloud_server` folder.
+
+To run the distributed Edge Scenario 3, you will need three separate terminal windows (plus Carla terminal)
+
+```bash
+python opencda.py -t openscenario_3_edge --apply_ml -v 0.9.15 --quiet
+```
+
+You will see startup messaging and finally prints about waiting for vehicles. Once you see this, start the ego vehicle first, as it needs to register via gRPC
+
+```bash
+python opencda.py -t openscenario_3_edge --apply_ml -v 0.9.15 -i 0
+```
+
+The `-i 0` here indicates this is vehicle 0.
+
+Once this starts up and you see it properly register, you then need to start the rest of the vehicles; these get picked up via the Carla API and do not communicate over the wire.
+
+```bash
+python opencda.py -t openscenario_3_edge --apply_ml -v 0.9.15 -i 1
+```
+
+`-i 1` indicates vehicle index 1, which for this scenario is "everyone else besides the ego."
+
+These vehicles should get picked up as expected and it will run to completion. Once the distributed RSU logic is done we'll need one more process for that.
+
+### eCav 1.0
+
 Build Docker image for vehicle clients
 ```bash
 sudo docker build -t vehicle-sim .
