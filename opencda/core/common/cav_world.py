@@ -50,9 +50,9 @@ class CavWorld(object):
             # we import in this way so the user don't need to install ml
             # packages unless they require to
             ml_manager = getattr(importlib.import_module(
-                "opencda.customize.ml_libs.ml_manager"), 'MLManager')
+                "opencda.ml_manager.ml_manager"), 'MLManager')
             # initialize the ml manager to load the DL/ML models into memory
-            self.ml_manager = ml_manager()
+            self.ml_manager = ml_manager(apply_ml=apply_ml, run_distributed=True)
 
         # this is used only when co-simulation activated.
         self.sumo2carla_ids = {}
