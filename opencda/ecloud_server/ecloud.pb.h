@@ -273,6 +273,38 @@ inline bool VehicleState_Parse(absl::string_view name, VehicleState* value) {
   return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<VehicleState>(
       VehicleState_descriptor(), name, value);
 }
+enum ActorType : int {
+  VEHICLE = 0,
+  RSU = 1,
+  ActorType_INT_MIN_SENTINEL_DO_NOT_USE_ =
+      std::numeric_limits<::int32_t>::min(),
+  ActorType_INT_MAX_SENTINEL_DO_NOT_USE_ =
+      std::numeric_limits<::int32_t>::max(),
+};
+
+bool ActorType_IsValid(int value);
+constexpr ActorType ActorType_MIN = static_cast<ActorType>(0);
+constexpr ActorType ActorType_MAX = static_cast<ActorType>(1);
+constexpr int ActorType_ARRAYSIZE = 1 + 1;
+const ::PROTOBUF_NAMESPACE_ID::EnumDescriptor*
+ActorType_descriptor();
+template <typename T>
+const std::string& ActorType_Name(T value) {
+  static_assert(std::is_same<T, ActorType>::value ||
+                    std::is_integral<T>::value,
+                "Incorrect type passed to ActorType_Name().");
+  return ActorType_Name(static_cast<ActorType>(value));
+}
+template <>
+inline const std::string& ActorType_Name(ActorType value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::NameOfDenseEnum<ActorType_descriptor,
+                                                 0, 1>(
+      static_cast<int>(value));
+}
+inline bool ActorType_Parse(absl::string_view name, ActorType* value) {
+  return ::PROTOBUF_NAMESPACE_ID::internal::ParseNamedEnum<ActorType>(
+      ActorType_descriptor(), name, value);
+}
 
 // ===================================================================
 
@@ -4236,6 +4268,7 @@ class RegistrationInfo final :
     kVehicleIndexFieldNumber = 2,
     kActorIdFieldNumber = 4,
     kVehiclePortFieldNumber = 7,
+    kActorTypeFieldNumber = 8,
   };
   // string vid = 3;
   void clear_vid() ;
@@ -4337,6 +4370,16 @@ class RegistrationInfo final :
   void _internal_set_vehicle_port(::int32_t value);
 
   public:
+  // .ecloud.ActorType actor_type = 8;
+  void clear_actor_type() ;
+  ::ecloud::ActorType actor_type() const;
+  void set_actor_type(::ecloud::ActorType value);
+
+  private:
+  ::ecloud::ActorType _internal_actor_type() const;
+  void _internal_set_actor_type(::ecloud::ActorType value);
+
+  public:
   // @@protoc_insertion_point(class_scope:ecloud.RegistrationInfo)
  private:
   class _Internal;
@@ -4352,6 +4395,7 @@ class RegistrationInfo final :
     ::int32_t vehicle_index_;
     ::int32_t actor_id_;
     ::int32_t vehicle_port_;
+    int actor_type_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -4494,8 +4538,9 @@ class VehicleUpdate final :
     kVelocityFieldNumber = 8,
     kTickIdFieldNumber = 1,
     kVehicleIndexFieldNumber = 2,
-    kDurationNsFieldNumber = 9,
     kVehicleStateFieldNumber = 3,
+    kActorTypeFieldNumber = 11,
+    kDurationNsFieldNumber = 9,
   };
   // bytes pickled_agent_objects = 10;
   void clear_pickled_agent_objects() ;
@@ -4607,16 +4652,6 @@ class VehicleUpdate final :
   void _internal_set_vehicle_index(::int32_t value);
 
   public:
-  // int64 duration_ns = 9;
-  void clear_duration_ns() ;
-  ::int64_t duration_ns() const;
-  void set_duration_ns(::int64_t value);
-
-  private:
-  ::int64_t _internal_duration_ns() const;
-  void _internal_set_duration_ns(::int64_t value);
-
-  public:
   // .ecloud.VehicleState vehicle_state = 3;
   void clear_vehicle_state() ;
   ::ecloud::VehicleState vehicle_state() const;
@@ -4625,6 +4660,26 @@ class VehicleUpdate final :
   private:
   ::ecloud::VehicleState _internal_vehicle_state() const;
   void _internal_set_vehicle_state(::ecloud::VehicleState value);
+
+  public:
+  // .ecloud.ActorType actor_type = 11;
+  void clear_actor_type() ;
+  ::ecloud::ActorType actor_type() const;
+  void set_actor_type(::ecloud::ActorType value);
+
+  private:
+  ::ecloud::ActorType _internal_actor_type() const;
+  void _internal_set_actor_type(::ecloud::ActorType value);
+
+  public:
+  // int64 duration_ns = 9;
+  void clear_duration_ns() ;
+  ::int64_t duration_ns() const;
+  void set_duration_ns(::int64_t value);
+
+  private:
+  ::int64_t _internal_duration_ns() const;
+  void _internal_set_duration_ns(::int64_t value);
 
   public:
   // @@protoc_insertion_point(class_scope:ecloud.VehicleUpdate)
@@ -4645,8 +4700,9 @@ class VehicleUpdate final :
     ::ecloud::Velocity* velocity_;
     ::int32_t tick_id_;
     ::int32_t vehicle_index_;
-    ::int64_t duration_ns_;
     int vehicle_state_;
+    int actor_type_;
+    ::int64_t duration_ns_;
   };
   union { Impl_ _impl_; };
   friend struct ::TableStruct_ecloud_2eproto;
@@ -9236,6 +9292,26 @@ inline void RegistrationInfo::_internal_set_vehicle_port(::int32_t value) {
   _impl_.vehicle_port_ = value;
 }
 
+// .ecloud.ActorType actor_type = 8;
+inline void RegistrationInfo::clear_actor_type() {
+  _impl_.actor_type_ = 0;
+}
+inline ::ecloud::ActorType RegistrationInfo::actor_type() const {
+  // @@protoc_insertion_point(field_get:ecloud.RegistrationInfo.actor_type)
+  return _internal_actor_type();
+}
+inline void RegistrationInfo::set_actor_type(::ecloud::ActorType value) {
+   _internal_set_actor_type(value);
+  // @@protoc_insertion_point(field_set:ecloud.RegistrationInfo.actor_type)
+}
+inline ::ecloud::ActorType RegistrationInfo::_internal_actor_type() const {
+  return static_cast<::ecloud::ActorType>(_impl_.actor_type_);
+}
+inline void RegistrationInfo::_internal_set_actor_type(::ecloud::ActorType value) {
+  ;
+  _impl_.actor_type_ = value;
+}
+
 // -------------------------------------------------------------------
 
 // VehicleUpdate
@@ -9800,6 +9876,26 @@ inline void VehicleUpdate::set_allocated_pickled_agent_objects(std::string* valu
         }
   #endif  // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   // @@protoc_insertion_point(field_set_allocated:ecloud.VehicleUpdate.pickled_agent_objects)
+}
+
+// .ecloud.ActorType actor_type = 11;
+inline void VehicleUpdate::clear_actor_type() {
+  _impl_.actor_type_ = 0;
+}
+inline ::ecloud::ActorType VehicleUpdate::actor_type() const {
+  // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.actor_type)
+  return _internal_actor_type();
+}
+inline void VehicleUpdate::set_actor_type(::ecloud::ActorType value) {
+   _internal_set_actor_type(value);
+  // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.actor_type)
+}
+inline ::ecloud::ActorType VehicleUpdate::_internal_actor_type() const {
+  return static_cast<::ecloud::ActorType>(_impl_.actor_type_);
+}
+inline void VehicleUpdate::_internal_set_actor_type(::ecloud::ActorType value) {
+  ;
+  _impl_.actor_type_ = value;
 }
 
 // -------------------------------------------------------------------
@@ -10634,6 +10730,12 @@ struct is_proto_enum<::ecloud::VehicleState> : std::true_type {};
 template <>
 inline const EnumDescriptor* GetEnumDescriptor<::ecloud::VehicleState>() {
   return ::ecloud::VehicleState_descriptor();
+}
+template <>
+struct is_proto_enum<::ecloud::ActorType> : std::true_type {};
+template <>
+inline const EnumDescriptor* GetEnumDescriptor<::ecloud::ActorType>() {
+  return ::ecloud::ActorType_descriptor();
 }
 
 PROTOBUF_NAMESPACE_CLOSE

@@ -5,6 +5,8 @@ Basic class for RSU(Roadside Unit) management.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import pickle
+
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.perception.perception_manager import \
     PerceptionManager
@@ -117,11 +119,49 @@ class RSUManager(object):
 
         # object detection todo: pass it to other CAVs for V2X percetion
         self.objects = self.perception_manager.detect(ego_pos)
+        def recursive_print_object(obj, indent=0, visited=None):
+            try:
+                pickle.dumps(obj)  # Test if the object is picklable
+            except Exception as e:
+                print(f"{'  ' * indent}<Unpicklable {type(obj).__name__} object at {hex(id(obj))}>", flush=True)
+                            
+            if visited is None:
+                visited = set()
+
+            # Prevent infinite recursion for circular references
+            if id(obj) in visited:
+                print(f"{'  ' * indent}<Circular Reference to {type(obj).__name__} object at {hex(id(obj))}>", flush=True)
+                return
+            visited.add(id(obj))
+
+            print(f"{'  ' * indent}{type(obj).__name__} object at {hex(id(obj))}:", flush=True)
+            indent += 1
+
+            if isinstance(obj, dict):
+                for key, value in obj.items():
+                    print(f"{'  ' * indent}{key}:", flush=True)
+                    recursive_print_object(value, indent + 1, visited)
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    print(f"{'  ' * indent}[{i}]:", flush=True)
+                    recursive_print_object(item, indent + 1, visited)
+            elif hasattr(obj, '__dict__'):
+                for attr_name, attr_value in obj.__dict__.items():
+                    if hasattr(attr_value, '__dict__'):  # Check if the attribute is another object
+                        print(f"{'  ' * indent}{attr_name}:", flush=True)
+                        recursive_print_object(attr_value, indent + 1, visited)
+                    else:
+                        print(f"{'  ' * indent}{attr_name}: {attr_value}", flush=True)
+            else:
+                print(f"{'  ' * indent}{obj}", flush=True)
+
+        recursive_print_object(self.objects)
 
     def run_step(self):
         """
         Currently only used for dumping data.
         """
+        return
         # dump data
         if self.data_dumper:
             self.data_dumper.run_step(self.perception_manager,

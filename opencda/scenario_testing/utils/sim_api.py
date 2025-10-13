@@ -312,45 +312,82 @@ class ScenarioManager:
         try:
             for vehicle_update in ecloud_update.vehicle_update:
                 objects = pickle.loads(vehicle_update.pickled_agent_objects) if vehicle_update.pickled_agent_objects is not None else None
-                if objects is not None:
-                    self.vehicle_managers[ vehicle_update.vehicle_index ].agent.objects = objects
+                def recursive_print_object(obj, indent=0, visited=None):
+                    if visited is None:
+                        visited = set()
 
-                if vehicle_update.transform is None or vehicle_update.velocity is None:
-                    continue
+                    # Prevent infinite recursion for circular references
+                    if id(obj) in visited:
+                        print(f"{'  ' * indent}<Circular Reference to {type(obj).__name__} object at {hex(id(obj))}>")
+                        return
+                    visited.add(id(obj))
 
-                if not ( self.is_edge or self.verbose_updates ) and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
-                    continue
+                    print(f"{'  ' * indent}{type(obj).__name__} object at {hex(id(obj))}:")
+                    indent += 1
 
-                v = carla.Vector3D(
-                        x=vehicle_update.velocity.x,
-                        y=vehicle_update.velocity.y,
-                        z=vehicle_update.velocity.z)
+                    if isinstance(obj, dict):
+                        for key, value in obj.items():
+                            print(f"{'  ' * indent}{key}:")
+                            recursive_print_object(value, indent + 1, visited)
+                    elif isinstance(obj, list):
+                        for i, item in enumerate(obj):
+                            print(f"{'  ' * indent}[{i}]:")
+                            recursive_print_object(item, indent + 1, visited)
+                    elif hasattr(obj, '__dict__'):
+                        for attr_name, attr_value in obj.__dict__.items():
+                            if hasattr(attr_value, '__dict__'):  # Check if the attribute is another object
+                                print(f"{'  ' * indent}{attr_name}:")
+                                recursive_print_object(attr_value, indent + 1, visited)
+                            else:
+                                print(f"{'  ' * indent}{attr_name}: {attr_value}")
+                    else:
+                        print(f"{'  ' * indent}{obj}")
+                
+                recursive_print_object(objects)
+                if vehicle_update.actor_type == ecloud.ActorType.RSU:
+                    if objects is not None:
+                        self.rsu_managers[ vehicle_update.vehicle_index ].objects = objects
+                
+                elif vehicle_update.actor_type == ecloud.ActorType.VEHICLE:
+                    if objects is not None:
+                        self.vehicle_managers[ vehicle_update.vehicle_index ].agent.objects = objects
 
-                running = vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE
+                    if vehicle_update.transform is None or vehicle_update.velocity is None:
+                        continue
 
-                vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
-                if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
-                    #logger.debug("updating transform & velocity - %s", vehicle_update)
-                    t = carla.Transform(
-                    carla.Location(
-                        x=vehicle_update.transform.location.x,
-                        y=vehicle_update.transform.location.y,
-                        z=vehicle_update.transform.location.z),
-                    carla.Rotation(
-                        yaw=vehicle_update.transform.rotation.yaw,
-                        roll=vehicle_update.transform.rotation.roll,
-                        pitch=vehicle_update.transform.rotation.pitch))
+                    if not ( self.is_edge or self.verbose_updates ) and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
+                        continue
+
                     v = carla.Vector3D(
-                        x=vehicle_update.velocity.x,
-                        y=vehicle_update.velocity.y,
-                        z=vehicle_update.velocity.z)
-                    if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                            x=vehicle_update.velocity.x,
+                            y=vehicle_update.velocity.y,
+                            z=vehicle_update.velocity.z)
+
+                    running = vehicle_update.vehicle_state != ecloud.VehicleState.TICK_DONE
+
+                    vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
+                    if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
                         #logger.debug("updating transform & velocity - %s", vehicle_update)
-                        vehicle_manager_proxy.vehicle.set_velocity(v)
-                        vehicle_manager_proxy.vehicle.set_transform(t)  
-                    
-                    self.debug_helper.update_velocity_per_client_timestamp(tick_id=self.tick_id,
-                                                                           velocity=v)
+                        t = carla.Transform(
+                        carla.Location(
+                            x=vehicle_update.transform.location.x,
+                            y=vehicle_update.transform.location.y,
+                            z=vehicle_update.transform.location.z),
+                        carla.Rotation(
+                            yaw=vehicle_update.transform.rotation.yaw,
+                            roll=vehicle_update.transform.rotation.roll,
+                            pitch=vehicle_update.transform.rotation.pitch))
+                        v = carla.Vector3D(
+                            x=vehicle_update.velocity.x,
+                            y=vehicle_update.velocity.y,
+                            z=vehicle_update.velocity.z)
+                        if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
+                            #logger.debug("updating transform & velocity - %s", vehicle_update)
+                            vehicle_manager_proxy.vehicle.set_velocity(v)
+                            vehicle_manager_proxy.vehicle.set_transform(t)  
+                        
+                        self.debug_helper.update_velocity_per_client_timestamp(tick_id=self.tick_id,
+                                                                            velocity=v)
         except:
             logger.exception('%s', vehicle_update)
 
@@ -582,7 +619,7 @@ class ScenarioManager:
           server_request.test_scenario = self.scenario
           server_request.application = self.application[0]
           server_request.version = self.carla_version
-          server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
+          server_request.vehicle_index = self.vehicle_count + self.rsu_count # bit of a hack to use vindex as count here
           server_request.is_edge = self.is_edge or self.verbose_updates
 
           logger.info("Waiting for scenario start")

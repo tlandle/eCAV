@@ -144,7 +144,7 @@ class ObstacleVehicle(object):
         """
         Return the velocity of the object vehicle.
         """
-        return self.velocity
+        return carla.Vector3D(self.velocity.x, self.velocity.y, self.velocity.z)    
 
     def set_carla_id(self, id):
         """
@@ -167,7 +167,7 @@ class ObstacleVehicle(object):
             The target velocity in 3d vector format.
 
         """
-        self.velocity = velocity
+        self.velocity = Vector3D(velocity.x, velocity.y, velocity.z)
 
     def set_vehicle(self, vehicle, lidar, sumo2carla_ids):
         """

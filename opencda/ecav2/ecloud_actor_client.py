@@ -26,6 +26,7 @@ from opencda.core.common import vehicle_manager
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
+from opencda.core.common.rsu_manager import RSUManager
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 from opencda.core.application.edge.networking import NetworkEmulator
 from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior, eLocationType
@@ -56,13 +57,15 @@ elif cloud_config["log_level"] == "warning":
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
-class Ecav2VehicleClient:
+class Ecav2ActorClient:
 
     #TODO: move to eCloudConfig
     # default params which can be over-written from the simulation controller
     SPECTATOR_INDEX = 0
 
-    def __init__(self, vehicle=None):
+    def __init__(self, vehicle=None, actor_type=ecloud.ActorType.VEHICLE):
+        self.actor_type = actor_type
+        
         self.ecloud_server = None
         self.channel = None
         self.vehicle = vehicle
@@ -74,6 +77,7 @@ class Ecav2VehicleClient:
         self.pong = None
         self.vehicle_manager = None
         self.network_emulator = None
+        self.rsu_manager = None
 
         self.is_edge = False # TODO: added this to the actual protobuf message
         self.network_emulator = None
@@ -145,16 +149,32 @@ class Ecav2VehicleClient:
         if self.opt.apply_ml:
             await asyncio.sleep(self.vehicle_index + 1)
 
-        self.vehicle_manager = VehicleManager(vehicle=self.vehicle, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
+        if self.actor_type == ecloud.ActorType.VEHICLE:
+            self.vehicle_manager = VehicleManager(vehicle=self.vehicle, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
                                         carla_version=version, location_type=self.location_type, run_distributed=True, is_edge=self.is_edge, perception_active=self.opt.apply_ml)
+            assert self.vehicle_manager.vehicle is not None, "vehicle_manager failed to spawn the vehicle"
+            self.actor_id = self.vehicle_manager.vehicle.id
+            self.vid = self.vehicle_manager.vid
+        elif self.actor_type == ecloud.ActorType.RSU:
+            rsu_config = scenario_yaml['scenario']['edge_list'][0]['rsus'][self.vehicle_index]
+            client = carla.Client(CARLA_IP, scenario_yaml['world']['client_port'])
+            client.set_timeout(10.0)
+            world = client.get_world()
+            carla_map = world.get_map()
+            cav_world = CavWorld(self.opt.apply_ml)
+            self.rsu_manager = RSUManager(world, 
+                                rsu_config,
+                                carla_map,
+                                cav_world,
+                                scenario_yaml['current_time'],
+                                data_dumping=self.verbose_updates)
+            self.vid = scenario_yaml['scenario']['edge_list'][0]['rsus'][self.vehicle_index]['name']
+            self.actor_id = scenario_yaml['scenario']['edge_list'][0]['rsus'][self.vehicle_index]['id']
+            self.vehicle_manager = self.rsu_manager # for common handling below
 
         if self.is_edge:
             self.network_emulator = NetworkEmulator(edge_sets_destination=self.edge_sets_destination,
                                                 vehicle_manager=self.vehicle_manager)
-
-        assert self.vehicle_manager.vehicle is not None, "vehicle_manager failed to spawn the vehicle"
-        self.actor_id = self.vehicle_manager.vehicle.id
-        self.vid = self.vehicle_manager.vid
 
         await self.send_carla_data_to_opencda()
 
@@ -167,7 +187,8 @@ class Ecav2VehicleClient:
         logger.info("pong received")
 
         self.vehicle_manager.update_info()
-        self.vehicle_manager.set_destination(
+        if self.actor_type == ecloud.ActorType.VEHICLE:
+            self.vehicle_manager.set_destination(
                     self.vehicle_manager.vehicle.get_location(),
                     self.vehicle_manager.destination_location,
                     clean=True)
@@ -176,7 +197,7 @@ class Ecav2VehicleClient:
 
     async def connect(self) -> ecloud.SimulationInfo:
         # spawn push server
-        self.push_port = ECLOUD_PUSH_BASE_PORT + self.opt.vehicle_index
+        self.push_port = ECLOUD_PUSH_BASE_PORT + self.opt.vehicle_index + ( 100 if self.actor_type == ecloud.ActorType.RSU else 0 )
         self.push_server = asyncio.create_task(ecloud_run_push_server(self.push_port, self.push_q))
 
         await asyncio.sleep(1)
@@ -198,7 +219,7 @@ class Ecav2VehicleClient:
         self.ecloud_server = ecloud_rpc.EcloudStub(self.channel)
 
         ecloud_update = await self.send_registration_to_ecloud_server()
-        self.vehicle_index = ecloud_update.vehicle_index
+        self.vehicle_index = ecloud_update.vehicle_index - ( 1 if self.actor_type == ecloud.ActorType.RSU else 0 )
         assert self.vehicle_index is not None, "vehicle_index not set by ecloud server"
         
         return ecloud_update
@@ -327,25 +348,30 @@ class Ecav2VehicleClient:
             # update info runs BEFORE waypoint injection
             update_info_start_time = time.time()
             self.vehicle_manager.update_info()
+            logger.info("update_info complete")
             
             control = self.vehicle_manager.run_step()
             logger.debug("Applying control for vehicle manager: %s", self.vehicle_manager)
-            self.vehicle_manager.vehicle.apply_control(control)
+            if self.actor_type == ecloud.ActorType.VEHICLE:
+                self.vehicle_manager.vehicle.apply_control(control)
 
-            update_info_end_time = time.time()
-            self.vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
-            logger.info("update_info complete")
-
-            if self.is_edge:
-                self.network_emulator.update_waypoints()
+                update_info_end_time = time.time()
+                self.vehicle_manager.debug_helper.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
+                
+                if self.is_edge:
+                    self.network_emulator.update_waypoints()
 
             logger.info("run_step complete")
 
+            vehicle_update.actor_type = self.actor_type
             vehicle_update.tick_id = self.tick_id
             try:
-                vehicle_update.pickled_agent_objects = pickle.dumps(self.vehicle_manager.agent.objects)
+                if self.actor_type == ecloud.ActorType.VEHICLE:
+                    vehicle_update.pickled_agent_objects = pickle.dumps(self.vehicle_manager.agent.objects)
+                else:
+                    vehicle_update.pickled_agent_objects = pickle.dumps(self.rsu_manager.objects)
             except Exception as e:
-                print(f"Error serializing predictions: {e}", flush=True)
+                print(f"Error serializing objects: {e}", flush=True)
                 def find_unpicklable(obj, path=""):
                     try:
                         pickle.dumps(obj)
@@ -358,10 +384,17 @@ class Ecav2VehicleClient:
                                 if result is not None:
                                     return result  # Found the unpicklable item
                         return obj  # This object itself is unpicklable
-                for o in self.vehicle_manager.agent.objects:
-                    print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"))
+                if self.actor_type == ecloud.ActorType.VEHICLE:
+                    for o in self.vehicle_manager.agent.objects:
+                        print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
+                else:
+                    for o in self.rsu_manager.objects:
+                        print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
 
-            vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK if not self.vehicle_manager.is_close_to_scenario_destination() else ecloud.VehicleState.TICK_DONE
+            if self.actor_type == ecloud.ActorType.VEHICLE:
+                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK if not self.vehicle_manager.is_close_to_scenario_destination() else ecloud.VehicleState.TICK_DONE
+            else:
+                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # RSUs never "done"
 
             # vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
             # logger.error("ecloud_client error")
@@ -438,7 +471,10 @@ class Ecav2VehicleClient:
                 preds = pickle.loads(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
                 print("Edge Predictions:")
                 # recursive_print_object(preds)
-                self.vehicle_manager.agent.edge_predictions = preds
+                if self.actor_type == ecloud.ActorType.VEHICLE:
+                    self.vehicle_manager.agent.edge_predictions = preds
+                else:
+                    pass # don't have a scenario yet where the RSU gets edge predictions
                 self.pong.command = ecloud.Command.TICK
 
             # HANDLE END
@@ -455,3 +491,22 @@ class Ecav2VehicleClient:
         self.push_server.cancel()
         logger.info("scenario complete.")
 
+if __name__ == '__main__':
+    try:
+        loop = asyncio.get_event_loop()
+        ecav_client = Ecav2ActorClient(actor_type=ecloud.ActorType.RSU) # RSUs are created as standalone processes; vehicles are created by scenario manager
+        asyncio.get_event_loop().run_until_complete(ecav_client.run())
+        while True:
+            pong = asyncio.get_event_loop().run_until_complete(ecav_client.tick())
+            if pong.command == ecloud.Command.END:
+                break
+            time.sleep(0.001)
+        asyncio.get_event_loop().run_until_complete(ecav_client.end())
+
+    except KeyboardInterrupt:
+        logger.info("caught keyboard interrupt")
+
+    except Exception as err: # pylint: disable=broad-exception-caught
+        logger.exception("exception hit: %s - %s", type(err), err)
+        if EcloudConfig.fatal_errors:
+            raise

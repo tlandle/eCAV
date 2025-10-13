@@ -105,6 +105,7 @@ using ecloud::EdgeObjects;
 using ecloud::ObjectBuffer;
 using ecloud::EdgeObstacleObject;
 using ecloud::ObjectRequest;
+using ecloud::ActorType;
 
 std::atomic<int16_t> numCompletedVehicles_;
 std::atomic<int16_t> numRepliedVehicles_;
@@ -112,6 +113,7 @@ std::atomic<int32_t> tickId_;
 std::atomic<bool> pushedTick_;
 
 bool repliedCars_[MAX_CARS];
+bool repliedRsus[MAX_CARS];
 std::string carNames_[MAX_CARS];
 
 bool init_;
@@ -268,7 +270,10 @@ public:
             }
         }
 
-        repliedCars_[request->vehicle_index()] = true; // DEBUGGING
+        if ( request->actor_type() == ActorType::VEHICLE )
+            repliedCars_[request->vehicle_index()] = true; // DEBUGGING
+        else
+            repliedRsus[request->vehicle_index()] = true; // DEBUGGING
 
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
         {
@@ -433,7 +438,10 @@ public:
                                const Tick* request,
                                Empty* empty) override {
         for ( int i = 0; i < numCars_; i++ )
+        {
             repliedCars_[i] = false;
+            repliedRsus[i] = false;
+        }
 
         pushedTick_ = false;
         numRepliedVehicles_ = 0;

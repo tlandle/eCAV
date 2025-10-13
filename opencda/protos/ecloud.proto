@@ -37,6 +37,11 @@ enum VehicleState {
   DEBUG_INFO_UPDATE = 8;
 }
 
+enum ActorType {
+  VEHICLE = 0;
+  RSU = 1;
+}
+
 message SimulationInfo {
   int32 vehicle_index = 1; // vehicle_uid
   string test_scenario = 2;
@@ -158,6 +163,7 @@ message RegistrationInfo {
   string container_name = 5;
   string vehicle_ip = 6;
   int32 vehicle_port = 7;
+  ActorType actor_type = 8;
 }
 
 message VehicleUpdate {
@@ -171,6 +177,7 @@ message VehicleUpdate {
   Velocity velocity = 8;
   int64 duration_ns = 9;
   bytes pickled_agent_objects = 10;
+  ActorType actor_type = 11;
 }
 
 message EcloudResponse {

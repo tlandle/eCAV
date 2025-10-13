@@ -1287,8 +1287,9 @@ class EdgeManager(object):
 
     def update_rsu_infos(self):
         for rsu in self.rsu_manager_list:
-            rsu.update_info()
-            rsu.run_step()
+            logger.debug("Running step for RSU manager: %s", rsu)
+            #rsu.update_info() # moved to remote RSUs; needs to be iff distributed
+            #rsu.run_step()
 
     def convert_ab3dmot_history_to_trajectories(self,
                                                 mot_output_deque,

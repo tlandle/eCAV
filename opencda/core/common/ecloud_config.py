@@ -9,7 +9,8 @@ class eLocationType(Enum):
 class eDoneBehavior(Enum):
     DESTROY = 0
     CONTROL = 1
-    COUNT = 2
+    NONE = 2
+    COUNT = 3
 
 class EcloudConfig(object):
 
