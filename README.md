@@ -80,6 +80,11 @@ You will see startup messaging and finally prints about waiting for vehicles. On
 python opencda.py -t openscenario_3_edge --apply_ml -v 0.9.15 -i 0
 ```
 
+
+```bash
+python opencda/ecav2/ecloud_actor_client.py --apply_ml -v 0.9.15 -t openscenario_3_edge
+```
+
 The `-i 0` here indicates this is vehicle 0.
 
 Once this starts up and you see it properly register, you then need to start the rest of the vehicles; these get picked up via the Carla API and do not communicate over the wire.
