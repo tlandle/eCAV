@@ -1387,7 +1387,7 @@ class ScenarioManager:
                           current_time=self.scenario_params['current_time'],
                           data_dumping=data_dump, is_edge=True, map_helper=map_helper,
                           location_type = self.ecloud_config.get_location_type(),
-                          perception_active=self.apply_ml)
+                          perception_active=self.apply_ml, run_distributed=self.run_distributed)
 
                     logger.debug("finished creating VehiceManagerProxy")
 
