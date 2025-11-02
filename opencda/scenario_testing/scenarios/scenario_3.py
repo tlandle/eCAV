@@ -262,7 +262,7 @@ class Scenario_3(BasicScenario):
     timeout = 1200
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
-                 timeout=600, scenario_params=None, vehicle_index=-1):
+                 timeout=600, scenario_params=None, vehicle_index=-1, distributed=False):
         """
         Setup all relevant parameters and create scenario
         """
@@ -283,6 +283,7 @@ class Scenario_3(BasicScenario):
         self.agents = []
 
         self.vehicle_index = vehicle_index
+        self.distributed = distributed
 
         # scenario_params is now **a list of "key=value" strings**
         kv = dict(p.split("=", 1) for p in (scenario_params or []))
@@ -302,6 +303,7 @@ class Scenario_3(BasicScenario):
     def _initialize_actors(self, config):
         # Spawn vehicles
         if self.vehicle_index == 0:
+            assert self.distributed, "Must run in distributed mode when specifying vehicle index"
             return
 
         for vehicle_index, actor_config in enumerate(config.other_actors):            
@@ -328,6 +330,7 @@ class Scenario_3(BasicScenario):
 
     def _create_behavior(self):
         if self.vehicle_index == 0:
+            assert self.distributed, "Must run in distributed mode when specifying vehicle index"
             # End condition
             termination = DriveDistance(self.ego_vehicles[0], 200)
             # Build composite behavior tree
@@ -346,16 +349,27 @@ class Scenario_3(BasicScenario):
             transform = getattr(self, f"car_0{i + 1}_visible")
             velocity = getattr(self, f"vehicle_0{i + 1}_velocity")
 
+            if not self.distributed:
+                sync_arrival = SyncArrival(actor, self.ego_vehicles[0] , carla.Location(x=-83.55, y=127.9, z=0.5))
+
             trigger_behavior = InTriggerDistanceToLocation(self.ego_vehicles[0], trigger_location,
                                                            self._trigger_distance)
             set_transform_behavior = ActorTransformSetter(actor, transform)
             if i == 0:
                 waypoint = [carla.Location(x=-108.6, y=129.5, z=0.5), carla.Location(x=-120.6, y=129.5, z=0.5), carla.Location(x=-140.6, y=115.2, z=0.5), carla.Location(x=-142.0, y=87.6, z=0.5)]
+                if not self.distributed:
+                    ego_velocity = self.ego_max_speed_kmh  # km h⁻¹
                 velocity = self.oncoming_speed_kmh  # km h⁻¹
                 print(f"Vehicle 01 velocity: {velocity} km/h")
                 drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
             else:
                 drive_behavior = WaypointFollower(actor, velocity)
+
+            if (i == 0) and not self.distributed:
+                sync_arrival_parallel = py_trees.composites.Parallel(
+                    f"SyncArrival_{i}", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
+                waypoint_follower_parallel = py_trees.composites.Parallel(
+                    f"WaypointFollower_{i}", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
 
             sequence_vehicle[i].add_child(set_transform_behavior)
 
@@ -364,6 +378,20 @@ class Scenario_3(BasicScenario):
             if i == 0:
                 parallel = py_trees.composites.Parallel(
                 "Brake+Follow", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                
+                if not self.distributed:
+                    brake_behavior = ProbabilisticBrakeJitter(actor,
+                                        start_delay=2.0,
+                                        stop_time=3,
+                                        p_brake=0.0,      # 1.0 = always brake
+                                        brake_strength=.8,
+                                        full_throttle=1.0)
+
+                    jitter_behavior = SteeringJitter(actor,
+                                     amplitude_deg=4.0,
+                                     period=0.1,
+                                     dur=3.0)
+                
                 parallel.add_child(drive_behavior)
 
                 sequence_vehicle[i].add_child(trigger_behavior)

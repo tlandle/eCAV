@@ -20,6 +20,25 @@ MAX_STEP = 600
 SCENARIO_NAME = 'openscenario_3_edge'
 scenario_runner = None
 
+# TODO: clean this up as these are basically the same just with verbose function names for clarity
+def exec_scenario_runner(scenario_params):
+    """
+    Execute the ScenarioRunner process
+
+    Parameters
+    ----------
+    scenario_params: Parameters of ScenarioRunner
+
+    Returns
+    -------
+    """
+    #global scenario_runner
+    scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
+    #print(scenario_runner)
+    scenario_runner.run()
+    scenario_runner.destroy()
+
+
 def run_vehicle(opt, scenario_params):
     """
     Execute the ScenarioRunner process
@@ -31,6 +50,7 @@ def run_vehicle(opt, scenario_params):
     Returns
     -------
     """
+    assert(opt.distributed), "Must run in distributed mode when specifying vehicle index"
     try:
         scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
         scenario_runner.run()
@@ -55,10 +75,16 @@ def run_scenario(opt, scenario_params):
                                                    opt.version,
                                                    town=scenario_params.scenario_runner.town,
                                                    cav_world=cav_world,
-                                                   distributed=True)
+                                                   distributed=opt.distributed)
 
-        asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
-        print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
+        if opt.distributed:
+            asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
+        
+        else:
+            print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
+            sr_process = Process(target=exec_scenario_runner,
+                             args=(scenario_params,))
+            sr_process.start()
     
         world = scenario_manager.world
         ego_vehicle = None
@@ -97,9 +123,13 @@ def run_scenario(opt, scenario_params):
 
         flag = True
         while flag:
-            scenario_manager.tick_world() # may need to be moved after broadcast tick... need to think about ordering
-            flag = scenario_manager.broadcast_message(ecloud.Command.PULL_OBJECTS_AND_TICK if step > 0 else ecloud.Command.TICK)
-
+            flag = (not opt.distributed) or scenario_manager.broadcast_message(ecloud.Command.PULL_OBJECTS_AND_TICK if step > 0 else ecloud.Command.TICK)
+            
+            if opt.distributed:
+                scenario_manager.tick_world() # moved to post-broadcast as part of distribution.
+            else:
+                scenario_manager.tick() # it's not clear we need different logic for distributed vs non-distributed here
+            
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
             print("bird view following")
@@ -118,9 +148,14 @@ def run_scenario(opt, scenario_params):
             for edge in edge_list:
                 edge.update_information(step)
                 serialized_predictions = edge.run_step(step)
-                scenario_manager.push_edge_objects(serialized_predictions)
-                edge.update_vehicle_infos(step)
-                edge.update_rsu_infos()
+                
+                if opt.distributed:
+                    scenario_manager.push_edge_objects(serialized_predictions)
+
+                else:
+                    # these are protected at the function level to not run if distributed
+                    edge.update_vehicle_infos(step)
+                    edge.update_rsu_infos()
 
             step = step + 1
             if step >= MAX_STEP:
@@ -151,4 +186,13 @@ def run_scenario(opt, scenario_params):
         if scenario_manager is not None:
             scenario_manager.close()
             print("Destroyed scenario_manager")
+
+        if scenario_runner is not None:
+            scenario_runner.destroy()
+            print("Destroyed scenario_runner")
+        
+        if sr_process is not None:
+            sr_process.terminate()
+            sr_process.join()
+            print("Joined scenario_runner process")
 

@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.linalg import norm           
 import time
+from opencda.core.common import vehicle_manager
 import opencda.logging_ecloud
 import coloredlogs, logging
 import sys
@@ -338,7 +339,7 @@ class EdgeManager(object):
         The destiantion of the current plan.
     """
 
-    def __init__(self, world, config_yaml, cav_world, carla_client, world_dt=0.03, edge_dt=0.20, search_dt=2.00, mode=None, other_vehicles=None):
+    def __init__(self, world, config_yaml, cav_world, carla_client, world_dt=0.03, edge_dt=0.20, search_dt=2.00, mode=None, other_vehicles=None, distributed=False):
 
         self.edgeid = str(uuid.uuid1())
         self.world = world
@@ -390,6 +391,7 @@ class EdgeManager(object):
         self.mode = mode
         self.dt = world_dt
         self.other_vehicles = other_vehicles
+        self.distributed = distributed
         # TODO make this a parameter
         self.num_future_steps = 25
         self.linear_predictor_manager = LinearPredictorManager(num_future_steps=self.num_future_steps)
@@ -1279,17 +1281,26 @@ class EdgeManager(object):
         return serialized_preds
 
     def update_vehicle_infos(self, step_id):
-        # TODO(JR): this should be where barrier and send the tick; split out into a new function
+        # TODO(JR): it's possible this should be where barrier and send the tick; split out into a new function
         # ------------------------------------------------ apply control
         for vm in self.vehicle_manager_list:
+            if self.distributed:
+                return  # in distributed mode, remote vehicles handle this
+            
             logger.debug("Running step for vehicle manager: %s", vm)
-            # vm.update_info(step_id) # moved to remote vehicles; needs to be iff distributed
+            vm.update_info(step_id) # moved to remote vehicles; needs to be iff distributed
+            control = vm.run_step()
+            print("Applying control for vehicle manager:", vm, flush=True)
+            vm.vehicle.apply_control(control)
 
     def update_rsu_infos(self):
+        if self.distributed:
+            return  # in distributed mode, remote RSUs handle this
+
         for rsu in self.rsu_manager_list:
             logger.debug("Running step for RSU manager: %s", rsu)
-            #rsu.update_info() # moved to remote RSUs; needs to be iff distributed
-            #rsu.run_step()
+            rsu.update_info() # moved to remote RSUs; needs to be iff distributed
+            rsu.run_step()
 
     def convert_ab3dmot_history_to_trajectories(self,
                                                 mot_output_deque,

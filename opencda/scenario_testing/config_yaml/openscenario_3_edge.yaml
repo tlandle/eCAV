@@ -76,7 +76,8 @@ scenario_runner:
   output: false
   outputDir: ''
   randomize: false
-
+  vehicle_index: -1
+  distributed: false
 
 
 # First define the basic parameters of the vehicles

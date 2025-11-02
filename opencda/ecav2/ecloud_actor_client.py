@@ -321,6 +321,8 @@ class Ecav2ActorClient:
         parser.add_argument('-i', "--vehicle_index", type=int, default=-1,
                             help='Specify the vehicle index, default is -1')
         parser.add_argument("--output_dir", default=None)
+        parser.add_argument('-d', "--distributed", action="store_true", default=True,
+                            help="Enable distributed mode")
 
         opt = parser.parse_args()
         return opt

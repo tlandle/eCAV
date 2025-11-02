@@ -26,18 +26,19 @@ def arg_parse():
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
     # add arguments to the parser
     parser.add_argument('-t', "--test_scenario", required=True, type=str,
-                        help='Define the name of the scenario you want to test. The given name must'
+                            help='Define the name of the scenario you want to test. The given name must'
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
                              'opencda/scenario_testing/ folder'
                              ' as well as the corresponding yaml file in opencda/scenario_testing/config_yaml.')
+    parser.add_argument('-d', "--distributed", action='store_true',
+                            help='whether to run the scenario in distributed mode.')
     parser.add_argument("--record", action='store_true',
-                        help='whether to record and save the simulation process to .log file')
-    parser.add_argument("--apply_ml",
-                        action='store_true',
-                        help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
+                            help='whether to record and save the simulation process to .log file')
+    parser.add_argument("--apply_ml", action='store_true',
+                            help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
     parser.add_argument('-v', "--version", type=str, default='0.9.15',
-                        help='Specify the CARLA simulator version, default'
+                            help='Specify the CARLA simulator version, default'
                              'is 0.9.15')
     parser.add_argument("--verbose", action="store_true",
                             help="Make more noise")
@@ -46,7 +47,7 @@ def arg_parse():
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
     parser.add_argument('-i', "--vehicle_index", type=int, default=-1,
-                        help='Specify the vehicle index, default is -1')
+                            help='Specify the vehicle index, default is -1')
     parser.add_argument("--output_dir", default=None)
     # parse the arguments and return the result
     opt = parser.parse_args()
@@ -77,6 +78,7 @@ def main():
     scene_dict = OmegaConf.load(config_yaml)
     # merge the dictionaries
     scene_dict = OmegaConf.merge(default_dict, scene_dict)
+    scene_dict.scenario_runner.distributed = opt.distributed
 
     if opt.apply_ml:
         torch.cuda.init()
@@ -99,6 +101,7 @@ def main():
         scenario_runner(opt, scene_dict)
 
     else: # we're running a specific vehicle
+        assert(opt.distributed), "Must run in distributed mode when specifying vehicle index"
         # get the function for running the scenario from the testing script
         vehicle_runner = getattr(testing_scenario, 'run_vehicle')
         # run the scenario testing
