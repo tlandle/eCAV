@@ -546,41 +546,56 @@ class PerceptionManager:
         # yolo detection
 
         detection_start_time = time.time()
-        yolo_detection = self.ml_manager.object_detector(rgb_images)
+        print("Starting Yolo Detection")
+        yolo_detection = self.ml_manager.detect(rgb_images)
+        print("Finished Yolo Detection")
 
-
+        #print("Yolo Detection Time: %f ms"%(time.time() - detection_start_time)*1000)
         
 
-        detection_end_time = time.time()
-        self.debug_helper.update_detections_time(
-            detection_end_time - detection_start_time * 1000)
+        #detection_end_time = time.time()
+        #self.debug_helper.update_detections_time(
+            #detection_end_time - detection_start_time * 1000)
         if self.vehicle is None:
             print("RSU Yolo Detection: %s" %yolo_detection)
-        logger.debug("Yolo Detection: %s" %yolo_detection)
+        print("Yolo Detection: %s" %yolo_detection, flush=True)
 
         # rgb_images for drawing
         rgb_draw_images = []
 
         lidar_data = self.lidar.data
-        logger.debug("Lidar Data: %s" %lidar_data)
+        print("Lidar Data: %s" %lidar_data, flush=True)
 
         total_tracking_time = 0
         total_lidar_fusion_time = 0
         for (i, rgb_camera) in enumerate(self.rgb_camera):
             # lidar projection
+            print("Projecting Lidar to Camera %d" %i, flush=True)
             #logger.debug("Lidar Input: %s" %len(lidar_data))
             rgb_image, projected_lidar = st.project_lidar_to_camera(
                 self.lidar.sensor,
                 rgb_camera.sensor, lidar_data, np.array(
                     rgb_camera.image))
             rgb_draw_images.append(rgb_image)
+            #print("RGB Image Shape: %s" %rgb_image.shape, flush=True)
+            #print("Projected Lidar Shape: %s" %projected_lidar.shape, flush=True)
 
             #logger.debug("Lidar Input to Fusion: %s" %len(lidar_data))
             #logger.debug("Projection Input to Fusion %s" %len(projected_lidar))
             # camera lidar fusion
 
             tracking_start_time = time.time()
-            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            try:
+                tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+                print("Tracking Detection: %s" %tracking_detection)
+            except (KeyError, IndexError, AttributeError) as e:
+                print(f"ERROR in tracking for camera {i}: {e}")
+                print(f"  yolo_detection.xyxy type: {type(yolo_detection.xyxy)}")
+                print(f"  yolo_detection.xyxy length: {len(yolo_detection.xyxy) if hasattr(yolo_detection, 'xyxy') else 'NO XYXY'}")
+                print(f"  Trying to access index: {i}")
+                raise
+#            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            print("Tracking Detection: %s" %tracking_detection)
             if self.vehicle is None:
                 print("RSU Tracking Detection: %s" %tracking_detection)
                 print("Yolo Frame %d Detection: %s" %(i, yolo_detection.xyxy[i]))
@@ -601,17 +616,20 @@ class PerceptionManager:
             total_lidar_fusion_time += lidar_fusion_end_time - lidar_fusion_start_time
             if self.vehicle is None:
                 print("RSU Objects after Fusion: %s" %objects)
-            logger.debug("Objects after lidar fusion: %s" %objects)
+            print("Objects after lidar fusion: %s" %objects)
 
             # calculate the speed. current we retrieve from the server
             # directly.
             self.speed_retrieve(objects)
+            print("Objects after Speed Retrieve: %s" %objects)
 
         self.debug_helper.update_tracking_time(
             total_tracking_time * 1000)
 
         self.debug_helper.update_lidar_fusion_time(
             total_lidar_fusion_time * 1000)
+
+        print("Total Tracking Time: %f ms"%(total_tracking_time*1000), flush=True)
 
         if self.camera_visualize:
             for (i, rgb_image) in enumerate(rgb_draw_images):
@@ -634,9 +652,13 @@ class PerceptionManager:
                 self.count,
                 self.lidar.o3d_pointcloud,
                 objects)
+
+        print("Objects before Traffic Light: %s" %objects, flush=True)
         # add traffic light
-        # objects = self.retrieve_traffic_lights(objects)
+        objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
+
+        print("Final Detected Objects: %s" %objects, flush=True)
 
         return objects
 
@@ -727,7 +749,7 @@ class PerceptionManager:
                 objects)
 
         # add traffic light
-        # objects = self.retrieve_traffic_lights(objects)
+        objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
         perception_end_time = time.time()
 
