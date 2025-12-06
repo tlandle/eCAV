@@ -302,11 +302,11 @@ class Scenario_3(BasicScenario):
 
     def _initialize_actors(self, config):
         # Spawn vehicles
-        if self.vehicle_index == 0:
+        if self.vehicle_index >= 0:
             assert self.distributed, "Must run in distributed mode when specifying vehicle index"
             return
 
-        for vehicle_index, actor_config in enumerate(config.other_actors):            
+        for _, actor_config in enumerate(config.other_actors):            
             actor = CarlaDataProvider.request_new_actor(
                 actor_config.model, actor_config.transform)
             self.other_actors.append(actor)
@@ -329,10 +329,10 @@ class Scenario_3(BasicScenario):
                 car_transform.location.z + 501, ))
 
     def _create_behavior(self):
-        if self.vehicle_index == 0:
+        if self.vehicle_index >= 0:
             assert self.distributed, "Must run in distributed mode when specifying vehicle index"
             # End condition
-            termination = DriveDistance(self.ego_vehicles[0], 200)
+            termination = DriveDistance(self.ego_vehicles[self.vehicle_index], 200)
             # Build composite behavior tree
             root = py_trees.composites.Parallel(
                 "Parallel Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
