@@ -48,7 +48,7 @@ scenario_runner:
 
   # E.g., for the Overtake scenario
   scenario: Scenario_3
-  num_actors: 2
+  num_actors: 3 # two ego vehicles and one npc vehicle
   configFile: opencda/scenario_testing/scenarios/scenario_3.xml
   additionalScenario: opencda/scenario_testing/scenarios/scenario_3.py
 
@@ -251,6 +251,28 @@ scenario:
         - <<: *vehicle_base
           name: cav1
           destination: [-28.8, 134.7, 0.5]
+          sensing:
+            <<: *base_sensing
+          perception:
+            <<: *base_perception
+          localization:
+            <<: *base_localize
+            debug_helper:
+              <<: *loc_debug_helper
+              show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            local_planner:
+              <<: *base_local_planner 
+              debug_trajectory: false
+              debug: false
+        - <<: *vehicle_base
+          name: cav2
+          destination: [-28.8, 131.7, 0.5]
           sensing:
             <<: *base_sensing
           perception:

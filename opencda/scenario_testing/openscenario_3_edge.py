@@ -12,7 +12,6 @@ from opencda.core.common.cav_world import CavWorld
 from opencda.scenario_testing.evaluations.evaluate_manager import \
     EvaluationManager
 from opencda.scenario_testing.utils.yaml_utils import add_current_time
-from scenario_runner.srunner.scenariomanager import scenario_manager
 
 import ecloud_pb2 as ecloud
 
@@ -96,7 +95,7 @@ def run_scenario(opt, scenario_params):
             vehicles = world.get_actors().filter('vehicle.*')
             walkers = world.get_actors().filter('walker.*')
             for vehicle in vehicles:
-                if vehicle.attributes['role_name'] == 'hero':
+                if vehicle.attributes['role_name'] == 'hero' and ego_vehicle is None:
                     print("Ego vehicle found")
                     ego_vehicle = vehicle
             num_actors = len(vehicles) + len(walkers)
@@ -118,7 +117,7 @@ def run_scenario(opt, scenario_params):
 
         spectator = ego_vehicle.get_world().get_spectator()
         # Bird view following
-        spectator_altitude = 100
+        spectator_altitude = 133
         spectator_bird_pitch = -90
 
         flag = True
