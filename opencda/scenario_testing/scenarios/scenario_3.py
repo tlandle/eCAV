@@ -306,7 +306,7 @@ class Scenario_3(BasicScenario):
             assert self.distributed, "Must run in distributed mode when specifying vehicle index"
             return
 
-        for vehicle_index, actor_config in enumerate(config.other_actors):            
+        for _, actor_config in enumerate(config.other_actors):            
             actor = CarlaDataProvider.request_new_actor(
                 actor_config.model, actor_config.transform)
             self.other_actors.append(actor)
