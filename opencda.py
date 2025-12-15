@@ -46,8 +46,8 @@ def arg_parse():
                             help="Make no noise")
     parser.add_argument('-b', "--build", action="store_true",
                             help="Rebuild gRPC proto files")
-    parser.add_argument('-i', "--vehicle_index", type=int, default=-1,
-                            help='Specify the vehicle index, default is -1')
+    parser.add_argument('-i', "--vehicle_index", type=int, default=-2,
+                            help='Specify the vehicle index, default is -2; -1 means running all non-ego vehicles.')
     parser.add_argument("--output_dir", default=None)
     # parse the arguments and return the result
     opt = parser.parse_args()
@@ -94,7 +94,7 @@ def main():
     if opt.build:
         subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
 
-    if opt.vehicle_index == -1:
+    if opt.vehicle_index == -2:
         # get the function for running the scenario from the testing script
         scenario_runner = getattr(testing_scenario, 'run_scenario')
         # run the scenario testing
@@ -113,6 +113,7 @@ if __name__ == '__main__':
     try:
         warnings.simplefilter(action='ignore', category=FutureWarning)
 
+        sys.path.insert(0,'/opt/carla-simulator/PythonAPI/carla') 
         sys.path.insert(0, os.path.join(os.getcwd(), 'opencda'))
         sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
         sys.path.insert(0, os.getcwd())

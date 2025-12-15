@@ -22,9 +22,9 @@ m.patch()
 
 # Local model imports
 from opencood.hypes_yaml.yaml_utils import load_yaml
-from opencood.models.point_pillar_bm2cp import PointPillarBM2CP
+#from opencood.models.point_pillar_bm2cp import PointPillarBM2CP
 import opencood.tools.train_utils as train_utils
-from opencood.data_utils.post_processor import VoxelPostprocessor
+# from opencood.data_utils.post_processor import VoxelPostprocessor
 
 YOLO_PATH = "yolov5/"
 YOLO_FILE = "hubconf.py"
@@ -545,7 +545,7 @@ def is_vehicle_cococlass(label):
         -is_vehicle: bool
             whether this label belongs to the vehicle class
     """
-    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=np.int)
+    vehicle_class_array = np.array([1, 2, 3, 5, 7], dtype=np.int32)
     return True if 0 in (label - vehicle_class_array) else False
 
 

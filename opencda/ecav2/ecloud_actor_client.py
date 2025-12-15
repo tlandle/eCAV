@@ -8,21 +8,22 @@ Script to run a simulated vehicle
 
 
 import argparse
-import sys
 import json
 import asyncio
 import os
 import logging
-import threading
 import time
-import queue
+import sys
 
 import carla
-import numpy as np
 import coloredlogs
 import pickle
 
-from opencda.core.common import vehicle_manager
+sys.path.insert(0,'/opt/carla-simulator/PythonAPI/carla') 
+sys.path.insert(0, os.path.join(os.getcwd(), 'opencda'))
+sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
+sys.path.insert(0, os.getcwd())
+
 from opencda.version import __version__
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
@@ -197,7 +198,7 @@ class Ecav2ActorClient:
 
     async def connect(self) -> ecloud.SimulationInfo:
         # spawn push server
-        self.push_port = ECLOUD_PUSH_BASE_PORT + self.opt.vehicle_index + ( 100 if self.actor_type == ecloud.ActorType.RSU else 0 )
+        self.push_port = ECLOUD_PUSH_BASE_PORT + self.opt.vehicle_index + ( 100 if self.actor_type == ecloud.ActorType.RSU else 0 ) # TODO: needs to count number of vehicles so that we can then index RSUs properly
         self.push_server = asyncio.create_task(ecloud_run_push_server(self.push_port, self.push_q))
 
         await asyncio.sleep(1)
@@ -219,7 +220,7 @@ class Ecav2ActorClient:
         self.ecloud_server = ecloud_rpc.EcloudStub(self.channel)
 
         ecloud_update = await self.send_registration_to_ecloud_server()
-        self.vehicle_index = ecloud_update.vehicle_index - ( 1 if self.actor_type == ecloud.ActorType.RSU else 0 )
+        self.vehicle_index = ecloud_update.vehicle_index - ( 2 if self.actor_type == ecloud.ActorType.RSU else 0 ) # TODO: needs to count number of vehicles so that we can then index RSUs properly
         assert self.vehicle_index is not None, "vehicle_index not set by ecloud server"
         
         return ecloud_update
@@ -369,8 +370,10 @@ class Ecav2ActorClient:
             vehicle_update.tick_id = self.tick_id
             try:
                 if self.actor_type == ecloud.ActorType.VEHICLE:
+                    self.vehicle_manager.agent.objects["traffic_lights"] = []
                     vehicle_update.pickled_agent_objects = pickle.dumps(self.vehicle_manager.agent.objects)
                 else:
+                    self.rsu_manager.objects["traffic_lights"] = []
                     vehicle_update.pickled_agent_objects = pickle.dumps(self.rsu_manager.objects)
             except Exception as e:
                 print(f"Error serializing objects: {e}", flush=True)

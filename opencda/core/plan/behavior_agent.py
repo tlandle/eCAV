@@ -777,7 +777,7 @@ class BehaviorAgent(object):
                 # we can just assume something bugged
                 obstacle_speed = 0
 
-            if obstacle_speed < 3:
+            if obstacle_speed < 3: # what if a vehicle pauses?
                 print("Obstacle too slow, ignored")
                 continue
 

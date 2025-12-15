@@ -1,0 +1,22 @@
+name: opencda
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip:
+    - matplotlib
+    - networkx
+    - numpy
+    - pillow
+    - pyparsing
+    - six
+    - open3d
+    - opencv-python
+    - pandas
+    - pygame
+    - scikit-learn
+    - scipy
+    - seaborn
+    - lxml
+    - shapely
+prefix: /home/jordan/anaconda3/envs/opencda

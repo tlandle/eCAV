@@ -1531,9 +1531,10 @@ class ScenarioManager:
         """
         start_time = time.time()
         self.vehicle_state = ecloud.VehicleState.TICK_DONE
-        asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server))
+        if self.ecloud_server:
+            asyncio.get_event_loop().run_until_complete(self.server_end_scenario(self.ecloud_server))
 
-        logger.info("pushed END")
+            logger.info("pushed END")
 
         if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)

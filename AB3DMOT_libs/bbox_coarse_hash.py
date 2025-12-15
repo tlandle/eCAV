@@ -26,8 +26,8 @@ class BBoxCoarseFilter:
         corners_3D = Box3D.box2corners3d_camcoord(bbox) # 8 x 3
         corners = corners_3D[-5::-1]                    # 4 x 3
 
-        min_keys = np.floor(np.min(corners, axis=0) / self.gsize).astype(np.int)
-        max_keys = np.floor(np.max(corners, axis=0) / self.gsize).astype(np.int)
+        min_keys = np.floor(np.min(corners, axis=0) / self.gsize).astype(np.int32)
+        max_keys = np.floor(np.max(corners, axis=0) / self.gsize).astype(np.int32)
         
         # enumerate all the corners
         grid_keys = [
