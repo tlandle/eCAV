@@ -434,8 +434,8 @@ class ScenarioManager:
     async def server_start_scenario(self, stub_, update_):
         await stub_.Server_StartScenario(update_)
 
-        print(f"pushed scenario start")
-        print(f"start {self.vehicle_count} vehicle containers")
+        logger.info(f"pushed scenario start")
+        logger.info(f"starting {self.vehicle_count} vehicle containers")
 
         assert self.push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", self.push_q.get_nowait())
         await self.push_q.get()
@@ -1471,7 +1471,7 @@ class ScenarioManager:
 
         tick = ecloud.Tick()
         tick.tick_id = self.tick_id
-        logger.critical("Broadcasting tick_id: %s", self.tick_id)
+        logger.info("Broadcasting tick_id: %s", self.tick_id)
         tick.command = command
 
         logger.debug("Getting timestamp")

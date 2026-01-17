@@ -89,6 +89,11 @@ class EcloudClient:
 
         return buffer
 
+    async def get_scenario(self, request: ecloud.ScenarioRequest) -> ecloud.SimulationInfo:
+        sim_info = await self.stub.Client_GetScenario(request)
+
+        return sim_info
+
 class EcloudPushServer(ecloud_rpc.EcloudServicer):
 
     '''
@@ -145,7 +150,7 @@ async def ecloud_run_push_server(port,
             port += 1
             continue
 
-    logger.critical("started eCloud push server on port %s", port)
+    logger.info("started eCloud push server on port %s", port)
 
     if port >= ECLOUD_PUSH_BASE_PORT: # only push for vehicle clients
         que.put_nowait(port)

@@ -6,6 +6,7 @@ Perception module base.
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import os
 import weakref
 import sys
 import time
@@ -394,6 +395,11 @@ class PerceptionManager:
         self.lidar_visualize = config_yaml['lidar']['visualize']
         self.global_position = config_yaml['global_position'] \
             if 'global_position' in config_yaml else None
+
+        # Disable visualization when running inside a Docker container
+        if os.environ.get('IS_DOCKER') == '1':
+            self.camera_visualize = 0
+            self.lidar_visualize = 0
 
         self.cav_world = weakref.ref(cav_world)()
         ml_manager = cav_world.ml_manager

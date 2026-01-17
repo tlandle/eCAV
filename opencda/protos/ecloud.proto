@@ -51,6 +51,10 @@ message SimulationInfo {
   string carla_ip = 6;
 }
 
+message ScenarioRequest {
+  int32 vehicle_index = 1; // optional, for logging/tracking
+}
+
 message WaypointRequest {
   int32 vehicle_index = 1;
 }
@@ -231,6 +235,7 @@ service Ecloud {
   // CLIENT
   rpc Client_SendUpdate (VehicleUpdate) returns (Empty);
   rpc Client_RegisterVehicle (RegistrationInfo) returns (SimulationInfo);
+  rpc Client_GetScenario(ScenarioRequest) returns (SimulationInfo);
   rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
   rpc Client_GetObjects(ObjectRequest) returns (ObjectBuffer);
   // SERVER

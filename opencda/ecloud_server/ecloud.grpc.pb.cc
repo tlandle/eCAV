@@ -19,12 +19,14 @@
 #include <grpcpp/server_context.h>
 #include <grpcpp/impl/service_type.h>
 #include <grpcpp/support/sync_stream.h>
+#include <grpcpp/ports_def.inc>
 namespace ecloud {
 
 static const char* Ecloud_method_names[] = {
   "/ecloud.Ecloud/PushTick",
   "/ecloud.Ecloud/Client_SendUpdate",
   "/ecloud.Ecloud/Client_RegisterVehicle",
+  "/ecloud.Ecloud/Client_GetScenario",
   "/ecloud.Ecloud/Client_GetWaypoints",
   "/ecloud.Ecloud/Client_GetObjects",
   "/ecloud.Ecloud/Server_DoTick",
@@ -45,14 +47,15 @@ Ecloud::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, co
   : channel_(channel), rpcmethod_PushTick_(Ecloud_method_names[0], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Client_SendUpdate_(Ecloud_method_names[1], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Client_RegisterVehicle_(Ecloud_method_names[2], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Client_GetWaypoints_(Ecloud_method_names[3], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Client_GetObjects_(Ecloud_method_names[4], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Server_DoTick_(Ecloud_method_names[5], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Server_StartScenario_(Ecloud_method_names[6], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Server_EndScenario_(Ecloud_method_names[7], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Server_GetVehicleUpdates_(Ecloud_method_names[8], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Server_PushEdgeWaypoints_(Ecloud_method_names[9], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Server_PushEdgeObjects_(Ecloud_method_names[10], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Client_GetScenario_(Ecloud_method_names[3], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Client_GetWaypoints_(Ecloud_method_names[4], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Client_GetObjects_(Ecloud_method_names[5], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Server_DoTick_(Ecloud_method_names[6], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Server_StartScenario_(Ecloud_method_names[7], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Server_EndScenario_(Ecloud_method_names[8], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Server_GetVehicleUpdates_(Ecloud_method_names[9], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Server_PushEdgeWaypoints_(Ecloud_method_names[10], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Server_PushEdgeObjects_(Ecloud_method_names[11], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status Ecloud::Stub::PushTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::ecloud::Empty* response) {
@@ -120,6 +123,29 @@ void Ecloud::Stub::async::Client_RegisterVehicle(::grpc::ClientContext* context,
 ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* Ecloud::Stub::AsyncClient_RegisterVehicleRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
   auto* result =
     this->PrepareAsyncClient_RegisterVehicleRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status Ecloud::Stub::Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::ecloud::SimulationInfo* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Client_GetScenario_, context, request, response);
+}
+
+void Ecloud::Stub::async::Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Client_GetScenario_, context, request, response, std::move(f));
+}
+
+void Ecloud::Stub::async::Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Client_GetScenario_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* Ecloud::Stub::PrepareAsyncClient_GetScenarioRaw(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::ecloud::SimulationInfo, ::ecloud::ScenarioRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Client_GetScenario_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* Ecloud::Stub::AsyncClient_GetScenarioRaw(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncClient_GetScenarioRaw(context, request, cq);
   result->StartCall();
   return result;
 }
@@ -342,6 +368,16 @@ Ecloud::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       Ecloud_method_names[3],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](Ecloud::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::ecloud::ScenarioRequest* req,
+             ::ecloud::SimulationInfo* resp) {
+               return service->Client_GetScenario(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Ecloud_method_names[4],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::WaypointRequest, ::ecloud::WaypointBuffer, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
              ::grpc::ServerContext* ctx,
@@ -350,7 +386,7 @@ Ecloud::Service::Service() {
                return service->Client_GetWaypoints(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[4],
+      Ecloud_method_names[5],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::ObjectRequest, ::ecloud::ObjectBuffer, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -360,7 +396,7 @@ Ecloud::Service::Service() {
                return service->Client_GetObjects(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[5],
+      Ecloud_method_names[6],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::Tick, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -370,7 +406,7 @@ Ecloud::Service::Service() {
                return service->Server_DoTick(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[6],
+      Ecloud_method_names[7],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::SimulationInfo, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -380,7 +416,7 @@ Ecloud::Service::Service() {
                return service->Server_StartScenario(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[7],
+      Ecloud_method_names[8],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::Empty, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -390,7 +426,7 @@ Ecloud::Service::Service() {
                return service->Server_EndScenario(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[8],
+      Ecloud_method_names[9],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::Empty, ::ecloud::EcloudResponse, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -400,7 +436,7 @@ Ecloud::Service::Service() {
                return service->Server_GetVehicleUpdates(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[9],
+      Ecloud_method_names[10],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::EdgeWaypoints, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -410,7 +446,7 @@ Ecloud::Service::Service() {
                return service->Server_PushEdgeWaypoints(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[10],
+      Ecloud_method_names[11],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::EdgeObjects, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -439,6 +475,13 @@ Ecloud::Service::~Service() {
 }
 
 ::grpc::Status Ecloud::Service::Client_RegisterVehicle(::grpc::ServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status Ecloud::Service::Client_GetScenario(::grpc::ServerContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response) {
   (void) context;
   (void) request;
   (void) response;
@@ -503,4 +546,5 @@ Ecloud::Service::~Service() {
 
 
 }  // namespace ecloud
+#include <grpcpp/ports_undef.inc>
 

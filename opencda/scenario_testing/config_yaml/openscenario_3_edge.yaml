@@ -2,6 +2,8 @@ description: |-
   Author: Wei Shao <phdweishao@gmail.com>
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
 
+scenario_name: openscenario_3_edge
+
 # Carla server settings
 
 distributed: false
@@ -86,7 +88,7 @@ vehicle_base: &vehicle_base
     perception: &base_perception
       activate: true
       camera:
-        visualize: 1 # how many camera images need to be visualized. 0 means no visualization for camera
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 1 # how many cameras are mounted on the vehicle.
         positions:  # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
           - [2.5, 0, 1.0, 0]
@@ -182,7 +184,7 @@ rsu_base: &rsu_base
     perception:
       activate: true # when not activated, objects positions will be retrieved from server directly
       camera:
-        visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
+        visualize: 0 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
         # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
         positions:       

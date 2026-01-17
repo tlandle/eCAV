@@ -158,7 +158,7 @@ class VehicleManager(object):
 
         #cav_config = self.scenario_params['scenario']['single_cav_list'][0] 
         cav_config = self.scenario_params['scenario']['edge_list'][0]['vehicles'][0]
-        logger.critical(cav_config)
+        logger.debug(cav_config)
 
         self.destination = {}
         self.destination['x'] = cav_config['destination'][0]

@@ -106,6 +106,7 @@ using ecloud::ObjectBuffer;
 using ecloud::EdgeObstacleObject;
 using ecloud::ObjectRequest;
 using ecloud::ActorType;
+using ecloud::ScenarioRequest;
 
 std::atomic<int16_t> numCompletedVehicles_;
 std::atomic<int16_t> numRepliedVehicles_;
@@ -178,8 +179,7 @@ class PushClient
             if (status.ok()) {
                 return true;
             } else {
-                std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
+                LOG(ERROR) << status.error_code() << ": " << status.error_message();
                 return false;
             }
         }
@@ -434,6 +434,25 @@ public:
         return reactor;
     }
 
+    ServerUnaryReactor* Client_GetScenario(CallbackServerContext* context,
+                               const ScenarioRequest* request,
+                               SimulationInfo* reply) override {
+
+        LOG(INFO) << "Client_GetScenario - request from vehicle_index: " << request->vehicle_index();
+
+        reply->set_test_scenario(configYaml_);
+        reply->set_application(application_);
+        reply->set_version(version_);
+        reply->set_is_edge(isEdge_);
+        reply->set_carla_ip(simIP_);
+
+        DLOG(INFO) << "Client_GetScenario - returning scenario: " << configYaml_;
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
     ServerUnaryReactor* Server_DoTick(CallbackServerContext* context,
                                const Tick* request,
                                Empty* empty) override {
@@ -558,7 +577,7 @@ void RunServer(uint16_t port) {
     // Listen on the given address without any authentication mechanism.
     const std::string server_address = absl::StrFormat("0.0.0.0:%d", port );
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-    std::cout << "server listening on port " << port << std::endl;
+    LOG(INFO) << "server listening on port " << port << std::endl;
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
@@ -591,10 +610,9 @@ int main(int argc, char* argv[]) {
 
     absl::ParseCommandLine(argc, argv);
     //absl::InitializeLog();
+    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
     std::thread server = std::thread(&RunServer,absl::GetFlag(FLAGS_port));
-    
-    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
     server.join();
 

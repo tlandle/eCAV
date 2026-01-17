@@ -307,7 +307,7 @@ class Ecav2ActorClient:
                             help="Make more noise")
         parser.add_argument('-q', "--quiet", action="store_true",
                             help="Make no noise")
-        parser.add_argument('-t', "--test_scenario", required=True, type=str,
+        parser.add_argument('-t', "--test_scenario", required=False, type=str,
                             help='Define the name of the scenario you want to test. The given name must'
                              'match one of the testing scripts(e.g. single_2lanefree_carla) in '
                              'opencda/scenario_testing/ folder'
@@ -484,7 +484,7 @@ class Ecav2ActorClient:
 
             # HANDLE END
             elif self.pong.command == ecloud.Command.END:
-                logger.critical("END received")
+                logger.info("END received")
 
         else: # done
             logger.info("EXIT destroy-on-done vehicle actor")

@@ -24,6 +24,7 @@
 #include <grpcpp/support/status.h>
 #include <grpcpp/support/stub_options.h>
 #include <grpcpp/support/sync_stream.h>
+#include <grpcpp/ports_def.inc>
 
 namespace ecloud {
 
@@ -57,6 +58,13 @@ class Ecloud final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>> PrepareAsyncClient_RegisterVehicle(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>>(PrepareAsyncClient_RegisterVehicleRaw(context, request, cq));
+    }
+    virtual ::grpc::Status Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::ecloud::SimulationInfo* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>> AsyncClient_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>>(AsyncClient_GetScenarioRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>> PrepareAsyncClient_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>>(PrepareAsyncClient_GetScenarioRaw(context, request, cq));
     }
     virtual ::grpc::Status Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::ecloud::WaypointBuffer* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::WaypointBuffer>> AsyncClient_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) {
@@ -126,6 +134,8 @@ class Ecloud final {
       virtual void Client_SendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Client_RegisterVehicle(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Client_RegisterVehicle(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      virtual void Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Client_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) = 0;
@@ -154,6 +164,8 @@ class Ecloud final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncClient_SendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>* AsyncClient_RegisterVehicleRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>* PrepareAsyncClient_RegisterVehicleRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>* AsyncClient_GetScenarioRaw(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>* PrepareAsyncClient_GetScenarioRaw(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::WaypointBuffer>* AsyncClient_GetWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::WaypointBuffer>* PrepareAsyncClient_GetWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>* AsyncClient_GetObjectsRaw(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) = 0;
@@ -194,6 +206,13 @@ class Ecloud final {
     }
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>> PrepareAsyncClient_RegisterVehicle(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>>(PrepareAsyncClient_RegisterVehicleRaw(context, request, cq));
+    }
+    ::grpc::Status Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::ecloud::SimulationInfo* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>> AsyncClient_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>>(AsyncClient_GetScenarioRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>> PrepareAsyncClient_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>>(PrepareAsyncClient_GetScenarioRaw(context, request, cq));
     }
     ::grpc::Status Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::ecloud::WaypointBuffer* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::WaypointBuffer>> AsyncClient_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) {
@@ -260,6 +279,8 @@ class Ecloud final {
       void Client_SendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Client_RegisterVehicle(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)>) override;
       void Client_RegisterVehicle(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)>) override;
+      void Client_GetScenario(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response, std::function<void(::grpc::Status)>) override;
       void Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Client_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) override;
@@ -293,6 +314,8 @@ class Ecloud final {
     ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncClient_SendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* AsyncClient_RegisterVehicleRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* PrepareAsyncClient_RegisterVehicleRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* AsyncClient_GetScenarioRaw(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* PrepareAsyncClient_GetScenarioRaw(::grpc::ClientContext* context, const ::ecloud::ScenarioRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::WaypointBuffer>* AsyncClient_GetWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::WaypointBuffer>* PrepareAsyncClient_GetWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* AsyncClient_GetObjectsRaw(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) override;
@@ -312,6 +335,7 @@ class Ecloud final {
     const ::grpc::internal::RpcMethod rpcmethod_PushTick_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_SendUpdate_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_RegisterVehicle_;
+    const ::grpc::internal::RpcMethod rpcmethod_Client_GetScenario_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_GetWaypoints_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_GetObjects_;
     const ::grpc::internal::RpcMethod rpcmethod_Server_DoTick_;
@@ -332,6 +356,7 @@ class Ecloud final {
     // CLIENT
     virtual ::grpc::Status Client_SendUpdate(::grpc::ServerContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::Empty* response);
     virtual ::grpc::Status Client_RegisterVehicle(::grpc::ServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response);
+    virtual ::grpc::Status Client_GetScenario(::grpc::ServerContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response);
     virtual ::grpc::Status Client_GetWaypoints(::grpc::ServerContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response);
     virtual ::grpc::Status Client_GetObjects(::grpc::ServerContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response);
     // SERVER
@@ -403,12 +428,32 @@ class Ecloud final {
     }
   };
   template <class BaseClass>
+  class WithAsyncMethod_Client_GetScenario : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Client_GetScenario() {
+      ::grpc::Service::MarkMethodAsync(3);
+    }
+    ~WithAsyncMethod_Client_GetScenario() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetScenario(::grpc::ServerContext* /*context*/, const ::ecloud::ScenarioRequest* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestClient_GetScenario(::grpc::ServerContext* context, ::ecloud::ScenarioRequest* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::SimulationInfo>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithAsyncMethod_Client_GetWaypoints : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Client_GetWaypoints() {
-      ::grpc::Service::MarkMethodAsync(3);
+      ::grpc::Service::MarkMethodAsync(4);
     }
     ~WithAsyncMethod_Client_GetWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -419,7 +464,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClient_GetWaypoints(::grpc::ServerContext* context, ::ecloud::WaypointRequest* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::WaypointBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -428,7 +473,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Client_GetObjects() {
-      ::grpc::Service::MarkMethodAsync(4);
+      ::grpc::Service::MarkMethodAsync(5);
     }
     ~WithAsyncMethod_Client_GetObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -439,7 +484,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClient_GetObjects(::grpc::ServerContext* context, ::ecloud::ObjectRequest* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::ObjectBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -448,7 +493,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodAsync(5);
+      ::grpc::Service::MarkMethodAsync(6);
     }
     ~WithAsyncMethod_Server_DoTick() override {
       BaseClassMustBeDerivedFromService(this);
@@ -459,7 +504,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_DoTick(::grpc::ServerContext* context, ::ecloud::Tick* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -468,7 +513,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodAsync(6);
+      ::grpc::Service::MarkMethodAsync(7);
     }
     ~WithAsyncMethod_Server_StartScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -479,7 +524,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_StartScenario(::grpc::ServerContext* context, ::ecloud::SimulationInfo* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -488,7 +533,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodAsync(7);
+      ::grpc::Service::MarkMethodAsync(8);
     }
     ~WithAsyncMethod_Server_EndScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -499,7 +544,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_EndScenario(::grpc::ServerContext* context, ::ecloud::Empty* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -508,7 +553,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodAsync(8);
+      ::grpc::Service::MarkMethodAsync(9);
     }
     ~WithAsyncMethod_Server_GetVehicleUpdates() override {
       BaseClassMustBeDerivedFromService(this);
@@ -519,7 +564,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_GetVehicleUpdates(::grpc::ServerContext* context, ::ecloud::Empty* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::EcloudResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -528,7 +573,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodAsync(9);
+      ::grpc::Service::MarkMethodAsync(10);
     }
     ~WithAsyncMethod_Server_PushEdgeWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -539,7 +584,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeWaypoints(::grpc::ServerContext* context, ::ecloud::EdgeWaypoints* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -548,7 +593,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodAsync(10);
+      ::grpc::Service::MarkMethodAsync(11);
     }
     ~WithAsyncMethod_Server_PushEdgeObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -559,10 +604,10 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeObjects(::grpc::ServerContext* context, ::ecloud::EdgeObjects* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(11, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_PushTick<WithAsyncMethod_Client_SendUpdate<WithAsyncMethod_Client_RegisterVehicle<WithAsyncMethod_Client_GetWaypoints<WithAsyncMethod_Client_GetObjects<WithAsyncMethod_Server_DoTick<WithAsyncMethod_Server_StartScenario<WithAsyncMethod_Server_EndScenario<WithAsyncMethod_Server_GetVehicleUpdates<WithAsyncMethod_Server_PushEdgeWaypoints<WithAsyncMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > AsyncService;
+  typedef WithAsyncMethod_PushTick<WithAsyncMethod_Client_SendUpdate<WithAsyncMethod_Client_RegisterVehicle<WithAsyncMethod_Client_GetScenario<WithAsyncMethod_Client_GetWaypoints<WithAsyncMethod_Client_GetObjects<WithAsyncMethod_Server_DoTick<WithAsyncMethod_Server_StartScenario<WithAsyncMethod_Server_EndScenario<WithAsyncMethod_Server_GetVehicleUpdates<WithAsyncMethod_Server_PushEdgeWaypoints<WithAsyncMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_PushTick : public BaseClass {
    private:
@@ -645,18 +690,45 @@ class Ecloud final {
       ::grpc::CallbackServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
+  class WithCallbackMethod_Client_GetScenario : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Client_GetScenario() {
+      ::grpc::Service::MarkMethodCallback(3,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response) { return this->Client_GetScenario(context, request, response); }));}
+    void SetMessageAllocatorFor_Client_GetScenario(
+        ::grpc::MessageAllocator< ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(3);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Client_GetScenario() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetScenario(::grpc::ServerContext* /*context*/, const ::ecloud::ScenarioRequest* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Client_GetScenario(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::ScenarioRequest* /*request*/, ::ecloud::SimulationInfo* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
   class WithCallbackMethod_Client_GetWaypoints : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Client_GetWaypoints() {
-      ::grpc::Service::MarkMethodCallback(3,
+      ::grpc::Service::MarkMethodCallback(4,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::WaypointRequest, ::ecloud::WaypointBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response) { return this->Client_GetWaypoints(context, request, response); }));}
     void SetMessageAllocatorFor_Client_GetWaypoints(
         ::grpc::MessageAllocator< ::ecloud::WaypointRequest, ::ecloud::WaypointBuffer>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(3);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(4);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::WaypointRequest, ::ecloud::WaypointBuffer>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -677,13 +749,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Client_GetObjects() {
-      ::grpc::Service::MarkMethodCallback(4,
+      ::grpc::Service::MarkMethodCallback(5,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::ObjectRequest, ::ecloud::ObjectBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response) { return this->Client_GetObjects(context, request, response); }));}
     void SetMessageAllocatorFor_Client_GetObjects(
         ::grpc::MessageAllocator< ::ecloud::ObjectRequest, ::ecloud::ObjectBuffer>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(4);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(5);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::ObjectRequest, ::ecloud::ObjectBuffer>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -704,13 +776,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodCallback(5,
+      ::grpc::Service::MarkMethodCallback(6,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::Tick, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response) { return this->Server_DoTick(context, request, response); }));}
     void SetMessageAllocatorFor_Server_DoTick(
         ::grpc::MessageAllocator< ::ecloud::Tick, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(5);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(6);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::Tick, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -731,13 +803,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodCallback(6,
+      ::grpc::Service::MarkMethodCallback(7,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::SimulationInfo, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::SimulationInfo* request, ::ecloud::Empty* response) { return this->Server_StartScenario(context, request, response); }));}
     void SetMessageAllocatorFor_Server_StartScenario(
         ::grpc::MessageAllocator< ::ecloud::SimulationInfo, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(6);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(7);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::SimulationInfo, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -758,13 +830,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodCallback(7,
+      ::grpc::Service::MarkMethodCallback(8,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::Empty* request, ::ecloud::Empty* response) { return this->Server_EndScenario(context, request, response); }));}
     void SetMessageAllocatorFor_Server_EndScenario(
         ::grpc::MessageAllocator< ::ecloud::Empty, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(7);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(8);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -785,13 +857,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodCallback(8,
+      ::grpc::Service::MarkMethodCallback(9,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::EcloudResponse>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::Empty* request, ::ecloud::EcloudResponse* response) { return this->Server_GetVehicleUpdates(context, request, response); }));}
     void SetMessageAllocatorFor_Server_GetVehicleUpdates(
         ::grpc::MessageAllocator< ::ecloud::Empty, ::ecloud::EcloudResponse>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(8);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(9);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::EcloudResponse>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -812,13 +884,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodCallback(9,
+      ::grpc::Service::MarkMethodCallback(10,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeWaypoints, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::EdgeWaypoints* request, ::ecloud::Empty* response) { return this->Server_PushEdgeWaypoints(context, request, response); }));}
     void SetMessageAllocatorFor_Server_PushEdgeWaypoints(
         ::grpc::MessageAllocator< ::ecloud::EdgeWaypoints, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(9);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(10);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeWaypoints, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -839,13 +911,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodCallback(10,
+      ::grpc::Service::MarkMethodCallback(11,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeObjects, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response) { return this->Server_PushEdgeObjects(context, request, response); }));}
     void SetMessageAllocatorFor_Server_PushEdgeObjects(
         ::grpc::MessageAllocator< ::ecloud::EdgeObjects, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(10);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(11);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeObjects, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -860,7 +932,7 @@ class Ecloud final {
     virtual ::grpc::ServerUnaryReactor* Server_PushEdgeObjects(
       ::grpc::CallbackServerContext* /*context*/, const ::ecloud::EdgeObjects* /*request*/, ::ecloud::Empty* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_PushTick<WithCallbackMethod_Client_SendUpdate<WithCallbackMethod_Client_RegisterVehicle<WithCallbackMethod_Client_GetWaypoints<WithCallbackMethod_Client_GetObjects<WithCallbackMethod_Server_DoTick<WithCallbackMethod_Server_StartScenario<WithCallbackMethod_Server_EndScenario<WithCallbackMethod_Server_GetVehicleUpdates<WithCallbackMethod_Server_PushEdgeWaypoints<WithCallbackMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > CallbackService;
+  typedef WithCallbackMethod_PushTick<WithCallbackMethod_Client_SendUpdate<WithCallbackMethod_Client_RegisterVehicle<WithCallbackMethod_Client_GetScenario<WithCallbackMethod_Client_GetWaypoints<WithCallbackMethod_Client_GetObjects<WithCallbackMethod_Server_DoTick<WithCallbackMethod_Server_StartScenario<WithCallbackMethod_Server_EndScenario<WithCallbackMethod_Server_GetVehicleUpdates<WithCallbackMethod_Server_PushEdgeWaypoints<WithCallbackMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_PushTick : public BaseClass {
@@ -914,12 +986,29 @@ class Ecloud final {
     }
   };
   template <class BaseClass>
+  class WithGenericMethod_Client_GetScenario : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Client_GetScenario() {
+      ::grpc::Service::MarkMethodGeneric(3);
+    }
+    ~WithGenericMethod_Client_GetScenario() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetScenario(::grpc::ServerContext* /*context*/, const ::ecloud::ScenarioRequest* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
   class WithGenericMethod_Client_GetWaypoints : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Client_GetWaypoints() {
-      ::grpc::Service::MarkMethodGeneric(3);
+      ::grpc::Service::MarkMethodGeneric(4);
     }
     ~WithGenericMethod_Client_GetWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -936,7 +1025,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Client_GetObjects() {
-      ::grpc::Service::MarkMethodGeneric(4);
+      ::grpc::Service::MarkMethodGeneric(5);
     }
     ~WithGenericMethod_Client_GetObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -953,7 +1042,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodGeneric(5);
+      ::grpc::Service::MarkMethodGeneric(6);
     }
     ~WithGenericMethod_Server_DoTick() override {
       BaseClassMustBeDerivedFromService(this);
@@ -970,7 +1059,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodGeneric(6);
+      ::grpc::Service::MarkMethodGeneric(7);
     }
     ~WithGenericMethod_Server_StartScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -987,7 +1076,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodGeneric(7);
+      ::grpc::Service::MarkMethodGeneric(8);
     }
     ~WithGenericMethod_Server_EndScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1004,7 +1093,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodGeneric(8);
+      ::grpc::Service::MarkMethodGeneric(9);
     }
     ~WithGenericMethod_Server_GetVehicleUpdates() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1021,7 +1110,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodGeneric(9);
+      ::grpc::Service::MarkMethodGeneric(10);
     }
     ~WithGenericMethod_Server_PushEdgeWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1038,7 +1127,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodGeneric(10);
+      ::grpc::Service::MarkMethodGeneric(11);
     }
     ~WithGenericMethod_Server_PushEdgeObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1110,12 +1199,32 @@ class Ecloud final {
     }
   };
   template <class BaseClass>
+  class WithRawMethod_Client_GetScenario : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Client_GetScenario() {
+      ::grpc::Service::MarkMethodRaw(3);
+    }
+    ~WithRawMethod_Client_GetScenario() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetScenario(::grpc::ServerContext* /*context*/, const ::ecloud::ScenarioRequest* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestClient_GetScenario(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithRawMethod_Client_GetWaypoints : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Client_GetWaypoints() {
-      ::grpc::Service::MarkMethodRaw(3);
+      ::grpc::Service::MarkMethodRaw(4);
     }
     ~WithRawMethod_Client_GetWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1126,7 +1235,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClient_GetWaypoints(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(3, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1135,7 +1244,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Client_GetObjects() {
-      ::grpc::Service::MarkMethodRaw(4);
+      ::grpc::Service::MarkMethodRaw(5);
     }
     ~WithRawMethod_Client_GetObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1146,7 +1255,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestClient_GetObjects(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(4, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1155,7 +1264,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodRaw(5);
+      ::grpc::Service::MarkMethodRaw(6);
     }
     ~WithRawMethod_Server_DoTick() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1166,7 +1275,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_DoTick(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(5, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1175,7 +1284,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodRaw(6);
+      ::grpc::Service::MarkMethodRaw(7);
     }
     ~WithRawMethod_Server_StartScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1186,7 +1295,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_StartScenario(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1195,7 +1304,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodRaw(7);
+      ::grpc::Service::MarkMethodRaw(8);
     }
     ~WithRawMethod_Server_EndScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1206,7 +1315,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_EndScenario(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1215,7 +1324,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodRaw(8);
+      ::grpc::Service::MarkMethodRaw(9);
     }
     ~WithRawMethod_Server_GetVehicleUpdates() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1226,7 +1335,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_GetVehicleUpdates(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1235,7 +1344,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodRaw(9);
+      ::grpc::Service::MarkMethodRaw(10);
     }
     ~WithRawMethod_Server_PushEdgeWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1246,7 +1355,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeWaypoints(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1255,7 +1364,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodRaw(10);
+      ::grpc::Service::MarkMethodRaw(11);
     }
     ~WithRawMethod_Server_PushEdgeObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1266,7 +1375,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeObjects(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(11, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1336,12 +1445,34 @@ class Ecloud final {
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
+  class WithRawCallbackMethod_Client_GetScenario : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Client_GetScenario() {
+      ::grpc::Service::MarkMethodRawCallback(3,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Client_GetScenario(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Client_GetScenario() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetScenario(::grpc::ServerContext* /*context*/, const ::ecloud::ScenarioRequest* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Client_GetScenario(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
   class WithRawCallbackMethod_Client_GetWaypoints : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Client_GetWaypoints() {
-      ::grpc::Service::MarkMethodRawCallback(3,
+      ::grpc::Service::MarkMethodRawCallback(4,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Client_GetWaypoints(context, request, response); }));
@@ -1363,7 +1494,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Client_GetObjects() {
-      ::grpc::Service::MarkMethodRawCallback(4,
+      ::grpc::Service::MarkMethodRawCallback(5,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Client_GetObjects(context, request, response); }));
@@ -1385,7 +1516,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodRawCallback(5,
+      ::grpc::Service::MarkMethodRawCallback(6,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_DoTick(context, request, response); }));
@@ -1407,7 +1538,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodRawCallback(6,
+      ::grpc::Service::MarkMethodRawCallback(7,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_StartScenario(context, request, response); }));
@@ -1429,7 +1560,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodRawCallback(7,
+      ::grpc::Service::MarkMethodRawCallback(8,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_EndScenario(context, request, response); }));
@@ -1451,7 +1582,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodRawCallback(8,
+      ::grpc::Service::MarkMethodRawCallback(9,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_GetVehicleUpdates(context, request, response); }));
@@ -1473,7 +1604,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodRawCallback(9,
+      ::grpc::Service::MarkMethodRawCallback(10,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_PushEdgeWaypoints(context, request, response); }));
@@ -1495,7 +1626,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodRawCallback(10,
+      ::grpc::Service::MarkMethodRawCallback(11,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_PushEdgeObjects(context, request, response); }));
@@ -1593,12 +1724,39 @@ class Ecloud final {
     virtual ::grpc::Status StreamedClient_RegisterVehicle(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::RegistrationInfo,::ecloud::SimulationInfo>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
+  class WithStreamedUnaryMethod_Client_GetScenario : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Client_GetScenario() {
+      ::grpc::Service::MarkMethodStreamed(3,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::ScenarioRequest, ::ecloud::SimulationInfo>* streamer) {
+                       return this->StreamedClient_GetScenario(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Client_GetScenario() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Client_GetScenario(::grpc::ServerContext* /*context*/, const ::ecloud::ScenarioRequest* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedClient_GetScenario(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::ScenarioRequest,::ecloud::SimulationInfo>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
   class WithStreamedUnaryMethod_Client_GetWaypoints : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Client_GetWaypoints() {
-      ::grpc::Service::MarkMethodStreamed(3,
+      ::grpc::Service::MarkMethodStreamed(4,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::WaypointRequest, ::ecloud::WaypointBuffer>(
             [this](::grpc::ServerContext* context,
@@ -1625,7 +1783,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Client_GetObjects() {
-      ::grpc::Service::MarkMethodStreamed(4,
+      ::grpc::Service::MarkMethodStreamed(5,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::ObjectRequest, ::ecloud::ObjectBuffer>(
             [this](::grpc::ServerContext* context,
@@ -1652,7 +1810,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodStreamed(5,
+      ::grpc::Service::MarkMethodStreamed(6,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::Tick, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1679,7 +1837,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodStreamed(6,
+      ::grpc::Service::MarkMethodStreamed(7,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::SimulationInfo, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1706,7 +1864,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodStreamed(7,
+      ::grpc::Service::MarkMethodStreamed(8,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::Empty, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1733,7 +1891,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodStreamed(8,
+      ::grpc::Service::MarkMethodStreamed(9,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::Empty, ::ecloud::EcloudResponse>(
             [this](::grpc::ServerContext* context,
@@ -1760,7 +1918,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodStreamed(9,
+      ::grpc::Service::MarkMethodStreamed(10,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::EdgeWaypoints, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1787,7 +1945,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodStreamed(10,
+      ::grpc::Service::MarkMethodStreamed(11,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::EdgeObjects, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1808,12 +1966,13 @@ class Ecloud final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedServer_PushEdgeObjects(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::EdgeObjects,::ecloud::Empty>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > StreamedUnaryService;
+  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > StreamedService;
+  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > StreamedService;
 };
 
 }  // namespace ecloud
 
 
+#include <grpcpp/ports_undef.inc>
 #endif  // GRPC_ecloud_2eproto__INCLUDED
