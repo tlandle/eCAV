@@ -80,9 +80,7 @@ def run_scenario(opt, scenario_params):
         world_pitch = scenario_params['world']['pitch'] if 'pitch' in scenario_params['world'] else -90
         world_yaw = scenario_params['world']['yaw'] if 'yaw' in scenario_params['world'] else 0
 
-        run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else \
-                          True if 'ecloud' in scenario_params else \
-                          False
+        run_distributed = opt.distributed
 
         cav_world = CavWorld(opt.apply_ml)
         # create scenario manager

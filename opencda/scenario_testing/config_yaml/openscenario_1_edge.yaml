@@ -4,7 +4,6 @@ description: |-
 
 # Carla server settings
 
-distributed: false
 define: &perception_is_active true
 perception_active: *perception_is_active
 
@@ -234,6 +233,8 @@ edge_base: &edge_base
 scenario:
   edge_list:
     - <<: *edge_base
+      edge_index: 0      # Unique index for this edge (used for registration)
+      edge_port: 50054   # Port this edge listens on (orchestrator is 50053)
       rsus:
         - <<: *rsu_base
           name: rsu1

@@ -37,9 +37,7 @@ def run_scenario(opt, config_yaml):
             current_path,
             '../assets/2lane_freeway_simplified/2lane_freeway_simplified.xodr')
 
-        run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else \
-                          True if 'ecloud' in scenario_params else \
-                          False
+        run_distributed = opt.distributed
 
         # create CAV world
         cav_world = CavWorld(opt.apply_ml)

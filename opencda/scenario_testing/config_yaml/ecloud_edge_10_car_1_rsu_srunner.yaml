@@ -4,7 +4,6 @@ description: |-
   Content: This is the scenario testing configuration file for edge scenario
            at Town06 using CARLA
 
-distributed: false
 define: &perception_is_active true
 perception_active: *perception_is_active
 
@@ -207,6 +206,8 @@ scenario:
     step_count: 750
   edge_list:
     - <<: *edge_base
+      edge_index: 0      # Unique index for this edge (used for registration)
+      edge_port: 50054   # Port this edge listens on (orchestrator is 50053)
       destination: [-250, -15.79, 0.3] # shared by *all* vehicles when edge_sets_destination == true
       rsus:
       - <<: *rsu_base

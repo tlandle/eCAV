@@ -4,7 +4,6 @@ description: |-
 
 
 
-distributed: false
 define: &perception_is_active false
 perception_active: *perception_is_active
 

@@ -5,7 +5,6 @@ description: |-
            at the Town06 using  CARLA only.
 
 # eCloudSim
-distributed: true  # set to false or comment out to run "standard" OpenCDA sequential sims
 define: &perception_is_active false
 perception_active: *perception_is_active
 

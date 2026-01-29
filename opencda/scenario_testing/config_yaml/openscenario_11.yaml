@@ -3,7 +3,6 @@ description: |-
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
 
 
-distributed: false
 define: &perception_is_active false
 perception_active: *perception_is_active
 

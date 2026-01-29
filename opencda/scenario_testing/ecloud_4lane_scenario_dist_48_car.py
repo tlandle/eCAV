@@ -59,7 +59,7 @@ def run_scenario(opt, config_yaml):
                 start_recorder(LOG_NAME, True)
 
         # create single cavs
-        run_distributed = scenario_params['distributed'] if 'distributed' in scenario_params else False
+        run_distributed = opt.distributed
         if run_distributed:
             single_cav_list = \
                 scenario_manager.create_distributed_vehicle_manager(application=['single']) 

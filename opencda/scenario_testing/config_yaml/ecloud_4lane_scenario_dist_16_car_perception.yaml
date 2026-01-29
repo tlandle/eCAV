@@ -6,7 +6,6 @@ description: |-
 
 
 # eCloudSim
-distributed: true # set to false or comment out to run "standard" OpenCDA sequential sims
 define: &perception_is_active true
 perception_active: *perception_is_active
 

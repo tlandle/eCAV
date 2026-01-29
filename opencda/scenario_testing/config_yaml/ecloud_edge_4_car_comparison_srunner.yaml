@@ -4,7 +4,6 @@ description: |-
   Content: This is the scenario testing configuration file for edge scenario
            at Town06 using CARLA
 
-distributed: false
 define: &perception_is_active false
 perception_active: *perception_is_active
 

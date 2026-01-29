@@ -4,7 +4,6 @@ description: |-
   Content: This is the scenario testing configuration file for single vehicle perception/localization/behavior/control
            testing in high speed in the customized 2lanefree simple version.
 
-distributed: false
 define: &perception_is_active false
 perception_active: *perception_is_active
 
