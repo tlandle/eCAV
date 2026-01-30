@@ -89,6 +89,15 @@ class EcloudClient:
 
         return buffer
 
+    async def get_scenario(self, request: ecloud.ScenarioRequest) -> ecloud.SimulationInfo:
+        """
+        Fetch scenario configuration from the eCloud server.
+        Used by distributed actors to get the scenario YAML.
+        """
+        sim_info = await self.stub.Client_GetScenario(request)
+
+        return sim_info
+
 class EcloudPushServer(ecloud_rpc.EcloudServicer):
 
     '''

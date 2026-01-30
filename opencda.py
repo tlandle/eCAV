@@ -1,10 +1,25 @@
 # -*- coding: utf-8 -*-
 """
 Script to run different scenarios.
-"""
 
-# Author: Runsheng Xu <rxx3386@ucla.edu>
-# License: TDG-Attribution-NonCommercial-NoDistrib
+Supports both sequential and distributed execution modes:
+- Sequential mode: All components run in the same process (Python 3.7 with BM2CP)
+- Distributed mode: Vehicles/RSUs run as separate processes/containers (Python 3.10)
+
+Usage:
+    # Sequential mode
+    python opencda.py -t openscenario_3_edge_worldfusion --apply_ml
+
+    # Distributed mode (server)
+    python opencda.py -t openscenario_3_edge -d
+
+    # Distributed mode (vehicle client)
+    python opencda.py -d -i 0
+
+Authors: Runsheng Xu <rxx3386@ucla.edu>
+         Tyler Landle <tlandle3@gatech.edu>
+License: MIT
+"""
 
 import argparse
 import importlib
@@ -13,6 +28,10 @@ import sys
 import subprocess
 from omegaconf import OmegaConf
 import torch
+import warnings
+import json
+
+import grpc
 
 from opencda.version import __version__
 import coloredlogs, logging
@@ -20,40 +39,97 @@ import coloredlogs, logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='INFO', logger=logger)
 
-import opencood.models.point_pillar_bm2cp
-import os
-print("\n" * 5)
-print("=" * 80)
-print(f"CRITICAL DEBUG: Python is loading the model from this exact file:")
-print(f"{opencood.models.point_pillar_bm2cp.__file__}")
-print("=" * 80)
-print("\n" * 5)
+# Default ecloud server address
+ECLOUD_SERVER_ADDRESS = "localhost:50051"
+
+
+def fetch_scenario_from_server(vehicle_index: int = -1) -> str:
+    """
+    Fetch the test scenario name from the ecloud server.
+    Used when running in distributed mode without specifying a scenario.
+
+    Parameters
+    ----------
+    vehicle_index : int
+        Optional vehicle index for logging/tracking purposes.
+
+    Returns
+    -------
+    str
+        The test scenario name from the server.
+    """
+    import ecloud_pb2 as ecloud
+    import ecloud_pb2_grpc as ecloud_rpc
+
+    logger.info("Fetching scenario from ecloud server at %s", ECLOUD_SERVER_ADDRESS)
+
+    # Create a synchronous channel and stub
+    channel = grpc.insecure_channel(ECLOUD_SERVER_ADDRESS)
+    stub = ecloud_rpc.EcloudStub(channel)
+
+    # Create the request
+    request = ecloud.ScenarioRequest(vehicle_index=vehicle_index)
+
+    # Call the RPC (with retry logic)
+    max_retries = 10
+    retry_delay = 2  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            sim_info = stub.Client_GetScenario(request)
+            test_scenario = sim_info.test_scenario
+
+            if test_scenario:
+                logger.info("Received scenario from server: %s", test_scenario)
+                channel.close()
+                return test_scenario
+            else:
+                logger.warning("Server returned empty scenario (attempt %d/%d)",
+                             attempt + 1, max_retries)
+        except grpc.RpcError as e:
+            logger.warning("Failed to fetch scenario (attempt %d/%d): %s",
+                         attempt + 1, max_retries, e.details() if hasattr(e, 'details') else str(e))
+
+        if attempt < max_retries - 1:
+            import time
+            time.sleep(retry_delay)
+
+    channel.close()
+    raise RuntimeError("Failed to fetch scenario from ecloud server after %d attempts" % max_retries)
+
 
 def arg_parse():
     # create an argument parser
     parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
     # add arguments to the parser
-    parser.add_argument('-t', "--test_scenario", required=True, type=str,
-                        help='Define the name of the scenario you want to test. The given name must'
-                             'match one of the testing scripts(e.g. single_2lanefree_carla) in '
-                             'opencda/scenario_testing/ folder'
-                             ' as well as the corresponding yaml file in opencda/scenario_testing/config_yaml.')
+    parser.add_argument('-t', "--test_scenario", required=False, type=str, default=None,
+                        help='Define the name of the scenario you want to test. The given name must '
+                             'match one of the testing scripts (e.g. single_2lanefree_carla) in '
+                             'opencda/scenario_testing/ folder '
+                             'as well as the corresponding yaml file in opencda/scenario_testing/config_yaml. '
+                             'If not provided and --distributed is set, the scenario will be fetched from the ecloud server.')
+    parser.add_argument('-d', "--distributed", action='store_true',
+                        help='Enable distributed mode for multi-process vehicle/RSU simulation.')
     parser.add_argument("--record", action='store_true',
                         help='whether to record and save the simulation process to .log file')
-    parser.add_argument("--apply_ml",
-                        action='store_true',
+    parser.add_argument("--apply_ml", action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-v', "--version", type=str, default='0.9.11',
-                        help='Specify the CARLA simulator version, default'
-                             'is 0.9.14')
+    parser.add_argument('-v', "--version", type=str, default='0.9.15',
+                        help='Specify the CARLA simulator version, default is 0.9.15')
     parser.add_argument("--verbose", action="store_true",
-                            help="Make more noise")
+                        help="Enable verbose logging")
     parser.add_argument('-q', "--quiet", action="store_true",
-                            help="Make no noise")
+                        help="Minimize logging output")
     parser.add_argument('-b', "--build", action="store_true",
-                            help="Rebuild gRPC proto files")
-    parser.add_argument("--output_dir", default=None)
+                        help="Rebuild gRPC proto files")
+    parser.add_argument('-i', "--vehicle_index", type=int, default=-2,
+                        help='Specify the vehicle index for distributed mode. '
+                             '-2 (default) = run scenario server, '
+                             '-1 = run all non-ego vehicles, '
+                             '>=0 = run specific vehicle.')
+    parser.add_argument("--output_dir", default=None,
+                        help="Output directory for logs and evaluation results")
     # parse the arguments and return the result
     opt = parser.parse_args()
     return opt
@@ -62,21 +138,47 @@ def arg_parse():
 def main():
     # parse the arguments
     opt = arg_parse()
-    # print the version of OpenCDA
-    print("eCAV Version: %s" % __version__)
 
-    # set the default yaml file
-    default_yaml = config_yaml = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        'opencda/scenario_testing/config_yaml/default.yaml')
-    # set the yaml file for the specific testing scenario
-    config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
-                               'opencda/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
-    # load the default yaml file and the scenario yaml file as dictionaries
-    default_dict = OmegaConf.load(default_yaml)
-    scene_dict = OmegaConf.load(config_yaml)
-    # merge the dictionaries
-    scene_dict = OmegaConf.merge(default_dict, scene_dict)
+    if opt.verbose:
+        logger.setLevel(logging.DEBUG)
+    elif opt.quiet:
+        logger.setLevel(logging.WARNING)
+
+    # print the version of OpenCDA
+    logger.info("eCAV Version: %s", __version__)
+
+    scene_dict = None
+    config_yaml = None
+
+    # If distributed mode and no scenario specified, fetch from server
+    if opt.distributed and opt.test_scenario is None:
+        logger.info("Distributed mode enabled without scenario - fetching from ecloud server")
+        test_scenario_json = fetch_scenario_from_server(opt.vehicle_index)
+        scene_json = json.loads(test_scenario_json)
+        scene_dict = OmegaConf.create(scene_json)
+        scene_dict.distributed = True
+        opt.test_scenario = scene_dict.get('scenario_name')
+    else:
+        # Require test_scenario in non-distributed mode
+        if opt.test_scenario is None:
+            logger.error("--test_scenario is required unless running in distributed mode (-d) without a scenario")
+            sys.exit(1)
+
+        # set the default yaml file
+        default_yaml = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            'opencda/scenario_testing/config_yaml/default.yaml')
+        # set the yaml file for the specific testing scenario
+        config_yaml = os.path.join(os.path.dirname(os.path.realpath(__file__)),
+                                   'opencda/scenario_testing/config_yaml/%s.yaml' % opt.test_scenario)
+        # load the default yaml file and the scenario yaml file as dictionaries
+        default_dict = OmegaConf.load(default_yaml)
+        scene_dict = OmegaConf.load(config_yaml)
+        # merge the dictionaries
+        scene_dict = OmegaConf.merge(default_dict, scene_dict)
+
+    assert scene_dict is not None, "scene_dict is not initialized!"
+    scene_dict.scenario_runner.distributed = opt.distributed
 
     if opt.apply_ml:
         torch.cuda.init()
@@ -84,26 +186,47 @@ def main():
     # import the testing script
     testing_scenario = importlib.import_module(
         "opencda.scenario_testing.%s" % opt.test_scenario)
-    # check if the yaml file for the specific testing scenario exists
-    if not os.path.isfile(config_yaml):
-        sys.exit(
-            "opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_cenario)
-    # eCLoud
-    if opt.build:
-        subprocess.run(['python','-m','grpc_tools.protoc','-I./opencda/protos','--python_out=.','--grpc_python_out=.','./opencda//protos/ecloud.proto'])
 
-    # get the function for running the scenario from the testing script
-    scenario_runner = getattr(testing_scenario, 'run_scenario')
-    # run the scenario testing
-    scenario_runner(opt, scene_dict)
+    # check if the yaml file for the specific testing scenario exists
+    if not opt.distributed and config_yaml and not os.path.isfile(config_yaml):
+        sys.exit(
+            "opencda/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_scenario)
+
+    # Rebuild gRPC proto files if requested
+    if opt.build:
+        subprocess.run([
+            'python', '-m', 'grpc_tools.protoc',
+            '-I./opencda/protos',
+            '--python_out=.',
+            '--grpc_python_out=.',
+            './opencda/protos/ecloud.proto'
+        ])
+
+    if opt.vehicle_index == -2:
+        # Run the main scenario (server mode in distributed, or full scenario in sequential)
+        scenario_runner = getattr(testing_scenario, 'run_scenario')
+        scenario_runner(opt, scene_dict)
+    else:
+        # Run a specific vehicle (distributed mode only)
+        assert opt.distributed, "Must run in distributed mode (-d) when specifying vehicle index"
+        vehicle_runner = getattr(testing_scenario, 'run_vehicle')
+        scene_dict.scenario_runner.vehicle_index = opt.vehicle_index
+        vehicle_runner(opt, scene_dict)
 
 
 if __name__ == '__main__':
     try:
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        sys.path.insert(0, '/opt/carla-simulator/PythonAPI/carla')
+        sys.path.insert(0, os.path.join(os.getcwd(), 'opencda'))
+        sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
+        sys.path.insert(0, os.getcwd())
+
         main()
     except KeyboardInterrupt:
-         logger.info('exited by user.')
+        logger.info('exited by user.')
     except SystemExit as exit:
-         logger.info('system exit - %s', exit)
+        logger.info('system exit - %s', exit)
     except:
         logger.exception('unhandled exception')

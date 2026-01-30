@@ -22,6 +22,7 @@ enum Command {
   END = 1;
   REQUEST_DEBUG_INFO = 2;
   PULL_WAYPOINTS_AND_TICK = 3;
+  PULL_OBJECTS_AND_TICK = 4;
 }
 
 enum VehicleState {
@@ -36,6 +37,11 @@ enum VehicleState {
   DEBUG_INFO_UPDATE = 8;
 }
 
+enum ActorType {
+  VEHICLE = 0;
+  RSU = 1;
+}
+
 message SimulationInfo {
   int32 vehicle_index = 1; // vehicle_uid
   string test_scenario = 2;
@@ -43,6 +49,10 @@ message SimulationInfo {
   string version = 4;
   bool is_edge = 5;
   string carla_ip = 6;
+}
+
+message ScenarioRequest {
+  int32 vehicle_index = 1; // optional, for logging/tracking
 }
 
 message WaypointRequest {
@@ -126,7 +136,7 @@ message PlanerDebugHelper {
 
 message CollisionEvent {
   string type_id = 1;
-  int32 other_actor_id = 2; 
+  int32 other_actor_id = 2;
   Location location = 3;
 }
 
@@ -157,6 +167,7 @@ message RegistrationInfo {
   string container_name = 5;
   string vehicle_ip = 6;
   int32 vehicle_port = 7;
+  ActorType actor_type = 8;
 }
 
 message VehicleUpdate {
@@ -169,6 +180,8 @@ message VehicleUpdate {
   Transform transform = 7;
   Velocity velocity = 8;
   int64 duration_ns = 9;
+  bytes pickled_agent_objects = 10;
+  ActorType actor_type = 11;
 }
 
 message EcloudResponse {
@@ -176,10 +189,15 @@ message EcloudResponse {
     repeated VehicleUpdate vehicle_update = 2;
 }
 
-//message ObjectBuffer {
-//  int32 vehicle_id = 1;
-//  repeated byte
-//}
+message ObstacleVehicle {
+  int32 carla_id = 1;
+}
+
+message GeneratedTrajectory {
+  ObstacleVehicle obstacle = 1;
+  float probability = 2;
+  repeated Transform predicted_trajectory = 3;
+}
 
 message ObstacleBoundingBox {
   int32 center_x = 1;
@@ -192,7 +210,8 @@ message ObstacleBoundingBox {
 
 message ObjectBuffer {
   int32 vehicle_id = 1;
-  repeated EdgeObstacleObject object = 2;
+  bytes pickled_edge_predictions = 2;
+  // repeated EdgeObstacleObject object = 2;
 }
 
 message EdgeObstacleObject {
@@ -216,6 +235,7 @@ service Ecloud {
   // CLIENT
   rpc Client_SendUpdate (VehicleUpdate) returns (Empty);
   rpc Client_RegisterVehicle (RegistrationInfo) returns (SimulationInfo);
+  rpc Client_GetScenario(ScenarioRequest) returns (SimulationInfo);
   rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
   rpc Client_GetObjects(ObjectRequest) returns (ObjectBuffer);
   // SERVER
