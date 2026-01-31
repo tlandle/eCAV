@@ -21,6 +21,9 @@ from .edge_manager_prediction_bm2cp_ab3dmot_linear_predictor import (
 from .edge_manager_prediction_late_fusion_ab3dmot_linear_predictor import (
     LateFusionEdge,
 )
+from .edge_manager_worldfusion_ab3dmot_linear_predictor import (
+    WorldFusionEdge,
+)
 
 __all__ = [
     "BaseEdgeManager",
@@ -28,17 +31,21 @@ __all__ = [
     "PerceptionEdge",
     "BM2CPEdge",
     "LateFusionEdge",
+    "WorldFusionEdge",
 ]
 
 # --------------------------------------------------------------------------- #
 # optional: quick factory / registry
 # --------------------------------------------------------------------------- #
 _EDGE_REGISTRY = {
-    # yaml “mode” / manager_type → class
+    # yaml "mode" / manager_type → class
     "MANEUVER": ManeuverEdge,
     "PERCEPTION": PerceptionEdge,
     "BM2CP_PRED": BM2CPEdge,
+    "BM2CP": BM2CPEdge,  # alias
     "LATE_FUSION": LateFusionEdge,
+    "WORLDFUSION_PRED": WorldFusionEdge,
+    "WORLDFUSION": WorldFusionEdge,  # alias
 }
 
 

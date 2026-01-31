@@ -272,7 +272,7 @@ class Scenario_3(BasicScenario):
         self._reference_waypoint = self._map.get_waypoint(
             config.trigger_points[0].location)
 
-        self.num_vehicle = 6
+        self.num_vehicle = 6  # Lincoln + 5 firetrucks for occlusion
         self.vehicle_01_velocity = 10  # Violated vehicle
         self.vehicle_02_velocity = 0  # Large vehicles from 02 to 06
         self.vehicle_03_velocity = 0

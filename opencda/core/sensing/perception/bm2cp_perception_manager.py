@@ -128,19 +128,40 @@ class BM2CPPerceptionManager(PerceptionManager):
         print("[PERCEPTION_MANAGER] [_build_batch] LiDAR processing complete.")
 
         print("[PERCEPTION_MANAGER] [_build_batch] Preparing Camera data...")
+
+        # Get target dimensions from model config (data_aug_conf.final_dim)
+        data_aug_conf = self.hypes.get('fusion', {}).get('args', {}).get('data_aug_conf', {})
+        final_dim = data_aug_conf.get('final_dim', [360, 480])  # [H, W]
+        target_h, target_w = final_dim[0], final_dim[1]
+
         imgs, rots, trans, intrins = [], [], [], []
         for cam in self.rgb_camera:
             img_bgr_to_rgb = cam.image[..., ::-1].copy()
-            imgs.append(torch.from_numpy(img_bgr_to_rgb).permute(2, 0, 1).float())
+            orig_h, orig_w = img_bgr_to_rgb.shape[:2]
+
+            # Resize image to match model's expected dimensions
+            img_tensor = torch.from_numpy(img_bgr_to_rgb).permute(2, 0, 1).float()  # [C, H, W]
+            img_resized = torch.nn.functional.interpolate(
+                img_tensor.unsqueeze(0),  # [1, C, H, W]
+                size=(target_h, target_w),
+                mode='bilinear',
+                align_corners=False
+            ).squeeze(0)  # [C, H, W]
+            imgs.append(img_resized)
+
             cam_to_lidar = np.array(self.lidar.sensor.get_transform().get_inverse_matrix()) @ np.array(cam.sensor.get_transform().get_matrix())
             rots.append(torch.from_numpy(cam_to_lidar[:3, :3].copy()).float())
             trans.append(torch.from_numpy(cam_to_lidar[:3, 3].copy()).float())
-            intrins.append(torch.from_numpy(st.get_camera_intrinsic(cam.sensor).copy()).float())
+
+            # Scale intrinsics to match resized image
+            K = st.get_camera_intrinsic(cam.sensor).copy()
+            K[0, :] *= target_w / orig_w  # Scale fx, cx
+            K[1, :] *= target_h / orig_h  # Scale fy, cy
+            intrins.append(torch.from_numpy(K).float())
 
         B, N_cams = 1, len(self.rgb_camera)
-        image_h, image_w = self.rgb_camera[0].image.shape[:2]
-        placeholder_depth = torch.zeros(B, N_cams, image_h, image_w)
-        
+        placeholder_depth = torch.zeros(B, N_cams, target_h, target_w)
+
         image_inputs = {
             "imgs": torch.stack(imgs).view(B, N_cams, *imgs[0].shape),
             "rots": torch.stack(rots).view(B, N_cams, 3, 3),
@@ -150,7 +171,7 @@ class BM2CPPerceptionManager(PerceptionManager):
             "post_trans": torch.zeros(3, dtype=torch.float32).view(1, 1, 3).expand(B, N_cams, 3),
             "depth_map": placeholder_depth
         }
-        print("[PERCEPTION_MANAGER] [_build_batch] Camera processing complete.")
+        print(f"[PERCEPTION_MANAGER] [_build_batch] Camera processing complete. Resized to {target_h}x{target_w}")
         
         return {"processed_lidar": proc_lidar, "image_inputs": image_inputs, "record_len": torch.tensor([N_cams], dtype=torch.int64)}
 

@@ -149,6 +149,9 @@ class _BaseEdgeManager:
         # global debug helper for perf / viz
         self.debug = EdgeDebugHelper(0)
 
+        # distributed mode flag (from cav_world)
+        self.run_distributed = getattr(cav_world, 'run_distributed', False) if cav_world else False
+
         # register with CavWorld
         weakref.ref(cav_world)().update_edge(self)
 

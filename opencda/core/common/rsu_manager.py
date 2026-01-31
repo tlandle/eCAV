@@ -36,6 +36,12 @@ def _pick_perception_class(percep_yaml: dict):
         )
         return BM2CPPerceptionManager
 
+    if backend == "worldfusion":
+        from opencda.core.sensing.perception.worldfusion_perception_manager import (
+            WorldFusionPerceptionManager,
+        )
+        return WorldFusionPerceptionManager
+
     from opencda.core.sensing.perception.perception_manager import (
         PerceptionManager,
     )

@@ -54,14 +54,17 @@ class LinearPredictorManager():
                 future_ts[i] = [i + 1, 1]
 
             # Position matrix: xy[t] = [x, y]
-            xy = np.array([[tf.location.x, tf.location.y] for tf in reversed(trajectory)])
+            # trajectory deque has newest first, so xy[0]=newest, xy[-1]=oldest
+            # With ts[t] = [-t, 1]: newest→time=0, oldest→time=-(num_steps-1)
+            # This gives correct positive velocity when extrapolating to future times
+            xy = np.array([[tf.location.x, tf.location.y] for tf in trajectory])
 
             # Linear regression for x and y
             linear_model_params = np.linalg.lstsq(ts, xy, rcond=None)[0]
             predict_array = future_ts @ linear_model_params
 
-            # Use latest yaw angle
-            latest_transform = trajectory[-1]
+            # Use latest yaw angle (trajectory[0] is newest since deque uses appendleft)
+            latest_transform = trajectory[0]
             rotation = latest_transform.rotation
 
             # Convert predicted points to future Transforms
