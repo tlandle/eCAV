@@ -31,6 +31,8 @@ from opencda.core.sensing.perception.perception_manager \
     import PerceptionManager
 from opencda.core.sensing.perception.bm2cp_perception_manager import \
      BM2CPPerceptionManager
+from opencda.core.sensing.perception.worldfusion_perception_manager import \
+     WorldFusionPerceptionManager
 from opencda.core.sensing.tracking.tracking_manager \
     import TrackingManager
 from opencda.core.safety.safety_manager import SafetyManager
@@ -337,12 +339,21 @@ class VehicleManager(object):
         self.tracking_manager = TrackingManager(self.vehicle, cav_world, data_dumping, tracker_type = "SORT")
         percep_cfg = sensing_config['perception']
         print("Perception Config: ", percep_cfg)
-        if percep_cfg.get('type', 'default') == 'bm2cp':
+        # Check both 'type' and 'backend' keys for consistency with RSU manager
+        percep_type = percep_cfg.get('type', percep_cfg.get('backend', 'default'))
+        percep_type = str(percep_type).lower()
+        if percep_type in ('bm2cp', 'fusion'):
             self.perception_manager = BM2CPPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.debug_helper)
-            print("Using BM2CP Perception Manager in VehicleManager, press enter to continue...")
+            print("Using BM2CP Perception Manager in VehicleManager")
+        elif percep_type == 'worldfusion':
+            self.perception_manager = WorldFusionPerceptionManager(
+                self.vehicle, percep_cfg, cav_world,
+                data_dumping, tracking_manager=self.tracking_manager,
+                debug_helper=self.debug_helper)
+            print("Using WorldFusion Perception Manager in VehicleManager")
         else:
             self.perception_manager = PerceptionManager(
                 self.vehicle, percep_cfg, cav_world,

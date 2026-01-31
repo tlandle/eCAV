@@ -221,23 +221,32 @@ class EvaluationManager(object):
 
         for pmid, pm in self.cav_world.get_edge_dict().items():
             lprint(log_file, 'Edge ID: %s' % pmid)
-            figure, perform_txt, metrics = pm.evaluate()
+            eval_result = pm.evaluate()
+
+            # Handle case where evaluate() returns None or incomplete result
+            if eval_result is None:
+                lprint(log_file, f'Edge {pmid} evaluate() returned None, skipping.')
+                continue
+
+            figure, perform_txt, metrics = eval_result
 
             # update global metrics with edge metrics
             self.global_metrics.setdefault("edges", {}).setdefault(pmid, {})
-            self.global_metrics["edges"][pmid].update(metrics)
+            if metrics:
+                self.global_metrics["edges"][pmid].update(metrics)
 
             # save plotting
-            figure_save_path = os.path.join(
-                self.eval_save_path,
-                '%s_edge_plotting.eps' %
-                pmid)
-            figure.savefig(figure_save_path, format='eps', dpi=1200)
-            plt.close(figure)
-
+            if figure is not None:
+                figure_save_path = os.path.join(
+                    self.eval_save_path,
+                    '%s_edge_plotting.eps' %
+                    pmid)
+                figure.savefig(figure_save_path, format='eps', dpi=1200)
+                plt.close(figure)
 
             # save log txt
-            lprint(log_file, perform_txt)
+            if perform_txt:
+                lprint(log_file, perform_txt)
             
     def client_perception_tracking_eval(self, log_file):
         """

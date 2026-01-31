@@ -17,6 +17,7 @@ import carla
 import torch
 from easydict import EasyDict as edict
 import matplotlib.pyplot as plt
+import open3d as o3d
 
 from opencood.hypes_yaml.yaml_utils import load_yaml
 from opencood.data_utils.post_processor import VoxelPostprocessor
@@ -30,6 +31,52 @@ from opencda.core.prediction.linear_predictor_manager import LinearPredictorMana
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from .edge_manager_base import _BaseEdgeManager
+
+
+def _track_to_corners_and_bbx(track: np.ndarray):
+    """
+    Convert AB3DMOT track [h, w, l, x, y, z, theta, ...] to 8 corners and o3d bounding box.
+
+    Returns:
+        corners: np.ndarray of shape (8, 3) - 8 corners of the 3D bounding box
+        o3d_bbx: open3d.geometry.OrientedBoundingBox
+    """
+    h, w, l, x, y, z, theta = track[:7]
+
+    # Create 8 corners of the bounding box (before rotation)
+    # Order: front-left-bottom, front-right-bottom, back-right-bottom, back-left-bottom,
+    #        front-left-top, front-right-top, back-right-top, back-left-top
+    dx, dy, dz = l / 2, w / 2, h / 2
+    corners_local = np.array([
+        [ dx,  dy, -dz],  # front-left-bottom
+        [ dx, -dy, -dz],  # front-right-bottom
+        [-dx, -dy, -dz],  # back-right-bottom
+        [-dx,  dy, -dz],  # back-left-bottom
+        [ dx,  dy,  dz],  # front-left-top
+        [ dx, -dy,  dz],  # front-right-top
+        [-dx, -dy,  dz],  # back-right-top
+        [-dx,  dy,  dz],  # back-left-top
+    ])
+
+    # Rotation matrix around z-axis
+    cos_t, sin_t = np.cos(theta), np.sin(theta)
+    R = np.array([
+        [cos_t, -sin_t, 0],
+        [sin_t,  cos_t, 0],
+        [0,      0,     1]
+    ])
+
+    # Rotate and translate corners
+    corners = (R @ corners_local.T).T + np.array([x, y, z])
+
+    # Create Open3D oriented bounding box
+    center = np.array([x, y, z])
+    extent = np.array([l, w, h])  # full dimensions
+    R_matrix = R
+    o3d_bbx = o3d.geometry.OrientedBoundingBox(center, R_matrix, extent)
+
+    return corners, o3d_bbx
+
 
 def _box_to_transform(box: np.ndarray) -> carla.Transform:
     """Helper to convert a single detection box to a carla.Transform."""
@@ -90,11 +137,15 @@ class BM2CPEdge(_BaseEdgeManager):
 
         self.ab3dmot_config = edict({
             'vis': False, 'save_path': None, 'use_3d_iou': False,
-            'thres': 2.0, 'output_dir': None, 'min_hits': 3,
-            'max_age': 2, 'ego_com': None, 'affi_pro': False,
+            'thres': 2.0, 'output_dir': None, 'min_hits': 1,  # Reduced from 3 to 1 for faster track confirmation
+            'max_age': 10, 'ego_com': None, 'affi_pro': False,  # Increased from 2 to 10 for track persistence
             'dataset': "KITTI", 'det_name': "deprecated"
         })
         self.ab3dmot_category = 'Car'
+
+        # Create persistent tracker instance (reused across frames)
+        self.tracker = AB3DMOT(self.ab3dmot_config, self.ab3dmot_category)
+
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
         self.tracked_trajectories: Dict[int, ObstacleTrajectory] = {}
         self.feat_history: Deque[Tuple[int, List[Dict], List[carla.Transform]]] = deque(maxlen=200)
@@ -368,43 +419,47 @@ class BM2CPEdge(_BaseEdgeManager):
             #print("--- END TRANSFORM DEBUG ---\n")
 
             #print("[EDGE DEBUG] Running detection heads...")
-        
+
+        # RSU-only detection (only if we have features from both vehicle and RSU)
         RSU_IDX = 1               # adapt if your ordering differs
-        rsu_raw   = features_tensor[RSU_IDX:RSU_IDX+1]          # [1,C,H,W]
-        rsu_rm     = rm_tensor[RSU_IDX:RSU_IDX+1]
-        rsu_thres  = thres_map_tensor[RSU_IDX:RSU_IDX+1]
+        if features_tensor.shape[0] > RSU_IDX:
+            rsu_raw   = features_tensor[RSU_IDX:RSU_IDX+1]          # [1,C,H,W]
+            rsu_rm     = rm_tensor[RSU_IDX:RSU_IDX+1]
+            rsu_thres  = thres_map_tensor[RSU_IDX:RSU_IDX+1]
 
 
-        print("[EDGE DEBUG] RSU raw :", rsu_raw.shape)
+            print("[EDGE DEBUG] RSU raw :", rsu_raw.shape)
 
-        # --- call backbone the way it expects ---
-        data_dict = {'spatial_features': rsu_raw}
-        data_dict = self.model.backbone(data_dict)          # <- dict in, dict out
-        rsu_feat  = data_dict['spatial_features_2d']        # [1,384,96,352]
-        print("[EDGE DEBUG] RSU feat after backbone:", rsu_feat.shape)
+            # --- call backbone the way it expects ---
+            data_dict = {'spatial_features': rsu_raw}
+            data_dict = self.model.backbone(data_dict)          # <- dict in, dict out
+            rsu_feat  = data_dict['spatial_features_2d']        # [1,384,96,352]
+            print("[EDGE DEBUG] RSU feat after backbone:", rsu_feat.shape)
 
-        rsu_feat = self.model.shrink_conv(rsu_feat) if self.model.shrink_flag else rsu_feat
+            rsu_feat = self.model.shrink_conv(rsu_feat) if self.model.shrink_flag else rsu_feat
 
-        print(f"[EDGE DEBUG] RSU feature shape after backbone and shrink: {rsu_feat.shape}, RM shape: {rsu_rm.shape}, Threshold map shape: {rsu_thres.shape}")
+            print(f"[EDGE DEBUG] RSU feature shape after backbone and shrink: {rsu_feat.shape}, RM shape: {rsu_rm.shape}, Threshold map shape: {rsu_thres.shape}")
 
 
-        # ---- forward heads (no shrink‑conv) ----
-        psm_rsu = self.model.cls_head(rsu_feat)                  # [1,2,H,W]
-        rm_rsu  = self.model.reg_head(rsu_feat)                  # [1,14,H/2,W/2]
+            # ---- forward heads (no shrink‑conv) ----
+            psm_rsu = self.model.cls_head(rsu_feat)                  # [1,2,H,W]
+            rm_rsu  = self.model.reg_head(rsu_feat)                  # [1,14,H/2,W/2]
 
-        # ---- build a faux‑batch dict for post_processor ----
-        anchor_box_rsu = self.post_processor.generate_anchor_box()
-        data_dict_rsu  = {
-            'ego': {
-                'anchor_box'          : torch.from_numpy(anchor_box_rsu).cuda(),
-                'transformation_matrix': torch.eye(4).cuda()     # RSU frame ↔ RSU frame
+            # ---- build a faux‑batch dict for post_processor ----
+            anchor_box_rsu = self.post_processor.generate_anchor_box()
+            data_dict_rsu  = {
+                'ego': {
+                    'anchor_box'          : torch.from_numpy(anchor_box_rsu).cuda(),
+                    'transformation_matrix': torch.eye(4).cuda()     # RSU frame ↔ RSU frame
+                }
             }
-        }
-        out_dict_rsu = {'ego': {'psm': psm_rsu, 'rm': rm_rsu}}
+            out_dict_rsu = {'ego': {'psm': psm_rsu, 'rm': rm_rsu}}
 
-        boxes_rsu, scores_rsu = self.post_processor.post_process(
-                data_dict_rsu, out_dict_rsu)
-
+            boxes_rsu, scores_rsu = self.post_processor.post_process(
+                    data_dict_rsu, out_dict_rsu)
+        else:
+            print(f"[EDGE DEBUG] Not enough features for RSU-only detection (got {features_tensor.shape[0]}, need > {RSU_IDX})")
+            boxes_rsu = None
 
         if boxes_rsu is None:
             print(">>> RSU‑only heads produced **no** boxes")
@@ -466,17 +521,28 @@ class BM2CPEdge(_BaseEdgeManager):
         print(f"[EDGE DEBUG] Detection results: {det_results_ab3d.get('dets', [])[:5]}... (showing first 5 detections)")
         
         print("[EDGE DEBUG] Calling tracker...")
-        tracker = AB3DMOT(self.ab3dmot_config, self.ab3dmot_category)
-        print(f"[EDGE DEBUG] Tracker initialized with config: {self.ab3dmot_config}")
-        tracked_dets = tracker.track(det_results_ab3d, tick)
-        print(f"[EDGE DEBUG] Tracks result: {tracked_dets[:5]}... (showing first 5 tracks)" if tracked_dets is not None else "[EDGE DEBUG] No tracks found.")
-        print(f"[EDGE DEBUG] Tracking complete. Found {len(tracked_dets) if tracked_dets is not None else 0} tracks.")
-        
-        #self._update_trajectories(tracked_dets)
-        #edge_predictions = self.lin_pred.generate_predicted_trajectories(self.tracked_trajectories)
-        #print(f"[EDGE DEBUG] Prediction complete. Generated {len(edge_predictions)} predicted trajectories.")
-        
-        self._update_agents_and_advance_sim(tick, predictions=None)  # edge_predictions is not defined in this context
+        # Use persistent tracker instance (created in __init__)
+        tracked_result = self.tracker.track(det_results_ab3d, tick)
+
+        # AB3DMOT returns (results, affi) tuple where results is a list containing one array
+        # Extract the actual tracks array from the result
+        if tracked_result is not None and len(tracked_result) > 0:
+            results_list, affi = tracked_result
+            tracked_dets = results_list[0] if len(results_list) > 0 else np.empty((0, 15))
+        else:
+            tracked_dets = np.empty((0, 15))
+
+        print(f"[EDGE DEBUG] Tracks result: {tracked_dets[:5]}... (showing first 5 tracks)" if len(tracked_dets) > 0 else "[EDGE DEBUG] No tracks found.")
+        print(f"[EDGE DEBUG] Tracking complete. Found {len(tracked_dets)} tracks.")
+
+        # Update trajectories from tracked detections
+        self._update_trajectories(tracked_dets)
+
+        # Generate predictions using linear predictor
+        edge_predictions = self.lin_pred.generate_predicted_trajectories(self.tracked_trajectories)
+        print(f"[EDGE DEBUG] Prediction complete. Generated {len(edge_predictions)} predicted trajectories.")
+
+        self._update_agents_and_advance_sim(tick, predictions=edge_predictions)
 
 
     def _get_pairwise_transform(self, poses: List[carla.Transform]) -> torch.Tensor:
@@ -623,19 +689,31 @@ class BM2CPEdge(_BaseEdgeManager):
         ### DEBUG ###
         print("[EDGE DEBUG] [_update_trajectories] Updating trajectories.")
         updated_ids = set()
-        if tracked_dets is None:
-            self.tracked_trajectories.clear()
-            print("[EDGE DEBUG] [_update_trajectories] No tracks, cleared trajectories.")
-            return
-            
-        for trk in tracked_dets:
-            tid, tf = int(trk[7]), _box_to_transform(trk[:7])
-            updated_ids.add(tid)
-            if tid not in self.tracked_trajectories:
-                self.tracked_trajectories[tid] = ObstacleTrajectory(ObstacleVehicle(track_id=tid), deque(maxlen=10))
-            self.tracked_trajectories[tid].trajectory.appendleft(tf)
-            self.tracked_trajectories[tid].obstacle.set_transform(tf)
 
+        # Don't clear trajectories when no detections - let AB3DMOT's max_age handle track persistence
+        if tracked_dets is None or len(tracked_dets) == 0:
+            print(f"[EDGE DEBUG] [_update_trajectories] No tracks this frame, keeping {len(self.tracked_trajectories)} existing trajectories.")
+            # Don't prune here - trajectories will be naturally pruned when tracks stop appearing
+            return
+
+        for trk in tracked_dets:
+            tid = int(trk[7])
+            tf = _box_to_transform(trk[:7])
+            updated_ids.add(tid)
+
+            if tid not in self.tracked_trajectories:
+                # Create corners and o3d bounding box from track data
+                corners, o3d_bbx = _track_to_corners_and_bbx(trk)
+                obstacle = ObstacleVehicle(corners, o3d_bbx, track_id=tid)
+                self.tracked_trajectories[tid] = ObstacleTrajectory(obstacle, deque(maxlen=10))
+
+            self.tracked_trajectories[tid].trajectory.appendleft(tf)
+            # Update the obstacle's transform and location
+            self.tracked_trajectories[tid].obstacle.transform = tf
+            self.tracked_trajectories[tid].obstacle.location = tf.location
+
+        # Only prune trajectories for tracks that AB3DMOT has stopped outputting
+        # (AB3DMOT handles track aging internally with max_age parameter)
         pruned_ids = list(self.tracked_trajectories.keys() - updated_ids)
         for tid in pruned_ids:
             del self.tracked_trajectories[tid]

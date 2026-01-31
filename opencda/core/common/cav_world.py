@@ -52,13 +52,13 @@ class CavWorld(object):
         self._scenario_manager = None
         self._rsu_manager_dict = {}
         self.ml_manager = None
-        self.run_distributed = run_distributed
         self.tick_id = 0
         self.apply_ml = apply_ml
-        
+
         # Determine if running distributed from config
         run_distributed = config.get('distributed', False) if config else False
-        
+        self.run_distributed = run_distributed
+
         # Get ML configuration
         ml_config = config.get('ml_manager', {}) if config else {}
         
