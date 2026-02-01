@@ -100,6 +100,9 @@ def arg_parse():
     parser.add_argument("--apply_ml", action='store_true',
                             help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                              'Set it to true only when you have installed the pytorch/sklearn package.')
+    parser.add_argument('-l', "--litserve", action='store_true',
+                            help='Use LitServe for distributed ML inference (requires LitServe server on port 18000). '
+                             'This offloads ML model inference to a separate process to reduce GPU memory per container.')
     parser.add_argument('-v', "--version", type=str, default='0.9.15',
                             help='Specify the CARLA simulator version, default'
                              'is 0.9.15')

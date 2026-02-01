@@ -4,6 +4,7 @@
 read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
 read -p "Enter number of ego vehicles: " num_ego
 read -p "Enter number of RSUs: " num_rsu
+read -p "Enter number of edges (0 if edge-less scenario): " num_edges
 read -p "Use ML (Y/n)? " use_ml
 read -p "Rebuild containers (Y/n)? " rebuild
 
@@ -19,7 +20,12 @@ if ! [[ "$num_ego" =~ ^[0-9]+$ ]] || [[ "$num_ego" -lt 1 ]]; then
 fi
 
 if ! [[ "$num_rsu" =~ ^[0-9]+$ ]] || [[ "$num_rsu" -lt 0 ]]; then
-    echo "Error: Number of RSUs must be a positive integer"
+    echo "Error: Number of RSUs must be a non-negative integer"
+    exit 1
+fi
+
+if ! [[ "$num_edges" =~ ^[0-9]+$ ]] || [[ "$num_edges" -lt 0 ]]; then
+    echo "Error: Number of edges must be a non-negative integer"
     exit 1
 fi
 
@@ -38,50 +44,50 @@ if [[ "$rebuild" = "Y" || "$rebuild" = "y" ]]; then
     docker build --network=host -f Dockerfile -t ecav-python310:latest .
 fi
 
-# Check if Carla is running
+# Handle Carla - kill local instance if running, then optionally start fresh
 echo ""
-echo "Checking if Carla is running..."
-if ! pgrep -f "CarlaUE4" > /dev/null; then
-    echo "Carla is not currently running."
+echo "Checking for local Carla process..."
+if pgrep -f "CarlaUE4" > /dev/null; then
+    echo "Found local Carla process running. Killing it for a fresh start..."
+    pkill -9 -f "CarlaUE4" 2>/dev/null
+    sleep 2
+    echo "✓ Local Carla process killed"
+fi
+
+# Ask if user wants to start Carla locally (or use remote)
+echo ""
+read -p "Start Carla locally? (Y/n - select 'n' if using remote Carla): " start_carla
+
+if [[ "$start_carla" = "Y" || "$start_carla" = "y" ]]; then
+    read -p "Run Carla in headless mode (no display)? (Y/n): " headless
+
     echo ""
-    read -p "Would you like to start Carla? (Y/n): " start_carla
-
-    if [[ "$start_carla" = "Y" || "$start_carla" = "y" ]]; then
-        read -p "Run Carla in headless mode (no display)? (Y/n): " headless
-
-        echo ""
-        echo "Starting Carla..."
-        if [[ "$headless" = "Y" || "$headless" = "y" ]]; then
-            echo "  Mode: Headless (RenderOffScreen)"
-            cd /opt/carla-simulator && ./CarlaUE4.sh -RenderOffScreen &
-        else
-            echo "  Mode: With display"
-            cd /opt/carla-simulator && ./CarlaUE4.sh &
-        fi
-
-        CARLA_PID=$!
-        echo "  Carla PID: $CARLA_PID"
-        echo ""
-        echo "Waiting 10 seconds for Carla to initialize..."
-        sleep 10
-
-        # Verify Carla started successfully
-        if ! pgrep -f "CarlaUE4" > /dev/null; then
-            echo "ERROR: Failed to start Carla!"
-            echo "Please check the Carla installation at /opt/carla-simulator/"
-            exit 1
-        fi
-        echo "✓ Carla started successfully"
+    echo "Starting Carla..."
+    if [[ "$headless" = "Y" || "$headless" = "y" ]]; then
+        echo "  Mode: Headless (RenderOffScreen)"
+        cd /opt/carla-simulator && ./CarlaUE4.sh -RenderOffScreen &
     else
-        echo ""
-        echo "Please start Carla manually before running this script:"
-        echo "  cd /opt/carla-simulator && ./CarlaUE4.sh                    # with display"
-        echo "  cd /opt/carla-simulator && ./CarlaUE4.sh -RenderOffScreen   # headless mode"
-        echo ""
+        echo "  Mode: With display"
+        cd /opt/carla-simulator && ./CarlaUE4.sh &
+    fi
+
+    CARLA_PID=$!
+    echo "  Carla PID: $CARLA_PID"
+    echo ""
+    echo "Waiting 10 seconds for Carla to initialize..."
+    sleep 10
+
+    # Verify Carla started successfully
+    if ! pgrep -f "CarlaUE4" > /dev/null; then
+        echo "ERROR: Failed to start Carla!"
+        echo "Please check the Carla installation at /opt/carla-simulator/"
         exit 1
     fi
+    echo "✓ Carla started successfully"
 else
-    echo "✓ Carla is already running"
+    echo ""
+    echo "Using remote Carla instance (not starting locally)"
+    echo "Make sure your remote Carla server is running and accessible."
 fi
 echo ""
 
@@ -133,6 +139,7 @@ echo "=========================================="
 echo "Scenario: $scenario_name"
 echo "Ego vehicles: $num_ego"
 echo "RSUs: $num_rsu"
+echo "Edges: $num_edges"
 echo "ML enabled: $use_ml"
 echo "=========================================="
 echo ""
@@ -203,6 +210,37 @@ fi
 echo ""
 
 container_id=0
+
+# Start edge containers (if any)
+if [[ $num_edges -gt 0 ]]; then
+    echo "Starting $num_edges edge container(s)..."
+    EDGE_BASE_PORT=50054
+    for ((e=0; e<$num_edges; e++))
+    do
+        container_name="edge_$e"
+        edge_port=$((EDGE_BASE_PORT + e))
+        echo "  Starting $container_name (edge index: $e, port: $edge_port)..."
+
+        docker run $gpu_flag -d \
+            --network=host \
+            --name="$container_name" \
+            -e "HOSTNAME=$container_name" \
+            -e IS_DOCKER=1 \
+            -v /tmp/.X11-unix:/tmp/.X11-unix \
+            -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+            -e DISPLAY=$DISPLAY \
+            -e TERM \
+            ecav-python310:latest \
+            python3.10 opencda/ecav2/edge_process.py -e $e -P $edge_port
+
+        echo "  ✓ $container_name started"
+        echo "  Waiting 3 seconds before starting next edge..."
+        sleep 3
+    done
+    echo ""
+    echo "Waiting 5 seconds for edges to register with orchestrator..."
+    sleep 5
+fi
 
 # Start ego vehicle containers
 echo "Starting $num_ego ego vehicle container(s)..."
@@ -281,6 +319,9 @@ echo "All containers started successfully!"
 echo "=========================================="
 echo ""
 echo "Container summary:"
+if [[ $num_edges -gt 0 ]]; then
+    echo "  - edge_0 to edge_$((num_edges-1)): Edge servers (ports 50054-$((50054+num_edges-1)))"
+fi
 echo "  - ego_vehicle_0 to ego_vehicle_$((num_ego-1)): Ego vehicles (indices 0-$((num_ego-1)))"
 if [[ $num_rsu -gt 0 ]]; then
     echo "  - rsu_0 to rsu_$((num_rsu-1)): RSUs (indices 0-$((num_rsu-1)))"
@@ -347,6 +388,15 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
     # Check container health every 30 seconds
     if (( monitor_elapsed % 30 == 0 )) && (( monitor_elapsed > 0 )); then
         failed_containers=()
+
+        # Check edges
+        for ((e=0; e<$num_edges; e++)); do
+            container_name="edge_$e"
+            status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
+            if [[ "$status" != "running" ]]; then
+                failed_containers+=("$container_name ($status)")
+            fi
+        done
 
         # Check ego vehicles
         for ((i=0; i<$num_ego; i++)); do

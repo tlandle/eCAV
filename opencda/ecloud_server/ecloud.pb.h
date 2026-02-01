@@ -62,6 +62,14 @@ enum Command : int;
 extern const uint32_t Command_internal_data_[];
 enum VehicleState : int;
 extern const uint32_t VehicleState_internal_data_[];
+class ActorConnectionInfo;
+struct ActorConnectionInfoDefaultTypeInternal;
+extern ActorConnectionInfoDefaultTypeInternal _ActorConnectionInfo_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull ActorConnectionInfo_class_data_;
+class ActorUpdateWithResponse;
+struct ActorUpdateWithResponseDefaultTypeInternal;
+extern ActorUpdateWithResponseDefaultTypeInternal _ActorUpdateWithResponse_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull ActorUpdateWithResponse_class_data_;
 class AgentDebugHelper;
 struct AgentDebugHelperDefaultTypeInternal;
 extern AgentDebugHelperDefaultTypeInternal _AgentDebugHelper_default_instance_;
@@ -78,6 +86,18 @@ class EcloudResponse;
 struct EcloudResponseDefaultTypeInternal;
 extern EcloudResponseDefaultTypeInternal _EcloudResponse_default_instance_;
 extern const ::google::protobuf::internal::ClassDataFull EcloudResponse_class_data_;
+class EdgeIndex;
+struct EdgeIndexDefaultTypeInternal;
+extern EdgeIndexDefaultTypeInternal _EdgeIndex_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull EdgeIndex_class_data_;
+class EdgeMapping;
+struct EdgeMappingDefaultTypeInternal;
+extern EdgeMappingDefaultTypeInternal _EdgeMapping_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull EdgeMapping_class_data_;
+class EdgeMappingSetup;
+struct EdgeMappingSetupDefaultTypeInternal;
+extern EdgeMappingSetupDefaultTypeInternal _EdgeMappingSetup_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull EdgeMappingSetup_class_data_;
 class EdgeObjects;
 struct EdgeObjectsDefaultTypeInternal;
 extern EdgeObjectsDefaultTypeInternal _EdgeObjects_default_instance_;
@@ -86,6 +106,22 @@ class EdgeObstacleObject;
 struct EdgeObstacleObjectDefaultTypeInternal;
 extern EdgeObstacleObjectDefaultTypeInternal _EdgeObstacleObject_default_instance_;
 extern const ::google::protobuf::internal::ClassDataFull EdgeObstacleObject_class_data_;
+class EdgeRegistrationInfo;
+struct EdgeRegistrationInfoDefaultTypeInternal;
+extern EdgeRegistrationInfoDefaultTypeInternal _EdgeRegistrationInfo_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull EdgeRegistrationInfo_class_data_;
+class EdgeScenarioConfig;
+struct EdgeScenarioConfigDefaultTypeInternal;
+extern EdgeScenarioConfigDefaultTypeInternal _EdgeScenarioConfig_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull EdgeScenarioConfig_class_data_;
+class EdgeTick;
+struct EdgeTickDefaultTypeInternal;
+extern EdgeTickDefaultTypeInternal _EdgeTick_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull EdgeTick_class_data_;
+class EdgeTickComplete;
+struct EdgeTickCompleteDefaultTypeInternal;
+extern EdgeTickCompleteDefaultTypeInternal _EdgeTickComplete_default_instance_;
+extern const ::google::protobuf::internal::ClassDataFull EdgeTickComplete_class_data_;
 class EdgeWaypoints;
 struct EdgeWaypointsDefaultTypeInternal;
 extern EdgeWaypointsDefaultTypeInternal _EdgeWaypoints_default_instance_;
@@ -3526,6 +3562,1446 @@ class Empty final : public ::google::protobuf::internal::ZeroFieldsBase
 extern const ::google::protobuf::internal::ClassDataFull Empty_class_data_;
 // -------------------------------------------------------------------
 
+class EdgeTickComplete final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeTickComplete) */ {
+ public:
+  inline EdgeTickComplete() : EdgeTickComplete(nullptr) {}
+  ~EdgeTickComplete() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeTickComplete* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeTickComplete));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeTickComplete(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeTickComplete(const EdgeTickComplete& from) : EdgeTickComplete(nullptr, from) {}
+  inline EdgeTickComplete(EdgeTickComplete&& from) noexcept
+      : EdgeTickComplete(nullptr, ::std::move(from)) {}
+  inline EdgeTickComplete& operator=(const EdgeTickComplete& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeTickComplete& operator=(EdgeTickComplete&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeTickComplete& default_instance() {
+    return *reinterpret_cast<const EdgeTickComplete*>(
+        &_EdgeTickComplete_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 31;
+  friend void swap(EdgeTickComplete& a, EdgeTickComplete& b) { a.Swap(&b); }
+  inline void Swap(EdgeTickComplete* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeTickComplete* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeTickComplete* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeTickComplete>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeTickComplete& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeTickComplete& from) { EdgeTickComplete::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeTickComplete* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeTickComplete"; }
+
+ protected:
+  explicit EdgeTickComplete(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeTickComplete(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeTickComplete& from);
+  EdgeTickComplete(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeTickComplete&& from) noexcept
+      : EdgeTickComplete(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kEdgeIndexFieldNumber = 1,
+    kTickIdFieldNumber = 2,
+    kNumActorsProcessedFieldNumber = 3,
+  };
+  // int32 edge_index = 1;
+  void clear_edge_index() ;
+  ::int32_t edge_index() const;
+  void set_edge_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_index() const;
+  void _internal_set_edge_index(::int32_t value);
+
+  public:
+  // int32 tick_id = 2;
+  void clear_tick_id() ;
+  ::int32_t tick_id() const;
+  void set_tick_id(::int32_t value);
+
+  private:
+  ::int32_t _internal_tick_id() const;
+  void _internal_set_tick_id(::int32_t value);
+
+  public:
+  // int32 num_actors_processed = 3;
+  void clear_num_actors_processed() ;
+  ::int32_t num_actors_processed() const;
+  void set_num_actors_processed(::int32_t value);
+
+  private:
+  ::int32_t _internal_num_actors_processed() const;
+  void _internal_set_num_actors_processed(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeTickComplete)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<2, 3,
+                                   0, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeTickComplete& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::int32_t edge_index_;
+    ::int32_t tick_id_;
+    ::int32_t num_actors_processed_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeTickComplete_class_data_;
+// -------------------------------------------------------------------
+
+class EdgeTick final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeTick) */ {
+ public:
+  inline EdgeTick() : EdgeTick(nullptr) {}
+  ~EdgeTick() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeTick* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeTick));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeTick(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeTick(const EdgeTick& from) : EdgeTick(nullptr, from) {}
+  inline EdgeTick(EdgeTick&& from) noexcept
+      : EdgeTick(nullptr, ::std::move(from)) {}
+  inline EdgeTick& operator=(const EdgeTick& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeTick& operator=(EdgeTick&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeTick& default_instance() {
+    return *reinterpret_cast<const EdgeTick*>(
+        &_EdgeTick_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 32;
+  friend void swap(EdgeTick& a, EdgeTick& b) { a.Swap(&b); }
+  inline void Swap(EdgeTick* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeTick* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeTick* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeTick>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeTick& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeTick& from) { EdgeTick::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeTick* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeTick"; }
+
+ protected:
+  explicit EdgeTick(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeTick(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeTick& from);
+  EdgeTick(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeTick&& from) noexcept
+      : EdgeTick(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kTickIdFieldNumber = 1,
+    kCommandFieldNumber = 2,
+  };
+  // int32 tick_id = 1;
+  void clear_tick_id() ;
+  ::int32_t tick_id() const;
+  void set_tick_id(::int32_t value);
+
+  private:
+  ::int32_t _internal_tick_id() const;
+  void _internal_set_tick_id(::int32_t value);
+
+  public:
+  // .ecloud.Command command = 2;
+  void clear_command() ;
+  ::ecloud::Command command() const;
+  void set_command(::ecloud::Command value);
+
+  private:
+  ::ecloud::Command _internal_command() const;
+  void _internal_set_command(::ecloud::Command value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeTick)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<1, 2,
+                                   0, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeTick& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::int32_t tick_id_;
+    int command_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeTick_class_data_;
+// -------------------------------------------------------------------
+
+class EdgeScenarioConfig final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeScenarioConfig) */ {
+ public:
+  inline EdgeScenarioConfig() : EdgeScenarioConfig(nullptr) {}
+  ~EdgeScenarioConfig() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeScenarioConfig* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeScenarioConfig));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeScenarioConfig(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeScenarioConfig(const EdgeScenarioConfig& from) : EdgeScenarioConfig(nullptr, from) {}
+  inline EdgeScenarioConfig(EdgeScenarioConfig&& from) noexcept
+      : EdgeScenarioConfig(nullptr, ::std::move(from)) {}
+  inline EdgeScenarioConfig& operator=(const EdgeScenarioConfig& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeScenarioConfig& operator=(EdgeScenarioConfig&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeScenarioConfig& default_instance() {
+    return *reinterpret_cast<const EdgeScenarioConfig*>(
+        &_EdgeScenarioConfig_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 30;
+  friend void swap(EdgeScenarioConfig& a, EdgeScenarioConfig& b) { a.Swap(&b); }
+  inline void Swap(EdgeScenarioConfig* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeScenarioConfig* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeScenarioConfig* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeScenarioConfig>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeScenarioConfig& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeScenarioConfig& from) { EdgeScenarioConfig::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeScenarioConfig* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeScenarioConfig"; }
+
+ protected:
+  explicit EdgeScenarioConfig(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeScenarioConfig(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeScenarioConfig& from);
+  EdgeScenarioConfig(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeScenarioConfig&& from) noexcept
+      : EdgeScenarioConfig(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kVehicleIndicesFieldNumber = 5,
+    kRsuIndicesFieldNumber = 6,
+    kEdgeConfigYamlFieldNumber = 2,
+    kCarlaIpFieldNumber = 7,
+    kApplicationFieldNumber = 9,
+    kVersionFieldNumber = 10,
+    kEdgeIndexFieldNumber = 1,
+    kNumVehiclesFieldNumber = 3,
+    kNumRsusFieldNumber = 4,
+    kCarlaPortFieldNumber = 8,
+  };
+  // repeated int32 vehicle_indices = 5;
+  int vehicle_indices_size() const;
+  private:
+  int _internal_vehicle_indices_size() const;
+
+  public:
+  void clear_vehicle_indices() ;
+  ::int32_t vehicle_indices(int index) const;
+  void set_vehicle_indices(int index, ::int32_t value);
+  void add_vehicle_indices(::int32_t value);
+  const ::google::protobuf::RepeatedField<::int32_t>& vehicle_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL mutable_vehicle_indices();
+
+  private:
+  const ::google::protobuf::RepeatedField<::int32_t>& _internal_vehicle_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL _internal_mutable_vehicle_indices();
+
+  public:
+  // repeated int32 rsu_indices = 6;
+  int rsu_indices_size() const;
+  private:
+  int _internal_rsu_indices_size() const;
+
+  public:
+  void clear_rsu_indices() ;
+  ::int32_t rsu_indices(int index) const;
+  void set_rsu_indices(int index, ::int32_t value);
+  void add_rsu_indices(::int32_t value);
+  const ::google::protobuf::RepeatedField<::int32_t>& rsu_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL mutable_rsu_indices();
+
+  private:
+  const ::google::protobuf::RepeatedField<::int32_t>& _internal_rsu_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL _internal_mutable_rsu_indices();
+
+  public:
+  // string edge_config_yaml = 2;
+  void clear_edge_config_yaml() ;
+  const ::std::string& edge_config_yaml() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_edge_config_yaml(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_edge_config_yaml();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_edge_config_yaml();
+  void set_allocated_edge_config_yaml(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_edge_config_yaml() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_edge_config_yaml(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_edge_config_yaml();
+
+  public:
+  // string carla_ip = 7;
+  void clear_carla_ip() ;
+  const ::std::string& carla_ip() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_carla_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_carla_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_carla_ip();
+  void set_allocated_carla_ip(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_carla_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_carla_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_carla_ip();
+
+  public:
+  // string application = 9;
+  void clear_application() ;
+  const ::std::string& application() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_application(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_application();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_application();
+  void set_allocated_application(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_application() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_application(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_application();
+
+  public:
+  // string version = 10;
+  void clear_version() ;
+  const ::std::string& version() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_version(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_version();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_version();
+  void set_allocated_version(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_version() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_version(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_version();
+
+  public:
+  // int32 edge_index = 1;
+  void clear_edge_index() ;
+  ::int32_t edge_index() const;
+  void set_edge_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_index() const;
+  void _internal_set_edge_index(::int32_t value);
+
+  public:
+  // int32 num_vehicles = 3;
+  void clear_num_vehicles() ;
+  ::int32_t num_vehicles() const;
+  void set_num_vehicles(::int32_t value);
+
+  private:
+  ::int32_t _internal_num_vehicles() const;
+  void _internal_set_num_vehicles(::int32_t value);
+
+  public:
+  // int32 num_rsus = 4;
+  void clear_num_rsus() ;
+  ::int32_t num_rsus() const;
+  void set_num_rsus(::int32_t value);
+
+  private:
+  ::int32_t _internal_num_rsus() const;
+  void _internal_set_num_rsus(::int32_t value);
+
+  public:
+  // int32 carla_port = 8;
+  void clear_carla_port() ;
+  ::int32_t carla_port() const;
+  void set_carla_port(::int32_t value);
+
+  private:
+  ::int32_t _internal_carla_port() const;
+  void _internal_set_carla_port(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeScenarioConfig)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<4, 10,
+                                   0, 84,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeScenarioConfig& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::RepeatedField<::int32_t> vehicle_indices_;
+    ::google::protobuf::internal::CachedSize _vehicle_indices_cached_byte_size_;
+    ::google::protobuf::RepeatedField<::int32_t> rsu_indices_;
+    ::google::protobuf::internal::CachedSize _rsu_indices_cached_byte_size_;
+    ::google::protobuf::internal::ArenaStringPtr edge_config_yaml_;
+    ::google::protobuf::internal::ArenaStringPtr carla_ip_;
+    ::google::protobuf::internal::ArenaStringPtr application_;
+    ::google::protobuf::internal::ArenaStringPtr version_;
+    ::int32_t edge_index_;
+    ::int32_t num_vehicles_;
+    ::int32_t num_rsus_;
+    ::int32_t carla_port_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeScenarioConfig_class_data_;
+// -------------------------------------------------------------------
+
+class EdgeRegistrationInfo final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeRegistrationInfo) */ {
+ public:
+  inline EdgeRegistrationInfo() : EdgeRegistrationInfo(nullptr) {}
+  ~EdgeRegistrationInfo() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeRegistrationInfo* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeRegistrationInfo));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeRegistrationInfo(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeRegistrationInfo(const EdgeRegistrationInfo& from) : EdgeRegistrationInfo(nullptr, from) {}
+  inline EdgeRegistrationInfo(EdgeRegistrationInfo&& from) noexcept
+      : EdgeRegistrationInfo(nullptr, ::std::move(from)) {}
+  inline EdgeRegistrationInfo& operator=(const EdgeRegistrationInfo& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeRegistrationInfo& operator=(EdgeRegistrationInfo&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeRegistrationInfo& default_instance() {
+    return *reinterpret_cast<const EdgeRegistrationInfo*>(
+        &_EdgeRegistrationInfo_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 29;
+  friend void swap(EdgeRegistrationInfo& a, EdgeRegistrationInfo& b) { a.Swap(&b); }
+  inline void Swap(EdgeRegistrationInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeRegistrationInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeRegistrationInfo* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeRegistrationInfo>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeRegistrationInfo& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeRegistrationInfo& from) { EdgeRegistrationInfo::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeRegistrationInfo* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeRegistrationInfo"; }
+
+ protected:
+  explicit EdgeRegistrationInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeRegistrationInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeRegistrationInfo& from);
+  EdgeRegistrationInfo(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeRegistrationInfo&& from) noexcept
+      : EdgeRegistrationInfo(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kEdgeIpFieldNumber = 2,
+    kContainerNameFieldNumber = 6,
+    kEdgeIndexFieldNumber = 1,
+    kEdgePortFieldNumber = 3,
+    kNumVehiclesFieldNumber = 4,
+    kNumRsusFieldNumber = 5,
+  };
+  // string edge_ip = 2;
+  void clear_edge_ip() ;
+  const ::std::string& edge_ip() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_edge_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_edge_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_edge_ip();
+  void set_allocated_edge_ip(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_edge_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_edge_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_edge_ip();
+
+  public:
+  // string container_name = 6;
+  void clear_container_name() ;
+  const ::std::string& container_name() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_container_name(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_container_name();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_container_name();
+  void set_allocated_container_name(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_container_name() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_container_name(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_container_name();
+
+  public:
+  // int32 edge_index = 1;
+  void clear_edge_index() ;
+  ::int32_t edge_index() const;
+  void set_edge_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_index() const;
+  void _internal_set_edge_index(::int32_t value);
+
+  public:
+  // int32 edge_port = 3;
+  void clear_edge_port() ;
+  ::int32_t edge_port() const;
+  void set_edge_port(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_port() const;
+  void _internal_set_edge_port(::int32_t value);
+
+  public:
+  // int32 num_vehicles = 4;
+  void clear_num_vehicles() ;
+  ::int32_t num_vehicles() const;
+  void set_num_vehicles(::int32_t value);
+
+  private:
+  ::int32_t _internal_num_vehicles() const;
+  void _internal_set_num_vehicles(::int32_t value);
+
+  public:
+  // int32 num_rsus = 5;
+  void clear_num_rsus() ;
+  ::int32_t num_rsus() const;
+  void set_num_rsus(::int32_t value);
+
+  private:
+  ::int32_t _internal_num_rsus() const;
+  void _internal_set_num_rsus(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeRegistrationInfo)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<3, 6,
+                                   0, 57,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeRegistrationInfo& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr edge_ip_;
+    ::google::protobuf::internal::ArenaStringPtr container_name_;
+    ::int32_t edge_index_;
+    ::int32_t edge_port_;
+    ::int32_t num_vehicles_;
+    ::int32_t num_rsus_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeRegistrationInfo_class_data_;
+// -------------------------------------------------------------------
+
+class EdgeMapping final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeMapping) */ {
+ public:
+  inline EdgeMapping() : EdgeMapping(nullptr) {}
+  ~EdgeMapping() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeMapping* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeMapping));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeMapping(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeMapping(const EdgeMapping& from) : EdgeMapping(nullptr, from) {}
+  inline EdgeMapping(EdgeMapping&& from) noexcept
+      : EdgeMapping(nullptr, ::std::move(from)) {}
+  inline EdgeMapping& operator=(const EdgeMapping& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeMapping& operator=(EdgeMapping&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeMapping& default_instance() {
+    return *reinterpret_cast<const EdgeMapping*>(
+        &_EdgeMapping_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 36;
+  friend void swap(EdgeMapping& a, EdgeMapping& b) { a.Swap(&b); }
+  inline void Swap(EdgeMapping* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeMapping* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeMapping* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeMapping>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeMapping& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeMapping& from) { EdgeMapping::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeMapping* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeMapping"; }
+
+ protected:
+  explicit EdgeMapping(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeMapping(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeMapping& from);
+  EdgeMapping(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeMapping&& from) noexcept
+      : EdgeMapping(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kVehicleIndicesFieldNumber = 2,
+    kRsuIndicesFieldNumber = 3,
+    kEdgeIndexFieldNumber = 1,
+  };
+  // repeated int32 vehicle_indices = 2;
+  int vehicle_indices_size() const;
+  private:
+  int _internal_vehicle_indices_size() const;
+
+  public:
+  void clear_vehicle_indices() ;
+  ::int32_t vehicle_indices(int index) const;
+  void set_vehicle_indices(int index, ::int32_t value);
+  void add_vehicle_indices(::int32_t value);
+  const ::google::protobuf::RepeatedField<::int32_t>& vehicle_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL mutable_vehicle_indices();
+
+  private:
+  const ::google::protobuf::RepeatedField<::int32_t>& _internal_vehicle_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL _internal_mutable_vehicle_indices();
+
+  public:
+  // repeated int32 rsu_indices = 3;
+  int rsu_indices_size() const;
+  private:
+  int _internal_rsu_indices_size() const;
+
+  public:
+  void clear_rsu_indices() ;
+  ::int32_t rsu_indices(int index) const;
+  void set_rsu_indices(int index, ::int32_t value);
+  void add_rsu_indices(::int32_t value);
+  const ::google::protobuf::RepeatedField<::int32_t>& rsu_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL mutable_rsu_indices();
+
+  private:
+  const ::google::protobuf::RepeatedField<::int32_t>& _internal_rsu_indices() const;
+  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL _internal_mutable_rsu_indices();
+
+  public:
+  // int32 edge_index = 1;
+  void clear_edge_index() ;
+  ::int32_t edge_index() const;
+  void set_edge_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_index() const;
+  void _internal_set_edge_index(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeMapping)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<2, 3,
+                                   0, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeMapping& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::RepeatedField<::int32_t> vehicle_indices_;
+    ::google::protobuf::internal::CachedSize _vehicle_indices_cached_byte_size_;
+    ::google::protobuf::RepeatedField<::int32_t> rsu_indices_;
+    ::google::protobuf::internal::CachedSize _rsu_indices_cached_byte_size_;
+    ::int32_t edge_index_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeMapping_class_data_;
+// -------------------------------------------------------------------
+
+class EdgeIndex final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeIndex) */ {
+ public:
+  inline EdgeIndex() : EdgeIndex(nullptr) {}
+  ~EdgeIndex() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeIndex* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeIndex));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeIndex(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeIndex(const EdgeIndex& from) : EdgeIndex(nullptr, from) {}
+  inline EdgeIndex(EdgeIndex&& from) noexcept
+      : EdgeIndex(nullptr, ::std::move(from)) {}
+  inline EdgeIndex& operator=(const EdgeIndex& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeIndex& operator=(EdgeIndex&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeIndex& default_instance() {
+    return *reinterpret_cast<const EdgeIndex*>(
+        &_EdgeIndex_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 33;
+  friend void swap(EdgeIndex& a, EdgeIndex& b) { a.Swap(&b); }
+  inline void Swap(EdgeIndex* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeIndex* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeIndex* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeIndex>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeIndex& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeIndex& from) { EdgeIndex::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeIndex* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeIndex"; }
+
+ protected:
+  explicit EdgeIndex(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeIndex(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeIndex& from);
+  EdgeIndex(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeIndex&& from) noexcept
+      : EdgeIndex(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kEdgeIndexFieldNumber = 1,
+  };
+  // int32 edge_index = 1;
+  void clear_edge_index() ;
+  ::int32_t edge_index() const;
+  void set_edge_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_index() const;
+  void _internal_set_edge_index(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeIndex)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<0, 1,
+                                   0, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeIndex& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::int32_t edge_index_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeIndex_class_data_;
+// -------------------------------------------------------------------
+
 class AgentDebugHelper final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:ecloud.AgentDebugHelper) */ {
  public:
@@ -3722,6 +5198,250 @@ class AgentDebugHelper final : public ::google::protobuf::Message
 };
 
 extern const ::google::protobuf::internal::ClassDataFull AgentDebugHelper_class_data_;
+// -------------------------------------------------------------------
+
+class ActorConnectionInfo final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.ActorConnectionInfo) */ {
+ public:
+  inline ActorConnectionInfo() : ActorConnectionInfo(nullptr) {}
+  ~ActorConnectionInfo() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(ActorConnectionInfo* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(ActorConnectionInfo));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR ActorConnectionInfo(::google::protobuf::internal::ConstantInitialized);
+
+  inline ActorConnectionInfo(const ActorConnectionInfo& from) : ActorConnectionInfo(nullptr, from) {}
+  inline ActorConnectionInfo(ActorConnectionInfo&& from) noexcept
+      : ActorConnectionInfo(nullptr, ::std::move(from)) {}
+  inline ActorConnectionInfo& operator=(const ActorConnectionInfo& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ActorConnectionInfo& operator=(ActorConnectionInfo&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ActorConnectionInfo& default_instance() {
+    return *reinterpret_cast<const ActorConnectionInfo*>(
+        &_ActorConnectionInfo_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 34;
+  friend void swap(ActorConnectionInfo& a, ActorConnectionInfo& b) { a.Swap(&b); }
+  inline void Swap(ActorConnectionInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ActorConnectionInfo* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ActorConnectionInfo* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<ActorConnectionInfo>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ActorConnectionInfo& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const ActorConnectionInfo& from) { ActorConnectionInfo::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(ActorConnectionInfo* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.ActorConnectionInfo"; }
+
+ protected:
+  explicit ActorConnectionInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  ActorConnectionInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const ActorConnectionInfo& from);
+  ActorConnectionInfo(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, ActorConnectionInfo&& from) noexcept
+      : ActorConnectionInfo(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kEdgeIpFieldNumber = 2,
+    kHasEdgeFieldNumber = 1,
+    kEdgePortFieldNumber = 3,
+    kEdgeIndexFieldNumber = 4,
+    kVehicleIndexFieldNumber = 5,
+  };
+  // string edge_ip = 2;
+  void clear_edge_ip() ;
+  const ::std::string& edge_ip() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_edge_ip(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_edge_ip();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_edge_ip();
+  void set_allocated_edge_ip(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_edge_ip() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_edge_ip(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_edge_ip();
+
+  public:
+  // bool has_edge = 1;
+  void clear_has_edge() ;
+  bool has_edge() const;
+  void set_has_edge(bool value);
+
+  private:
+  bool _internal_has_edge() const;
+  void _internal_set_has_edge(bool value);
+
+  public:
+  // int32 edge_port = 3;
+  void clear_edge_port() ;
+  ::int32_t edge_port() const;
+  void set_edge_port(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_port() const;
+  void _internal_set_edge_port(::int32_t value);
+
+  public:
+  // int32 edge_index = 4;
+  void clear_edge_index() ;
+  ::int32_t edge_index() const;
+  void set_edge_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_index() const;
+  void _internal_set_edge_index(::int32_t value);
+
+  public:
+  // int32 vehicle_index = 5;
+  void clear_vehicle_index() ;
+  ::int32_t vehicle_index() const;
+  void set_vehicle_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_vehicle_index() const;
+  void _internal_set_vehicle_index(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.ActorConnectionInfo)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<3, 5,
+                                   0, 42,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const ActorConnectionInfo& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::internal::ArenaStringPtr edge_ip_;
+    bool has_edge_;
+    ::int32_t edge_port_;
+    ::int32_t edge_index_;
+    ::int32_t vehicle_index_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull ActorConnectionInfo_class_data_;
 // -------------------------------------------------------------------
 
 class Transform final : public ::google::protobuf::Message
@@ -5052,6 +6772,216 @@ class EdgeObjects final : public ::google::protobuf::Message
 };
 
 extern const ::google::protobuf::internal::ClassDataFull EdgeObjects_class_data_;
+// -------------------------------------------------------------------
+
+class EdgeMappingSetup final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeMappingSetup) */ {
+ public:
+  inline EdgeMappingSetup() : EdgeMappingSetup(nullptr) {}
+  ~EdgeMappingSetup() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeMappingSetup* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeMappingSetup));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeMappingSetup(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeMappingSetup(const EdgeMappingSetup& from) : EdgeMappingSetup(nullptr, from) {}
+  inline EdgeMappingSetup(EdgeMappingSetup&& from) noexcept
+      : EdgeMappingSetup(nullptr, ::std::move(from)) {}
+  inline EdgeMappingSetup& operator=(const EdgeMappingSetup& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeMappingSetup& operator=(EdgeMappingSetup&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeMappingSetup& default_instance() {
+    return *reinterpret_cast<const EdgeMappingSetup*>(
+        &_EdgeMappingSetup_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 37;
+  friend void swap(EdgeMappingSetup& a, EdgeMappingSetup& b) { a.Swap(&b); }
+  inline void Swap(EdgeMappingSetup* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeMappingSetup* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeMappingSetup* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeMappingSetup>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeMappingSetup& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeMappingSetup& from) { EdgeMappingSetup::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeMappingSetup* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeMappingSetup"; }
+
+ protected:
+  explicit EdgeMappingSetup(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeMappingSetup(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeMappingSetup& from);
+  EdgeMappingSetup(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeMappingSetup&& from) noexcept
+      : EdgeMappingSetup(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kMappingsFieldNumber = 2,
+    kNumEdgesFieldNumber = 1,
+  };
+  // repeated .ecloud.EdgeMapping mappings = 2;
+  int mappings_size() const;
+  private:
+  int _internal_mappings_size() const;
+
+  public:
+  void clear_mappings() ;
+  ::ecloud::EdgeMapping* PROTOBUF_NONNULL mutable_mappings(int index);
+  ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>* PROTOBUF_NONNULL mutable_mappings();
+
+  private:
+  const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>& _internal_mappings() const;
+  ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>* PROTOBUF_NONNULL _internal_mutable_mappings();
+  public:
+  const ::ecloud::EdgeMapping& mappings(int index) const;
+  ::ecloud::EdgeMapping* PROTOBUF_NONNULL add_mappings();
+  const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>& mappings() const;
+  // int32 num_edges = 1;
+  void clear_num_edges() ;
+  ::int32_t num_edges() const;
+  void set_num_edges(::int32_t value);
+
+  private:
+  ::int32_t _internal_num_edges() const;
+  void _internal_set_num_edges(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeMappingSetup)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<1, 2,
+                                   1, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeMappingSetup& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::RepeatedPtrField< ::ecloud::EdgeMapping > mappings_;
+    ::int32_t num_edges_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeMappingSetup_class_data_;
 // -------------------------------------------------------------------
 
 class CollisionEvent final : public ::google::protobuf::Message
@@ -7210,6 +9140,219 @@ class EcloudResponse final : public ::google::protobuf::Message
 };
 
 extern const ::google::protobuf::internal::ClassDataFull EcloudResponse_class_data_;
+// -------------------------------------------------------------------
+
+class ActorUpdateWithResponse final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.ActorUpdateWithResponse) */ {
+ public:
+  inline ActorUpdateWithResponse() : ActorUpdateWithResponse(nullptr) {}
+  ~ActorUpdateWithResponse() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(ActorUpdateWithResponse* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(ActorUpdateWithResponse));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR ActorUpdateWithResponse(::google::protobuf::internal::ConstantInitialized);
+
+  inline ActorUpdateWithResponse(const ActorUpdateWithResponse& from) : ActorUpdateWithResponse(nullptr, from) {}
+  inline ActorUpdateWithResponse(ActorUpdateWithResponse&& from) noexcept
+      : ActorUpdateWithResponse(nullptr, ::std::move(from)) {}
+  inline ActorUpdateWithResponse& operator=(const ActorUpdateWithResponse& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline ActorUpdateWithResponse& operator=(ActorUpdateWithResponse&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const ActorUpdateWithResponse& default_instance() {
+    return *reinterpret_cast<const ActorUpdateWithResponse*>(
+        &_ActorUpdateWithResponse_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 35;
+  friend void swap(ActorUpdateWithResponse& a, ActorUpdateWithResponse& b) { a.Swap(&b); }
+  inline void Swap(ActorUpdateWithResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(ActorUpdateWithResponse* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  ActorUpdateWithResponse* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<ActorUpdateWithResponse>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const ActorUpdateWithResponse& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const ActorUpdateWithResponse& from) { ActorUpdateWithResponse::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(ActorUpdateWithResponse* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.ActorUpdateWithResponse"; }
+
+ protected:
+  explicit ActorUpdateWithResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  ActorUpdateWithResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const ActorUpdateWithResponse& from);
+  ActorUpdateWithResponse(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, ActorUpdateWithResponse&& from) noexcept
+      : ActorUpdateWithResponse(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kUpdateFieldNumber = 1,
+    kFusedObjectsFieldNumber = 2,
+  };
+  // .ecloud.VehicleUpdate update = 1;
+  bool has_update() const;
+  void clear_update() ;
+  const ::ecloud::VehicleUpdate& update() const;
+  [[nodiscard]] ::ecloud::VehicleUpdate* PROTOBUF_NULLABLE release_update();
+  ::ecloud::VehicleUpdate* PROTOBUF_NONNULL mutable_update();
+  void set_allocated_update(::ecloud::VehicleUpdate* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_update(::ecloud::VehicleUpdate* PROTOBUF_NULLABLE value);
+  ::ecloud::VehicleUpdate* PROTOBUF_NULLABLE unsafe_arena_release_update();
+
+  private:
+  const ::ecloud::VehicleUpdate& _internal_update() const;
+  ::ecloud::VehicleUpdate* PROTOBUF_NONNULL _internal_mutable_update();
+
+  public:
+  // .ecloud.ObjectBuffer fused_objects = 2;
+  bool has_fused_objects() const;
+  void clear_fused_objects() ;
+  const ::ecloud::ObjectBuffer& fused_objects() const;
+  [[nodiscard]] ::ecloud::ObjectBuffer* PROTOBUF_NULLABLE release_fused_objects();
+  ::ecloud::ObjectBuffer* PROTOBUF_NONNULL mutable_fused_objects();
+  void set_allocated_fused_objects(::ecloud::ObjectBuffer* PROTOBUF_NULLABLE value);
+  void unsafe_arena_set_allocated_fused_objects(::ecloud::ObjectBuffer* PROTOBUF_NULLABLE value);
+  ::ecloud::ObjectBuffer* PROTOBUF_NULLABLE unsafe_arena_release_fused_objects();
+
+  private:
+  const ::ecloud::ObjectBuffer& _internal_fused_objects() const;
+  ::ecloud::ObjectBuffer* PROTOBUF_NONNULL _internal_mutable_fused_objects();
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.ActorUpdateWithResponse)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<1, 2,
+                                   2, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const ActorUpdateWithResponse& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::ecloud::VehicleUpdate* PROTOBUF_NULLABLE update_;
+    ::ecloud::ObjectBuffer* PROTOBUF_NULLABLE fused_objects_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull ActorUpdateWithResponse_class_data_;
 
 // ===================================================================
 
@@ -12434,6 +14577,1407 @@ inline ::google::protobuf::RepeatedPtrField<::ecloud::ObjectBuffer>* PROTOBUF_NO
 EdgeObjects::_internal_mutable_all_object_buffers() {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return &_impl_.all_object_buffers_;
+}
+
+// -------------------------------------------------------------------
+
+// EdgeRegistrationInfo
+
+// int32 edge_index = 1;
+inline void EdgeRegistrationInfo::clear_edge_index() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline ::int32_t EdgeRegistrationInfo::edge_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeRegistrationInfo.edge_index)
+  return _internal_edge_index();
+}
+inline void EdgeRegistrationInfo::set_edge_index(::int32_t value) {
+  _internal_set_edge_index(value);
+  _impl_._has_bits_[0] |= 0x00000004u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeRegistrationInfo.edge_index)
+}
+inline ::int32_t EdgeRegistrationInfo::_internal_edge_index() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_index_;
+}
+inline void EdgeRegistrationInfo::_internal_set_edge_index(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = value;
+}
+
+// string edge_ip = 2;
+inline void EdgeRegistrationInfo::clear_edge_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_ip_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::std::string& EdgeRegistrationInfo::edge_ip() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeRegistrationInfo.edge_ip)
+  return _internal_edge_ip();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void EdgeRegistrationInfo::set_edge_ip(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.edge_ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.EdgeRegistrationInfo.edge_ip)
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeRegistrationInfo::mutable_edge_ip()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_edge_ip();
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeRegistrationInfo.edge_ip)
+  return _s;
+}
+inline const ::std::string& EdgeRegistrationInfo::_internal_edge_ip() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_ip_.Get();
+}
+inline void EdgeRegistrationInfo::_internal_set_edge_ip(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.edge_ip_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeRegistrationInfo::_internal_mutable_edge_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  return _impl_.edge_ip_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE EdgeRegistrationInfo::release_edge_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.EdgeRegistrationInfo.edge_ip)
+  if ((_impl_._has_bits_[0] & 0x00000001u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  auto* released = _impl_.edge_ip_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.edge_ip_.Set("", GetArena());
+  }
+  return released;
+}
+inline void EdgeRegistrationInfo::set_allocated_edge_ip(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  _impl_.edge_ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.edge_ip_.IsDefault()) {
+    _impl_.edge_ip_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.EdgeRegistrationInfo.edge_ip)
+}
+
+// int32 edge_port = 3;
+inline void EdgeRegistrationInfo::clear_edge_port() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_port_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000008u;
+}
+inline ::int32_t EdgeRegistrationInfo::edge_port() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeRegistrationInfo.edge_port)
+  return _internal_edge_port();
+}
+inline void EdgeRegistrationInfo::set_edge_port(::int32_t value) {
+  _internal_set_edge_port(value);
+  _impl_._has_bits_[0] |= 0x00000008u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeRegistrationInfo.edge_port)
+}
+inline ::int32_t EdgeRegistrationInfo::_internal_edge_port() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_port_;
+}
+inline void EdgeRegistrationInfo::_internal_set_edge_port(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_port_ = value;
+}
+
+// int32 num_vehicles = 4;
+inline void EdgeRegistrationInfo::clear_num_vehicles() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_vehicles_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000010u;
+}
+inline ::int32_t EdgeRegistrationInfo::num_vehicles() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeRegistrationInfo.num_vehicles)
+  return _internal_num_vehicles();
+}
+inline void EdgeRegistrationInfo::set_num_vehicles(::int32_t value) {
+  _internal_set_num_vehicles(value);
+  _impl_._has_bits_[0] |= 0x00000010u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeRegistrationInfo.num_vehicles)
+}
+inline ::int32_t EdgeRegistrationInfo::_internal_num_vehicles() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.num_vehicles_;
+}
+inline void EdgeRegistrationInfo::_internal_set_num_vehicles(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_vehicles_ = value;
+}
+
+// int32 num_rsus = 5;
+inline void EdgeRegistrationInfo::clear_num_rsus() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_rsus_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000020u;
+}
+inline ::int32_t EdgeRegistrationInfo::num_rsus() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeRegistrationInfo.num_rsus)
+  return _internal_num_rsus();
+}
+inline void EdgeRegistrationInfo::set_num_rsus(::int32_t value) {
+  _internal_set_num_rsus(value);
+  _impl_._has_bits_[0] |= 0x00000020u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeRegistrationInfo.num_rsus)
+}
+inline ::int32_t EdgeRegistrationInfo::_internal_num_rsus() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.num_rsus_;
+}
+inline void EdgeRegistrationInfo::_internal_set_num_rsus(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_rsus_ = value;
+}
+
+// string container_name = 6;
+inline void EdgeRegistrationInfo::clear_container_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.container_name_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline const ::std::string& EdgeRegistrationInfo::container_name() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeRegistrationInfo.container_name)
+  return _internal_container_name();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void EdgeRegistrationInfo::set_container_name(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.container_name_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.EdgeRegistrationInfo.container_name)
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeRegistrationInfo::mutable_container_name()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_container_name();
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeRegistrationInfo.container_name)
+  return _s;
+}
+inline const ::std::string& EdgeRegistrationInfo::_internal_container_name() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.container_name_.Get();
+}
+inline void EdgeRegistrationInfo::_internal_set_container_name(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.container_name_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeRegistrationInfo::_internal_mutable_container_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  return _impl_.container_name_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE EdgeRegistrationInfo::release_container_name() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.EdgeRegistrationInfo.container_name)
+  if ((_impl_._has_bits_[0] & 0x00000002u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  auto* released = _impl_.container_name_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.container_name_.Set("", GetArena());
+  }
+  return released;
+}
+inline void EdgeRegistrationInfo::set_allocated_container_name(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  _impl_.container_name_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.container_name_.IsDefault()) {
+    _impl_.container_name_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.EdgeRegistrationInfo.container_name)
+}
+
+// -------------------------------------------------------------------
+
+// EdgeScenarioConfig
+
+// int32 edge_index = 1;
+inline void EdgeScenarioConfig::clear_edge_index() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000010u;
+}
+inline ::int32_t EdgeScenarioConfig::edge_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.edge_index)
+  return _internal_edge_index();
+}
+inline void EdgeScenarioConfig::set_edge_index(::int32_t value) {
+  _internal_set_edge_index(value);
+  _impl_._has_bits_[0] |= 0x00000010u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.edge_index)
+}
+inline ::int32_t EdgeScenarioConfig::_internal_edge_index() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_index_;
+}
+inline void EdgeScenarioConfig::_internal_set_edge_index(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = value;
+}
+
+// string edge_config_yaml = 2;
+inline void EdgeScenarioConfig::clear_edge_config_yaml() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_config_yaml_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::std::string& EdgeScenarioConfig::edge_config_yaml() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.edge_config_yaml)
+  return _internal_edge_config_yaml();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void EdgeScenarioConfig::set_edge_config_yaml(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.edge_config_yaml_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.edge_config_yaml)
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::mutable_edge_config_yaml()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_edge_config_yaml();
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeScenarioConfig.edge_config_yaml)
+  return _s;
+}
+inline const ::std::string& EdgeScenarioConfig::_internal_edge_config_yaml() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_config_yaml_.Get();
+}
+inline void EdgeScenarioConfig::_internal_set_edge_config_yaml(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.edge_config_yaml_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::_internal_mutable_edge_config_yaml() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  return _impl_.edge_config_yaml_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE EdgeScenarioConfig::release_edge_config_yaml() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.EdgeScenarioConfig.edge_config_yaml)
+  if ((_impl_._has_bits_[0] & 0x00000001u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  auto* released = _impl_.edge_config_yaml_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.edge_config_yaml_.Set("", GetArena());
+  }
+  return released;
+}
+inline void EdgeScenarioConfig::set_allocated_edge_config_yaml(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  _impl_.edge_config_yaml_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.edge_config_yaml_.IsDefault()) {
+    _impl_.edge_config_yaml_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.EdgeScenarioConfig.edge_config_yaml)
+}
+
+// int32 num_vehicles = 3;
+inline void EdgeScenarioConfig::clear_num_vehicles() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_vehicles_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000020u;
+}
+inline ::int32_t EdgeScenarioConfig::num_vehicles() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.num_vehicles)
+  return _internal_num_vehicles();
+}
+inline void EdgeScenarioConfig::set_num_vehicles(::int32_t value) {
+  _internal_set_num_vehicles(value);
+  _impl_._has_bits_[0] |= 0x00000020u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.num_vehicles)
+}
+inline ::int32_t EdgeScenarioConfig::_internal_num_vehicles() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.num_vehicles_;
+}
+inline void EdgeScenarioConfig::_internal_set_num_vehicles(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_vehicles_ = value;
+}
+
+// int32 num_rsus = 4;
+inline void EdgeScenarioConfig::clear_num_rsus() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_rsus_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000040u;
+}
+inline ::int32_t EdgeScenarioConfig::num_rsus() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.num_rsus)
+  return _internal_num_rsus();
+}
+inline void EdgeScenarioConfig::set_num_rsus(::int32_t value) {
+  _internal_set_num_rsus(value);
+  _impl_._has_bits_[0] |= 0x00000040u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.num_rsus)
+}
+inline ::int32_t EdgeScenarioConfig::_internal_num_rsus() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.num_rsus_;
+}
+inline void EdgeScenarioConfig::_internal_set_num_rsus(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_rsus_ = value;
+}
+
+// repeated int32 vehicle_indices = 5;
+inline int EdgeScenarioConfig::_internal_vehicle_indices_size() const {
+  return _internal_vehicle_indices().size();
+}
+inline int EdgeScenarioConfig::vehicle_indices_size() const {
+  return _internal_vehicle_indices_size();
+}
+inline void EdgeScenarioConfig::clear_vehicle_indices() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.vehicle_indices_.Clear();
+}
+inline ::int32_t EdgeScenarioConfig::vehicle_indices(int index) const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.vehicle_indices)
+  return _internal_vehicle_indices().Get(index);
+}
+inline void EdgeScenarioConfig::set_vehicle_indices(int index, ::int32_t value) {
+  _internal_mutable_vehicle_indices()->Set(index, value);
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.vehicle_indices)
+}
+inline void EdgeScenarioConfig::add_vehicle_indices(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _internal_mutable_vehicle_indices()->Add(value);
+  // @@protoc_insertion_point(field_add:ecloud.EdgeScenarioConfig.vehicle_indices)
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>& EdgeScenarioConfig::vehicle_indices() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:ecloud.EdgeScenarioConfig.vehicle_indices)
+  return _internal_vehicle_indices();
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL EdgeScenarioConfig::mutable_vehicle_indices()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable_list:ecloud.EdgeScenarioConfig.vehicle_indices)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_vehicle_indices();
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>&
+EdgeScenarioConfig::_internal_vehicle_indices() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.vehicle_indices_;
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL
+EdgeScenarioConfig::_internal_mutable_vehicle_indices() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.vehicle_indices_;
+}
+
+// repeated int32 rsu_indices = 6;
+inline int EdgeScenarioConfig::_internal_rsu_indices_size() const {
+  return _internal_rsu_indices().size();
+}
+inline int EdgeScenarioConfig::rsu_indices_size() const {
+  return _internal_rsu_indices_size();
+}
+inline void EdgeScenarioConfig::clear_rsu_indices() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.rsu_indices_.Clear();
+}
+inline ::int32_t EdgeScenarioConfig::rsu_indices(int index) const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.rsu_indices)
+  return _internal_rsu_indices().Get(index);
+}
+inline void EdgeScenarioConfig::set_rsu_indices(int index, ::int32_t value) {
+  _internal_mutable_rsu_indices()->Set(index, value);
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.rsu_indices)
+}
+inline void EdgeScenarioConfig::add_rsu_indices(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _internal_mutable_rsu_indices()->Add(value);
+  // @@protoc_insertion_point(field_add:ecloud.EdgeScenarioConfig.rsu_indices)
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>& EdgeScenarioConfig::rsu_indices() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:ecloud.EdgeScenarioConfig.rsu_indices)
+  return _internal_rsu_indices();
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL EdgeScenarioConfig::mutable_rsu_indices()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable_list:ecloud.EdgeScenarioConfig.rsu_indices)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_rsu_indices();
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>&
+EdgeScenarioConfig::_internal_rsu_indices() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.rsu_indices_;
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL
+EdgeScenarioConfig::_internal_mutable_rsu_indices() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.rsu_indices_;
+}
+
+// string carla_ip = 7;
+inline void EdgeScenarioConfig::clear_carla_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.carla_ip_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline const ::std::string& EdgeScenarioConfig::carla_ip() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.carla_ip)
+  return _internal_carla_ip();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void EdgeScenarioConfig::set_carla_ip(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.carla_ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.carla_ip)
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::mutable_carla_ip()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_carla_ip();
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeScenarioConfig.carla_ip)
+  return _s;
+}
+inline const ::std::string& EdgeScenarioConfig::_internal_carla_ip() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.carla_ip_.Get();
+}
+inline void EdgeScenarioConfig::_internal_set_carla_ip(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.carla_ip_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::_internal_mutable_carla_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  return _impl_.carla_ip_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE EdgeScenarioConfig::release_carla_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.EdgeScenarioConfig.carla_ip)
+  if ((_impl_._has_bits_[0] & 0x00000002u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  auto* released = _impl_.carla_ip_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.carla_ip_.Set("", GetArena());
+  }
+  return released;
+}
+inline void EdgeScenarioConfig::set_allocated_carla_ip(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  _impl_.carla_ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.carla_ip_.IsDefault()) {
+    _impl_.carla_ip_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.EdgeScenarioConfig.carla_ip)
+}
+
+// int32 carla_port = 8;
+inline void EdgeScenarioConfig::clear_carla_port() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.carla_port_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000080u;
+}
+inline ::int32_t EdgeScenarioConfig::carla_port() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.carla_port)
+  return _internal_carla_port();
+}
+inline void EdgeScenarioConfig::set_carla_port(::int32_t value) {
+  _internal_set_carla_port(value);
+  _impl_._has_bits_[0] |= 0x00000080u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.carla_port)
+}
+inline ::int32_t EdgeScenarioConfig::_internal_carla_port() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.carla_port_;
+}
+inline void EdgeScenarioConfig::_internal_set_carla_port(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.carla_port_ = value;
+}
+
+// string application = 9;
+inline void EdgeScenarioConfig::clear_application() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.application_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline const ::std::string& EdgeScenarioConfig::application() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.application)
+  return _internal_application();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void EdgeScenarioConfig::set_application(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_.application_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.application)
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::mutable_application()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_application();
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeScenarioConfig.application)
+  return _s;
+}
+inline const ::std::string& EdgeScenarioConfig::_internal_application() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.application_.Get();
+}
+inline void EdgeScenarioConfig::_internal_set_application(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_.application_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::_internal_mutable_application() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000004u;
+  return _impl_.application_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE EdgeScenarioConfig::release_application() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.EdgeScenarioConfig.application)
+  if ((_impl_._has_bits_[0] & 0x00000004u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000004u;
+  auto* released = _impl_.application_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.application_.Set("", GetArena());
+  }
+  return released;
+}
+inline void EdgeScenarioConfig::set_allocated_application(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000004u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000004u;
+  }
+  _impl_.application_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.application_.IsDefault()) {
+    _impl_.application_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.EdgeScenarioConfig.application)
+}
+
+// string version = 10;
+inline void EdgeScenarioConfig::clear_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.version_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000008u;
+}
+inline const ::std::string& EdgeScenarioConfig::version() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeScenarioConfig.version)
+  return _internal_version();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void EdgeScenarioConfig::set_version(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000008u;
+  _impl_.version_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.EdgeScenarioConfig.version)
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::mutable_version()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_version();
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeScenarioConfig.version)
+  return _s;
+}
+inline const ::std::string& EdgeScenarioConfig::_internal_version() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.version_.Get();
+}
+inline void EdgeScenarioConfig::_internal_set_version(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000008u;
+  _impl_.version_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL EdgeScenarioConfig::_internal_mutable_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000008u;
+  return _impl_.version_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE EdgeScenarioConfig::release_version() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.EdgeScenarioConfig.version)
+  if ((_impl_._has_bits_[0] & 0x00000008u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000008u;
+  auto* released = _impl_.version_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.version_.Set("", GetArena());
+  }
+  return released;
+}
+inline void EdgeScenarioConfig::set_allocated_version(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000008u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000008u;
+  }
+  _impl_.version_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.version_.IsDefault()) {
+    _impl_.version_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.EdgeScenarioConfig.version)
+}
+
+// -------------------------------------------------------------------
+
+// EdgeTickComplete
+
+// int32 edge_index = 1;
+inline void EdgeTickComplete::clear_edge_index() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::int32_t EdgeTickComplete::edge_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeTickComplete.edge_index)
+  return _internal_edge_index();
+}
+inline void EdgeTickComplete::set_edge_index(::int32_t value) {
+  _internal_set_edge_index(value);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeTickComplete.edge_index)
+}
+inline ::int32_t EdgeTickComplete::_internal_edge_index() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_index_;
+}
+inline void EdgeTickComplete::_internal_set_edge_index(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = value;
+}
+
+// int32 tick_id = 2;
+inline void EdgeTickComplete::clear_tick_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tick_id_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline ::int32_t EdgeTickComplete::tick_id() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeTickComplete.tick_id)
+  return _internal_tick_id();
+}
+inline void EdgeTickComplete::set_tick_id(::int32_t value) {
+  _internal_set_tick_id(value);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeTickComplete.tick_id)
+}
+inline ::int32_t EdgeTickComplete::_internal_tick_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tick_id_;
+}
+inline void EdgeTickComplete::_internal_set_tick_id(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tick_id_ = value;
+}
+
+// int32 num_actors_processed = 3;
+inline void EdgeTickComplete::clear_num_actors_processed() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_actors_processed_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline ::int32_t EdgeTickComplete::num_actors_processed() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeTickComplete.num_actors_processed)
+  return _internal_num_actors_processed();
+}
+inline void EdgeTickComplete::set_num_actors_processed(::int32_t value) {
+  _internal_set_num_actors_processed(value);
+  _impl_._has_bits_[0] |= 0x00000004u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeTickComplete.num_actors_processed)
+}
+inline ::int32_t EdgeTickComplete::_internal_num_actors_processed() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.num_actors_processed_;
+}
+inline void EdgeTickComplete::_internal_set_num_actors_processed(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_actors_processed_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// EdgeTick
+
+// int32 tick_id = 1;
+inline void EdgeTick::clear_tick_id() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tick_id_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::int32_t EdgeTick::tick_id() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeTick.tick_id)
+  return _internal_tick_id();
+}
+inline void EdgeTick::set_tick_id(::int32_t value) {
+  _internal_set_tick_id(value);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeTick.tick_id)
+}
+inline ::int32_t EdgeTick::_internal_tick_id() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.tick_id_;
+}
+inline void EdgeTick::_internal_set_tick_id(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.tick_id_ = value;
+}
+
+// .ecloud.Command command = 2;
+inline void EdgeTick::clear_command() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.command_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline ::ecloud::Command EdgeTick::command() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeTick.command)
+  return _internal_command();
+}
+inline void EdgeTick::set_command(::ecloud::Command value) {
+  _internal_set_command(value);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeTick.command)
+}
+inline ::ecloud::Command EdgeTick::_internal_command() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return static_cast<::ecloud::Command>(_impl_.command_);
+}
+inline void EdgeTick::_internal_set_command(::ecloud::Command value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.command_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// EdgeIndex
+
+// int32 edge_index = 1;
+inline void EdgeIndex::clear_edge_index() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::int32_t EdgeIndex::edge_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeIndex.edge_index)
+  return _internal_edge_index();
+}
+inline void EdgeIndex::set_edge_index(::int32_t value) {
+  _internal_set_edge_index(value);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeIndex.edge_index)
+}
+inline ::int32_t EdgeIndex::_internal_edge_index() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_index_;
+}
+inline void EdgeIndex::_internal_set_edge_index(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// ActorConnectionInfo
+
+// bool has_edge = 1;
+inline void ActorConnectionInfo::clear_has_edge() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.has_edge_ = false;
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline bool ActorConnectionInfo::has_edge() const {
+  // @@protoc_insertion_point(field_get:ecloud.ActorConnectionInfo.has_edge)
+  return _internal_has_edge();
+}
+inline void ActorConnectionInfo::set_has_edge(bool value) {
+  _internal_set_has_edge(value);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  // @@protoc_insertion_point(field_set:ecloud.ActorConnectionInfo.has_edge)
+}
+inline bool ActorConnectionInfo::_internal_has_edge() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.has_edge_;
+}
+inline void ActorConnectionInfo::_internal_set_has_edge(bool value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.has_edge_ = value;
+}
+
+// string edge_ip = 2;
+inline void ActorConnectionInfo::clear_edge_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_ip_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::std::string& ActorConnectionInfo::edge_ip() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.ActorConnectionInfo.edge_ip)
+  return _internal_edge_ip();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void ActorConnectionInfo::set_edge_ip(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.edge_ip_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.ActorConnectionInfo.edge_ip)
+}
+inline ::std::string* PROTOBUF_NONNULL ActorConnectionInfo::mutable_edge_ip()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_edge_ip();
+  // @@protoc_insertion_point(field_mutable:ecloud.ActorConnectionInfo.edge_ip)
+  return _s;
+}
+inline const ::std::string& ActorConnectionInfo::_internal_edge_ip() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_ip_.Get();
+}
+inline void ActorConnectionInfo::_internal_set_edge_ip(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  _impl_.edge_ip_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL ActorConnectionInfo::_internal_mutable_edge_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  return _impl_.edge_ip_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE ActorConnectionInfo::release_edge_ip() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.ActorConnectionInfo.edge_ip)
+  if ((_impl_._has_bits_[0] & 0x00000001u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  auto* released = _impl_.edge_ip_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.edge_ip_.Set("", GetArena());
+  }
+  return released;
+}
+inline void ActorConnectionInfo::set_allocated_edge_ip(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  _impl_.edge_ip_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.edge_ip_.IsDefault()) {
+    _impl_.edge_ip_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.ActorConnectionInfo.edge_ip)
+}
+
+// int32 edge_port = 3;
+inline void ActorConnectionInfo::clear_edge_port() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_port_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000004u;
+}
+inline ::int32_t ActorConnectionInfo::edge_port() const {
+  // @@protoc_insertion_point(field_get:ecloud.ActorConnectionInfo.edge_port)
+  return _internal_edge_port();
+}
+inline void ActorConnectionInfo::set_edge_port(::int32_t value) {
+  _internal_set_edge_port(value);
+  _impl_._has_bits_[0] |= 0x00000004u;
+  // @@protoc_insertion_point(field_set:ecloud.ActorConnectionInfo.edge_port)
+}
+inline ::int32_t ActorConnectionInfo::_internal_edge_port() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_port_;
+}
+inline void ActorConnectionInfo::_internal_set_edge_port(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_port_ = value;
+}
+
+// int32 edge_index = 4;
+inline void ActorConnectionInfo::clear_edge_index() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000008u;
+}
+inline ::int32_t ActorConnectionInfo::edge_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.ActorConnectionInfo.edge_index)
+  return _internal_edge_index();
+}
+inline void ActorConnectionInfo::set_edge_index(::int32_t value) {
+  _internal_set_edge_index(value);
+  _impl_._has_bits_[0] |= 0x00000008u;
+  // @@protoc_insertion_point(field_set:ecloud.ActorConnectionInfo.edge_index)
+}
+inline ::int32_t ActorConnectionInfo::_internal_edge_index() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_index_;
+}
+inline void ActorConnectionInfo::_internal_set_edge_index(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = value;
+}
+
+// int32 vehicle_index = 5;
+inline void ActorConnectionInfo::clear_vehicle_index() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.vehicle_index_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000010u;
+}
+inline ::int32_t ActorConnectionInfo::vehicle_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.ActorConnectionInfo.vehicle_index)
+  return _internal_vehicle_index();
+}
+inline void ActorConnectionInfo::set_vehicle_index(::int32_t value) {
+  _internal_set_vehicle_index(value);
+  _impl_._has_bits_[0] |= 0x00000010u;
+  // @@protoc_insertion_point(field_set:ecloud.ActorConnectionInfo.vehicle_index)
+}
+inline ::int32_t ActorConnectionInfo::_internal_vehicle_index() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.vehicle_index_;
+}
+inline void ActorConnectionInfo::_internal_set_vehicle_index(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.vehicle_index_ = value;
+}
+
+// -------------------------------------------------------------------
+
+// ActorUpdateWithResponse
+
+// .ecloud.VehicleUpdate update = 1;
+inline bool ActorUpdateWithResponse::has_update() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.update_ != nullptr);
+  return value;
+}
+inline void ActorUpdateWithResponse::clear_update() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.update_ != nullptr) _impl_.update_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline const ::ecloud::VehicleUpdate& ActorUpdateWithResponse::_internal_update() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::ecloud::VehicleUpdate* p = _impl_.update_;
+  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::VehicleUpdate&>(::ecloud::_VehicleUpdate_default_instance_);
+}
+inline const ::ecloud::VehicleUpdate& ActorUpdateWithResponse::update() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.ActorUpdateWithResponse.update)
+  return _internal_update();
+}
+inline void ActorUpdateWithResponse::unsafe_arena_set_allocated_update(
+    ::ecloud::VehicleUpdate* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.update_);
+  }
+  _impl_.update_ = reinterpret_cast<::ecloud::VehicleUpdate*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.ActorUpdateWithResponse.update)
+}
+inline ::ecloud::VehicleUpdate* PROTOBUF_NULLABLE ActorUpdateWithResponse::release_update() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::ecloud::VehicleUpdate* released = _impl_.update_;
+  _impl_.update_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::ecloud::VehicleUpdate* PROTOBUF_NULLABLE ActorUpdateWithResponse::unsafe_arena_release_update() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.ActorUpdateWithResponse.update)
+
+  _impl_._has_bits_[0] &= ~0x00000001u;
+  ::ecloud::VehicleUpdate* temp = _impl_.update_;
+  _impl_.update_ = nullptr;
+  return temp;
+}
+inline ::ecloud::VehicleUpdate* PROTOBUF_NONNULL ActorUpdateWithResponse::_internal_mutable_update() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.update_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::VehicleUpdate>(GetArena());
+    _impl_.update_ = reinterpret_cast<::ecloud::VehicleUpdate*>(p);
+  }
+  return _impl_.update_;
+}
+inline ::ecloud::VehicleUpdate* PROTOBUF_NONNULL ActorUpdateWithResponse::mutable_update()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  _impl_._has_bits_[0] |= 0x00000001u;
+  ::ecloud::VehicleUpdate* _msg = _internal_mutable_update();
+  // @@protoc_insertion_point(field_mutable:ecloud.ActorUpdateWithResponse.update)
+  return _msg;
+}
+inline void ActorUpdateWithResponse::set_allocated_update(::ecloud::VehicleUpdate* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.update_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = value->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000001u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000001u;
+  }
+
+  _impl_.update_ = reinterpret_cast<::ecloud::VehicleUpdate*>(value);
+  // @@protoc_insertion_point(field_set_allocated:ecloud.ActorUpdateWithResponse.update)
+}
+
+// .ecloud.ObjectBuffer fused_objects = 2;
+inline bool ActorUpdateWithResponse::has_fused_objects() const {
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  PROTOBUF_ASSUME(!value || _impl_.fused_objects_ != nullptr);
+  return value;
+}
+inline void ActorUpdateWithResponse::clear_fused_objects() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.fused_objects_ != nullptr) _impl_.fused_objects_->Clear();
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline const ::ecloud::ObjectBuffer& ActorUpdateWithResponse::_internal_fused_objects() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  const ::ecloud::ObjectBuffer* p = _impl_.fused_objects_;
+  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::ObjectBuffer&>(::ecloud::_ObjectBuffer_default_instance_);
+}
+inline const ::ecloud::ObjectBuffer& ActorUpdateWithResponse::fused_objects() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.ActorUpdateWithResponse.fused_objects)
+  return _internal_fused_objects();
+}
+inline void ActorUpdateWithResponse::unsafe_arena_set_allocated_fused_objects(
+    ::ecloud::ObjectBuffer* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (GetArena() == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.fused_objects_);
+  }
+  _impl_.fused_objects_ = reinterpret_cast<::ecloud::ObjectBuffer*>(value);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.ActorUpdateWithResponse.fused_objects)
+}
+inline ::ecloud::ObjectBuffer* PROTOBUF_NULLABLE ActorUpdateWithResponse::release_fused_objects() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  ::ecloud::ObjectBuffer* released = _impl_.fused_objects_;
+  _impl_.fused_objects_ = nullptr;
+  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
+    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
+    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    if (GetArena() == nullptr) {
+      delete old;
+    }
+  } else {
+    if (GetArena() != nullptr) {
+      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
+    }
+  }
+  return released;
+}
+inline ::ecloud::ObjectBuffer* PROTOBUF_NULLABLE ActorUpdateWithResponse::unsafe_arena_release_fused_objects() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.ActorUpdateWithResponse.fused_objects)
+
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  ::ecloud::ObjectBuffer* temp = _impl_.fused_objects_;
+  _impl_.fused_objects_ = nullptr;
+  return temp;
+}
+inline ::ecloud::ObjectBuffer* PROTOBUF_NONNULL ActorUpdateWithResponse::_internal_mutable_fused_objects() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (_impl_.fused_objects_ == nullptr) {
+    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::ObjectBuffer>(GetArena());
+    _impl_.fused_objects_ = reinterpret_cast<::ecloud::ObjectBuffer*>(p);
+  }
+  return _impl_.fused_objects_;
+}
+inline ::ecloud::ObjectBuffer* PROTOBUF_NONNULL ActorUpdateWithResponse::mutable_fused_objects()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  _impl_._has_bits_[0] |= 0x00000002u;
+  ::ecloud::ObjectBuffer* _msg = _internal_mutable_fused_objects();
+  // @@protoc_insertion_point(field_mutable:ecloud.ActorUpdateWithResponse.fused_objects)
+  return _msg;
+}
+inline void ActorUpdateWithResponse::set_allocated_fused_objects(::ecloud::ObjectBuffer* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::Arena* message_arena = GetArena();
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (message_arena == nullptr) {
+    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.fused_objects_);
+  }
+
+  if (value != nullptr) {
+    ::google::protobuf::Arena* submessage_arena = value->GetArena();
+    if (message_arena != submessage_arena) {
+      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
+    }
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+
+  _impl_.fused_objects_ = reinterpret_cast<::ecloud::ObjectBuffer*>(value);
+  // @@protoc_insertion_point(field_set_allocated:ecloud.ActorUpdateWithResponse.fused_objects)
+}
+
+// -------------------------------------------------------------------
+
+// EdgeMapping
+
+// int32 edge_index = 1;
+inline void EdgeMapping::clear_edge_index() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::int32_t EdgeMapping::edge_index() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeMapping.edge_index)
+  return _internal_edge_index();
+}
+inline void EdgeMapping::set_edge_index(::int32_t value) {
+  _internal_set_edge_index(value);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeMapping.edge_index)
+}
+inline ::int32_t EdgeMapping::_internal_edge_index() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.edge_index_;
+}
+inline void EdgeMapping::_internal_set_edge_index(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.edge_index_ = value;
+}
+
+// repeated int32 vehicle_indices = 2;
+inline int EdgeMapping::_internal_vehicle_indices_size() const {
+  return _internal_vehicle_indices().size();
+}
+inline int EdgeMapping::vehicle_indices_size() const {
+  return _internal_vehicle_indices_size();
+}
+inline void EdgeMapping::clear_vehicle_indices() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.vehicle_indices_.Clear();
+}
+inline ::int32_t EdgeMapping::vehicle_indices(int index) const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeMapping.vehicle_indices)
+  return _internal_vehicle_indices().Get(index);
+}
+inline void EdgeMapping::set_vehicle_indices(int index, ::int32_t value) {
+  _internal_mutable_vehicle_indices()->Set(index, value);
+  // @@protoc_insertion_point(field_set:ecloud.EdgeMapping.vehicle_indices)
+}
+inline void EdgeMapping::add_vehicle_indices(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _internal_mutable_vehicle_indices()->Add(value);
+  // @@protoc_insertion_point(field_add:ecloud.EdgeMapping.vehicle_indices)
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>& EdgeMapping::vehicle_indices() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:ecloud.EdgeMapping.vehicle_indices)
+  return _internal_vehicle_indices();
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL EdgeMapping::mutable_vehicle_indices()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable_list:ecloud.EdgeMapping.vehicle_indices)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_vehicle_indices();
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>&
+EdgeMapping::_internal_vehicle_indices() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.vehicle_indices_;
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL
+EdgeMapping::_internal_mutable_vehicle_indices() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.vehicle_indices_;
+}
+
+// repeated int32 rsu_indices = 3;
+inline int EdgeMapping::_internal_rsu_indices_size() const {
+  return _internal_rsu_indices().size();
+}
+inline int EdgeMapping::rsu_indices_size() const {
+  return _internal_rsu_indices_size();
+}
+inline void EdgeMapping::clear_rsu_indices() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.rsu_indices_.Clear();
+}
+inline ::int32_t EdgeMapping::rsu_indices(int index) const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeMapping.rsu_indices)
+  return _internal_rsu_indices().Get(index);
+}
+inline void EdgeMapping::set_rsu_indices(int index, ::int32_t value) {
+  _internal_mutable_rsu_indices()->Set(index, value);
+  // @@protoc_insertion_point(field_set:ecloud.EdgeMapping.rsu_indices)
+}
+inline void EdgeMapping::add_rsu_indices(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _internal_mutable_rsu_indices()->Add(value);
+  // @@protoc_insertion_point(field_add:ecloud.EdgeMapping.rsu_indices)
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>& EdgeMapping::rsu_indices() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:ecloud.EdgeMapping.rsu_indices)
+  return _internal_rsu_indices();
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL EdgeMapping::mutable_rsu_indices()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable_list:ecloud.EdgeMapping.rsu_indices)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_rsu_indices();
+}
+inline const ::google::protobuf::RepeatedField<::int32_t>&
+EdgeMapping::_internal_rsu_indices() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.rsu_indices_;
+}
+inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL
+EdgeMapping::_internal_mutable_rsu_indices() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.rsu_indices_;
+}
+
+// -------------------------------------------------------------------
+
+// EdgeMappingSetup
+
+// int32 num_edges = 1;
+inline void EdgeMappingSetup::clear_num_edges() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_edges_ = 0;
+  _impl_._has_bits_[0] &= ~0x00000001u;
+}
+inline ::int32_t EdgeMappingSetup::num_edges() const {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeMappingSetup.num_edges)
+  return _internal_num_edges();
+}
+inline void EdgeMappingSetup::set_num_edges(::int32_t value) {
+  _internal_set_num_edges(value);
+  _impl_._has_bits_[0] |= 0x00000001u;
+  // @@protoc_insertion_point(field_set:ecloud.EdgeMappingSetup.num_edges)
+}
+inline ::int32_t EdgeMappingSetup::_internal_num_edges() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.num_edges_;
+}
+inline void EdgeMappingSetup::_internal_set_num_edges(::int32_t value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.num_edges_ = value;
+}
+
+// repeated .ecloud.EdgeMapping mappings = 2;
+inline int EdgeMappingSetup::_internal_mappings_size() const {
+  return _internal_mappings().size();
+}
+inline int EdgeMappingSetup::mappings_size() const {
+  return _internal_mappings_size();
+}
+inline void EdgeMappingSetup::clear_mappings() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.mappings_.Clear();
+}
+inline ::ecloud::EdgeMapping* PROTOBUF_NONNULL EdgeMappingSetup::mutable_mappings(int index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeMappingSetup.mappings)
+  return _internal_mutable_mappings()->Mutable(index);
+}
+inline ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>* PROTOBUF_NONNULL EdgeMappingSetup::mutable_mappings()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable_list:ecloud.EdgeMappingSetup.mappings)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_mappings();
+}
+inline const ::ecloud::EdgeMapping& EdgeMappingSetup::mappings(int index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeMappingSetup.mappings)
+  return _internal_mappings().Get(index);
+}
+inline ::ecloud::EdgeMapping* PROTOBUF_NONNULL EdgeMappingSetup::add_mappings()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::ecloud::EdgeMapping* _add = _internal_mutable_mappings()->Add();
+  // @@protoc_insertion_point(field_add:ecloud.EdgeMappingSetup.mappings)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>& EdgeMappingSetup::mappings() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:ecloud.EdgeMappingSetup.mappings)
+  return _internal_mappings();
+}
+inline const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>&
+EdgeMappingSetup::_internal_mappings() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.mappings_;
+}
+inline ::google::protobuf::RepeatedPtrField<::ecloud::EdgeMapping>* PROTOBUF_NONNULL
+EdgeMappingSetup::_internal_mutable_mappings() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.mappings_;
 }
 
 #ifdef __GNUC__

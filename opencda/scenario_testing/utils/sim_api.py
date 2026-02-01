@@ -435,6 +435,13 @@ class ScenarioManager:
         await stub_.Server_StartScenario(update_)
 
         logger.info(f"pushed scenario start")
+
+        # Send edge mappings BEFORE waiting for vehicles to register
+        # This must happen here because actors will query Client_GetConnectionInfo
+        # during registration and need to know their edge assignment
+        if 'edge_list' in self.scenario_params['scenario']:
+            await self.send_edge_mappings_to_orchestrator()
+
         logger.info(f"starting {self.vehicle_count} vehicle containers")
 
         assert self.push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", self.push_q.get_nowait())
@@ -631,6 +638,68 @@ class ScenarioManager:
           logger.exception('unhandled exception')
 
         logger.debug("eCloud debug: pushed START")
+
+    async def send_edge_mappings_to_orchestrator(self):
+        """
+        Compute edge-to-vehicle and edge-to-RSU mappings from YAML and send to orchestrator.
+
+        This is called when the scenario has edges (edge_list in YAML) and we're running
+        in distributed mode. The orchestrator uses these mappings to route actors to
+        their assigned edges.
+        """
+        logger.info("Computing and sending edge mappings to orchestrator")
+
+        edge_list = self.scenario_params['scenario']['edge_list']
+        num_edges = len(edge_list)
+
+        # Build the EdgeMappingSetup message
+        mapping_setup = ecloud.EdgeMappingSetup()
+        mapping_setup.num_edges = num_edges
+
+        # Global index counters
+        global_vehicle_index = 0
+        global_rsu_index = 0
+
+        for edge_idx, edge_config in enumerate(edge_list):
+            # Get edge_index from YAML (or use enumeration index as fallback)
+            edge_index = edge_config.get('edge_index', edge_idx)
+
+            edge_mapping = ecloud.EdgeMapping()
+            edge_mapping.edge_index = edge_index
+
+            # Map vehicles to this edge
+            if 'vehicles' in edge_config:
+                for v_idx, vehicle_config in enumerate(edge_config['vehicles']):
+                    edge_mapping.vehicle_indices.append(global_vehicle_index)
+                    logger.debug("  Vehicle %d -> Edge %d", global_vehicle_index, edge_index)
+                    global_vehicle_index += 1
+
+            # Also check for 'members' key (some YAMLs use this instead of 'vehicles')
+            if 'members' in edge_config:
+                for v_idx, vehicle_config in enumerate(edge_config['members']):
+                    edge_mapping.vehicle_indices.append(global_vehicle_index)
+                    logger.debug("  Vehicle %d -> Edge %d (from members)", global_vehicle_index, edge_index)
+                    global_vehicle_index += 1
+
+            # Map RSUs to this edge
+            if 'rsus' in edge_config:
+                for r_idx, rsu_config in enumerate(edge_config['rsus']):
+                    edge_mapping.rsu_indices.append(global_rsu_index)
+                    logger.debug("  RSU %d -> Edge %d", global_rsu_index, edge_index)
+                    global_rsu_index += 1
+
+            mapping_setup.mappings.append(edge_mapping)
+
+        logger.info("Sending %d edge mappings to orchestrator (%d vehicles, %d RSUs)",
+                   num_edges, global_vehicle_index, global_rsu_index)
+
+        # Send to orchestrator
+        try:
+            await self.ecloud_server.Server_SetEdgeMappings(mapping_setup)
+            logger.info("Edge mappings sent successfully")
+        except grpc.aio.AioRpcError as e:
+            logger.warning("Server_SetEdgeMappings not available (code: %s). "
+                         "Edge routing may not work.", e.code())
 
     @staticmethod
     def set_weather(weather_settings):

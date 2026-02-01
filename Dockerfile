@@ -31,6 +31,8 @@ EXPOSE 5555/tcp
 EXPOSE 50051/tcp
 EXPOSE 50052/tcp
 EXPOSE 50053/tcp
+EXPOSE 50054/tcp
+# probably just want more ports because the edge will need them
 EXPOSE 50101-50512/tcp
 
 # Carla

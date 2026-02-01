@@ -87,6 +87,14 @@ class Ecav2ActorClient:
         self.location_type = eLocationType.EXPLICIT
         self.verbose_updates = False
 
+        # Edge connection tracking (new distributed edge architecture)
+        self.connected_to_edge = False
+        self.edge_channel = None
+        self.edge_stub = None
+        self.edge_ip = None
+        self.edge_port = None
+        self.edge_index = None
+
         if cloud_config["log_level"] == "error":
             logger.setLevel(logging.ERROR)
         elif cloud_config["log_level"] == "warning":
@@ -121,7 +129,8 @@ class Ecav2ActorClient:
         logger.debug("main - version: %s", version)
 
         # create CAV world
-        cav_world = CavWorld(self.opt.apply_ml)
+        # litserve=True offloads ML inference to LitServe server on port 18000
+        cav_world = CavWorld(self.opt.apply_ml, litserve=self.opt.litserve)
 
         logger.info("eCloud debug: creating VehicleManager vehicle_index: %s", self.vehicle_index)
 
@@ -162,7 +171,7 @@ class Ecav2ActorClient:
             client.set_timeout(10.0)
             world = client.get_world()
             carla_map = world.get_map()
-            cav_world = CavWorld(self.opt.apply_ml)
+            cav_world = CavWorld(self.opt.apply_ml, litserve=self.opt.litserve)
             self.rsu_manager = RSUManager(world, 
                                 rsu_config,
                                 carla_map,
@@ -208,7 +217,7 @@ class Ecav2ActorClient:
 
         logger.info("push server spun up on port %s", push_port)
 
-        # TODO: move to eCloudClient
+        # First connect to orchestrator to get connection info
         self.channel = grpc.aio.insecure_channel(
             target=f"{ECLOUD_IP}:{self.opt.port}",
             options=[
@@ -219,15 +228,89 @@ class Ecav2ActorClient:
             )
         self.ecloud_server = ecloud_rpc.EcloudStub(self.channel)
 
-        ecloud_update = await self.send_registration_to_ecloud_server()
-        self.vehicle_index = ecloud_update.vehicle_index - ( 2 if self.actor_type == ecloud.ActorType.RSU else 0 ) # TODO: needs to count number of vehicles so that we can then index RSUs properly
-        assert self.vehicle_index is not None, "vehicle_index not set by ecloud server"
-        
+        # Query orchestrator for connection info (new edge architecture)
+        connection_info = await self.get_connection_info()
+
+        if connection_info and connection_info.has_edge:
+            # Connect to edge instead of orchestrator
+            logger.info("Actor %s connecting to edge %s at %s:%s",
+                       self.opt.vehicle_index, connection_info.edge_index,
+                       connection_info.edge_ip, connection_info.edge_port)
+
+            self.connected_to_edge = True
+            self.edge_ip = connection_info.edge_ip
+            self.edge_port = connection_info.edge_port
+            self.edge_index = connection_info.edge_index
+            self.vehicle_index = connection_info.vehicle_index
+
+            # Create channel to edge
+            self.edge_channel = grpc.aio.insecure_channel(
+                target=f"{self.edge_ip}:{self.edge_port}",
+                options=[
+                    ("grpc.lb_policy_name", "pick_first"),
+                    ("grpc.enable_retries", 1),
+                    ("grpc.keepalive_timeout_ms", 10000),
+                    ("grpc.service_config", EcloudClient.retry_opts),],
+            )
+            self.edge_stub = ecloud_rpc.EcloudStub(self.edge_channel)
+
+            # Register with edge
+            ecloud_update = await self.register_with_edge()
+        else:
+            # No edge, connect directly to orchestrator (existing behavior)
+            logger.info("Actor %s connecting directly to orchestrator (no edge)",
+                       self.opt.vehicle_index)
+            self.connected_to_edge = False
+            ecloud_update = await self.send_registration_to_ecloud_server()
+            self.vehicle_index = ecloud_update.vehicle_index - ( 2 if self.actor_type == ecloud.ActorType.RSU else 0 )
+
+        assert self.vehicle_index is not None, "vehicle_index not set"
+
         return ecloud_update
 
+    async def get_connection_info(self) -> ecloud.ActorConnectionInfo:
+        """Query orchestrator for connection info (edge vs orchestrator)."""
+        request = ecloud.RegistrationInfo()
+        request.vehicle_index = self.opt.vehicle_index
+        request.actor_type = self.actor_type
+        try:
+            request.container_name = os.environ["HOSTNAME"]
+        except:
+            request.container_name = f"actor_{self.opt.vehicle_index}"
+
+        try:
+            connection_info = await self.ecloud_server.Client_GetConnectionInfo(request)
+            logger.info("Connection info received: has_edge=%s", connection_info.has_edge)
+            return connection_info
+        except grpc.aio.AioRpcError as e:
+            # If RPC not implemented, fall back to orchestrator connection
+            logger.warning("Client_GetConnectionInfo not available: %s", e.code())
+            return None
+
+    async def register_with_edge(self) -> ecloud.SimulationInfo:
+        """Register this actor with its assigned edge."""
+        request = ecloud.RegistrationInfo()
+        request.vehicle_state = ecloud.VehicleState.REGISTERING
+        request.vehicle_index = self.vehicle_index
+        request.actor_type = self.actor_type
+        try:
+            request.container_name = os.environ["HOSTNAME"]
+        except:
+            request.container_name = f"actor_{self.vehicle_index}"
+
+        request.vehicle_ip = VEHICLE_IP
+        request.vehicle_port = self.push_port
+
+        sim_info = await self.edge_stub.Edge_ActorRegister(request)
+        logger.info("Registered with edge, vehicle_index=%s", sim_info.vehicle_index)
+
+        return sim_info
+
     async def close(self):
-        assert self.channel is not None, "channel not initialized"
-        await self.channel.close()
+        if self.edge_channel is not None:
+            await self.edge_channel.close()
+        if self.channel is not None:
+            await self.channel.close()
 
     #TODO: move to eCloudClient
     def serialize_debug_info(self, vehicle_update, vehicle_manager) -> None:
@@ -287,11 +370,26 @@ class Ecav2ActorClient:
 
     #TODO: move to eCloudClient
     async def send_vehicle_update(self, vehicle_update_):
-        assert self.ecloud_server is not None, "stub not initialized"
         logger.debug("send_vehicle_update: sending")
-        empty = await self.ecloud_server.Client_SendUpdate(vehicle_update_)
-        logger.debug("send_vehicle_update: send complete")
-        return empty
+
+        if self.connected_to_edge:
+            # Send to edge, receive fused predictions in response
+            assert self.edge_stub is not None, "edge stub not initialized"
+            object_buffer = await self.edge_stub.Edge_ActorSendUpdate(vehicle_update_)
+            logger.debug("send_vehicle_update: sent to edge, received fused predictions")
+
+            # Process fused predictions if available
+            if object_buffer and object_buffer.pickled_edge_predictions:
+                preds = pickle.loads(object_buffer.pickled_edge_predictions)
+                if self.actor_type == ecloud.ActorType.VEHICLE and self.vehicle_manager:
+                    self.vehicle_manager.agent.edge_predictions = preds
+            return object_buffer
+        else:
+            # Send directly to orchestrator (existing behavior)
+            assert self.ecloud_server is not None, "stub not initialized"
+            empty = await self.ecloud_server.Client_SendUpdate(vehicle_update_)
+            logger.debug("send_vehicle_update: send complete")
+            return empty
 
     def arg_parse(self):
         parser = argparse.ArgumentParser(description="OpenCDA Vehicle Simulation.")
@@ -299,6 +397,9 @@ class Ecav2ActorClient:
                             action='store_true',
                             help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
                                 'Set it to true only when you have installed the pytorch/sklearn package.')
+        parser.add_argument('-l', "--litserve", action='store_true',
+                            help='Use LitServe for distributed ML inference (requires LitServe server on port 18000). '
+                                'This offloads ML model inference to a separate process to reduce GPU memory per container.')
         parser.add_argument('-a', "--ipaddress", type=str, default=CARLA_IP,
                             help="Specifies the ip address of the server to connect to. [Default: localhost]")
         parser.add_argument('-p', "--port", type=int, default=50051,

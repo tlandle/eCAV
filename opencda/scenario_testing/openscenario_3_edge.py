@@ -172,10 +172,11 @@ def run_scenario(opt, scenario_params):
         print(traceback.format_exc())
 
     finally:
-        for edge in edge_list:
-            for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
-                for vid, step_number in vehicle_manager.vehicles_detected.items():
-                    print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
+        if 'edge_list' in dir() and edge_list is not None:
+            for edge in edge_list:
+                for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
+                    for vid, step_number in vehicle_manager.vehicles_detected.items():
+                        print("VID: %s found VID %s at step %s" %(vehicle_manager.vehicle.id, vid, step_number))
         
         scenario_manager.end()
 

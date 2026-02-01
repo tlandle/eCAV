@@ -36,7 +36,7 @@ class Ecloud final {
   class StubInterface {
    public:
     virtual ~StubInterface() {}
-    // PUSH
+    // PUSH (orchestrator -> actor/edge)
     virtual ::grpc::Status PushTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::ecloud::Empty* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> AsyncPushTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(AsyncPushTickRaw(context, request, cq));
@@ -44,7 +44,7 @@ class Ecloud final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> PrepareAsyncPushTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(PrepareAsyncPushTickRaw(context, request, cq));
     }
-    // CLIENT
+    // CLIENT -> ORCHESTRATOR (existing, for edge-less scenarios)
     virtual ::grpc::Status Client_SendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::ecloud::Empty* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> AsyncClient_SendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(AsyncClient_SendUpdateRaw(context, request, cq));
@@ -80,7 +80,16 @@ class Ecloud final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>> PrepareAsyncClient_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>>(PrepareAsyncClient_GetObjectsRaw(context, request, cq));
     }
-    // SERVER
+    // CLIENT -> ORCHESTRATOR (new: connection discovery)
+    // Actor asks orchestrator where to connect (edge or orchestrator)
+    virtual ::grpc::Status Client_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::ecloud::ActorConnectionInfo* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ActorConnectionInfo>> AsyncClient_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ActorConnectionInfo>>(AsyncClient_GetConnectionInfoRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ActorConnectionInfo>> PrepareAsyncClient_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ActorConnectionInfo>>(PrepareAsyncClient_GetConnectionInfoRaw(context, request, cq));
+    }
+    // SERVER/SIMULATOR -> ORCHESTRATOR (existing)
     virtual ::grpc::Status Server_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::ecloud::Empty* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> AsyncServer_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(AsyncServer_DoTickRaw(context, request, cq));
@@ -123,13 +132,68 @@ class Ecloud final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> PrepareAsyncServer_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(PrepareAsyncServer_PushEdgeObjectsRaw(context, request, cq));
     }
+    // Set up edge mappings before edges/actors start
+    virtual ::grpc::Status Server_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::ecloud::Empty* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> AsyncServer_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(AsyncServer_SetEdgeMappingsRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> PrepareAsyncServer_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(PrepareAsyncServer_SetEdgeMappingsRaw(context, request, cq));
+    }
+    // ============================================
+    // Edge Architecture RPCs
+    // ============================================
+    //
+    // EDGE -> ORCHESTRATOR
+    // Edge registers with orchestrator, receives its scenario configuration
+    virtual ::grpc::Status Edge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::ecloud::EdgeScenarioConfig* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::EdgeScenarioConfig>> AsyncEdge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::EdgeScenarioConfig>>(AsyncEdge_RegisterRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::EdgeScenarioConfig>> PrepareAsyncEdge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::EdgeScenarioConfig>>(PrepareAsyncEdge_RegisterRaw(context, request, cq));
+    }
+    // Edge notifies orchestrator it completed processing for a tick
+    virtual ::grpc::Status Edge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::ecloud::Empty* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> AsyncEdge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(AsyncEdge_TickCompleteRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> PrepareAsyncEdge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(PrepareAsyncEdge_TickCompleteRaw(context, request, cq));
+    }
+    // ORCHESTRATOR -> EDGE (push)
+    // Orchestrator pushes tick to edge (reuses PushTick with EdgeTick semantics)
+    virtual ::grpc::Status Edge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::ecloud::Empty* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> AsyncEdge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(AsyncEdge_PushTickRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> PrepareAsyncEdge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(PrepareAsyncEdge_PushTickRaw(context, request, cq));
+    }
+    // ACTOR -> EDGE
+    // Actor registers with edge (similar to Client_RegisterVehicle)
+    virtual ::grpc::Status Edge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::ecloud::SimulationInfo* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>> AsyncEdge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>>(AsyncEdge_ActorRegisterRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>> PrepareAsyncEdge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>>(PrepareAsyncEdge_ActorRegisterRaw(context, request, cq));
+    }
+    // Actor sends update to edge, receives previous tick's fused data
+    virtual ::grpc::Status Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::ecloud::ObjectBuffer* response) = 0;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>> AsyncEdge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>>(AsyncEdge_ActorSendUpdateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>> PrepareAsyncEdge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>>(PrepareAsyncEdge_ActorSendUpdateRaw(context, request, cq));
+    }
     class async_interface {
      public:
       virtual ~async_interface() {}
-      // PUSH
+      // PUSH (orchestrator -> actor/edge)
       virtual void PushTick(::grpc::ClientContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
       virtual void PushTick(::grpc::ClientContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      // CLIENT
+      // CLIENT -> ORCHESTRATOR (existing, for edge-less scenarios)
       virtual void Client_SendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Client_SendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Client_RegisterVehicle(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)>) = 0;
@@ -140,7 +204,11 @@ class Ecloud final {
       virtual void Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Client_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Client_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      // SERVER
+      // CLIENT -> ORCHESTRATOR (new: connection discovery)
+      // Actor asks orchestrator where to connect (edge or orchestrator)
+      virtual void Client_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::ActorConnectionInfo* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Client_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::ActorConnectionInfo* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // SERVER/SIMULATOR -> ORCHESTRATOR (existing)
       virtual void Server_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Server_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Server_StartScenario(::grpc::ClientContext* context, const ::ecloud::SimulationInfo* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
@@ -153,6 +221,31 @@ class Ecloud final {
       virtual void Server_PushEdgeWaypoints(::grpc::ClientContext* context, const ::ecloud::EdgeWaypoints* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
       virtual void Server_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Server_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Set up edge mappings before edges/actors start
+      virtual void Server_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Server_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // ============================================
+      // Edge Architecture RPCs
+      // ============================================
+      //
+      // EDGE -> ORCHESTRATOR
+      // Edge registers with orchestrator, receives its scenario configuration
+      virtual void Edge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo* request, ::ecloud::EdgeScenarioConfig* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Edge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo* request, ::ecloud::EdgeScenarioConfig* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Edge notifies orchestrator it completed processing for a tick
+      virtual void Edge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Edge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // ORCHESTRATOR -> EDGE (push)
+      // Orchestrator pushes tick to edge (reuses PushTick with EdgeTick semantics)
+      virtual void Edge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Edge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // ACTOR -> EDGE
+      // Actor registers with edge (similar to Client_RegisterVehicle)
+      virtual void Edge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Edge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) = 0;
+      // Actor sends update to edge, receives previous tick's fused data
+      virtual void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) = 0;
+      virtual void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -170,6 +263,8 @@ class Ecloud final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::WaypointBuffer>* PrepareAsyncClient_GetWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>* AsyncClient_GetObjectsRaw(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>* PrepareAsyncClient_GetObjectsRaw(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ActorConnectionInfo>* AsyncClient_GetConnectionInfoRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ActorConnectionInfo>* PrepareAsyncClient_GetConnectionInfoRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* AsyncServer_DoTickRaw(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncServer_DoTickRaw(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* AsyncServer_StartScenarioRaw(::grpc::ClientContext* context, const ::ecloud::SimulationInfo& request, ::grpc::CompletionQueue* cq) = 0;
@@ -182,6 +277,18 @@ class Ecloud final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncServer_PushEdgeWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeWaypoints& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* AsyncServer_PushEdgeObjectsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncServer_PushEdgeObjectsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* AsyncServer_SetEdgeMappingsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncServer_SetEdgeMappingsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::EdgeScenarioConfig>* AsyncEdge_RegisterRaw(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::EdgeScenarioConfig>* PrepareAsyncEdge_RegisterRaw(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* AsyncEdge_TickCompleteRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncEdge_TickCompleteRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* AsyncEdge_PushTickRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncEdge_PushTickRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>* AsyncEdge_ActorRegisterRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>* PrepareAsyncEdge_ActorRegisterRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>* AsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) = 0;
+    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>* PrepareAsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -228,6 +335,13 @@ class Ecloud final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>> PrepareAsyncClient_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>>(PrepareAsyncClient_GetObjectsRaw(context, request, cq));
     }
+    ::grpc::Status Client_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::ecloud::ActorConnectionInfo* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ActorConnectionInfo>> AsyncClient_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ActorConnectionInfo>>(AsyncClient_GetConnectionInfoRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ActorConnectionInfo>> PrepareAsyncClient_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ActorConnectionInfo>>(PrepareAsyncClient_GetConnectionInfoRaw(context, request, cq));
+    }
     ::grpc::Status Server_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::ecloud::Empty* response) override;
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> AsyncServer_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(AsyncServer_DoTickRaw(context, request, cq));
@@ -270,6 +384,48 @@ class Ecloud final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> PrepareAsyncServer_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(PrepareAsyncServer_PushEdgeObjectsRaw(context, request, cq));
     }
+    ::grpc::Status Server_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::ecloud::Empty* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> AsyncServer_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(AsyncServer_SetEdgeMappingsRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> PrepareAsyncServer_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(PrepareAsyncServer_SetEdgeMappingsRaw(context, request, cq));
+    }
+    ::grpc::Status Edge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::ecloud::EdgeScenarioConfig* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::EdgeScenarioConfig>> AsyncEdge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::EdgeScenarioConfig>>(AsyncEdge_RegisterRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::EdgeScenarioConfig>> PrepareAsyncEdge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::EdgeScenarioConfig>>(PrepareAsyncEdge_RegisterRaw(context, request, cq));
+    }
+    ::grpc::Status Edge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::ecloud::Empty* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> AsyncEdge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(AsyncEdge_TickCompleteRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> PrepareAsyncEdge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(PrepareAsyncEdge_TickCompleteRaw(context, request, cq));
+    }
+    ::grpc::Status Edge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::ecloud::Empty* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> AsyncEdge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(AsyncEdge_PushTickRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> PrepareAsyncEdge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(PrepareAsyncEdge_PushTickRaw(context, request, cq));
+    }
+    ::grpc::Status Edge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::ecloud::SimulationInfo* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>> AsyncEdge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>>(AsyncEdge_ActorRegisterRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>> PrepareAsyncEdge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>>(PrepareAsyncEdge_ActorRegisterRaw(context, request, cq));
+    }
+    ::grpc::Status Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::ecloud::ObjectBuffer* response) override;
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>> AsyncEdge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>>(AsyncEdge_ActorSendUpdateRaw(context, request, cq));
+    }
+    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>> PrepareAsyncEdge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
+      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>>(PrepareAsyncEdge_ActorSendUpdateRaw(context, request, cq));
+    }
     class async final :
       public StubInterface::async_interface {
      public:
@@ -285,6 +441,8 @@ class Ecloud final {
       void Client_GetWaypoints(::grpc::ClientContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Client_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) override;
       void Client_GetObjects(::grpc::ClientContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Client_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::ActorConnectionInfo* response, std::function<void(::grpc::Status)>) override;
+      void Client_GetConnectionInfo(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::ActorConnectionInfo* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Server_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) override;
       void Server_DoTick(::grpc::ClientContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Server_StartScenario(::grpc::ClientContext* context, const ::ecloud::SimulationInfo* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) override;
@@ -297,6 +455,18 @@ class Ecloud final {
       void Server_PushEdgeWaypoints(::grpc::ClientContext* context, const ::ecloud::EdgeWaypoints* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Server_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) override;
       void Server_PushEdgeObjects(::grpc::ClientContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Server_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) override;
+      void Server_SetEdgeMappings(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Edge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo* request, ::ecloud::EdgeScenarioConfig* response, std::function<void(::grpc::Status)>) override;
+      void Edge_Register(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo* request, ::ecloud::EdgeScenarioConfig* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Edge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) override;
+      void Edge_TickComplete(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Edge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) override;
+      void Edge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Edge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, std::function<void(::grpc::Status)>) override;
+      void Edge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) override;
+      void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) override;
+      void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, ::grpc::ClientUnaryReactor* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -320,6 +490,8 @@ class Ecloud final {
     ::grpc::ClientAsyncResponseReader< ::ecloud::WaypointBuffer>* PrepareAsyncClient_GetWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::WaypointRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* AsyncClient_GetObjectsRaw(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* PrepareAsyncClient_GetObjectsRaw(::grpc::ClientContext* context, const ::ecloud::ObjectRequest& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::ActorConnectionInfo>* AsyncClient_GetConnectionInfoRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::ActorConnectionInfo>* PrepareAsyncClient_GetConnectionInfoRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* AsyncServer_DoTickRaw(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncServer_DoTickRaw(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* AsyncServer_StartScenarioRaw(::grpc::ClientContext* context, const ::ecloud::SimulationInfo& request, ::grpc::CompletionQueue* cq) override;
@@ -332,18 +504,37 @@ class Ecloud final {
     ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncServer_PushEdgeWaypointsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeWaypoints& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* AsyncServer_PushEdgeObjectsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncServer_PushEdgeObjectsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeObjects& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* AsyncServer_SetEdgeMappingsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncServer_SetEdgeMappingsRaw(::grpc::ClientContext* context, const ::ecloud::EdgeMappingSetup& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::EdgeScenarioConfig>* AsyncEdge_RegisterRaw(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::EdgeScenarioConfig>* PrepareAsyncEdge_RegisterRaw(::grpc::ClientContext* context, const ::ecloud::EdgeRegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* AsyncEdge_TickCompleteRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncEdge_TickCompleteRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTickComplete& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* AsyncEdge_PushTickRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncEdge_PushTickRaw(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* AsyncEdge_ActorRegisterRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* PrepareAsyncEdge_ActorRegisterRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* AsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) override;
+    ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* PrepareAsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_PushTick_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_SendUpdate_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_RegisterVehicle_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_GetScenario_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_GetWaypoints_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_GetObjects_;
+    const ::grpc::internal::RpcMethod rpcmethod_Client_GetConnectionInfo_;
     const ::grpc::internal::RpcMethod rpcmethod_Server_DoTick_;
     const ::grpc::internal::RpcMethod rpcmethod_Server_StartScenario_;
     const ::grpc::internal::RpcMethod rpcmethod_Server_EndScenario_;
     const ::grpc::internal::RpcMethod rpcmethod_Server_GetVehicleUpdates_;
     const ::grpc::internal::RpcMethod rpcmethod_Server_PushEdgeWaypoints_;
     const ::grpc::internal::RpcMethod rpcmethod_Server_PushEdgeObjects_;
+    const ::grpc::internal::RpcMethod rpcmethod_Server_SetEdgeMappings_;
+    const ::grpc::internal::RpcMethod rpcmethod_Edge_Register_;
+    const ::grpc::internal::RpcMethod rpcmethod_Edge_TickComplete_;
+    const ::grpc::internal::RpcMethod rpcmethod_Edge_PushTick_;
+    const ::grpc::internal::RpcMethod rpcmethod_Edge_ActorRegister_;
+    const ::grpc::internal::RpcMethod rpcmethod_Edge_ActorSendUpdate_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -351,21 +542,43 @@ class Ecloud final {
    public:
     Service();
     virtual ~Service();
-    // PUSH
+    // PUSH (orchestrator -> actor/edge)
     virtual ::grpc::Status PushTick(::grpc::ServerContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response);
-    // CLIENT
+    // CLIENT -> ORCHESTRATOR (existing, for edge-less scenarios)
     virtual ::grpc::Status Client_SendUpdate(::grpc::ServerContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::Empty* response);
     virtual ::grpc::Status Client_RegisterVehicle(::grpc::ServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response);
     virtual ::grpc::Status Client_GetScenario(::grpc::ServerContext* context, const ::ecloud::ScenarioRequest* request, ::ecloud::SimulationInfo* response);
     virtual ::grpc::Status Client_GetWaypoints(::grpc::ServerContext* context, const ::ecloud::WaypointRequest* request, ::ecloud::WaypointBuffer* response);
     virtual ::grpc::Status Client_GetObjects(::grpc::ServerContext* context, const ::ecloud::ObjectRequest* request, ::ecloud::ObjectBuffer* response);
-    // SERVER
+    // CLIENT -> ORCHESTRATOR (new: connection discovery)
+    // Actor asks orchestrator where to connect (edge or orchestrator)
+    virtual ::grpc::Status Client_GetConnectionInfo(::grpc::ServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::ActorConnectionInfo* response);
+    // SERVER/SIMULATOR -> ORCHESTRATOR (existing)
     virtual ::grpc::Status Server_DoTick(::grpc::ServerContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response);
     virtual ::grpc::Status Server_StartScenario(::grpc::ServerContext* context, const ::ecloud::SimulationInfo* request, ::ecloud::Empty* response);
     virtual ::grpc::Status Server_EndScenario(::grpc::ServerContext* context, const ::ecloud::Empty* request, ::ecloud::Empty* response);
     virtual ::grpc::Status Server_GetVehicleUpdates(::grpc::ServerContext* context, const ::ecloud::Empty* request, ::ecloud::EcloudResponse* response);
     virtual ::grpc::Status Server_PushEdgeWaypoints(::grpc::ServerContext* context, const ::ecloud::EdgeWaypoints* request, ::ecloud::Empty* response);
     virtual ::grpc::Status Server_PushEdgeObjects(::grpc::ServerContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response);
+    // Set up edge mappings before edges/actors start
+    virtual ::grpc::Status Server_SetEdgeMappings(::grpc::ServerContext* context, const ::ecloud::EdgeMappingSetup* request, ::ecloud::Empty* response);
+    // ============================================
+    // Edge Architecture RPCs
+    // ============================================
+    //
+    // EDGE -> ORCHESTRATOR
+    // Edge registers with orchestrator, receives its scenario configuration
+    virtual ::grpc::Status Edge_Register(::grpc::ServerContext* context, const ::ecloud::EdgeRegistrationInfo* request, ::ecloud::EdgeScenarioConfig* response);
+    // Edge notifies orchestrator it completed processing for a tick
+    virtual ::grpc::Status Edge_TickComplete(::grpc::ServerContext* context, const ::ecloud::EdgeTickComplete* request, ::ecloud::Empty* response);
+    // ORCHESTRATOR -> EDGE (push)
+    // Orchestrator pushes tick to edge (reuses PushTick with EdgeTick semantics)
+    virtual ::grpc::Status Edge_PushTick(::grpc::ServerContext* context, const ::ecloud::EdgeTick* request, ::ecloud::Empty* response);
+    // ACTOR -> EDGE
+    // Actor registers with edge (similar to Client_RegisterVehicle)
+    virtual ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response);
+    // Actor sends update to edge, receives previous tick's fused data
+    virtual ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_PushTick : public BaseClass {
@@ -488,12 +701,32 @@ class Ecloud final {
     }
   };
   template <class BaseClass>
+  class WithAsyncMethod_Client_GetConnectionInfo : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Client_GetConnectionInfo() {
+      ::grpc::Service::MarkMethodAsync(6);
+    }
+    ~WithAsyncMethod_Client_GetConnectionInfo() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetConnectionInfo(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::ActorConnectionInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestClient_GetConnectionInfo(::grpc::ServerContext* context, ::ecloud::RegistrationInfo* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::ActorConnectionInfo>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithAsyncMethod_Server_DoTick : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodAsync(6);
+      ::grpc::Service::MarkMethodAsync(7);
     }
     ~WithAsyncMethod_Server_DoTick() override {
       BaseClassMustBeDerivedFromService(this);
@@ -504,7 +737,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_DoTick(::grpc::ServerContext* context, ::ecloud::Tick* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -513,7 +746,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodAsync(7);
+      ::grpc::Service::MarkMethodAsync(8);
     }
     ~WithAsyncMethod_Server_StartScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -524,7 +757,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_StartScenario(::grpc::ServerContext* context, ::ecloud::SimulationInfo* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -533,7 +766,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodAsync(8);
+      ::grpc::Service::MarkMethodAsync(9);
     }
     ~WithAsyncMethod_Server_EndScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -544,7 +777,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_EndScenario(::grpc::ServerContext* context, ::ecloud::Empty* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -553,7 +786,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodAsync(9);
+      ::grpc::Service::MarkMethodAsync(10);
     }
     ~WithAsyncMethod_Server_GetVehicleUpdates() override {
       BaseClassMustBeDerivedFromService(this);
@@ -564,7 +797,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_GetVehicleUpdates(::grpc::ServerContext* context, ::ecloud::Empty* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::EcloudResponse>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -573,7 +806,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodAsync(10);
+      ::grpc::Service::MarkMethodAsync(11);
     }
     ~WithAsyncMethod_Server_PushEdgeWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -584,7 +817,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeWaypoints(::grpc::ServerContext* context, ::ecloud::EdgeWaypoints* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(11, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -593,7 +826,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithAsyncMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodAsync(11);
+      ::grpc::Service::MarkMethodAsync(12);
     }
     ~WithAsyncMethod_Server_PushEdgeObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -604,10 +837,130 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeObjects(::grpc::ServerContext* context, ::ecloud::EdgeObjects* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(11, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(12, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  typedef WithAsyncMethod_PushTick<WithAsyncMethod_Client_SendUpdate<WithAsyncMethod_Client_RegisterVehicle<WithAsyncMethod_Client_GetScenario<WithAsyncMethod_Client_GetWaypoints<WithAsyncMethod_Client_GetObjects<WithAsyncMethod_Server_DoTick<WithAsyncMethod_Server_StartScenario<WithAsyncMethod_Server_EndScenario<WithAsyncMethod_Server_GetVehicleUpdates<WithAsyncMethod_Server_PushEdgeWaypoints<WithAsyncMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > AsyncService;
+  template <class BaseClass>
+  class WithAsyncMethod_Server_SetEdgeMappings : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Server_SetEdgeMappings() {
+      ::grpc::Service::MarkMethodAsync(13);
+    }
+    ~WithAsyncMethod_Server_SetEdgeMappings() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Server_SetEdgeMappings(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeMappingSetup* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestServer_SetEdgeMappings(::grpc::ServerContext* context, ::ecloud::EdgeMappingSetup* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(13, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_Edge_Register : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Edge_Register() {
+      ::grpc::Service::MarkMethodAsync(14);
+    }
+    ~WithAsyncMethod_Edge_Register() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_Register(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeRegistrationInfo* /*request*/, ::ecloud::EdgeScenarioConfig* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_Register(::grpc::ServerContext* context, ::ecloud::EdgeRegistrationInfo* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::EdgeScenarioConfig>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(14, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_Edge_TickComplete : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Edge_TickComplete() {
+      ::grpc::Service::MarkMethodAsync(15);
+    }
+    ~WithAsyncMethod_Edge_TickComplete() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_TickComplete(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTickComplete* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_TickComplete(::grpc::ServerContext* context, ::ecloud::EdgeTickComplete* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(15, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_Edge_PushTick : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Edge_PushTick() {
+      ::grpc::Service::MarkMethodAsync(16);
+    }
+    ~WithAsyncMethod_Edge_PushTick() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_PushTick(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTick* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_PushTick(::grpc::ServerContext* context, ::ecloud::EdgeTick* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(16, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_Edge_ActorRegister : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Edge_ActorRegister() {
+      ::grpc::Service::MarkMethodAsync(17);
+    }
+    ~WithAsyncMethod_Edge_ActorRegister() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_ActorRegister(::grpc::ServerContext* context, ::ecloud::RegistrationInfo* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::SimulationInfo>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(17, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithAsyncMethod_Edge_ActorSendUpdate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithAsyncMethod_Edge_ActorSendUpdate() {
+      ::grpc::Service::MarkMethodAsync(18);
+    }
+    ~WithAsyncMethod_Edge_ActorSendUpdate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_ActorSendUpdate(::grpc::ServerContext* context, ::ecloud::VehicleUpdate* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::ObjectBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(18, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  typedef WithAsyncMethod_PushTick<WithAsyncMethod_Client_SendUpdate<WithAsyncMethod_Client_RegisterVehicle<WithAsyncMethod_Client_GetScenario<WithAsyncMethod_Client_GetWaypoints<WithAsyncMethod_Client_GetObjects<WithAsyncMethod_Client_GetConnectionInfo<WithAsyncMethod_Server_DoTick<WithAsyncMethod_Server_StartScenario<WithAsyncMethod_Server_EndScenario<WithAsyncMethod_Server_GetVehicleUpdates<WithAsyncMethod_Server_PushEdgeWaypoints<WithAsyncMethod_Server_PushEdgeObjects<WithAsyncMethod_Server_SetEdgeMappings<WithAsyncMethod_Edge_Register<WithAsyncMethod_Edge_TickComplete<WithAsyncMethod_Edge_PushTick<WithAsyncMethod_Edge_ActorRegister<WithAsyncMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_PushTick : public BaseClass {
    private:
@@ -771,18 +1124,45 @@ class Ecloud final {
       ::grpc::CallbackServerContext* /*context*/, const ::ecloud::ObjectRequest* /*request*/, ::ecloud::ObjectBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
+  class WithCallbackMethod_Client_GetConnectionInfo : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Client_GetConnectionInfo() {
+      ::grpc::Service::MarkMethodCallback(6,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::RegistrationInfo, ::ecloud::ActorConnectionInfo>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::ActorConnectionInfo* response) { return this->Client_GetConnectionInfo(context, request, response); }));}
+    void SetMessageAllocatorFor_Client_GetConnectionInfo(
+        ::grpc::MessageAllocator< ::ecloud::RegistrationInfo, ::ecloud::ActorConnectionInfo>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(6);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::RegistrationInfo, ::ecloud::ActorConnectionInfo>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Client_GetConnectionInfo() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetConnectionInfo(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::ActorConnectionInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Client_GetConnectionInfo(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::ActorConnectionInfo* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
   class WithCallbackMethod_Server_DoTick : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodCallback(6,
+      ::grpc::Service::MarkMethodCallback(7,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::Tick, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::Tick* request, ::ecloud::Empty* response) { return this->Server_DoTick(context, request, response); }));}
     void SetMessageAllocatorFor_Server_DoTick(
         ::grpc::MessageAllocator< ::ecloud::Tick, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(6);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(7);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::Tick, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -803,13 +1183,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodCallback(7,
+      ::grpc::Service::MarkMethodCallback(8,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::SimulationInfo, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::SimulationInfo* request, ::ecloud::Empty* response) { return this->Server_StartScenario(context, request, response); }));}
     void SetMessageAllocatorFor_Server_StartScenario(
         ::grpc::MessageAllocator< ::ecloud::SimulationInfo, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(7);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(8);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::SimulationInfo, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -830,13 +1210,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodCallback(8,
+      ::grpc::Service::MarkMethodCallback(9,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::Empty* request, ::ecloud::Empty* response) { return this->Server_EndScenario(context, request, response); }));}
     void SetMessageAllocatorFor_Server_EndScenario(
         ::grpc::MessageAllocator< ::ecloud::Empty, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(8);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(9);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -857,13 +1237,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodCallback(9,
+      ::grpc::Service::MarkMethodCallback(10,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::EcloudResponse>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::Empty* request, ::ecloud::EcloudResponse* response) { return this->Server_GetVehicleUpdates(context, request, response); }));}
     void SetMessageAllocatorFor_Server_GetVehicleUpdates(
         ::grpc::MessageAllocator< ::ecloud::Empty, ::ecloud::EcloudResponse>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(9);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(10);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::Empty, ::ecloud::EcloudResponse>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -884,13 +1264,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodCallback(10,
+      ::grpc::Service::MarkMethodCallback(11,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeWaypoints, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::EdgeWaypoints* request, ::ecloud::Empty* response) { return this->Server_PushEdgeWaypoints(context, request, response); }));}
     void SetMessageAllocatorFor_Server_PushEdgeWaypoints(
         ::grpc::MessageAllocator< ::ecloud::EdgeWaypoints, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(10);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(11);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeWaypoints, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -911,13 +1291,13 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithCallbackMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodCallback(11,
+      ::grpc::Service::MarkMethodCallback(12,
           new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeObjects, ::ecloud::Empty>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::ecloud::EdgeObjects* request, ::ecloud::Empty* response) { return this->Server_PushEdgeObjects(context, request, response); }));}
     void SetMessageAllocatorFor_Server_PushEdgeObjects(
         ::grpc::MessageAllocator< ::ecloud::EdgeObjects, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(11);
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(12);
       static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeObjects, ::ecloud::Empty>*>(handler)
               ->SetMessageAllocator(allocator);
     }
@@ -932,7 +1312,169 @@ class Ecloud final {
     virtual ::grpc::ServerUnaryReactor* Server_PushEdgeObjects(
       ::grpc::CallbackServerContext* /*context*/, const ::ecloud::EdgeObjects* /*request*/, ::ecloud::Empty* /*response*/)  { return nullptr; }
   };
-  typedef WithCallbackMethod_PushTick<WithCallbackMethod_Client_SendUpdate<WithCallbackMethod_Client_RegisterVehicle<WithCallbackMethod_Client_GetScenario<WithCallbackMethod_Client_GetWaypoints<WithCallbackMethod_Client_GetObjects<WithCallbackMethod_Server_DoTick<WithCallbackMethod_Server_StartScenario<WithCallbackMethod_Server_EndScenario<WithCallbackMethod_Server_GetVehicleUpdates<WithCallbackMethod_Server_PushEdgeWaypoints<WithCallbackMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > CallbackService;
+  template <class BaseClass>
+  class WithCallbackMethod_Server_SetEdgeMappings : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Server_SetEdgeMappings() {
+      ::grpc::Service::MarkMethodCallback(13,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeMappingSetup, ::ecloud::Empty>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::EdgeMappingSetup* request, ::ecloud::Empty* response) { return this->Server_SetEdgeMappings(context, request, response); }));}
+    void SetMessageAllocatorFor_Server_SetEdgeMappings(
+        ::grpc::MessageAllocator< ::ecloud::EdgeMappingSetup, ::ecloud::Empty>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(13);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeMappingSetup, ::ecloud::Empty>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Server_SetEdgeMappings() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Server_SetEdgeMappings(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeMappingSetup* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Server_SetEdgeMappings(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::EdgeMappingSetup* /*request*/, ::ecloud::Empty* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithCallbackMethod_Edge_Register : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Edge_Register() {
+      ::grpc::Service::MarkMethodCallback(14,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeRegistrationInfo, ::ecloud::EdgeScenarioConfig>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::EdgeRegistrationInfo* request, ::ecloud::EdgeScenarioConfig* response) { return this->Edge_Register(context, request, response); }));}
+    void SetMessageAllocatorFor_Edge_Register(
+        ::grpc::MessageAllocator< ::ecloud::EdgeRegistrationInfo, ::ecloud::EdgeScenarioConfig>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(14);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeRegistrationInfo, ::ecloud::EdgeScenarioConfig>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Edge_Register() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_Register(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeRegistrationInfo* /*request*/, ::ecloud::EdgeScenarioConfig* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_Register(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::EdgeRegistrationInfo* /*request*/, ::ecloud::EdgeScenarioConfig* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithCallbackMethod_Edge_TickComplete : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Edge_TickComplete() {
+      ::grpc::Service::MarkMethodCallback(15,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeTickComplete, ::ecloud::Empty>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::EdgeTickComplete* request, ::ecloud::Empty* response) { return this->Edge_TickComplete(context, request, response); }));}
+    void SetMessageAllocatorFor_Edge_TickComplete(
+        ::grpc::MessageAllocator< ::ecloud::EdgeTickComplete, ::ecloud::Empty>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(15);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeTickComplete, ::ecloud::Empty>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Edge_TickComplete() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_TickComplete(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTickComplete* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_TickComplete(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::EdgeTickComplete* /*request*/, ::ecloud::Empty* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithCallbackMethod_Edge_PushTick : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Edge_PushTick() {
+      ::grpc::Service::MarkMethodCallback(16,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeTick, ::ecloud::Empty>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::EdgeTick* request, ::ecloud::Empty* response) { return this->Edge_PushTick(context, request, response); }));}
+    void SetMessageAllocatorFor_Edge_PushTick(
+        ::grpc::MessageAllocator< ::ecloud::EdgeTick, ::ecloud::Empty>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(16);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::EdgeTick, ::ecloud::Empty>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Edge_PushTick() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_PushTick(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTick* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_PushTick(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::EdgeTick* /*request*/, ::ecloud::Empty* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithCallbackMethod_Edge_ActorRegister : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Edge_ActorRegister() {
+      ::grpc::Service::MarkMethodCallback(17,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::RegistrationInfo, ::ecloud::SimulationInfo>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response) { return this->Edge_ActorRegister(context, request, response); }));}
+    void SetMessageAllocatorFor_Edge_ActorRegister(
+        ::grpc::MessageAllocator< ::ecloud::RegistrationInfo, ::ecloud::SimulationInfo>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(17);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::RegistrationInfo, ::ecloud::SimulationInfo>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Edge_ActorRegister() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_ActorRegister(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithCallbackMethod_Edge_ActorSendUpdate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithCallbackMethod_Edge_ActorSendUpdate() {
+      ::grpc::Service::MarkMethodCallback(18,
+          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::VehicleUpdate, ::ecloud::ObjectBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response) { return this->Edge_ActorSendUpdate(context, request, response); }));}
+    void SetMessageAllocatorFor_Edge_ActorSendUpdate(
+        ::grpc::MessageAllocator< ::ecloud::VehicleUpdate, ::ecloud::ObjectBuffer>* allocator) {
+      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(18);
+      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::VehicleUpdate, ::ecloud::ObjectBuffer>*>(handler)
+              ->SetMessageAllocator(allocator);
+    }
+    ~WithCallbackMethod_Edge_ActorSendUpdate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_ActorSendUpdate(
+      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/)  { return nullptr; }
+  };
+  typedef WithCallbackMethod_PushTick<WithCallbackMethod_Client_SendUpdate<WithCallbackMethod_Client_RegisterVehicle<WithCallbackMethod_Client_GetScenario<WithCallbackMethod_Client_GetWaypoints<WithCallbackMethod_Client_GetObjects<WithCallbackMethod_Client_GetConnectionInfo<WithCallbackMethod_Server_DoTick<WithCallbackMethod_Server_StartScenario<WithCallbackMethod_Server_EndScenario<WithCallbackMethod_Server_GetVehicleUpdates<WithCallbackMethod_Server_PushEdgeWaypoints<WithCallbackMethod_Server_PushEdgeObjects<WithCallbackMethod_Server_SetEdgeMappings<WithCallbackMethod_Edge_Register<WithCallbackMethod_Edge_TickComplete<WithCallbackMethod_Edge_PushTick<WithCallbackMethod_Edge_ActorRegister<WithCallbackMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_PushTick : public BaseClass {
@@ -1037,12 +1579,29 @@ class Ecloud final {
     }
   };
   template <class BaseClass>
+  class WithGenericMethod_Client_GetConnectionInfo : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Client_GetConnectionInfo() {
+      ::grpc::Service::MarkMethodGeneric(6);
+    }
+    ~WithGenericMethod_Client_GetConnectionInfo() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetConnectionInfo(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::ActorConnectionInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
   class WithGenericMethod_Server_DoTick : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodGeneric(6);
+      ::grpc::Service::MarkMethodGeneric(7);
     }
     ~WithGenericMethod_Server_DoTick() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1059,7 +1618,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodGeneric(7);
+      ::grpc::Service::MarkMethodGeneric(8);
     }
     ~WithGenericMethod_Server_StartScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1076,7 +1635,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodGeneric(8);
+      ::grpc::Service::MarkMethodGeneric(9);
     }
     ~WithGenericMethod_Server_EndScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1093,7 +1652,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodGeneric(9);
+      ::grpc::Service::MarkMethodGeneric(10);
     }
     ~WithGenericMethod_Server_GetVehicleUpdates() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1110,7 +1669,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodGeneric(10);
+      ::grpc::Service::MarkMethodGeneric(11);
     }
     ~WithGenericMethod_Server_PushEdgeWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1127,13 +1686,115 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithGenericMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodGeneric(11);
+      ::grpc::Service::MarkMethodGeneric(12);
     }
     ~WithGenericMethod_Server_PushEdgeObjects() override {
       BaseClassMustBeDerivedFromService(this);
     }
     // disable synchronous version of this method
     ::grpc::Status Server_PushEdgeObjects(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeObjects* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Server_SetEdgeMappings : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Server_SetEdgeMappings() {
+      ::grpc::Service::MarkMethodGeneric(13);
+    }
+    ~WithGenericMethod_Server_SetEdgeMappings() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Server_SetEdgeMappings(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeMappingSetup* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Edge_Register : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Edge_Register() {
+      ::grpc::Service::MarkMethodGeneric(14);
+    }
+    ~WithGenericMethod_Edge_Register() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_Register(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeRegistrationInfo* /*request*/, ::ecloud::EdgeScenarioConfig* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Edge_TickComplete : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Edge_TickComplete() {
+      ::grpc::Service::MarkMethodGeneric(15);
+    }
+    ~WithGenericMethod_Edge_TickComplete() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_TickComplete(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTickComplete* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Edge_PushTick : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Edge_PushTick() {
+      ::grpc::Service::MarkMethodGeneric(16);
+    }
+    ~WithGenericMethod_Edge_PushTick() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_PushTick(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTick* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Edge_ActorRegister : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Edge_ActorRegister() {
+      ::grpc::Service::MarkMethodGeneric(17);
+    }
+    ~WithGenericMethod_Edge_ActorRegister() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+  };
+  template <class BaseClass>
+  class WithGenericMethod_Edge_ActorSendUpdate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithGenericMethod_Edge_ActorSendUpdate() {
+      ::grpc::Service::MarkMethodGeneric(18);
+    }
+    ~WithGenericMethod_Edge_ActorSendUpdate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -1259,12 +1920,32 @@ class Ecloud final {
     }
   };
   template <class BaseClass>
+  class WithRawMethod_Client_GetConnectionInfo : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Client_GetConnectionInfo() {
+      ::grpc::Service::MarkMethodRaw(6);
+    }
+    ~WithRawMethod_Client_GetConnectionInfo() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetConnectionInfo(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::ActorConnectionInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestClient_GetConnectionInfo(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
   class WithRawMethod_Server_DoTick : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodRaw(6);
+      ::grpc::Service::MarkMethodRaw(7);
     }
     ~WithRawMethod_Server_DoTick() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1275,7 +1956,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_DoTick(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(6, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1284,7 +1965,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodRaw(7);
+      ::grpc::Service::MarkMethodRaw(8);
     }
     ~WithRawMethod_Server_StartScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1295,7 +1976,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_StartScenario(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(7, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1304,7 +1985,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodRaw(8);
+      ::grpc::Service::MarkMethodRaw(9);
     }
     ~WithRawMethod_Server_EndScenario() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1315,7 +1996,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_EndScenario(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(8, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1324,7 +2005,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodRaw(9);
+      ::grpc::Service::MarkMethodRaw(10);
     }
     ~WithRawMethod_Server_GetVehicleUpdates() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1335,7 +2016,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_GetVehicleUpdates(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(9, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1344,7 +2025,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodRaw(10);
+      ::grpc::Service::MarkMethodRaw(11);
     }
     ~WithRawMethod_Server_PushEdgeWaypoints() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1355,7 +2036,7 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeWaypoints(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(10, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(11, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1364,7 +2045,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodRaw(11);
+      ::grpc::Service::MarkMethodRaw(12);
     }
     ~WithRawMethod_Server_PushEdgeObjects() override {
       BaseClassMustBeDerivedFromService(this);
@@ -1375,7 +2056,127 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     void RequestServer_PushEdgeObjects(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(11, context, request, response, new_call_cq, notification_cq, tag);
+      ::grpc::Service::RequestAsyncUnary(12, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_Server_SetEdgeMappings : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Server_SetEdgeMappings() {
+      ::grpc::Service::MarkMethodRaw(13);
+    }
+    ~WithRawMethod_Server_SetEdgeMappings() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Server_SetEdgeMappings(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeMappingSetup* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestServer_SetEdgeMappings(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(13, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_Edge_Register : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Edge_Register() {
+      ::grpc::Service::MarkMethodRaw(14);
+    }
+    ~WithRawMethod_Edge_Register() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_Register(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeRegistrationInfo* /*request*/, ::ecloud::EdgeScenarioConfig* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_Register(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(14, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_Edge_TickComplete : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Edge_TickComplete() {
+      ::grpc::Service::MarkMethodRaw(15);
+    }
+    ~WithRawMethod_Edge_TickComplete() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_TickComplete(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTickComplete* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_TickComplete(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(15, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_Edge_PushTick : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Edge_PushTick() {
+      ::grpc::Service::MarkMethodRaw(16);
+    }
+    ~WithRawMethod_Edge_PushTick() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_PushTick(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTick* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_PushTick(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(16, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_Edge_ActorRegister : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Edge_ActorRegister() {
+      ::grpc::Service::MarkMethodRaw(17);
+    }
+    ~WithRawMethod_Edge_ActorRegister() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_ActorRegister(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(17, context, request, response, new_call_cq, notification_cq, tag);
+    }
+  };
+  template <class BaseClass>
+  class WithRawMethod_Edge_ActorSendUpdate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawMethod_Edge_ActorSendUpdate() {
+      ::grpc::Service::MarkMethodRaw(18);
+    }
+    ~WithRawMethod_Edge_ActorSendUpdate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    void RequestEdge_ActorSendUpdate(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
+      ::grpc::Service::RequestAsyncUnary(18, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -1511,12 +2312,34 @@ class Ecloud final {
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
+  class WithRawCallbackMethod_Client_GetConnectionInfo : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Client_GetConnectionInfo() {
+      ::grpc::Service::MarkMethodRawCallback(6,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Client_GetConnectionInfo(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Client_GetConnectionInfo() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Client_GetConnectionInfo(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::ActorConnectionInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Client_GetConnectionInfo(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
   class WithRawCallbackMethod_Server_DoTick : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodRawCallback(6,
+      ::grpc::Service::MarkMethodRawCallback(7,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_DoTick(context, request, response); }));
@@ -1538,7 +2361,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodRawCallback(7,
+      ::grpc::Service::MarkMethodRawCallback(8,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_StartScenario(context, request, response); }));
@@ -1560,7 +2383,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodRawCallback(8,
+      ::grpc::Service::MarkMethodRawCallback(9,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_EndScenario(context, request, response); }));
@@ -1582,7 +2405,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodRawCallback(9,
+      ::grpc::Service::MarkMethodRawCallback(10,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_GetVehicleUpdates(context, request, response); }));
@@ -1604,7 +2427,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodRawCallback(10,
+      ::grpc::Service::MarkMethodRawCallback(11,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_PushEdgeWaypoints(context, request, response); }));
@@ -1626,7 +2449,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithRawCallbackMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodRawCallback(11,
+      ::grpc::Service::MarkMethodRawCallback(12,
           new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
             [this](
                    ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_PushEdgeObjects(context, request, response); }));
@@ -1640,6 +2463,138 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     virtual ::grpc::ServerUnaryReactor* Server_PushEdgeObjects(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Server_SetEdgeMappings : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Server_SetEdgeMappings() {
+      ::grpc::Service::MarkMethodRawCallback(13,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Server_SetEdgeMappings(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Server_SetEdgeMappings() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Server_SetEdgeMappings(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeMappingSetup* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Server_SetEdgeMappings(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Edge_Register : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Edge_Register() {
+      ::grpc::Service::MarkMethodRawCallback(14,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_Register(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Edge_Register() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_Register(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeRegistrationInfo* /*request*/, ::ecloud::EdgeScenarioConfig* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_Register(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Edge_TickComplete : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Edge_TickComplete() {
+      ::grpc::Service::MarkMethodRawCallback(15,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_TickComplete(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Edge_TickComplete() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_TickComplete(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTickComplete* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_TickComplete(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Edge_PushTick : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Edge_PushTick() {
+      ::grpc::Service::MarkMethodRawCallback(16,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_PushTick(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Edge_PushTick() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_PushTick(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTick* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_PushTick(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Edge_ActorRegister : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Edge_ActorRegister() {
+      ::grpc::Service::MarkMethodRawCallback(17,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_ActorRegister(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Edge_ActorRegister() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_ActorRegister(
+      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
+  };
+  template <class BaseClass>
+  class WithRawCallbackMethod_Edge_ActorSendUpdate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithRawCallbackMethod_Edge_ActorSendUpdate() {
+      ::grpc::Service::MarkMethodRawCallback(18,
+          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
+            [this](
+                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_ActorSendUpdate(context, request, response); }));
+    }
+    ~WithRawCallbackMethod_Edge_ActorSendUpdate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable synchronous version of this method
+    ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    virtual ::grpc::ServerUnaryReactor* Edge_ActorSendUpdate(
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
@@ -1805,12 +2760,39 @@ class Ecloud final {
     virtual ::grpc::Status StreamedClient_GetObjects(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::ObjectRequest,::ecloud::ObjectBuffer>* server_unary_streamer) = 0;
   };
   template <class BaseClass>
+  class WithStreamedUnaryMethod_Client_GetConnectionInfo : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Client_GetConnectionInfo() {
+      ::grpc::Service::MarkMethodStreamed(6,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::RegistrationInfo, ::ecloud::ActorConnectionInfo>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::RegistrationInfo, ::ecloud::ActorConnectionInfo>* streamer) {
+                       return this->StreamedClient_GetConnectionInfo(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Client_GetConnectionInfo() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Client_GetConnectionInfo(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::ActorConnectionInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedClient_GetConnectionInfo(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::RegistrationInfo,::ecloud::ActorConnectionInfo>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
   class WithStreamedUnaryMethod_Server_DoTick : public BaseClass {
    private:
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_DoTick() {
-      ::grpc::Service::MarkMethodStreamed(6,
+      ::grpc::Service::MarkMethodStreamed(7,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::Tick, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1837,7 +2819,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_StartScenario() {
-      ::grpc::Service::MarkMethodStreamed(7,
+      ::grpc::Service::MarkMethodStreamed(8,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::SimulationInfo, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1864,7 +2846,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_EndScenario() {
-      ::grpc::Service::MarkMethodStreamed(8,
+      ::grpc::Service::MarkMethodStreamed(9,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::Empty, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1891,7 +2873,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_GetVehicleUpdates() {
-      ::grpc::Service::MarkMethodStreamed(9,
+      ::grpc::Service::MarkMethodStreamed(10,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::Empty, ::ecloud::EcloudResponse>(
             [this](::grpc::ServerContext* context,
@@ -1918,7 +2900,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_PushEdgeWaypoints() {
-      ::grpc::Service::MarkMethodStreamed(10,
+      ::grpc::Service::MarkMethodStreamed(11,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::EdgeWaypoints, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1945,7 +2927,7 @@ class Ecloud final {
     void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
    public:
     WithStreamedUnaryMethod_Server_PushEdgeObjects() {
-      ::grpc::Service::MarkMethodStreamed(11,
+      ::grpc::Service::MarkMethodStreamed(12,
         new ::grpc::internal::StreamedUnaryHandler<
           ::ecloud::EdgeObjects, ::ecloud::Empty>(
             [this](::grpc::ServerContext* context,
@@ -1966,9 +2948,171 @@ class Ecloud final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedServer_PushEdgeObjects(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::EdgeObjects,::ecloud::Empty>* server_unary_streamer) = 0;
   };
-  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > StreamedUnaryService;
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Server_SetEdgeMappings : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Server_SetEdgeMappings() {
+      ::grpc::Service::MarkMethodStreamed(13,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::EdgeMappingSetup, ::ecloud::Empty>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::EdgeMappingSetup, ::ecloud::Empty>* streamer) {
+                       return this->StreamedServer_SetEdgeMappings(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Server_SetEdgeMappings() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Server_SetEdgeMappings(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeMappingSetup* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedServer_SetEdgeMappings(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::EdgeMappingSetup,::ecloud::Empty>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Edge_Register : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Edge_Register() {
+      ::grpc::Service::MarkMethodStreamed(14,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::EdgeRegistrationInfo, ::ecloud::EdgeScenarioConfig>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::EdgeRegistrationInfo, ::ecloud::EdgeScenarioConfig>* streamer) {
+                       return this->StreamedEdge_Register(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Edge_Register() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Edge_Register(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeRegistrationInfo* /*request*/, ::ecloud::EdgeScenarioConfig* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedEdge_Register(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::EdgeRegistrationInfo,::ecloud::EdgeScenarioConfig>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Edge_TickComplete : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Edge_TickComplete() {
+      ::grpc::Service::MarkMethodStreamed(15,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::EdgeTickComplete, ::ecloud::Empty>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::EdgeTickComplete, ::ecloud::Empty>* streamer) {
+                       return this->StreamedEdge_TickComplete(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Edge_TickComplete() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Edge_TickComplete(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTickComplete* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedEdge_TickComplete(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::EdgeTickComplete,::ecloud::Empty>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Edge_PushTick : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Edge_PushTick() {
+      ::grpc::Service::MarkMethodStreamed(16,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::EdgeTick, ::ecloud::Empty>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::EdgeTick, ::ecloud::Empty>* streamer) {
+                       return this->StreamedEdge_PushTick(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Edge_PushTick() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Edge_PushTick(::grpc::ServerContext* /*context*/, const ::ecloud::EdgeTick* /*request*/, ::ecloud::Empty* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedEdge_PushTick(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::EdgeTick,::ecloud::Empty>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Edge_ActorRegister : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Edge_ActorRegister() {
+      ::grpc::Service::MarkMethodStreamed(17,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::RegistrationInfo, ::ecloud::SimulationInfo>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::RegistrationInfo, ::ecloud::SimulationInfo>* streamer) {
+                       return this->StreamedEdge_ActorRegister(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Edge_ActorRegister() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* /*context*/, const ::ecloud::RegistrationInfo* /*request*/, ::ecloud::SimulationInfo* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedEdge_ActorRegister(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::RegistrationInfo,::ecloud::SimulationInfo>* server_unary_streamer) = 0;
+  };
+  template <class BaseClass>
+  class WithStreamedUnaryMethod_Edge_ActorSendUpdate : public BaseClass {
+   private:
+    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
+   public:
+    WithStreamedUnaryMethod_Edge_ActorSendUpdate() {
+      ::grpc::Service::MarkMethodStreamed(18,
+        new ::grpc::internal::StreamedUnaryHandler<
+          ::ecloud::VehicleUpdate, ::ecloud::ObjectBuffer>(
+            [this](::grpc::ServerContext* context,
+                   ::grpc::ServerUnaryStreamer<
+                     ::ecloud::VehicleUpdate, ::ecloud::ObjectBuffer>* streamer) {
+                       return this->StreamedEdge_ActorSendUpdate(context,
+                         streamer);
+                  }));
+    }
+    ~WithStreamedUnaryMethod_Edge_ActorSendUpdate() override {
+      BaseClassMustBeDerivedFromService(this);
+    }
+    // disable regular version of this method
+    ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/) override {
+      abort();
+      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+    }
+    // replace default version of method with streamed unary
+    virtual ::grpc::Status StreamedEdge_ActorSendUpdate(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::VehicleUpdate,::ecloud::ObjectBuffer>* server_unary_streamer) = 0;
+  };
+  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Client_GetConnectionInfo<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<WithStreamedUnaryMethod_Server_SetEdgeMappings<WithStreamedUnaryMethod_Edge_Register<WithStreamedUnaryMethod_Edge_TickComplete<WithStreamedUnaryMethod_Edge_PushTick<WithStreamedUnaryMethod_Edge_ActorRegister<WithStreamedUnaryMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<Service > > > > > > > > > > > > StreamedService;
+  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Client_GetConnectionInfo<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<WithStreamedUnaryMethod_Server_SetEdgeMappings<WithStreamedUnaryMethod_Edge_Register<WithStreamedUnaryMethod_Edge_TickComplete<WithStreamedUnaryMethod_Edge_PushTick<WithStreamedUnaryMethod_Edge_ActorRegister<WithStreamedUnaryMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > StreamedService;
 };
 
 }  // namespace ecloud

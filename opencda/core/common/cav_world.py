@@ -18,6 +18,11 @@ class CavWorld(object):
         Whether apply ml/dl models in this simulation, please make sure
         you have install torch/sklearn before setting this to True.
 
+    litserve : bool
+        Whether to use LitServe for distributed ML inference. If True,
+        ML inference is offloaded to a LitServe server on port 18000.
+        If False, models are loaded locally.
+
     Attributes
     ----------
     vehicle_id_set : set
@@ -34,7 +39,7 @@ class CavWorld(object):
 
     """
 
-    def __init__(self, apply_ml=False, run_distributed=False):
+    def __init__(self, apply_ml=False, litserve=False):
 
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
@@ -43,16 +48,23 @@ class CavWorld(object):
         self._scenario_manager = None
         self._rsu_manager_dict = {}
         self.ml_manager = None
-        self.run_distributed = run_distributed
+        self.litserve = litserve
         self.tick_id = 0
 
-        if apply_ml and (self.run_distributed == False):
+        if apply_ml and (not self.litserve):
             # we import in this way so the user don't need to install ml
             # packages unless they require to
             ml_manager = getattr(importlib.import_module(
                 "opencda.ml_manager.ml_manager"), 'MLManager')
             # initialize the ml manager to load the DL/ML models into memory
+            # run_distributed=False means load models locally (not using LitServe)
             self.ml_manager = ml_manager(apply_ml=apply_ml, run_distributed=False)
+        elif apply_ml and self.litserve:
+            # Using LitServe for distributed ML inference
+            # Load manager in distributed mode (will call LitServe server)
+            ml_manager = getattr(importlib.import_module(
+                "opencda.ml_manager.ml_manager"), 'MLManager')
+            self.ml_manager = ml_manager(apply_ml=apply_ml, run_distributed=True)
 
         # this is used only when co-simulation activated.
         self.sumo2carla_ids = {}
