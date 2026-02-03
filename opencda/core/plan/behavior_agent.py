@@ -746,14 +746,14 @@ class BehaviorAgent(object):
             print("My Id: %s" %self.vehicle.id)
             if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
                 print("Skipping prediction for ego vehicle")
-                # self.generated_predictions.remove(pred)
+                self.generated_predictions.remove(pred)
                 continue
 
             # ignore any predictions that match the ego vehicle
             if is_likely_ego(pred, self._ego_pos):
                 logger.debug("Prediction is likely ego, removing it")
-                # self.generated_predictions.remove(pred)
-                #continue
+                self.generated_predictions.remove(pred)
+                continue
 
             # for transform in pred.obstacle_trajectory.trajectory:
             #     print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
@@ -792,6 +792,49 @@ class BehaviorAgent(object):
             logger.debug("My Id: %s", self.vehicle.id)
             if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
                 logger.debug("Skipping prediction for ego vehicle")
+                continue
+
+            # skip trajectory if behind ego
+            def point_in_rear_cone(point, pose, cone_angle=15):
+                """
+                Check if a 2D point lies within a rear-facing angular cone of a pose.
+
+                Args:
+                    point: (x, y)
+                    pose: (x0, y0, theta)  # theta in radians
+                    half_angle_deg: half-angle of cone (degrees)
+
+                Returns:
+                    True if point is inside rear cone, False otherwise
+                """
+                k, z = point
+                x, y, theta = pose
+
+                f = np.array([np.cos(theta), np.sin(theta)]) # forward direction
+                v = np.array([k - x, z - y]) # vector to point
+                v_norm = np.linalg.norm(v)
+                if v_norm == 0:
+                    return False
+                
+                v_hat = v / v_norm
+                d = np.dot(f, v_hat)
+
+                if cone_angle == 0:
+                    return d < 0
+                else:
+                    phi = np.radians(cone_angle)
+                    return d < -np.cos(phi)
+            
+            ego_loc = self.vehicle.get_transform().location
+            ego_yaw = math.radians(self.vehicle.get_transform().rotation.yaw)
+            obstacle_loc = pred.obstacle_trajectory.trajectory[-1].location
+            print("Ego Location: (%s, %s), Yaw: %s" %(ego_loc.x, ego_loc.y, ego_yaw))
+            print("Obstacle Location: (%s, %s)" %(obstacle_loc.x, obstacle_loc.y))
+            if point_in_rear_cone(
+                (obstacle_loc.x, obstacle_loc.y),
+                (ego_loc.x, ego_loc.y, ego_yaw),
+                cone_angle=15):
+                print("Obstacle is behind ego, ignored")
                 continue
             
             collision, ttc = self._collision_check.trajectory_collision_check(
