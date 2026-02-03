@@ -29,7 +29,7 @@ from opencda.core.plan.behavior_agent \
     import BehaviorAgent
 from opencda.core.common.data_dumper import DataDumper
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
-from opencda.client_debug_helper import ClientDebugHelper
+from opencda.client_metrics import ClientMetrics
 from opencda.core.common.ecloud_config import eLocationType
 
 RESULT_SUCCESS = 0 # Step ran ok
@@ -121,7 +121,7 @@ class VehicleManagerProxy(object):
 
         # Use sockets for interprocess communication between OpenCDA and each vehicle
         #self._socket = conn
-        self.debug_helper = ClientDebugHelper(0)
+        self.client_metrics = ClientMetrics(0)
 
     def start_vehicle(self):
         #print("eCloud debug | actor_id: " + str(actor_id))

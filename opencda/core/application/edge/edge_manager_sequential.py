@@ -33,7 +33,7 @@ from opencda.core.prediction.linear_predictor_manager import \
     LinearPredictorManager
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
-from opencda.core.application.edge.edge_debug_helper import EdgeDebugHelper
+from opencda.core.application.edge.edge_metrics import EdgeMetrics
 
 
 # ───────────────────────── helpers ──────────────────────────
@@ -86,7 +86,7 @@ class EdgeManagerSequential:
         self.world = world
         self.dt    = world_dt
         self.vm_list, self.rsu_list = [], []
-        self.debug = EdgeDebugHelper(0)
+        self.debug = EdgeMetrics(0)
 
         # ─ 1.  load BM2CP detector ───────────────────────────
         bm_cfg   = cfg['bm2cp_model']

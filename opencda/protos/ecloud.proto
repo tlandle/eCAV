@@ -136,7 +136,7 @@ message PlanerDebugHelper {
 
 message CollisionEvent {
   string type_id = 1;
-  int32 other_actor_id = 2;
+  int32 other_actor_id = 2; 
   Location location = 3;
 }
 
@@ -229,20 +229,206 @@ message EdgeObjects {
   repeated ObjectBuffer all_object_buffers = 1;
 }
 
+// ============================================
+// Intermediate Fusion Messages (BM2CP, WorldFusion)
+// ============================================
+
+// Compressed tensor for efficient feature transfer
+message CompressedTensor {
+  bytes data = 1;                    // Compressed tensor data (e.g., blosc, lz4)
+  repeated int32 shape = 2;          // Original tensor shape
+  string dtype = 3;                  // Tensor dtype (e.g., "float32")
+  string compression = 4;            // Compression method ("blosc", "lz4", "none")
+  int32 original_size = 5;           // Original uncompressed size in bytes
+}
+
+// Agent pose for coordinate transformation
+message AgentPose {
+  int32 agent_id = 1;                // Vehicle/RSU ID
+  repeated float pose = 2;           // [x, y, z, roll, yaw, pitch]
+  repeated float lidar_pose = 3;     // LiDAR sensor pose if different from agent
+}
+
+// Intermediate features from a single agent (vehicle or RSU)
+message IntermediateFeatures {
+  int32 agent_id = 1;                // Vehicle/RSU ID
+  ActorType agent_type = 2;          // VEHICLE or RSU
+  AgentPose pose = 3;                // Agent's pose for coordinate transformation
+
+  // BM2CP features
+  CompressedTensor spatial_features = 4;  // BEV spatial features
+  CompressedTensor psm = 5;               // Probability score map (attention)
+  CompressedTensor rm = 6;                 // Regression map
+  CompressedTensor thres_map = 7;         // Threshold map for communication
+
+  // WorldFusion features (simpler - just spatial features)
+  // Uses spatial_features field above
+
+  // Camera features (optional, for camera-only or LiDAR+camera fusion)
+  CompressedTensor camera_features = 8;
+
+  // Metadata
+  int64 timestamp_ns = 9;            // Feature extraction timestamp
+  float communication_rate = 10;     // Fraction of features transmitted (0-1)
+}
+
+// Request for intermediate features from edge
+message IntermediateFeaturesRequest {
+  int32 vehicle_index = 1;
+  int32 tick_id = 2;
+}
+
+// Response containing fused features or detections
+message FusionResult {
+  int32 tick_id = 1;
+  repeated EdgeObstacleObject detections = 2;  // Fused detections
+  float communication_rate = 3;                 // Average communication rate
+  int64 fusion_time_ns = 4;                     // Time spent on fusion
+}
+
+// Batch of intermediate features for fusion (sent to edge)
+message IntermediateFeaturesBatch {
+  int32 tick_id = 1;
+  repeated IntermediateFeatures features = 2;  // Features from all agents
+  repeated float pairwise_t_matrix = 3;        // Flattened transformation matrix [N, N, 4, 4]
+  repeated int32 pairwise_t_matrix_shape = 4;  // Shape of pairwise_t_matrix
+  int32 record_len = 5;                        // Number of agents
+}
+
+// ============================================
+// Edge Architecture Messages
+// ============================================
+
+// Edge registration with orchestrator
+message EdgeRegistrationInfo {
+  int32 edge_index = 1;
+  string edge_ip = 2;
+  int32 edge_port = 3;
+  int32 num_vehicles = 4;
+  int32 num_rsus = 5;
+  string container_name = 6;
+}
+
+// Edge scenario configuration (returned to edge on registration)
+message EdgeScenarioConfig {
+  int32 edge_index = 1;
+  string edge_config_yaml = 2;  // JSON of edge-specific YAML section
+  int32 num_vehicles = 3;
+  int32 num_rsus = 4;
+  repeated int32 vehicle_indices = 5;  // Global vehicle indices owned by this edge
+  repeated int32 rsu_indices = 6;      // Global RSU indices owned by this edge
+  string carla_ip = 7;
+  int32 carla_port = 8;
+  string application = 9;
+  string version = 10;
+}
+
+// Edge tick completion notification (edge -> orchestrator)
+message EdgeTickComplete {
+  int32 edge_index = 1;
+  int32 tick_id = 2;
+  int32 num_actors_processed = 3;  // How many actors this edge processed
+}
+
+// Tick notification to edge (orchestrator -> edge)
+message EdgeTick {
+  int32 tick_id = 1;
+  Command command = 2;
+}
+
+// Simple message for edge index queries
+message EdgeIndex {
+  int32 edge_index = 1;
+}
+
+// Actor connection info - tells actor where to connect
+message ActorConnectionInfo {
+  bool has_edge = 1;              // True if actor should connect to edge
+  string edge_ip = 2;             // Edge IP address (if has_edge)
+  int32 edge_port = 3;            // Edge port (if has_edge)
+  int32 edge_index = 4;           // Edge index (if has_edge)
+  int32 vehicle_index = 5;        // Assigned vehicle index
+  // If has_edge is false, actor connects to orchestrator directly (existing behavior)
+}
+
+// Actor update with response - for edge communication
+// Actor sends update, receives previous tick's fused data in response
+message ActorUpdateWithResponse {
+  VehicleUpdate update = 1;
+  ObjectBuffer fused_objects = 2;  // Previous tick's fused predictions (in response)
+}
+
+// Edge mapping information (sim_api.py -> orchestrator)
+// Tells orchestrator which vehicles/RSUs belong to which edges
+message EdgeMapping {
+  int32 edge_index = 1;
+  repeated int32 vehicle_indices = 2;
+  repeated int32 rsu_indices = 3;
+}
+
+message EdgeMappingSetup {
+  int32 num_edges = 1;
+  repeated EdgeMapping mappings = 2;
+}
+
 service Ecloud {
-  // PUSH
+  // PUSH (orchestrator -> actor/edge)
   rpc PushTick(Tick) returns (Empty);
-  // CLIENT
+
+  // CLIENT -> ORCHESTRATOR (existing, for edge-less scenarios)
   rpc Client_SendUpdate (VehicleUpdate) returns (Empty);
   rpc Client_RegisterVehicle (RegistrationInfo) returns (SimulationInfo);
   rpc Client_GetScenario(ScenarioRequest) returns (SimulationInfo);
   rpc Client_GetWaypoints(WaypointRequest) returns (WaypointBuffer);
   rpc Client_GetObjects(ObjectRequest) returns (ObjectBuffer);
-  // SERVER
+
+  // CLIENT -> ORCHESTRATOR (new: connection discovery)
+  // Actor asks orchestrator where to connect (edge or orchestrator)
+  rpc Client_GetConnectionInfo(RegistrationInfo) returns (ActorConnectionInfo);
+
+  // SERVER/SIMULATOR -> ORCHESTRATOR (existing)
   rpc Server_DoTick(Tick) returns (Empty);
   rpc Server_StartScenario(SimulationInfo) returns (Empty);
   rpc Server_EndScenario(Empty) returns (Empty);
   rpc Server_GetVehicleUpdates(Empty) returns (EcloudResponse);
   rpc Server_PushEdgeWaypoints(EdgeWaypoints) returns (Empty);
   rpc Server_PushEdgeObjects(EdgeObjects) returns (Empty);
+  // Set up edge mappings before edges/actors start
+  rpc Server_SetEdgeMappings(EdgeMappingSetup) returns (Empty);
+
+  // ============================================
+  // Edge Architecture RPCs
+  // ============================================
+
+  // EDGE -> ORCHESTRATOR
+  // Edge registers with orchestrator, receives its scenario configuration
+  rpc Edge_Register(EdgeRegistrationInfo) returns (EdgeScenarioConfig);
+  // Edge notifies orchestrator it completed processing for a tick
+  rpc Edge_TickComplete(EdgeTickComplete) returns (Empty);
+
+  // ORCHESTRATOR -> EDGE (push)
+  // Orchestrator pushes tick to edge (reuses PushTick with EdgeTick semantics)
+  rpc Edge_PushTick(EdgeTick) returns (Empty);
+
+  // ACTOR -> EDGE
+  // Actor registers with edge (similar to Client_RegisterVehicle)
+  rpc Edge_ActorRegister(RegistrationInfo) returns (SimulationInfo);
+  // Actor sends update to edge, receives previous tick's fused data
+  rpc Edge_ActorSendUpdate(VehicleUpdate) returns (ObjectBuffer);
+
+  // ============================================
+  // Intermediate Fusion RPCs (BM2CP, WorldFusion)
+  // ============================================
+
+  // ACTOR -> EDGE (intermediate fusion)
+  // Actor sends intermediate features to edge for fusion
+  rpc Edge_SendIntermediateFeatures(IntermediateFeatures) returns (Empty);
+
+  // EDGE -> ACTOR (intermediate fusion)
+  // Actor requests fusion results from edge
+  rpc Edge_GetFusionResult(IntermediateFeaturesRequest) returns (FusionResult);
+
+  // EDGE INTERNAL (batch fusion)
+  // Edge performs batch fusion on all received features
+  rpc Edge_PerformFusion(IntermediateFeaturesBatch) returns (FusionResult);
 }

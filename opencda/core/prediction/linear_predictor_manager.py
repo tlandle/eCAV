@@ -23,7 +23,8 @@ class LinearPredictorManager():
             :py:class:`~pylot.prediction.messages.PredictionMessage` messages.
         flags (absl.flags): Object to be used to access absl flags.
     """
-    def __init__(self, num_future_steps=25):
+    def __init__(self, num_future_steps=60):
+        # 60 steps at 0.05s/step = 3 seconds prediction horizon
         self.num_predicted_steps = num_future_steps
 
     def generate_predicted_trajectories(self, tracked_obstacles_trajectories):

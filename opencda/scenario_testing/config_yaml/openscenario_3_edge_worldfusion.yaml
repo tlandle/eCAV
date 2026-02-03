@@ -96,6 +96,7 @@ vehicle_base: &vehicle_base
       camera:
         visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4
+        fov: 70 # Must match V2XSim training (70°). Using 100° causes 3.4x focal length mismatch!
         positions:
           # existing three (front / left / right) …
           - [ 1.5,  0.0, 1.7,   0]     # front
@@ -107,7 +108,7 @@ vehicle_base: &vehicle_base
         visualize: false
         channels: 32
         range: 50
-        points_per_second: 100000
+        points_per_second: 500000  # V2XSim uses ~25k pts/scan, so 500k/20Hz = 25k pts/scan
         rotation_frequency: 20 # the simulation is 20 fps
         upper_fov: 10.0
         lower_fov: -30.0
@@ -116,18 +117,18 @@ vehicle_base: &vehicle_base
         dropoff_zero_intensity: 0.0
         noise_stddev: 0.0
     localization: &base_localize
-      activate: false # when not activated, ego position will be retrieved from server directly
+      activate: true # when not activated, ego position will be retrieved from server directly
       dt: ${world.fixed_delta_seconds} # used for kalman filter
-      gnss: # gnss sensor configuration
-        noise_alt_stddev: 0
-        noise_lat_stddev: 0
-        noise_lon_stddev: 0
-        heading_direction_stddev: 0 # degree
-        speed_stddev: 0
+      gnss: # gnss sensor configuration - realistic automotive-grade GNSS noise
+        noise_alt_stddev: 0.5  # meters - altitude noise
+        noise_lat_stddev: 1.5e-6  # ~0.17m at equator
+        noise_lon_stddev: 1.5e-6  # ~0.17m at equator
+        heading_direction_stddev: 1.0 # degree - heading noise
+        speed_stddev: 0.5  # m/s - speed measurement noise
       debug_helper: &loc_debug_helper
         show_animation: false # whether to show real-time trajectory plotting
         x_scale: 1.0 # used to multiply with the x coordinate to make the error on x axis clearer
-        y_scale: 100.0 # used to multiply with the y coordinate to make the error on y axis clearer
+        y_scale: 1.0 # used to multiply with the y coordinate to make the error on y axis clearer
   behavior: &base_behavior
     max_speed: 70 # km/h, the maximum speed of the ego vehicle
     tailgate_speed: 121 # when a vehicles needs to be close to another vehicle asap
@@ -199,6 +200,7 @@ rsu_base: &rsu_base
       camera:
         visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+        fov: 70 # Must match V2XSim training (70°). Using 100° causes 3.4x focal length mismatch!
         # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
         positions:
           - [2.5, 0, 1.0, 0]
@@ -315,6 +317,7 @@ scenario:
               camera:
                 visualize: 4
                 num: 4
+                fov: 70 # Must match V2XSim training (70°)
                 positions:
                   - [ 1.5,  0.0, 1.7,   0]
                   - [ 0.0, -1.5, 1.7, -90]

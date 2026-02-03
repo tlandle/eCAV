@@ -30,7 +30,7 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.application.edge.transform_utils import serialize_waypoint
-from opencda.core.application.edge.edge_debug_helper import EdgeDebugHelper
+from opencda.core.application.edge.edge_metrics import EdgeMetrics
 
 import ecloud_pb2 as ecloud          # gRPC waypoint buffer proto
 # ----------------------------------------------------------------------

@@ -51,8 +51,8 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
 from opencda.core.application.edge.transform_utils import *
-from opencda.core.application.edge.edge_debug_helper import \
-    EdgeDebugHelper
+from opencda.core.application.edge.edge_metrics import \
+    EdgeMetrics
 
 import grpc
 import ecloud_pb2 as ecloud
@@ -396,7 +396,7 @@ class EdgeManager(object):
         self.carla_to_track = {}
         self.beacon_history = defaultdict(lambda: deque(maxlen=100))
 
-        self.debug_helper = EdgeDebugHelper(0)
+        self.edge_metrics = EdgeMetrics(0)
 
         self.search_dt = config_yaml['search_dt'] if 'search_dt' in config_yaml else 2.00
         self.numlanes = config_yaml['num_lanes'] if 'num_lanes' in config_yaml else 4
@@ -1226,7 +1226,7 @@ class EdgeManager(object):
         end_prediction_time = time.perf_counter()
         prediction_time = (end_prediction_time - start_prediction_time) * 1000  # Convert to milliseconds
 
-        self.debug_helper.update_edge(0,
+        self.edge_metrics.update_edge(0,
                                  tracking_time=tracker_time,
                                  prediction_time=prediction_time)
 
@@ -1419,7 +1419,7 @@ class EdgeManager(object):
         preds = self.linear_predictor_manager.generate_predicted_trajectories(self.tracked_trajectories)
         prediction_ms = (time.perf_counter() - prediction_start_time) * 1000.0
 
-        self.debug_helper.update_edge(0,
+        self.edge_metrics.update_edge(0,
                                       tracking_time=tracker_ms,
                                       prediction_time=prediction_ms,
                                       latency=total_latency_ms)
@@ -1524,7 +1524,7 @@ class EdgeManager(object):
         predict_ms = (time.perf_counter() - t1) * 1000.0
 
         # ------------------------------------------------ debug/telemetry
-        self.debug_helper.update_edge(0,
+        self.edge_metrics.update_edge(0,
                                       tracking_time=tracker_ms,
                                       prediction_time=predict_ms,
                                       latency=total_latency_ms)
@@ -1700,7 +1700,7 @@ class EdgeManager(object):
         self.algorithm_step()
         post_algo_time = time.time()
         logger.debug("Algorithm completion time: %s", (post_algo_time - pre_algo_time))
-        self.debug_helper.update_edge((post_algo_time - pre_algo_time)*1000)
+        self.edge_metrics.update_edge((post_algo_time - pre_algo_time)*1000)
         all_waypoint_buffers = []
         #logger.debug("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
@@ -1762,28 +1762,28 @@ class EdgeManager(object):
         #time_gap_list = []
         #distance_gap_list = []
         algorithm_time_list = []
-        debug_helper = self.debug_helper
+        planning_metrics = self.edge_metrics
 
         perform_txt = ''
 
         for i in range(len(self.vehicle_manager_list)):
             vm = self.vehicle_manager_list[i]
-            debug_helper = vm.agent.debug_helper
+            planning_metrics = vm.agent.planning_metrics
 
             # we need to filter out the first 100 data points
             # since the vehicles spawn at the beginning have
             # no velocity and thus make the time gap close to infinite
 
-            #velocity_list += debug_helper.speed_list
-            #time_gap_list += debug_helper.time_gap_list
-            #distance_gap_list += debug_helper.dist_gap_list
+            #velocity_list += planning_metrics.speed_list
+            #time_gap_list += planning_metrics.time_gap_list
+            #distance_gap_list += planning_metrics.dist_gap_list
 
             #time_gap_list_tmp = \
-            #    np.array(debug_helper.time_gap_list)
+            #    np.array(planning_metrics.time_gap_list)
             #time_gap_list_tmp = \
             #    time_gap_list_tmp[time_gap_list_tmp < 100]
             #distance_gap_list_tmp = \
-            #    np.array(debug_helper.dist_gap_list)
+            #    np.array(planning_metrics.dist_gap_list)
             #distance_gap_list_tmp = \
             #    distance_gap_list_tmp[distance_gap_list_tmp < 100]
 
@@ -1795,21 +1795,21 @@ class EdgeManager(object):
             #    np.mean(distance_gap_list_tmp), np.std(distance_gap_list_tmp))
 
 
-        algorithm_time_list += self.debug_helper.algorithm_time_list
+        algorithm_time_list += self.edge_metrics.algorithm_time_list
         algorithm_time_list_tmp = \
-                np.array(self.debug_helper.algorithm_time_list)
+                np.array(self.edge_metrics.algorithm_time_list)
         algorithm_time_list_tmp = \
                 algorithm_time_list_tmp[algorithm_time_list_tmp < 100]
 
-        tracking_time_list = self.debug_helper.tracking_time_list
+        tracking_time_list = self.edge_metrics.tracking_time_list
         tracking_time_list_mean = np.mean(tracking_time_list)
         tracking_time_list_std = np.std(tracking_time_list)
 
-        prediction_time_list = self.debug_helper.prediction_time_list
+        prediction_time_list = self.edge_metrics.prediction_time_list
         prediction_time_list_mean = np.mean(prediction_time_list)
         prediction_time_list_std = np.std(prediction_time_list)
 
-        latency_list = self.debug_helper.latency_list
+        latency_list = self.edge_metrics.latency_list
         latency_list_mean = np.mean(latency_list)
         latency_list_std = np.std(latency_list)
 

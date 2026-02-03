@@ -24,7 +24,7 @@ import numpy as np
 import carla
 
 from .edge_manager_base import _BaseEdgeManager, logger
-from opencda.core.application.edge.edge_debug_helper import EdgeDebugHelper
+from opencda.core.application.edge.edge_metrics import EdgeMetrics
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ class PerceptionEdge(_BaseEdgeManager):
 
         # step-time
         self.dt   : float = world_dt          # seconds
-        self.debug: EdgeDebugHelper = EdgeDebugHelper(0)
+        self.debug: EdgeMetrics = EdgeMetrics(0)
 
     # ------------------------------------------------------------------
     #  Life-cycle hooks required by _BaseEdgeManager

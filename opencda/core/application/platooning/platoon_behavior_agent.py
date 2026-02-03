@@ -12,8 +12,8 @@ import carla
 import numpy as np
 
 from opencda.core.application.platooning.fsm import FSM
-from opencda.core.application.platooning.platoon_debug_helper import \
-    PlatoonDebugHelper
+from opencda.core.application.platooning.platoon_metrics import \
+    PlatoonMetrics
 from opencda.core.common.misc import \
     compute_distance, get_speed, cal_distance_angle
 from opencda.core.plan.behavior_agent import BehaviorAgent
@@ -94,7 +94,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.warm_up_speed = platoon_yaml['warm_up_speed']
 
         # used to calculate performance
-        self.debug_helper = PlatoonDebugHelper(self.vehicle.id)
+        self.platoon_metrics = PlatoonMetrics(self.vehicle.id)
         self.time_gap = 100.0
         self.dist_gap = 100.0
 
@@ -248,7 +248,7 @@ class PlatooningBehaviorAgent(BehaviorAgent):
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
         # update the debug helper
-        self.debug_helper.update(
+        self.platoon_metrics.update(
             ego_speed,
             self.ttc,
             time_gap=self.time_gap,

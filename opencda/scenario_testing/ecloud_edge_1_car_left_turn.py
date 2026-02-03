@@ -197,7 +197,7 @@ def run_scenario(opt, scenario_params):
                 post_client_tick_time = time.time()
                 print("Client tick completion time: %s" %(post_client_tick_time - pre_client_tick_time))
                 if step > 0: # discard the first tick as startup is a major outlier
-                    scenario_manager.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+                    scenario_manager.sim_metrics.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
             # same for dist / non-dist - only required for specate
             transform = edge_list[0].vehicle_manager_list[3].vehicle.get_transform()

@@ -5,12 +5,13 @@ Used to load and write yaml files
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import os
 import re
 import yaml
 from datetime import datetime
 from omegaconf import OmegaConf
 
-def load_yaml(file):
+def load_yaml(file, store_path=True):
     """
     Load yaml file and return a dictionary.
     Parameters
@@ -43,6 +44,11 @@ def load_yaml(file):
     current_time = current_time.strftime("%Y_%m_%d_%H_%M_%S")
 
     param['current_time'] = current_time
+
+    # Store config file path for resolving relative paths (e.g., route files)
+    if store_path:
+        param['_config_path'] = os.path.abspath(file)
+        param['_config_dir'] = os.path.dirname(os.path.abspath(file))
 
     return param
 

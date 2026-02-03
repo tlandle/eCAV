@@ -185,15 +185,7 @@ def run_scenario(opt, scenario_params):
             # Apply the control to the ego vehicle
             for edge in edge_list:
                 edge.update_information(step)
-                serialized_predictions = edge.run_step(step)
-
-                if opt.distributed:
-                    # Push predictions to distributed actors
-                    scenario_manager.push_edge_objects(serialized_predictions)
-                else:
-                    # Sequential mode: update vehicles/RSUs directly
-                    edge.update_vehicle_infos(step)
-                    edge.update_rsu_infos()
+                edge.run_step(step)
 
             step = step + 1
             if step >= MAX_STEP:
@@ -211,6 +203,16 @@ def run_scenario(opt, scenario_params):
         print(traceback.format_exc())
 
     finally:
+        # Terminate ScenarioRunner subprocess FIRST to avoid blocking
+        if sr_process is not None:
+            sr_process.terminate()
+            sr_process.join(timeout=5)
+            print("Joined scenario_runner process")
+
+        if scenario_runner is not None:
+            scenario_runner.destroy()
+            print("Destroyed scenario_runner")
+
         for edge in edge_list:
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
@@ -225,12 +227,3 @@ def run_scenario(opt, scenario_params):
         if scenario_manager is not None:
             scenario_manager.close()
             print("Destroyed scenario_manager")
-
-        if scenario_runner is not None:
-            scenario_runner.destroy()
-            print("Destroyed scenario_runner")
-
-        if sr_process is not None:
-            sr_process.terminate()
-            sr_process.join()
-            print("Joined scenario_runner process")

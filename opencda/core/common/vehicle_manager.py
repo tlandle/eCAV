@@ -47,7 +47,8 @@ from opencda.core.map.map_manager import MapManager
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.common.misc import compute_distance
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
-from opencda.client_debug_helper import ClientDebugHelper
+from opencda.scenario_testing.utils.route_parser import RouteParser
+from opencda.client_metrics import ClientMetrics
 from opencda.core.common.ecloud_config import eLocationType
 from opencda.core.common.traffic_event import TrafficEvent, TrafficEventType
 
@@ -237,16 +238,35 @@ class VehicleManager(object):
                         break
 
                     self.destination = {}
+                    self.route = None  # Multi-waypoint route if available
+
                     if edge_sets_destination:
                         self.destination['x'] = self.scenario_params['scenario']['edge_list'][0]['destination'][0]
                         self.destination['y'] = self.scenario_params['scenario']['edge_list'][0]['destination'][1]
                         self.destination['z'] = self.scenario_params['scenario']['edge_list'][0]['destination'][2]
-                    else:
+                    elif 'route_file' in cav_config:
+                        # Load route from XML file
+                        import os
+                        config_dir = self.scenario_params.get('_config_dir', '')
+                        if not config_dir:
+                            config_dir = os.path.join(os.path.dirname(__file__),
+                                                      '../../scenario_testing/config_yaml')
+                        self.route = RouteParser.get_route_from_config(cav_config, base_path=config_dir)
+                        if self.route and self.route.destination:
+                            dest_wp = self.route.destination
+                            self.destination['x'] = dest_wp.x
+                            self.destination['y'] = dest_wp.y
+                            self.destination['z'] = dest_wp.z
+                            logger.info("[VehicleManager] Loaded route '%s' with %d waypoints from %s",
+                                       self.route.id, len(self.route.waypoints), cav_config['route_file'])
+                        else:
+                            raise ValueError(f"Failed to load route from {cav_config['route_file']}")
+                    elif 'destination' in cav_config:
                         self.destination['x'] = cav_config['destination'][0]
                         self.destination['y'] = cav_config['destination'][1]
                         self.destination['z'] = cav_config['destination'][2]
-
-                    #print("Destination: (%s, %s, %s)" %(self.destination['x'], self.destination['y'], self.destination['z']))
+                    else:
+                        raise ValueError("Vehicle config must have 'destination', 'route_file', or edge_sets_destination")
 
                     self.destination_location = carla.Location(
                             x=self.destination['x'],
@@ -311,9 +331,40 @@ class VehicleManager(object):
         # self.vehicle.set_transform(spawn_transform)
         # self.world.tick()
 
+        # Handle destination for vehicles spawned externally (e.g., by ScenarioRunner)
+        # This runs when spawn_position is not in config but route_file or destination is
+        if not hasattr(self, 'destination_location') or self.destination_location is None:
+            import os
+            self.destination = {}
+            self.route = None
+
+            if 'route_file' in cav_config:
+                config_dir = self.scenario_params.get('_config_dir', '')
+                if not config_dir:
+                    config_dir = os.path.join(os.path.dirname(__file__),
+                                              '../../scenario_testing/config_yaml')
+                self.route = RouteParser.get_route_from_config(cav_config, base_path=config_dir)
+                if self.route and self.route.destination:
+                    dest_wp = self.route.destination
+                    self.destination['x'] = dest_wp.x
+                    self.destination['y'] = dest_wp.y
+                    self.destination['z'] = dest_wp.z
+                    logger.info("[VehicleManager] Loaded route '%s' with %d waypoints from %s",
+                               self.route.id, len(self.route.waypoints), cav_config['route_file'])
+            elif 'destination' in cav_config:
+                self.destination['x'] = cav_config['destination'][0]
+                self.destination['y'] = cav_config['destination'][1]
+                self.destination['z'] = cav_config['destination'][2]
+
+            if self.destination:
+                self.destination_location = carla.Location(
+                    x=self.destination['x'],
+                    y=self.destination['y'],
+                    z=self.destination['z'])
+
         # eCLOUD END
 
-        self.debug_helper = ClientDebugHelper(0)
+        self.client_metrics = ClientMetrics(0)
         # retrieve the configure for different modules
         sensing_config = cav_config['sensing']
         map_config = cav_config['map_manager']
@@ -346,19 +397,19 @@ class VehicleManager(object):
             self.perception_manager = BM2CPPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
-                debug_helper=self.debug_helper)
+                debug_helper=self.client_metrics)
             print("Using BM2CP Perception Manager in VehicleManager")
         elif percep_type == 'worldfusion':
             self.perception_manager = WorldFusionPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
-                debug_helper=self.debug_helper)
+                debug_helper=self.client_metrics)
             print("Using WorldFusion Perception Manager in VehicleManager")
         else:
             self.perception_manager = PerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
-                debug_helper=self.debug_helper)
+                debug_helper=self.client_metrics)
             print("Using default Perception Manager")
         logger.debug("PerceptionManager created")
 
@@ -435,7 +486,7 @@ class VehicleManager(object):
             'y': actor_location.y,
             'z': actor_location.z})
 
-        self.debug_helper.update_lane_invasions(lane_invasion_event)
+        self.client_metrics.update_lane_invasions(lane_invasion_event)
 
     @staticmethod
     def _count_collisions(weak_self, event):
@@ -500,7 +551,7 @@ class VehicleManager(object):
         #input()
         #print(self.agent.objects)
 
-        self.debug_helper.update_collision(collision_event)
+        self.client_metrics.update_collision(collision_event)
 
         # Number 0: static objects -> ignore it
         if event.other_actor.id != 0:
@@ -597,7 +648,7 @@ class VehicleManager(object):
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
         logger.debug("Localizer time: %s" %(end_time - start_time))
-        self.debug_helper.update_localization_time((end_time-start_time)*1000)
+        self.client_metrics.update_localization_time((end_time-start_time)*1000)
 
         # object detection
         start_time = time.time()
@@ -642,7 +693,7 @@ class VehicleManager(object):
         logger.debug(f"Combined Objects: {objects}")
         end_time = time.time()
         logger.debug("Perception time: %s" %(end_time - start_time))
-        self.debug_helper.update_perception_time((end_time-start_time)*1000)
+        self.client_metrics.update_perception_time((end_time-start_time)*1000)
 
         #assignments = self.tracking_manager.deactivate_mode(objects, ego_pos)
         
@@ -673,14 +724,14 @@ class VehicleManager(object):
         self.agent.update_information(ego_pos, ego_spd, objects)
         end_time = time.time()
         logger.debug("Agent Update info time: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_update_info_time((end_time-start_time)*1000)
+        self.client_metrics.update_agent_update_info_time((end_time-start_time)*1000)
 
         # pass position and speed info to controller
         start_time = time.time()
         self.controller.update_info(ego_pos, ego_spd)
         end_time = time.time()
         logger.debug("Controller update time: %s" %(end_time - start_time))
-        self.debug_helper.update_controller_update_info_time((end_time-start_time)*1000)
+        self.client_metrics.update_controller_update_info_time((end_time-start_time)*1000)
 
     def run_step(self, target_speed=None):
         """
@@ -710,9 +761,9 @@ class VehicleManager(object):
         post_vehicle_step_time = time.time()
         logger.debug("Controller step time: %s" %(post_vehicle_step_time - end_time))
         logger.debug("Vehicle step time: %s" %(post_vehicle_step_time - pre_vehicle_step_time))
-        self.debug_helper.update_controller_step_time((post_vehicle_step_time - end_time)*1000)
-        self.debug_helper.update_vehicle_step_time((post_vehicle_step_time - pre_vehicle_step_time)*1000)
-        self.debug_helper.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)
+        self.client_metrics.update_controller_step_time((post_vehicle_step_time - end_time)*1000)
+        self.client_metrics.update_vehicle_step_time((post_vehicle_step_time - pre_vehicle_step_time)*1000)
+        self.client_metrics.update_agent_step_time((end_time - pre_vehicle_step_time)*1000)
 
         # dump data
         if self.data_dumper:
@@ -729,7 +780,7 @@ class VehicleManager(object):
         start_time = time.time()
         self.vehicle.apply_control(control)
         end_time = time.time()
-        self.debug_helper.update_control_time((end_time - start_time)*1000)
+        self.client_metrics.update_control_time((end_time - start_time)*1000)
 
     def destroy(self):
         """

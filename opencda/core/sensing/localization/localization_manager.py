@@ -12,8 +12,8 @@ import carla
 import numpy as np
 
 from opencda.core.common.misc import get_speed
-from opencda.core.sensing.localization.localization_debug_helper \
-    import LocDebugHelper
+from opencda.core.sensing.localization.localization_metrics \
+    import LocalizationMetrics
 from opencda.core.sensing.localization.kalman_filter import KalmanFilter
 from opencda.core.sensing.localization.coordinate_transform \
     import geo_to_transform
@@ -198,7 +198,7 @@ class LocalizationManager(object):
             self.kf = KalmanFilter(self.dt)
 
         # DebugHelper
-        self.debug_helper = LocDebugHelper(
+        self.localization_metrics = LocalizationMetrics(
             config_yaml['debug_helper'], self.vehicle.id)
 
     def localize(self):
@@ -214,16 +214,29 @@ class LocalizationManager(object):
             speed_noise = self.add_speed_noise(speed_true)
 
             # gnss coordinates under ESU(Unreal coordinate system)
+            # Skip if GNSS hasn't initialized yet (returns 0,0,0)
+            if self.gnss.lat == 0.0 and self.gnss.lon == 0.0:
+                self._ego_pos = self.vehicle.get_transform()
+                self._speed = get_speed(self.vehicle)
+                return
+
             x, y, z = geo_to_transform(self.gnss.lat,
                                        self.gnss.lon,
                                        self.gnss.alt,
                                        self.geo_ref.latitude,
                                        self.geo_ref.longitude, 0.0)
 
-            # only use this for debugging purpose
+            # Get ground truth location and convert to same coordinate frame as GNSS
+            # CRITICAL: Must apply same geo_to_transform conversion to ensure
+            # localization metrics compare apples-to-apples (both in Web Mercator)
             location = self.vehicle.get_transform().location
-            #print("GNSS Location: (%s, %s, %s)" %(x, y, z))
-            #print("Actual Location: (%s, %s, %s)" %(location.x, location.y, location.z))
+            gt_geo = self.map.transform_to_geolocation(location)
+            gt_x, gt_y, gt_z = geo_to_transform(gt_geo.latitude,
+                                                 gt_geo.longitude,
+                                                 gt_geo.altitude,
+                                                 self.geo_ref.latitude,
+                                                 self.geo_ref.longitude, 0.0)
+
 
             # We add synthetic noise to the heading direction
             rotation = self.vehicle.get_transform().rotation
@@ -245,8 +258,8 @@ class LocalizationManager(object):
             #print("Calculated speed: ", self._speed)
             #print("Actual Speed: " , get_speed(self.vehicle))
 
-            # add data to debug helper
-            self.debug_helper.run_step(x,
+            # add data to debug helper (both GNSS and ground truth now in same frame)
+            self.localization_metrics.run_step(x,
                                        y,
                                        heading_angle,
                                        speed_noise,
@@ -254,8 +267,8 @@ class LocalizationManager(object):
                                        y_kf,
                                        heading_angle_kf,
                                        self._speed,
-                                       location.x,
-                                       location.y,
+                                       gt_x,
+                                       gt_y,
                                        rotation.yaw,
                                        speed_true)
 

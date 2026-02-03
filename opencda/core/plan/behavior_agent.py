@@ -23,7 +23,7 @@ from opencda.core.plan.collision_check import CollisionChecker
 from opencda.core.plan.local_planner_behavior import LocalPlanner, RoadOption
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
-from opencda.core.plan.planer_debug_helper import PlanDebugHelper
+from opencda.core.plan.planning_metrics import PlanningMetrics
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.prediction.obstacle_prediction import ObstaclePrediction
@@ -208,7 +208,7 @@ class BehaviorAgent(object):
     objects : dict
         The dictionary that contains all kinds of objects nearby.
 
-    debug_helper : PlanDebugHelper
+    debug_helper : PlanningMetrics
         The helper class that help with the debug functions.
     """
 
@@ -283,7 +283,7 @@ class BehaviorAgent(object):
         self.objects = {}
 
         # debug helper
-        self.debug_helper = PlanDebugHelper(self.vehicle.id)
+        self.planning_metrics = PlanningMetrics(self.vehicle.id)
         # logger.debug message in debug mode
         self.debug = False if 'debug' not in \
                               config_yaml else config_yaml['debug']
@@ -381,7 +381,7 @@ class BehaviorAgent(object):
         #logger.debug(self.obstacle_vehicles)
 
         # update the debug helper
-        self.debug_helper.update(ego_speed, self.ttc)
+        self.planning_metrics.update(ego_speed, self.ttc)
 
         if self.ignore_traffic_light:
             self.light_state = "Green"
@@ -522,6 +522,17 @@ class BehaviorAgent(object):
             self.end_waypoint = end_waypoint
 
         route_trace = self._trace_route(self.start_waypoint, end_waypoint)
+
+        # DEBUG: Conditional breakpoint - triggers if route seems to go backwards (y decreasing significantly)
+        # Set BEHAVIOR_DEBUG=1 env var to enable: BEHAVIOR_DEBUG=1 python opencda.py ...
+        import os
+        if os.environ.get('BEHAVIOR_DEBUG') and route_trace and len(route_trace) > 1:
+            first_wp = route_trace[0][0].transform.location
+            last_wp = route_trace[-1][0].transform.location
+            # Trigger breakpoint if route goes significantly backwards in Y (potential U-turn)
+            if last_wp.y < first_wp.y - 10:
+                print(f"[ROUTE DEBUG] Suspicious route: start=({first_wp.x:.1f}, {first_wp.y:.1f}), end=({last_wp.x:.1f}, {last_wp.y:.1f})")
+                breakpoint()  # Will pause here - use 'c' to continue, 'n' for next, 'p var' to print
 
         self._local_planner.set_global_plan(route_trace, clean)
 
@@ -765,7 +776,7 @@ class BehaviorAgent(object):
                 self.ttc = ttc
 
             if collision:
-                self.debug_helper.update(self._ego_speed / 3.6, ttc)
+                self.planning_metrics.update(self._ego_speed / 3.6, ttc)
                 vehicle_state = True
                 distance = 2.0
                 if distance < min_distance:
@@ -848,6 +859,10 @@ class BehaviorAgent(object):
                 #next_wpt_list = left_wpt.next(15)
                 if left_turn == carla.LaneChange.NONE and obstacle_vehicle_wpt.left_lane_marking.type == carla.LaneMarkingType.Broken and self._ego_speed < 20:
                     logger.debug("performing overtake into opposing flow of traffic")
+                    import os
+                    if os.environ.get('BEHAVIOR_DEBUG'):
+                        print(f"[OVERTAKE DEBUG] !!! OPPOSING TRAFFIC OVERTAKE !!! ego=({self._ego_pos.location.x:.1f}, {self._ego_pos.location.y:.1f})")
+                        breakpoint()  # This is the U-turn code path - inspect left_wpt, obstacle_vehicle
                     # self.overtake_counter = 200
                     if set_destination:
                         self.overtake_counter = 50  # just enough to be able to change lanes
@@ -913,6 +928,12 @@ class BehaviorAgent(object):
                     self.get_local_planner().get_trajectory().clear()
                     self.get_local_planner().get_waypoint_buffer().clear()
 
+                    # DEBUG: Breakpoint when overtake path is set
+                    import os
+                    if os.environ.get('BEHAVIOR_DEBUG'):
+                        print(f"[OVERTAKE DEBUG] Setting overtake path with {len(next_wpt_list)} waypoints")
+                        breakpoint()  # Inspect: next_wpt_list, self._ego_pos, obstacle_vehicle
+
                     self._local_planner.set_global_plan(next_wpt_list, clean=True)
                     rx, ry, rk, ryaw = self._local_planner.generate_path()
                     vehicle_state, _, _ = self.collision_manager(
@@ -948,7 +969,7 @@ class BehaviorAgent(object):
                                 world=self.vehicle.get_world())
                         
                         if collision:
-                            self.debug_helper.update(self._ego_speed / 3.6, ttc)
+                            self.planning_metrics.update(self._ego_speed / 3.6, ttc)
                             return True
                         
                     return False
@@ -1293,7 +1314,7 @@ class BehaviorAgent(object):
             else:
                 sys.exit(0)
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(0, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(0, end_time-start_time)
         logger.debug("step 0 complete")
 
         start_time = time.time()
@@ -1303,7 +1324,7 @@ class BehaviorAgent(object):
             #logger.debug("Traffic light manager returned 1, stopping")
             return 0, None
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(1, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(1, end_time-start_time)
         logger.debug("step 1 complete")
 
         start_time = time.time()
@@ -1329,7 +1350,7 @@ class BehaviorAgent(object):
 
         end_time = time.time()
         logger.debug("Local planner destination reached block: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_step_list(2, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(2, end_time-start_time)
         logger.debug("step 2 complete")
 
         # intersection behavior. if the car is near a intersection, no overtake is allowed
@@ -1345,14 +1366,14 @@ class BehaviorAgent(object):
         rx, ry, rk, ryaw = self._local_planner.generate_path()
         end_time = time.time()
         logger.debug("Local planner path generation time: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_step_list(3, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(3, end_time-start_time)
         logger.debug("step 3 complete")
 
         # 4. check whether lane change is allowed
         start_time = time.time()
         self.lane_change_allowed = self.check_lane_change_permission(lane_change_allowed, collision_detector_enabled, rk)
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(4, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(4, end_time-start_time)
         logger.debug("step 4 complete")
         logger.debug("Lane change Allowed: %s" %self.lane_change_allowed)
 
@@ -1371,7 +1392,7 @@ class BehaviorAgent(object):
                 rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn)
         car_following_flag = False
         end_time = time.time()
-        self.debug_helper.update_agent_step_list(5, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(5, end_time-start_time)
         logger.debug("step 5 complete")
 
         if not is_hazard:
@@ -1400,6 +1421,11 @@ class BehaviorAgent(object):
             reset_target = self.get_push_destination(ego_vehicle_wp, is_intersection)
             # set the flag, so the push operation is not allowed for the next few frames.
             self.destination_push_flag = 90
+            # DEBUG: Breakpoint when push destination is set
+            import os
+            if os.environ.get('BEHAVIOR_DEBUG'):
+                print(f"[PUSH DEBUG] Push destination: ego=({ego_vehicle_loc.x:.1f}, {ego_vehicle_loc.y:.1f}), target=({reset_target.transform.location.x:.1f}, {reset_target.transform.location.y:.1f})")
+                breakpoint()
             self.set_destination(
                 ego_vehicle_loc,
                 reset_target.transform.location,
@@ -1424,6 +1450,9 @@ class BehaviorAgent(object):
         elif is_hazard and self.overtake_allowed and \
                 self.overtake_counter <= 0  and obstacle_vehicle != None:
             logger.debug("Overtake Allowed and overtake counter is 0")
+            import os
+            if os.environ.get('BEHAVIOR_DEBUG'):
+                print(f"[OVERTAKE DEBUG] Hazard detected! obstacle_vehicle={obstacle_vehicle}, ego_pos=({self._ego_pos.location.x:.1f}, {self._ego_pos.location.y:.1f})")
             if isinstance(obstacle_vehicle, ObstacleVehicle):
                 obstacle_speed = get_speed(obstacle_vehicle)
             obstacle_lane_id = self._map.get_waypoint(obstacle_vehicle.get_location()).lane_id
@@ -1469,6 +1498,12 @@ class BehaviorAgent(object):
         elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0:
             self.overtake_counter = 100 # perform another lane change
 
+            # DEBUG: Breakpoint when returning from overtake
+            import os
+            if os.environ.get('BEHAVIOR_DEBUG'):
+                print(f"[OVERTAKE DEBUG] Returning from overtake with {len(self.overtake_end_wpts)} waypoints")
+                breakpoint()
+
             self._local_planner.set_global_plan(self.overtake_end_wpts)
             self.overtake_end_wpts.clear()
             rx, ry, rk, ryaw = self._local_planner.generate_path()
@@ -1489,10 +1524,10 @@ class BehaviorAgent(object):
 
         end_time = time.time()
 
-        self.debug_helper.update_agent_step_list(6, end_time-start_time)
-        self.debug_helper.update_agent_step_list(7, end_time_7-start_time)
-        self.debug_helper.update_agent_step_list(8, end_time_8-start_time)
-        self.debug_helper.update_agent_step_list(9, end_time_9-start_time)
+        self.planning_metrics.update_agent_step_list(6, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(7, end_time_7-start_time)
+        self.planning_metrics.update_agent_step_list(8, end_time_8-start_time)
+        self.planning_metrics.update_agent_step_list(9, end_time_9-start_time)
         logger.debug("steps 6, 7, 8, 9 complete")
 
         # 10. Car following behavior
@@ -1503,20 +1538,20 @@ class BehaviorAgent(object):
                 logger.debug("Car Following/Hazard in front and break distance is closer than 3 meters, stopping")
                 logger.debug("Current Speed: %s" %self._ego_speed)
                 end_time = time.time()
-                self.debug_helper.update_agent_step_list(10, end_time-start_time)
-                self.debug_helper.update_agent_step_list(11, 0)
+                self.planning_metrics.update_agent_step_list(10, end_time-start_time)
+                self.planning_metrics.update_agent_step_list(11, 0)
                 return 0, None
 
             target_speed = self.car_following_manager(obstacle_vehicle, distance, target_speed)
             target_speed, target_loc = self._local_planner.run_step(
                 rx, ry, rk, target_speed=target_speed)
             end_time = time.time()
-            self.debug_helper.update_agent_step_list(10, end_time-start_time)
+            self.planning_metrics.update_agent_step_list(10, end_time-start_time)
             logger.debug("step 10 complete - following and exiting")
-            self.debug_helper.update_agent_step_list(11, 0)
+            self.planning_metrics.update_agent_step_list(11, 0)
             return target_speed, target_loc
         end_time = time.time()
-        #self.debug_helper.update_agent_step_list(10, end_time-start_time)
+        #self.planning_metrics.update_agent_step_list(10, end_time-start_time)
         
         # 11. Normal behavior
         start_time = time.time()
@@ -1528,7 +1563,7 @@ class BehaviorAgent(object):
         logger.debug("Current Speed: %s" %self._ego_speed)
         end_time = time.time()
         logger.debug("Local planner run step time: %s" %(end_time - start_time))
-        self.debug_helper.update_agent_step_list(11, end_time-start_time)
+        self.planning_metrics.update_agent_step_list(11, end_time-start_time)
         logger.debug("step 11 complete")
         #if(self.overtake_counter == 100):
                 #input("Check logs, check trajectory")

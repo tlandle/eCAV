@@ -130,7 +130,7 @@ class DistributedActorClient:
             logger.setLevel(logging.DEBUG)
         elif self.opt.quiet:
             logger.setLevel(logging.WARNING)
-        logger.info("OpenCDA Version: %s", self.version)
+        logger.info("eCAV Version: %s", self.version)
 
         logging.basicConfig()
 
@@ -221,9 +221,9 @@ class DistributedActorClient:
                 vehicle_manager=self.vehicle_manager
             )
 
-        await self.send_carla_data_to_opencda()
+        await self.send_carla_data_to_ecav()
 
-        logger.info("send_carla_data_to_opencda completed")
+        logger.info("send_carla_data_to_ecav completed")
 
         assert self.push_q.empty(), logger.exception(
             "push_q had %s in it when it should have been empty",
@@ -291,17 +291,17 @@ class DistributedActorClient:
 
     def serialize_debug_info(self, vehicle_update, vehicle_manager) -> None:
         """Serialize debug information for transmission to server."""
-        planer_debug_helper = vehicle_manager.agent.debug_helper
+        planer_debug_helper = vehicle_manager.agent.planning_metrics
         planer_debug_helper_msg = ecloud.PlanerDebugHelper()
         planer_debug_helper.serialize_debug_info(planer_debug_helper_msg)
         vehicle_update.planer_debug_helper.CopyFrom(planer_debug_helper_msg)
 
-        loc_debug_helper = vehicle_manager.localizer.debug_helper
+        loc_debug_helper = vehicle_manager.localizer.localization_metrics
         loc_debug_helper_msg = ecloud.LocDebugHelper()
         loc_debug_helper.serialize_debug_info(loc_debug_helper_msg)
         vehicle_update.loc_debug_helper.CopyFrom(loc_debug_helper_msg)
 
-        client_debug_helper = vehicle_manager.debug_helper
+        client_debug_helper = vehicle_manager.client_metrics
         client_debug_helper_msg = ecloud.ClientDebugHelper()
         client_debug_helper.serialize_debug_info(client_debug_helper_msg)
         vehicle_update.client_debug_helper.CopyFrom(client_debug_helper_msg)
@@ -325,7 +325,7 @@ class DistributedActorClient:
 
         return sim_info
 
-    async def send_carla_data_to_opencda(self) -> ecloud.SimulationInfo:
+    async def send_carla_data_to_ecav(self) -> ecloud.SimulationInfo:
         """Send CARLA actor information to the eCloud server."""
         assert self.ecloud_server is not None, "stub not initialized"
         message = {
@@ -343,7 +343,7 @@ class DistributedActorClient:
 
         sim_info = await self.ecloud_server.Client_RegisterVehicle(update)
 
-        logger.info("send_carla_data_to_opencda: response received")
+        logger.info("send_carla_data_to_ecav: response received")
 
         return sim_info
 
@@ -357,7 +357,7 @@ class DistributedActorClient:
 
     def arg_parse(self):
         """Parse command line arguments."""
-        parser = argparse.ArgumentParser(description="OpenCDA Distributed Actor Simulation.")
+        parser = argparse.ArgumentParser(description="eCAV Distributed Actor Simulation.")
         parser.add_argument("--apply_ml",
                             action='store_true',
                             help='Enable ML/DL framework (pytorch/sklearn) for perception.')
@@ -429,7 +429,7 @@ class DistributedActorClient:
                 self.vehicle_manager.vehicle.apply_control(control)
 
                 update_info_end_time = time.time()
-                self.vehicle_manager.debug_helper.update_update_info_time(
+                self.vehicle_manager.client_metrics.update_update_info_time(
                     (update_info_end_time - update_info_start_time) * 1000
                 )
 

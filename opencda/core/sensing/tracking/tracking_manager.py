@@ -25,7 +25,7 @@ from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, \
     o3d_camera_lidar_fusion
-from opencda.client_debug_helper import ClientDebugHelper
+from opencda.client_metrics import ClientMetrics
 
 class TrackingManager:
     """
@@ -93,7 +93,7 @@ class TrackingManager:
             from opencda.core.sensing.tracking.sort_tracker import MultiObjectSORTTracker
             self.tracker = MultiObjectSORTTracker(max_age=5, min_matching_iou=0.3)
 
-        self.debug_helper = ClientDebugHelper(0)
+        self.client_metrics = ClientMetrics(0)
 
     def dist(self, a):
         """
@@ -179,7 +179,7 @@ class TrackingManager:
         print(col)
 
         #perception_end_time = time.time()
-        #self.debug_helper.update_perception_time((perception_end_time - perception_start_time)*1000)
+        #self.client_metrics.update_perception_time((perception_end_time - perception_start_time)*1000)
 
         for i, vehicle_index in enumerate(col):
             matches.append(vehicle_list[vehicle_index].id)

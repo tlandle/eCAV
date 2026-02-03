@@ -44,6 +44,7 @@ from AB3DMOT_libs.model import AB3DMOT
 from opencda.core.prediction.linear_predictor_manager import LinearPredictorManager
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from opencda.core.application.edge.edge_profiler import EdgeProfiler
 from .edge_manager_base import _BaseEdgeManager
 
 
@@ -129,8 +130,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         self.tracked_trajectories: Dict[int, ObstacleTrajectory] = {}
         self.track_to_carla: Dict[int, int] = {}
 
-        # Feature history buffer (frame_id, feature_list, poses_list, carla_vehicles_snapshot)
-        self.feat_history: Deque[Tuple[int, List[Dict], List[carla.Transform], Dict]] = deque(maxlen=200)
+        # Feature history buffer (frame_id, feature_list, poses_list, carla_vehicles_snapshot, excluded_vehicles)
+        self.feat_history: Deque[Tuple[int, List[Dict], List[carla.Transform], Dict, Dict]] = deque(maxlen=200)
 
         # Track history for AB3DMOT replay (following late fusion pattern)
         self.track_history: Deque[Dict] = deque(maxlen=10)
@@ -138,6 +139,27 @@ class WorldFusionEdge(_BaseEdgeManager):
         # Track velocity history for ghost track filtering
         self.track_velocities: Dict[int, Deque[float]] = {}
 
+        # Resource profiler for capacity planning
+        intersection_id = cfg.get('intersection_id', f"edge_{id(self)}")
+        self.profiler = EdgeProfiler(
+            intersection_id=intersection_id,
+            history_size=2000,
+            sample_gpu_utilization=True
+        )
+
+        # Tracking metrics accumulators
+        self._prev_track_ids: set = set()  # Track IDs from previous frame
+        self._track_to_gt_mapping: Dict[int, int] = {}  # track_id -> carla_vehicle_id
+        self._cumulative_id_switches: int = 0
+        self._cumulative_fragmentations: int = 0
+
+        # Prediction metrics history (for computing ADE/FDE from past predictions)
+        self._prediction_history: Deque[Dict] = deque(maxlen=100)
+        self._last_ade_fde: Dict[str, float] = {
+            'ade_1s': 0.0, 'ade_2s': 0.0, 'ade_3s': 0.0, 'fde': 0.0, 'miss_rate': 0.0
+        }
+
+        self._last_update_tick = -1  # Guard against double-update
         print("[WorldFusion Edge] Initialization complete.")
 
     def start_edge(self):
@@ -152,27 +174,75 @@ class WorldFusionEdge(_BaseEdgeManager):
         processing. Also captures a snapshot of all CARLA vehicle positions at
         this moment for accurate latency-aware evaluation.
         """
+        # Guard against double-update in same tick
+        if frame_idx == self._last_update_tick:
+            return
+        self._last_update_tick = frame_idx
+
         feature_dicts, poses = [], []
 
-        # Capture snapshot of ALL CARLA vehicles at this moment
-        # This is used later for latency-aware evaluation
+        # Capture snapshot of CARLA vehicles within the model's world_range box
+        # Model uses world_range: [-40, -40, -3, 40, 40, 1] which is ±40m from anchor
+        # GT filtering must match this box, not use a circular radius
+        DETECTION_HALF_RANGE = 40.0  # meters - matches world_range in hypes yaml
+        anchor_x, anchor_y = self.world_anchor[0], self.world_anchor[1]
+
+        # Vehicle types the model was trained to detect (V2XSim "Car" class)
+        # Exclude firetrucks, ambulances, police cars, etc. that aren't in training data
+        VALID_VEHICLE_TYPES = {'sedan', 'coupe', 'hatchback', 'wagon', 'suv', 'crossover',
+                               'pickup', 'van', 'minivan', 'mkz', 'model3', 'mustang',
+                               'charger', 'crown', 'impala', 'prius', 'civic', 'a2',
+                               'etron', 'tt', 'lincoln', 'dodge', 'chevrolet', 'nissan',
+                               'bmw', 'audi', 'mercedes', 'tesla', 'ford', 'jeep',
+                               'mini', 'seat', 'citroen', 'volkswagen', 'low_rider',
+                               'patrol', 'wrangler', 'rubicon',  # Added: common CARLA vehicles
+                               'patrol', 'mkz_2017', 'model3', 'wrangler', 'carlacola'}
+
         carla_vehicles_snapshot = {}
+        excluded_vehicles_snapshot = {}  # Track vehicles we exclude from GT (firetrucks, etc.)
         try:
             actors = self.world.get_actors()
             for actor in actors:
                 if 'vehicle' in actor.type_id.lower():
                     loc = actor.get_location()
+
+                    # Filter out invalid/underground vehicles (z < -10m means not in scene)
+                    if loc.z < -10.0:
+                        continue
+
+                    # Check vehicle type first to determine if valid or excluded
+                    vehicle_type = actor.type_id.split('.')[-1].lower()
+                    is_valid_type = any(vt in vehicle_type for vt in VALID_VEHICLE_TYPES)
+
                     rot = actor.get_transform().rotation
                     vel = actor.get_velocity()
-                    carla_vehicles_snapshot[actor.id] = {
+                    vehicle_data = {
                         'type': actor.type_id.split('.')[-1],
                         'x': loc.x, 'y': loc.y, 'z': loc.z,
                         'yaw': rot.yaw,
                         'vx': vel.x, 'vy': vel.y,
                         'speed': np.sqrt(vel.x**2 + vel.y**2)
                     }
+
+                    if not is_valid_type:
+                        # Track ALL excluded vehicles (firetrucks, etc.) regardless of range
+                        # We need their positions to filter detections near them
+                        excluded_vehicles_snapshot[actor.id] = vehicle_data
+                        continue
+
+                    # Only include VALID vehicles within the model's world_range box (±40m from anchor)
+                    dx = abs(loc.x - anchor_x)
+                    dy = abs(loc.y - anchor_y)
+                    if dx > DETECTION_HALF_RANGE or dy > DETECTION_HALF_RANGE:
+                        continue
+
+                    carla_vehicles_snapshot[actor.id] = vehicle_data
         except Exception as e:
             print(f"[WorldFusion Edge] Warning: Could not capture CARLA snapshot: {e}")
+
+        # Log excluded vehicles (emergency vehicles not in training data)
+        if excluded_vehicles_snapshot:
+            print(f"[WorldFusion Edge] {len(excluded_vehicles_snapshot)} excluded vehicles (not in training data)")
 
         # Collect from vehicles
         for vm in self.vehicle_manager_list:
@@ -202,13 +272,13 @@ class WorldFusionEdge(_BaseEdgeManager):
 
         if feature_dicts:
             print(f"[WorldFusion Edge] Collected {len(feature_dicts)} feature_dicts from {len(self.vehicle_manager_list)} vehicles + {len(self.rsu_manager_list)} RSUs")
-            self.feat_history.appendleft((frame_idx, feature_dicts, poses, carla_vehicles_snapshot))
+            self.feat_history.appendleft((frame_idx, feature_dicts, poses, carla_vehicles_snapshot, excluded_vehicles_snapshot))
         else:
             print(f"[WorldFusion Edge] WARNING: No feature_dicts collected!")
 
     def run_step(self, tick: int):
         """
-        Main edge processing step.
+        Main edge processing step with profiling.
 
         1. Handle latency to get delayed snapshot
         2. Stack features and compute pairwise transforms
@@ -218,82 +288,131 @@ class WorldFusionEdge(_BaseEdgeManager):
         6. Generate predictions
         7. Distribute to vehicles
         """
-        self.update_information(tick)
+        with self.profiler.profile_frame(tick) as frame:
+            # Feature collection (includes update_information)
+            with frame.time("feature_collection"):
+                self.update_information(tick)
 
-        # 1. Latency handling
-        lat_ms = self._sample_latency_ms()
-        lag_steps = int(round(lat_ms / (self.dt * 1000)))
-        target_id = tick - lag_steps
+                # 1. Latency handling
+                lat_ms = self._sample_latency_ms()
+                lag_steps = int(round(lat_ms / (self.dt * 1000)))
+                target_id = tick - lag_steps
 
-        # 2. Get delayed snapshot
-        snapshot = next((item for item in self.feat_history if item[0] == target_id), None)
+                # 2. Get delayed snapshot
+                snapshot = next((item for item in self.feat_history if item[0] == target_id), None)
 
-        if not snapshot or not snapshot[1]:
-            self._update_agents(tick, None)
-            return
+            if not snapshot or not snapshot[1]:
+                self._update_agents(tick, None)
+                frame.set_counts(num_agents=0, num_detections=0, num_tracks=0, num_predictions=0)
+                return
 
-        frame_id, feature_dicts, poses, carla_snapshot_at_capture = snapshot
+            frame_id, feature_dicts, poses, carla_snapshot_at_capture, excluded_vehicles = snapshot
+            num_agents = len(feature_dicts)
 
-        # 3. Stack features and compute pairwise transforms
-        spatial_features = torch.cat(
-            [d['spatial_features'] for d in feature_dicts], dim=0
-        ).cuda()
+            # 3. Stack features and compute pairwise transforms
+            with frame.time("fusion"):
+                spatial_features = torch.cat(
+                    [d['spatial_features'] for d in feature_dicts], dim=0
+                ).cuda()
 
-        pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
-        record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
+                pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
+                record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
 
-        # 4. Run backbone + Where2comm fusion
-        start_time = time.time()
-        with torch.no_grad():
-            fused_feature, pred_dict = self._run_fusion(
-                spatial_features, pairwise_t_matrix, record_len
+                # 4. Run backbone + Where2comm fusion
+                with torch.no_grad():
+                    fused_feature, pred_dict = self._run_fusion(
+                        spatial_features, pairwise_t_matrix, record_len
+                    )
+
+            # 5. Post-process to get detections in world frame
+            with frame.time("detection"):
+                det_results = self._to_ab3dmot_format(pred_dict, frame_id)
+                num_dets = len(det_results.get('dets', []))
+                print(f"[WorldFusion Edge] Detection: {num_dets} objects found (before self-filter)")
+
+                # 5.5 Filter out self-detections using beacon positions of managed VEHICLES only
+                num_vehicles = len(self.vehicle_manager_list)
+                vehicle_poses = poses[:num_vehicles]
+                det_results = self._filter_self_detections(det_results, vehicle_poses)
+                num_dets_after = len(det_results.get('dets', []))
+                print(f"[WorldFusion Edge] Detection: {num_dets_after} objects after self-beacon filter")
+                if num_dets_after > 0:
+                    print(f"[WorldFusion Edge] First det: {det_results['dets'][0]}")
+
+                # 5.6 Compute detection metrics (TP/FP/FN) against ground truth
+                det_metrics = self._compute_detection_metrics(
+                    det_results, carla_snapshot_at_capture, vehicle_poses,
+                    excluded_vehicles=excluded_vehicles
+                )
+
+            # Set detection metrics on profiler
+            frame.set_detection_metrics(
+                true_positives=det_metrics['tp'],
+                false_positives=det_metrics['fp'],
+                false_negatives=det_metrics['fn']
             )
 
-        fusion_time = (time.time() - start_time) * 1000
-        print(f"[WorldFusion Edge] Fusion time: {fusion_time:.2f}ms")
+            # 6. Track with AB3DMOT using persistent tracker
+            with frame.time("tracking"):
+                self.track_history.appendleft(det_results)
+                tracks, _ = self.tracker.track(det_results, frame_id)
 
-        # 5. Post-process to get detections in world frame
-        det_results = self._to_ab3dmot_format(pred_dict, frame_id)
-        num_dets = len(det_results.get('dets', []))
-        print(f"[WorldFusion Edge] Detection: {num_dets} objects found (before self-filter)")
+                history_frames: Deque[np.ndarray] = deque(maxlen=10)
+                if tracks and len(tracks[0]) > 0:
+                    history_frames.append(tracks[0])
 
-        # 5.5 Filter out self-detections using beacon positions of managed VEHICLES only
-        # (not RSUs - they don't have a physical presence that would be detected)
-        num_vehicles = len(self.vehicle_manager_list)
-        vehicle_poses = poses[:num_vehicles]  # First N poses are vehicles, rest are RSUs
-        det_results = self._filter_self_detections(det_results, vehicle_poses)
-        num_dets_after = len(det_results.get('dets', []))
-        print(f"[WorldFusion Edge] Detection: {num_dets_after} objects after self-beacon filter")
-        if num_dets_after > 0:
-            print(f"[WorldFusion Edge] First det: {det_results['dets'][0]}")
+                # 7. Convert tracks to trajectories
+                self._ab3d_history_to_trajs(history_frames)
 
-        # 6. Track with AB3DMOT using persistent tracker
-        self.track_history.appendleft(det_results)
+                # 7.5 Filter out ghost/static tracks
+                self._filter_ghost_tracks()
 
-        # Use persistent tracker (created in __init__)
-        tracks, _ = self.tracker.track(det_results, frame_id)
+                num_tracks = len(self.tracked_trajectories)
 
-        # Collect tracks for trajectory update
-        history_frames: Deque[np.ndarray] = deque(maxlen=10)
-        if tracks and len(tracks[0]) > 0:
-            history_frames.append(tracks[0])
+                # 7.6 Compute tracking metrics (ID switches, MOTA, MOTP)
+                track_metrics = self._compute_tracking_metrics(
+                    tracks, carla_snapshot_at_capture, vehicle_poses
+                )
 
-        # 7. Convert tracks to trajectories
-        self._ab3d_history_to_trajs(history_frames)
+            # Set tracking metrics on profiler
+            frame.set_tracking_metrics(
+                id_switches=track_metrics['id_switches'],
+                fragmentations=track_metrics['fragmentations'],
+                mota=track_metrics['mota']
+            )
 
-        # 7.5 Filter out ghost/static tracks
-        self._filter_ghost_tracks()
+            # 8. Linear prediction
+            with frame.time("prediction"):
+                predictions = self.lin_pred.generate_predicted_trajectories(
+                    self.tracked_trajectories
+                )
+                num_predictions = len(predictions) if predictions else 0
 
-        # 8. Linear prediction
-        predictions = self.lin_pred.generate_predicted_trajectories(
-            self.tracked_trajectories
-        )
+                # 8.5 Evaluate predictions vs actual trajectories and get metrics
+                pred_metrics = self._evaluate_predictions(
+                    tick, predictions, carla_snapshot_at_capture, lag_steps
+                )
 
-        # 8.5 Evaluate predictions vs actual trajectories (using snapshot from feature capture time)
-        self._evaluate_predictions(tick, predictions, carla_snapshot_at_capture, lag_steps)
+            # Set prediction metrics on profiler
+            frame.set_prediction_metrics(
+                error_1s_m=pred_metrics.get('ade_1s', 0.0),
+                error_2s_m=pred_metrics.get('ade_2s', 0.0),
+                error_3s_m=pred_metrics.get('ade_3s', 0.0),
+                fde_m=pred_metrics.get('fde', 0.0),
+                miss_rate=pred_metrics.get('miss_rate', 0.0)
+            )
 
-        # 9. Distribute predictions to vehicles
-        self._update_agents(tick, predictions)
+            # 9. Distribute predictions to vehicles
+            with frame.time("distribution"):
+                self._update_agents(tick, predictions)
+
+            # Record counts for this frame
+            frame.set_counts(
+                num_agents=num_agents,
+                num_detections=num_dets_after,
+                num_tracks=num_tracks,
+                num_predictions=num_predictions
+            )
 
     def _run_fusion(self, spatial_features: torch.Tensor,
                     pairwise_t_matrix: torch.Tensor,
@@ -675,6 +794,249 @@ class WorldFusionEdge(_BaseEdgeManager):
             'frame': frame_id
         }
 
+    def _compute_detection_metrics(self, det_results: Dict,
+                                    gt_vehicles: Optional[Dict],
+                                    managed_poses: List[carla.Transform],
+                                    excluded_vehicles: Optional[Dict] = None,
+                                    distance_threshold: float = 10.0) -> Dict[str, int]:
+        """
+        Compute detection metrics (TP, FP, FN) by comparing detections to ground truth.
+
+        A detection is a True Positive if it matches a ground truth vehicle (not managed)
+        within distance_threshold meters.
+
+        Args:
+            det_results: Detection results with 'dets' array
+            gt_vehicles: Dict of CARLA vehicle states (from snapshot) - filtered to valid types
+            managed_poses: Poses of managed vehicles (to exclude from GT)
+            excluded_vehicles: Dict of vehicles excluded from GT (e.g., firetrucks) -
+                               detections near these are ignored, not counted as FP
+            distance_threshold: Max distance for a detection to match GT
+
+        Returns:
+            Dict with 'tp', 'fp', 'fn' counts
+        """
+        if gt_vehicles is None:
+            return {'tp': 0, 'fp': 0, 'fn': 0, 'motp_sum': 0.0}
+
+        # Build list of excluded vehicle positions (detections near these are ignored)
+        excluded_positions = []
+        if excluded_vehicles:
+            for v_id, v_data in excluded_vehicles.items():
+                excluded_positions.append((v_data['x'], v_data['y']))
+
+        dets = det_results.get('dets', np.empty((0, 7)))
+
+        # Filter detections that are near excluded vehicles (e.g., emergency vehicles not in training data)
+        # These are valid detections of things we chose not to evaluate, not FPs
+        EXCLUSION_RADIUS = 10.0  # meters - for excluded vehicle types
+        if len(dets) > 0 and excluded_positions:
+            keep_mask = []
+            for det_idx in range(len(dets)):
+                det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]
+                near_excluded = False
+                for ex, ey in excluded_positions:
+                    if np.sqrt((det_x - ex)**2 + (det_y - ey)**2) < EXCLUSION_RADIUS:
+                        near_excluded = True
+                        break
+                keep_mask.append(not near_excluded)
+            keep_mask = np.array(keep_mask)
+            num_excluded_dets = (~keep_mask).sum()
+            if num_excluded_dets > 0:
+                print(f"[DET METRICS] Filtered {num_excluded_dets} detections near excluded vehicles")
+            dets = dets[keep_mask] if keep_mask.any() else np.empty((0, 7))
+
+        if len(dets) == 0:
+            # All GT vehicles are false negatives
+            # But exclude managed vehicles from GT count
+            managed_positions = [(p.location.x, p.location.y) for p in managed_poses]
+            fn_count = 0
+            for v_id, v_data in gt_vehicles.items():
+                # Check if this GT vehicle is managed (ego vehicle)
+                is_managed = False
+                for mx, my in managed_positions:
+                    if np.sqrt((v_data['x'] - mx)**2 + (v_data['y'] - my)**2) < 3.0:
+                        is_managed = True
+                        break
+                if not is_managed:
+                    fn_count += 1
+            return {'tp': 0, 'fp': 0, 'fn': fn_count, 'motp_sum': 0.0}
+
+        # Get managed vehicle positions to exclude from GT matching
+        managed_positions = [(p.location.x, p.location.y) for p in managed_poses]
+
+        # Build list of GT positions (excluding managed vehicles)
+        gt_positions = []
+        for v_id, v_data in gt_vehicles.items():
+            gx, gy = v_data['x'], v_data['y']
+            # Check if this is a managed vehicle
+            is_managed = False
+            for mx, my in managed_positions:
+                if np.sqrt((gx - mx)**2 + (gy - my)**2) < 3.0:
+                    is_managed = True
+                    break
+            if not is_managed:
+                gt_positions.append((v_id, gx, gy))
+
+        # Greedy matching: match each detection to closest GT
+        gt_matched = set()
+        det_matched = set()
+        motp_errors = []  # For MOTP calculation
+
+        for det_idx in range(len(dets)):
+            det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]  # x, y from [h,w,l,x,y,z,ry]
+
+            best_dist = float('inf')
+            best_gt_idx = -1
+
+            for gt_idx, (v_id, gx, gy) in enumerate(gt_positions):
+                if gt_idx in gt_matched:
+                    continue
+                dist = np.sqrt((det_x - gx)**2 + (det_y - gy)**2)
+                if dist < best_dist and dist < distance_threshold:
+                    best_dist = dist
+                    best_gt_idx = gt_idx
+
+            if best_gt_idx >= 0:
+                gt_matched.add(best_gt_idx)
+                det_matched.add(det_idx)
+                motp_errors.append(best_dist)
+
+        tp = len(det_matched)
+        fp = len(dets) - tp
+        fn = len(gt_positions) - len(gt_matched)
+        motp_sum = sum(motp_errors)
+
+        # Debug output for EVERY frame to track GT and detection counts over time
+        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        print(f"\n[DET DEBUG] GT={len(gt_positions)}, Dets={len(dets)}, TP={tp}, FP={fp}, FN={fn}, P={precision:.2f}, R={recall:.2f}")
+
+        # Print each GT position (non-managed vehicles)
+        for i, (v_id, gx, gy) in enumerate(gt_positions):
+            v_data = gt_vehicles.get(v_id, {})
+            v_type = v_data.get('type', 'unknown')
+            matched = i in gt_matched
+            status = "MATCHED" if matched else "MISSED"
+            print(f"[DET DEBUG]   GT[{i}]: {v_type} id={v_id} at ({gx:.1f}, {gy:.1f}) - {status}")
+
+        # Print each detection and what it matched
+        for det_idx in range(len(dets)):
+            det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]
+            matched = det_idx in det_matched
+            status = "TP" if matched else "FP"
+            print(f"[DET DEBUG]   DET[{det_idx}]: ({det_x:.1f}, {det_y:.1f}) - {status}")
+
+        return {'tp': tp, 'fp': fp, 'fn': fn, 'motp_sum': motp_sum}
+
+    def _compute_tracking_metrics(self, tracks: Tuple,
+                                   gt_vehicles: Optional[Dict],
+                                   managed_poses: List[carla.Transform]) -> Dict[str, float]:
+        """
+        Compute tracking metrics: ID switches, fragmentations, MOTA.
+
+        MOTA = 1 - (FN + FP + ID_switches) / num_GT
+        ID Switch: when a track changes which GT vehicle it matches
+
+        Args:
+            tracks: Output from AB3DMOT tracker
+            gt_vehicles: Dict of CARLA vehicle states
+            managed_poses: Poses of managed vehicles (to exclude)
+
+        Returns:
+            Dict with 'id_switches', 'fragmentations', 'mota', 'motp'
+        """
+        if gt_vehicles is None or not tracks or len(tracks[0]) == 0:
+            return {'id_switches': 0, 'fragmentations': 0, 'mota': 0.0, 'motp': 0.0}
+
+        track_array = tracks[0]  # Shape: (N, 8) - [h,w,l,x,y,z,ry,track_id]
+
+        # Get managed positions
+        managed_positions = [(p.location.x, p.location.y) for p in managed_poses]
+
+        # Build GT list (excluding managed)
+        gt_list = []
+        for v_id, v_data in gt_vehicles.items():
+            gx, gy = v_data['x'], v_data['y']
+            is_managed = any(
+                np.sqrt((gx - mx)**2 + (gy - my)**2) < 3.0
+                for mx, my in managed_positions
+            )
+            if not is_managed:
+                gt_list.append((v_id, gx, gy))
+
+        num_gt = len(gt_list)
+        if num_gt == 0:
+            return {'id_switches': 0, 'fragmentations': 0, 'mota': 1.0, 'motp': 0.0}
+
+        # Match tracks to GT and detect ID switches
+        current_track_ids = set()
+        new_mapping = {}
+        id_switches = 0
+        motp_errors = []
+
+        for i in range(track_array.shape[0]):
+            track_id = int(track_array[i, 7])
+            tx, ty = track_array[i, 3], track_array[i, 4]
+            current_track_ids.add(track_id)
+
+            # Find closest GT
+            best_dist = float('inf')
+            best_gt_id = None
+            for v_id, gx, gy in gt_list:
+                dist = np.sqrt((tx - gx)**2 + (ty - gy)**2)
+                if dist < best_dist and dist < 10.0:
+                    best_dist = dist
+                    best_gt_id = v_id
+
+            if best_gt_id is not None:
+                motp_errors.append(best_dist)
+                new_mapping[track_id] = best_gt_id
+
+                # Check for ID switch
+                if track_id in self._track_to_gt_mapping:
+                    if self._track_to_gt_mapping[track_id] != best_gt_id:
+                        id_switches += 1
+                        print(f"[TRACK METRICS] ID Switch: track {track_id} "
+                              f"changed from GT {self._track_to_gt_mapping[track_id]} to {best_gt_id}")
+
+        # Detect fragmentations (tracks that disappeared and reappeared)
+        fragmentations = 0
+        lost_tracks = self._prev_track_ids - current_track_ids
+        # If any lost track reappears later, that's a fragmentation
+        # For now, just count lost tracks as potential fragmentations
+        for lost_id in lost_tracks:
+            if lost_id in self._track_to_gt_mapping:
+                fragmentations += 1
+
+        # Update state for next frame
+        self._prev_track_ids = current_track_ids
+        self._track_to_gt_mapping = new_mapping
+        self._cumulative_id_switches += id_switches
+        self._cumulative_fragmentations += fragmentations
+
+        # Compute MOTA: 1 - (FN + FP + IDS) / GT
+        # FN = GT objects not matched, FP = tracks not matched to GT
+        matched_gt = set(new_mapping.values())
+        fn = num_gt - len(matched_gt)
+        fp = len(current_track_ids) - len(new_mapping)
+
+        if num_gt > 0:
+            mota = 1.0 - (fn + fp + id_switches) / num_gt
+            mota = max(-1.0, min(1.0, mota))  # Clamp to [-1, 1]
+        else:
+            mota = 1.0
+
+        # MOTP: mean localization error for matched tracks
+        motp = np.mean(motp_errors) if motp_errors else 0.0
+
+        return {
+            'id_switches': id_switches,
+            'fragmentations': fragmentations,
+            'mota': mota,
+            'motp': motp
+        }
+
     def _correct_yaw_from_velocity(self, traj, current_yaw_rad: float) -> float:
         """
         Correct 180° yaw ambiguity using velocity direction.
@@ -875,7 +1237,7 @@ class WorldFusionEdge(_BaseEdgeManager):
 
     def _evaluate_predictions(self, tick: int, predictions: Optional[List],
                                carla_snapshot_at_capture: Optional[Dict] = None,
-                               lag_steps: int = 0):
+                               lag_steps: int = 0) -> Dict[str, float]:
         """
         Evaluate predicted trajectories against actual CARLA vehicle positions.
 
@@ -892,9 +1254,14 @@ class WorldFusionEdge(_BaseEdgeManager):
             predictions: List of ObstaclePrediction objects from linear predictor
             carla_snapshot_at_capture: Vehicle positions at feature capture time (for latency-aware eval)
             lag_steps: Number of steps of latency
+
+        Returns:
+            Dict with prediction metrics: ade_1s, ade_2s, ade_3s, fde, miss_rate
         """
+        default_metrics = {'ade_1s': 0.0, 'ade_2s': 0.0, 'ade_3s': 0.0, 'fde': 0.0, 'miss_rate': 0.0}
+
         if not predictions:
-            return
+            return default_metrics
 
         # Get current vehicles from CARLA
         try:
@@ -1028,10 +1395,13 @@ class WorldFusionEdge(_BaseEdgeManager):
 
         self._prediction_history.append(snapshot)
 
-        # Compute ADE/FDE from past predictions
+        # Compute ADE/FDE from past predictions and store in self._last_ade_fde
         self._compute_historical_ade_fde(tick, carla_vehicles)
 
         print(f"{'='*60}\n")
+
+        # Return the latest computed metrics
+        return self._last_ade_fde.copy()
 
     def _compute_historical_ade_fde(self, current_tick: int, current_vehicles: Dict):
         """
@@ -1040,6 +1410,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         ADE (Average Displacement Error): Mean position error over all predicted steps
         FDE (Final Displacement Error): Position error at the final predicted step
 
+        Updates self._last_ade_fde with computed metrics.
+
         Args:
             current_tick: Current simulation tick
             current_vehicles: Dict of current CARLA vehicle states
@@ -1047,10 +1419,20 @@ class WorldFusionEdge(_BaseEdgeManager):
         if not hasattr(self, '_prediction_history') or len(self._prediction_history) < 2:
             return
 
-        # Look at predictions from 10-25 ticks ago (0.5-1.25 seconds)
-        horizons_to_check = [10, 25]
+        # Horizons: 20 steps = 1s, 40 steps = 2s, 60 steps = 3s (at 0.05s/step)
+        # Linear predictor now generates 60 steps for full 3s prediction
+        horizons_to_check = {
+            'ade_1s': 20,   # 1 second = 20 steps
+            'ade_2s': 40,   # 2 seconds = 40 steps
+            'ade_3s': 60,   # 3 seconds = 60 steps
+        }
 
-        for horizon in horizons_to_check:
+        all_errors = []
+        miss_count = 0
+        total_predictions = 0
+        miss_threshold = 4.0  # Miss threshold in meters (relaxed for urban scenarios)
+
+        for metric_name, horizon in horizons_to_check.items():
             past_tick = current_tick - horizon
 
             # Find the prediction snapshot from that tick
@@ -1107,6 +1489,12 @@ class WorldFusionEdge(_BaseEdgeManager):
                 # Compute displacement error
                 displacement_error = np.sqrt((pred_x - actual_x)**2 + (pred_y - actual_y)**2)
                 errors.append(displacement_error)
+                all_errors.append(displacement_error)
+
+                # Track miss rate
+                total_predictions += 1
+                if displacement_error > miss_threshold:
+                    miss_count += 1
 
                 print(f"  Track {track_id}: pred=({pred_x:.1f}, {pred_y:.1f}), "
                       f"actual=({actual_x:.1f}, {actual_y:.1f}), "
@@ -1114,9 +1502,25 @@ class WorldFusionEdge(_BaseEdgeManager):
 
             if errors:
                 ade = np.mean(errors)
-                fde = errors[-1] if errors else 0
-                print(f"  Horizon {horizon}: ADE={ade:.2f}m, FDE={fde:.2f}m (n={len(errors)})")
+                print(f"  Horizon {horizon}: ADE={ade:.2f}m (n={len(errors)})")
+                # Store in metrics
+                self._last_ade_fde[metric_name] = ade
+
+        # Compute FDE (error at final step) and miss rate
+        if all_errors:
+            self._last_ade_fde['fde'] = all_errors[-1] if all_errors else 0.0
+            self._last_ade_fde['miss_rate'] = miss_count / total_predictions if total_predictions > 0 else 0.0
+            print(f"[ADE/FDE] Overall: FDE={self._last_ade_fde['fde']:.2f}m, "
+                  f"Miss Rate={self._last_ade_fde['miss_rate']:.1%}")
 
     def evaluate(self):
-        """Evaluation hook - not implemented."""
-        pass
+        """
+        Return evaluation results for EvaluationManager integration.
+
+        Returns:
+            Tuple[matplotlib.figure.Figure, str, Dict]:
+                - figure: Matplotlib figure with profiling visualization
+                - perform_txt: Text summary for log file
+                - metrics: Dict of metrics for global_metrics
+        """
+        return self.profiler.get_evaluation_result()

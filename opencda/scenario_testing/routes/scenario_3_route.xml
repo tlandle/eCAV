@@ -1,0 +1,49 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  Route definitions for Scenario 3 (Left Turn at Intersection)
+
+  This route file defines the path for ego vehicle cav1 in the
+  openscenario_3_edge scenarios. The route takes the vehicle from
+  its spawn point through the intersection to the destination.
+-->
+<routes>
+  <!-- Main route: Ego vehicle left turn through intersection -->
+  <route id="1" town="Town03">
+    <!-- Start: Ego spawn position -->
+    <waypoint x="-84.8" y="100.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
+
+    <!-- Approach intersection -->
+    <waypoint x="-84.8" y="115.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
+
+    <!-- Enter intersection, prepare for left turn -->
+    <waypoint x="-84.8" y="125.0" z="0.3" yaw="90" connection="LEFT" />
+
+    <!-- Mid-intersection turn point -->
+    <waypoint x="-78.0" y="128.0" z="0.3" yaw="45" connection="LEFT" />
+
+    <!-- Exit intersection heading east -->
+    <waypoint x="-65.0" y="134.0" z="0.3" yaw="0" connection="LANEFOLLOW" />
+
+    <!-- Destination -->
+    <waypoint x="-28.8" y="134.7" z="0.5" yaw="0" connection="LANEFOLLOW" />
+  </route>
+
+  <!-- Alternative route: Straight through intersection -->
+  <route id="2" town="Town03">
+    <waypoint x="-84.8" y="100.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
+    <waypoint x="-84.8" y="150.0" z="0.3" yaw="90" connection="STRAIGHT" />
+    <waypoint x="-84.8" y="200.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
+  </route>
+
+  <!-- Lincoln vehicle route (adversarial) -->
+  <route id="lincoln" town="Town03">
+    <!-- Start: Lincoln spawn position (crosses ego's path) -->
+    <waypoint x="-60.0" y="127.7" z="0.3" yaw="180" connection="LANEFOLLOW" />
+
+    <!-- Continue west through intersection -->
+    <waypoint x="-90.0" y="127.7" z="0.3" yaw="180" connection="STRAIGHT" />
+
+    <!-- Exit -->
+    <waypoint x="-120.0" y="127.7" z="0.3" yaw="180" connection="LANEFOLLOW" />
+  </route>
+</routes>

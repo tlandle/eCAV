@@ -60,8 +60,8 @@ from opencda.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
 # Edge-manager implementations ──────────────────────────────────────────────
 from opencda.core.application.edge.edge_manager import get_edge_class
-from opencda.sim_debug_helper import SimDebugHelper
-from opencda.client_debug_helper import ClientDebugHelper
+from opencda.sim_metrics import SimMetrics
+from opencda.client_metrics import ClientMetrics
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 import opencda.core.plan.drive_profile_plotting as open_plt
 
@@ -285,7 +285,6 @@ class ScenarioManager:
     is_edge = False
     vehicle_state = ecloud.VehicleState.REGISTERING
 
-    debug_helper = SimDebugHelper(0)
     sm_start_tstamp = Timestamp()
     SPECTATOR_INDEX = 0
 
@@ -304,13 +303,13 @@ class ScenarioManager:
         #logger.debug("%s", ecloud_update)
         for vehicle_update in vehicle_updates_list:
             vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
-            vehicle_manager_proxy.localizer.debug_helper.deserialize_debug_info( vehicle_update.loc_debug_helper )
-            vehicle_manager_proxy.agent.debug_helper.deserialize_debug_info( vehicle_update.planer_debug_helper )
-            vehicle_manager_proxy.debug_helper.deserialize_debug_info(vehicle_update.client_debug_helper)
+            vehicle_manager_proxy.localizer.localization_metrics.deserialize_debug_info( vehicle_update.loc_debug_helper )
+            vehicle_manager_proxy.agent.planning_metrics.deserialize_debug_info( vehicle_update.planer_debug_helper )
+            vehicle_manager_proxy.client_metrics.deserialize_debug_info(vehicle_update.client_debug_helper)
 
-            latencies_by_tick = self.debug_helper.network_time_dict
-            overall_steps_by_tick = self.debug_helper.client_tick_time_dict
-            for timestamps in vehicle_manager_proxy.debug_helper.timestamps_list:
+            latencies_by_tick = self.sim_metrics.network_time_dict
+            overall_steps_by_tick = self.sim_metrics.client_tick_time_dict
+            for timestamps in vehicle_manager_proxy.client_metrics.timestamps_list:
                 if timestamps.tick_id in overall_steps_by_tick:
                     assert timestamps.tick_id in latencies_by_tick, logger.exception('%s not in latencies_by_tick: %s', timestamps.tick_id, latencies_by_tick)
                     client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
@@ -321,12 +320,12 @@ class ScenarioManager:
                     logger.debug("timestamps: client_end - %s client_start - %s", timestamps.client_end_tstamp.ToDatetime().time(), timestamps.client_start_tstamp.ToDatetime().time())
                     logger.info('client process time: %sms', round(client_process_time_ms, 2))
                     logger.info('idle time: %sms', round(idle_time_ms, 2))
-                    self.debug_helper.update_idle_time_timestamp(vehicle_manager_proxy.vehicle_index, idle_time_ms) # this inferred
-                    self.debug_helper.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
+                    self.sim_metrics.update_idle_time_timestamp(vehicle_manager_proxy.vehicle_index, idle_time_ms) # this inferred
+                    self.sim_metrics.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
 
                     # dupe the data since it makes evaluation simpler
-                    self.debug_helper.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, latencies_by_tick[timestamps.tick_id])
-                    self.debug_helper.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
+                    self.sim_metrics.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, latencies_by_tick[timestamps.tick_id])
+                    self.sim_metrics.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
 
                     logger.debug("updated time stamp data for vehicle %s", vehicle_manager_proxy.vehicle_index)
 
@@ -363,7 +362,7 @@ class ScenarioManager:
                         vehicle_manager_proxy.vehicle.set_velocity(v)
                         vehicle_manager_proxy.vehicle.set_transform(t)  
                     
-                    self.debug_helper.update_velocity_per_client_timestamp(tick_id=self.tick_id,
+                    self.sim_metrics.update_velocity_per_client_timestamp(tick_id=self.tick_id,
                                                                            velocity=v)
         except:
             logger.exception('%s', vehicle_update)
@@ -385,14 +384,14 @@ class ScenarioManager:
 
         # the first tick time is dramatically slower due to startup, so we don't want it to skew runtime data
         if self.tick_id == 1:
-            self.debug_helper.startup_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
+            self.sim_metrics.startup_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC
             return empty
 
         overall_step_time_ms = ( snapshot_t - self.sm_start_tstamp.ToNanoseconds() ) * NSEC_TO_MSEC # barrier sync means this is the same for ALL vehicles per tick
         step_latency_ms = overall_step_time_ms - ( tick.last_client_duration_ns * NSEC_TO_MSEC ) # we care about the worst case per tick - how much did we affect the final vehicle to report. This captures both delay in getting that vehicle started and in it reporting its completion
         logger.info("timestamps: overall_step_time_ms - %sms | step_latency_ms - %sms", round(overall_step_time_ms, 2), round(step_latency_ms, 2))
-        self.debug_helper.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
-        self.debug_helper.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
+        self.sim_metrics.update_network_time_timestamp(tick.tick_id, step_latency_ms) # same for all vehicles *per tick*
+        self.sim_metrics.update_overall_step_time_timestamp(tick.tick_id, overall_step_time_ms)
 
         if update_.command == ecloud.Command.REQUEST_DEBUG_INFO:
             await self.server_unpack_debug_data(stub_)
@@ -426,8 +425,6 @@ class ScenarioManager:
 
         return empty
 
-    debug_helper = SimDebugHelper(0)
-
     def __init__(self, scenario_params,
                  apply_ml,
                  carla_version,
@@ -438,6 +435,7 @@ class ScenarioManager:
                  distributed=False):
 
         #self.config_file = config_file
+        self.sim_metrics = SimMetrics(0)
         self.ecloud_config = EcloudConfig(scenario_params, logger)
         self.sm_start_tstamp.GetCurrentTime()
         self.scenario_params = scenario_params
@@ -449,13 +447,14 @@ class ScenarioManager:
         self.run_distributed = distributed
 
         # Initialize ML Manager with mode selection
-        if cav_world:
+        # Only create if cav_world doesn't already have one (CavWorld may have created it)
+        if cav_world and cav_world.ml_manager is None:
             # Update scenario params with distributed flag
             scenario_params['distributed'] = distributed
-            
+
             # Get ML configuration
             ml_config = scenario_params.get('ml_manager', {})
-            
+
             # Add service endpoints if distributed
             if self.run_distributed:
                 ml_config.update({
@@ -463,11 +462,11 @@ class ScenarioManager:
                     'bm2cp_vehicle_endpoint': scenario_params.get('bm2cp_vehicle_endpoint', 'http://localhost:8001'),
                     'bm2cp_edge_endpoint': scenario_params.get('bm2cp_edge_endpoint', 'http://localhost:8002'),
                 })
-            
+
             # Add BM2CP model config if present
             if 'edge_base' in scenario_params and 'bm2cp_model' in scenario_params['edge_base']:
                 ml_config['bm2cp_model'] = scenario_params['edge_base']['bm2cp_model']
-            
+
             # Create/update ML manager
             from opencda.ml_manager.ml_manager import MLManager
             cav_world.ml_manager = MLManager(
@@ -594,7 +593,7 @@ class ScenarioManager:
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
 
-            self.debug_helper.update_sim_start_timestamp(time.time())
+            self.sim_metrics.update_sim_start_timestamp(time.time())
 
             logger.info(type(scenario_params))
 
@@ -604,7 +603,7 @@ class ScenarioManager:
         # eCLOUD END
 
         else: # sequential
-            self.debug_helper.update_sim_start_timestamp(time.time())
+            self.sim_metrics.update_sim_start_timestamp(time.time())
 
     async def run_comms(self):
         self.push_q = asyncio.Queue()
@@ -785,13 +784,11 @@ class ScenarioManager:
 
         vehicle_manager.v2x_manager.set_platoon(None)
 
-        destination = carla.Location(x=cav_config['destination'][0],
-                                     y=cav_config['destination'][1],
-                                     z=cav_config['destination'][2])
+        # Get destination from vehicle_manager (handles route_file, destination, etc.)
         vehicle_manager.update_info()
         vehicle_manager.set_destination(
             vehicle_manager.vehicle.get_location(),
-            destination,
+            vehicle_manager.destination_location,
             clean=True)
 
         return [vehicle_manager]
@@ -1421,9 +1418,8 @@ class ScenarioManager:
                     self.vehicle_managers[index] = vehicle_manager
 
 
-                    destination = carla.Location(x=cav['destination'][0],
-                                     y=cav['destination'][1],
-                                     z=cav['destination'][2])
+                    # Get destination from vehicle_manager (handles route_file, destination, etc.)
+                    destination = vehicle_manager.destination_location
 
                     vehicle_manager.update_info()
                     vehicle_manager.set_destination(
@@ -1460,7 +1456,7 @@ class ScenarioManager:
         self.world.tick()
         post_world_tick_time = time.time()
         logger.info("World tick completion time: %s", (post_world_tick_time - pre_world_tick_time))
-        self.debug_helper.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
+        self.sim_metrics.update_world_tick((post_world_tick_time - pre_world_tick_time)*1000)
 
     def tick(self):
         """
@@ -1498,7 +1494,7 @@ class ScenarioManager:
         post_client_tick_time = time.time()
         logger.info("Client tick completion time: %s", (post_client_tick_time - pre_client_tick_time))
         if self.tick_id > 1: # discard the first tick as startup is a major outlier
-            self.debug_helper.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
+            self.sim_metrics.update_client_tick((post_client_tick_time - pre_client_tick_time)*1000)
 
         return True
 
@@ -1542,7 +1538,7 @@ class ScenarioManager:
         if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
-        self.debug_helper.shutdown_time_ms = time.time() - start_time
+        self.sim_metrics.shutdown_time_ms = time.time() - start_time
 
     def do_pickling(self, column_key, flat_list, file_path):
         logger.info("run stats for %s:\nmean %s: %s \nmedian %s: %s \n95th percentile %s %s",
@@ -1579,7 +1575,7 @@ class ScenarioManager:
         PLANER_AGENT_STEPS = 12
         all_agent_data_lists = [[] for _ in range(PLANER_AGENT_STEPS)]
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
-            agent_data_list = vehicle_manager_proxy.agent.debug_helper.get_agent_step_list()
+            agent_data_list = vehicle_manager_proxy.agent.planning_metrics.get_agent_step_list()
             for idx, sub_list in enumerate(agent_data_list):
                 all_agent_data_lists[idx].append(sub_list)
 
@@ -1598,7 +1594,7 @@ class ScenarioManager:
         if self.run_distributed is False:
             return
 
-        all_network_data_list = sum(self.debug_helper.network_time_dict_per_client.values(), [])
+        all_network_data_list = sum(self.sim_metrics.network_time_dict_per_client.values(), [])
 
         all_network_data_list_flat = np.array(all_network_data_list)
         if all_network_data_list_flat.any():
@@ -1613,7 +1609,7 @@ class ScenarioManager:
         if self.run_distributed is False:
             return
         
-        all_idle_data_lists = sum(self.debug_helper.idle_time_dict.values(), [])
+        all_idle_data_lists = sum(self.sim_metrics.idle_time_dict.values(), [])
 
         all_idle_data_lists_flat = np.array(all_idle_data_lists)
         if all_idle_data_lists_flat.any():
@@ -1624,7 +1620,7 @@ class ScenarioManager:
         self.do_pickling(data_key, all_idle_data_lists_flat, cumulative_stats_folder_path)
 
     def evaluate_client_process_data(self, cumulative_stats_folder_path):
-        all_client_process_data_lists = sum(self.debug_helper.client_process_time_dict.values(), [])
+        all_client_process_data_lists = sum(self.sim_metrics.client_process_time_dict.values(), [])
 
         all_client_process_data_list_flat = np.array(all_client_process_data_lists)
         if all_client_process_data_list_flat.any():
@@ -1636,7 +1632,7 @@ class ScenarioManager:
 
         data_key = f"client_individual_process_times_dict"
 
-        data_df = pd.DataFrame.from_dict(ScenarioManager.debug_helper.client_process_time_dict)
+        data_df = pd.DataFrame.from_dict(self.sim_metrics.client_process_time_dict)
         data_df['num_cars'] = self.vehicle_count
         data_df['run_timestamp'] = pd.Timestamp.today().strftime('%Y-%m-%d %X')
 
@@ -1650,7 +1646,7 @@ class ScenarioManager:
         picklefile.close()
 
     def evaluate_individual_client_data(self, cumulative_stats_folder_path):
-        all_client_data_lists = sum(self.debug_helper.client_tick_time_dict_per_client.values(), [])
+        all_client_data_lists = sum(self.sim_metrics.client_tick_time_dict_per_client.values(), [])
 
         all_client_data_list_flat = np.array(all_client_data_lists)
         if all_client_data_list_flat.any():
@@ -1664,7 +1660,7 @@ class ScenarioManager:
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
-            client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()[client_data_key]
+            client_data_list = vehicle_manager_proxy.client_metrics.get_debug_data()[client_data_key]
             all_client_data_list.append(client_data_list)
 
         logger.debug(all_client_data_list)
@@ -1685,7 +1681,7 @@ class ScenarioManager:
     def evaluate_collision_data(self, cumulative_stats_folder_path):
         all_client_data_list = []
         for _, vehicle_manager_proxy in self.vehicle_managers.items():
-            client_data_list = vehicle_manager_proxy.debug_helper.get_debug_data()["client_collisons_list"]
+            client_data_list = vehicle_manager_proxy.client_metrics.get_debug_data()["client_collisons_list"]
             for collision_event in client_data_list:
               all_client_data_list.append()
 
@@ -1743,7 +1739,7 @@ class ScenarioManager:
             self.evaluate_client_process_data(cumulative_stats_folder_path)
             self.evaluate_individual_client_data(cumulative_stats_folder_path)
 
-        client_helper = ClientDebugHelper(0)
+        client_helper = ClientMetrics(0)
         debug_data_lists = client_helper.get_debug_data().keys()
          
         for list_name in debug_data_lists:
@@ -1756,7 +1752,7 @@ class ScenarioManager:
         #self.evaluate_collision_data(cumulative_stats_folder_path)
 
         # ___________Client Step time__________________________________
-        client_tick_time_list = self.debug_helper.client_tick_time_list
+        client_tick_time_list = self.sim_metrics.client_tick_time_list
         client_tick_time_list_flat = np.concatenate(client_tick_time_list)
         if client_tick_time_list_flat.any():
             client_tick_time_list_flat = np.hstack(client_tick_time_list_flat)
@@ -1766,7 +1762,7 @@ class ScenarioManager:
         self.do_pickling(client_step_time_key, client_tick_time_list_flat, cumulative_stats_folder_path)
 
         # ___________World Step time_________________________________
-        world_tick_time_list = self.debug_helper.world_tick_time_list
+        world_tick_time_list = self.sim_metrics.world_tick_time_list
         world_tick_time_list_flat = np.concatenate(world_tick_time_list)
         if world_tick_time_list_flat.any():
             world_tick_time_list_flat = np.hstack(world_tick_time_list_flat)
@@ -1776,10 +1772,10 @@ class ScenarioManager:
         self.do_pickling(world_step_time_key, world_tick_time_list_flat, cumulative_stats_folder_path)
 
         # ___________Total simulation time ___________________
-        sim_start_time = self.debug_helper.sim_start_timestamp
+        sim_start_time = self.sim_metrics.sim_start_timestamp
         sim_end_time = time.time()
         total_sim_time = (sim_end_time - sim_start_time) # total time in seconds
-        perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.debug_helper.startup_time_ms}ms \n\t Shutdown Time: {self.debug_helper.shutdown_time_ms}ms"
+        perform_txt += f"Total Simulation Time: {total_sim_time} \n\t Registration Time: {self.sim_metrics.startup_time_ms}ms \n\t Shutdown Time: {self.sim_metrics.shutdown_time_ms}ms"
 
         sim_time_df_path = f'./{cumulative_stats_folder_path}/df_total_sim_time'
         try:
@@ -1793,8 +1789,8 @@ class ScenarioManager:
         sim_time_df = pd.concat([sim_time_df, pd.DataFrame.from_records \
             ([{"num_cars": self.vehicle_count, \
                 "time_s": total_sim_time, \
-                "startup_time_ms": self.debug_helper.startup_time_ms, \
-                "shutdown_time_ms": self.debug_helper.shutdown_time_ms, \
+                "startup_time_ms": self.sim_metrics.startup_time_ms, \
+                "shutdown_time_ms": self.sim_metrics.shutdown_time_ms, \
                 "run_timestamp": pd.Timestamp.today().strftime('%Y-%m-%d %X') }])], \
                 ignore_index=True)
 
@@ -1819,11 +1815,11 @@ class ScenarioManager:
 
     def evaluate_velocity_error(self):
         with open('velocity_list', 'w+') as f:
-            f.write(f'{self.debug_helper.client_velocity_dict}')
+            f.write(f'{self.sim_metrics.client_velocity_dict}')
 
         plt.subplot(413)
-        open_plt.draw_deviation_from_target_velocity(self.debug_helper.client_velocity_dict)
-        all_vels = sum(self.debug_helper.client_velocity_dict.values(), [])
+        open_plt.draw_deviation_from_target_velocity(self.sim_metrics.client_velocity_dict)
+        all_vels = sum(self.sim_metrics.client_velocity_dict.values(), [])
         all_vels_flat = np.array(all_vels)
         vel_mean = np.mean(all_vels_flat.flatten())
         logger.info("Mean Velocity: %s", vel_mean)

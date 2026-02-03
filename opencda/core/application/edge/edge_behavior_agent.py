@@ -12,8 +12,8 @@ import carla
 import numpy as np
 
 from opencda.core.application.platooning.fsm import FSM
-from opencda.core.application.edge.edge_debug_helper import \
-    EdgeDebugHelper
+from opencda.core.application.edge.edge_metrics import \
+    EdgeMetrics
 from opencda.core.common.misc import \
     compute_distance, get_speed, cal_distance_angle
 from opencda.core.plan.behavior_agent import BehaviorAgent
@@ -75,7 +75,7 @@ class EdgeBehaviorAgent(BehaviorAgent):
         self.v2x_manager = weakref.ref(v2x_manager)()
 
         # used to calculate performance
-        self.debug_helper = EdgeDebugHelper(self.vehicle.id)
+        self.edge_metrics = EdgeMetrics(self.vehicle.id)
 
     def run_step(
             self,
@@ -130,7 +130,7 @@ class EdgeBehaviorAgent(BehaviorAgent):
         self.obstacle_vehicles = self.white_list_match(obstacle_vehicles)
 
         # update the debug helper
-        self.debug_helper.update(
+        self.edge_metrics.update(
             ego_speed,
             self.ttc)
 

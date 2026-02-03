@@ -35,7 +35,7 @@ class CavWorld(object):
 
     """
 
-    def __init__(self, apply_ml, config=None):
+    def __init__(self, apply_ml, config=None, litserve=False):
         """
         Parameters
         ----------
@@ -44,6 +44,10 @@ class CavWorld(object):
 
         config : dict, optional
             Configuration for ML manager
+
+        litserve : bool
+            Whether to use LitServe for distributed ML inference.
+            If True, ML inference is offloaded to a LitServe server.
         """
         self.vehicle_id_set = set()
         self._vehicle_manager_dict = {}
@@ -54,19 +58,23 @@ class CavWorld(object):
         self.ml_manager = None
         self.tick_id = 0
         self.apply_ml = apply_ml
+        self.litserve = litserve
 
-        # Determine if running distributed from config
+        # Determine if running distributed from config or litserve flag
         run_distributed = config.get('distributed', False) if config else False
+        # If litserve is enabled, we're running distributed ML inference
+        if litserve:
+            run_distributed = True
         self.run_distributed = run_distributed
 
         # Get ML configuration
         ml_config = config.get('ml_manager', {}) if config else {}
-        
+
         # Initialize ML Manager with mode selection
         if apply_ml:
             from opencda.ml_manager.ml_manager import MLManager
             self.ml_manager = MLManager(
-                apply_ml=apply_ml, 
+                apply_ml=apply_ml,
                 rank=0,
                 run_distributed=run_distributed,
                 config=ml_config

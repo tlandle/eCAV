@@ -257,23 +257,23 @@ class PlatooningManager(object):
 
         for i in range(len(self.vehicle_manager_list)):
             vm = self.vehicle_manager_list[i]
-            debug_helper = vm.agent.debug_helper
+            planning_metrics = vm.agent.planning_metrics
 
             # we need to filter out the first 100 data points
             # since the vehicles spawn at the beginning have
             # no velocity and thus make the time gap close to infinite
 
-            velocity_list += debug_helper.speed_list
-            acceleration_list += debug_helper.acc_list
-            time_gap_list += debug_helper.time_gap_list
-            distance_gap_list += debug_helper.dist_gap_list
+            velocity_list += planning_metrics.speed_list
+            acceleration_list += planning_metrics.acc_list
+            time_gap_list += planning_metrics.time_gap_list
+            distance_gap_list += planning_metrics.dist_gap_list
 
             time_gap_list_tmp = \
-                np.array(debug_helper.time_gap_list)
+                np.array(planning_metrics.time_gap_list)
             time_gap_list_tmp = \
                 time_gap_list_tmp[time_gap_list_tmp < 100]
             distance_gap_list_tmp = \
-                np.array(debug_helper.dist_gap_list)
+                np.array(planning_metrics.dist_gap_list)
             distance_gap_list_tmp = \
                 distance_gap_list_tmp[distance_gap_list_tmp < 100]
 

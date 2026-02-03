@@ -39,8 +39,8 @@ from opencda.core.application.edge.EdgeManager import *
 from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.local_planner_behavior import RoadOption
-from opencda.core.application.edge.edge_debug_helper import \
-    EdgeDebugHelper
+from opencda.core.application.edge.edge_metrics import \
+    EdgeMetrics
 
 # Algorithm specific import
 from opencda.core.application.edge.a_star_algorithm.astar_test_groupcaps_transform import *
@@ -447,7 +447,7 @@ class EdgeAstarManager(EdgeManager):
         self.algorithm_step()
         post_algo_time = time.time()
         logger.debug("Algorithm completion time: %s", (post_algo_time - pre_algo_time))
-        self.debug_helper.update_edge((post_algo_time - pre_algo_time)*1000)
+        self.edge_metrics.update_edge((post_algo_time - pre_algo_time)*1000)
         all_waypoint_buffers = []
         #print("completed Algorithm Step")
         # output algorithm waypoints to waypoint buffer of each vehicle
@@ -509,28 +509,28 @@ class EdgeAstarManager(EdgeManager):
         #time_gap_list = []
         #distance_gap_list = []
         algorithm_time_list = []
-        debug_helper = self.debug_helper
+        planning_metrics = self.edge_metrics
 
         perform_txt = ''
 
         for i in range(len(self.vehicle_manager_list)):
             vm = self.vehicle_manager_list[i]
-            debug_helper = vm.agent.debug_helper
+            planning_metrics = vm.agent.planning_metrics
 
             # we need to filter out the first 100 data points
             # since the vehicles spawn at the beginning have
             # no velocity and thus make the time gap close to infinite
 
-            #velocity_list += debug_helper.speed_list
-            #time_gap_list += debug_helper.time_gap_list
-            #distance_gap_list += debug_helper.dist_gap_list
+            #velocity_list += planning_metrics.speed_list
+            #time_gap_list += planning_metrics.time_gap_list
+            #distance_gap_list += planning_metrics.dist_gap_list
 
             #time_gap_list_tmp = \
-            #    np.array(debug_helper.time_gap_list)
+            #    np.array(planning_metrics.time_gap_list)
             #time_gap_list_tmp = \
             #    time_gap_list_tmp[time_gap_list_tmp < 100]
             #distance_gap_list_tmp = \
-            #    np.array(debug_helper.dist_gap_list)
+            #    np.array(planning_metrics.dist_gap_list)
             #distance_gap_list_tmp = \
             #    distance_gap_list_tmp[distance_gap_list_tmp < 100]
 
@@ -542,9 +542,9 @@ class EdgeAstarManager(EdgeManager):
             #    np.mean(distance_gap_list_tmp), np.std(distance_gap_list_tmp))
 
 
-        algorithm_time_list += self.debug_helper.algorithm_time_list
+        algorithm_time_list += self.edge_metrics.algorithm_time_list
         algorithm_time_list_tmp = \
-                np.array(self.debug_helper.algorithm_time_list)
+                np.array(self.edge_metrics.algorithm_time_list)
         algorithm_time_list_tmp = \
                 algorithm_time_list_tmp[algorithm_time_list_tmp < 100]
 

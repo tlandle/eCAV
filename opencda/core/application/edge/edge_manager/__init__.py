@@ -24,6 +24,9 @@ from .edge_manager_prediction_late_fusion_ab3dmot_linear_predictor import (
 from .edge_manager_worldfusion_ab3dmot_linear_predictor import (
     WorldFusionEdge,
 )
+from .edge_manager_vips_ab3dmot_linear_predictor import (
+    VIPSEdge,
+)
 
 __all__ = [
     "BaseEdgeManager",
@@ -32,6 +35,7 @@ __all__ = [
     "BM2CPEdge",
     "LateFusionEdge",
     "WorldFusionEdge",
+    "VIPSEdge",
 ]
 
 # --------------------------------------------------------------------------- #
@@ -46,6 +50,8 @@ _EDGE_REGISTRY = {
     "LATE_FUSION": LateFusionEdge,
     "WORLDFUSION_PRED": WorldFusionEdge,
     "WORLDFUSION": WorldFusionEdge,  # alias
+    "VIPS": VIPSEdge,
+    "VIPS_PRED": VIPSEdge,  # alias
 }
 
 

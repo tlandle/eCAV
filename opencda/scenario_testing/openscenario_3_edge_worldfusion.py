@@ -82,8 +82,12 @@ def run_scenario(opt, scenario_params):
     try:
         scenario_params = add_current_time(scenario_params)
 
-        # Create CAV world
-        cav_world = CavWorld(opt.apply_ml)
+        # Create CAV world with config for ML manager settings
+        cav_world = CavWorld(
+            apply_ml=opt.apply_ml,
+            config=scenario_params,
+            litserve=getattr(opt, 'litserve', False)
+        )
 
         # Create scenario manager
         scenario_manager = sim_api.ScenarioManager(
@@ -183,18 +187,9 @@ def run_scenario(opt, scenario_params):
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
 
-            # Apply the control to the ego vehicle
+            # Run edge processing step (update_information is called internally)
             for edge in edge_list:
-                edge.update_information(step)
-                serialized_predictions = edge.run_step(step)
-
-                if opt.distributed:
-                    # Push predictions to distributed actors
-                    scenario_manager.push_edge_objects(serialized_predictions)
-                else:
-                    # Sequential mode: update vehicles/RSUs directly
-                    edge.update_vehicle_infos(step)
-                    edge.update_rsu_infos()
+                edge.run_step(step)
 
             step = step + 1
             if step >= MAX_STEP:
@@ -212,6 +207,16 @@ def run_scenario(opt, scenario_params):
         print(traceback.format_exc())
 
     finally:
+        # Terminate ScenarioRunner subprocess FIRST to avoid blocking
+        if sr_process is not None:
+            sr_process.terminate()
+            sr_process.join(timeout=5)
+            print("Joined scenario_runner process")
+
+        if scenario_runner is not None:
+            scenario_runner.destroy()
+            print("Destroyed scenario_runner")
+
         for edge in edge_list:
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
@@ -226,12 +231,3 @@ def run_scenario(opt, scenario_params):
         if scenario_manager is not None:
             scenario_manager.close()
             print("Destroyed scenario_manager")
-
-        if scenario_runner is not None:
-            scenario_runner.destroy()
-            print("Destroyed scenario_runner")
-
-        if sr_process is not None:
-            sr_process.terminate()
-            sr_process.join()
-            print("Joined scenario_runner process")

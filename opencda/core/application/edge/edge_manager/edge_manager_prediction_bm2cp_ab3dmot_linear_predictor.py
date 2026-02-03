@@ -30,6 +30,7 @@ from AB3DMOT_libs.model import AB3DMOT
 from opencda.core.prediction.linear_predictor_manager import LinearPredictorManager
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from opencda.core.application.edge.edge_profiler import EdgeProfiler
 from .edge_manager_base import _BaseEdgeManager
 
 
@@ -148,7 +149,19 @@ class BM2CPEdge(_BaseEdgeManager):
 
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
         self.tracked_trajectories: Dict[int, ObstacleTrajectory] = {}
-        self.feat_history: Deque[Tuple[int, List[Dict], List[carla.Transform]]] = deque(maxlen=200)
+        self.feat_history: Deque[Tuple[int, List[Dict], List[carla.Transform], Dict]] = deque(maxlen=200)
+
+        # GT snapshot history for metrics evaluation
+        self.carla_snapshot_history: Deque[Dict] = deque(maxlen=100)
+
+        # Resource profiler for capacity planning
+        intersection_id = cfg.get('intersection_id', f"bm2cp_edge_{id(self)}")
+        self.profiler = EdgeProfiler(
+            intersection_id=intersection_id,
+            history_size=2000,
+            sample_gpu_utilization=True
+        )
+
         print("[EDGE DEBUG] [__init__] COMPLETE")
 
     def start_edge(self):
@@ -159,7 +172,50 @@ class BM2CPEdge(_BaseEdgeManager):
         ### DEBUG ###
         print(f"[EDGE DEBUG] [update_information] Called for frame_idx: {frame_idx}")
         feature_dicts, poses = [], []
-        
+
+        # Capture CARLA ground truth snapshot for evaluation
+        # Filter to vehicles within detection range of ego vehicle
+        # BM2CP uses ego-centric detection with cav_lidar_range from hypes
+        DETECTION_RANGE = 70.0  # meters - based on typical cav_lidar_range
+        carla_snapshot = {}
+
+        # Get managed vehicle positions for range filtering
+        managed_locs = [vm.vehicle.get_location() for vm in self.vehicle_manager_list]
+
+        try:
+            actors = self.world.get_actors()
+            for actor in actors:
+                if 'vehicle' in actor.type_id.lower():
+                    loc = actor.get_location()
+
+                    # Filter out underground/invalid vehicles
+                    if loc.z < -10.0:
+                        continue
+
+                    # Filter by detection range from any managed vehicle
+                    in_range = False
+                    for mloc in managed_locs:
+                        dist = np.sqrt((loc.x - mloc.x)**2 + (loc.y - mloc.y)**2)
+                        if dist <= DETECTION_RANGE:
+                            in_range = True
+                            break
+
+                    if not in_range:
+                        continue
+
+                    rot = actor.get_transform().rotation
+                    vel = actor.get_velocity()
+                    carla_snapshot[actor.id] = {
+                        'type': actor.type_id.split('.')[-1],
+                        'x': loc.x, 'y': loc.y, 'z': loc.z,
+                        'yaw': rot.yaw,
+                        'vx': vel.x, 'vy': vel.y,
+                        'speed': np.sqrt(vel.x**2 + vel.y**2)
+                    }
+        except Exception as e:
+            print(f"[EDGE DEBUG] Could not capture CARLA snapshot: {e}")
+        self.carla_snapshot_history.appendleft(carla_snapshot)
+
         for i, vm in enumerate(self.vehicle_manager_list):
             pm = vm.perception_manager
             print(f"[EDGE DEBUG] [update_information] Processing vehicle {i}...")
@@ -181,7 +237,7 @@ class BM2CPEdge(_BaseEdgeManager):
                 print(f"[EDGE DEBUG] [update_information] No feature_dict found for RSU {i}")
 
         if feature_dicts:
-            self.feat_history.appendleft((frame_idx, feature_dicts, poses))
+            self.feat_history.appendleft((frame_idx, feature_dicts, poses, carla_snapshot))
             print(f"[EDGE DEBUG] [update_information] Stored {len(feature_dicts)} feature dictionaries for frame {frame_idx}.")
         else:
             print(f"[EDGE DEBUG] [update_information] No features available for frame {frame_idx}.")
@@ -733,5 +789,14 @@ class BM2CPEdge(_BaseEdgeManager):
             rsu.run_step()
 
     def evaluate(self):
-        pass
+        """
+        Return evaluation results for EvaluationManager integration.
+
+        Returns:
+            Tuple[matplotlib.figure.Figure, str, Dict]:
+                - figure: Matplotlib figure with profiling visualization
+                - perform_txt: Text summary for log file
+                - metrics: Dict of metrics for global_metrics
+        """
+        return self.profiler.get_evaluation_result()
 

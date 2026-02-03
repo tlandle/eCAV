@@ -19,7 +19,7 @@ def get_occupancy_grid(point_cloud, lidar_z, lidar_meters_max):
                                                lidar_meters_max), )
     # Below z_threshold.
     feats += (_get_occupancy_from_masked_lidar(
-        point_cloud[(1 - above_mask).astype(np.bool)], lidar_meters_max), )
+        point_cloud[(1 - above_mask).astype(bool)], lidar_meters_max), )
 
     stacked_feats = np.stack(feats, axis=-1)
     return np.expand_dims(stacked_feats, axis=0)

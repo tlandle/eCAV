@@ -227,10 +227,11 @@ def o3d_camera_lidar_fusion(objects,
             continue
 
         # filter out the outlier
-        x_common = mode(np.array(np.abs(select_points[:, 0]),
-                                 dtype=np.int), axis=0)[0][0]
-        y_common = mode(np.array(np.abs(select_points[:, 1]),
-                                 dtype=np.int), axis=0)[0][0]
+        # Handle scipy mode() API change - newer versions return scalar, older return array
+        x_mode_result = mode(np.array(np.abs(select_points[:, 0]), dtype=np.int64), axis=0, keepdims=False)
+        y_mode_result = mode(np.array(np.abs(select_points[:, 1]), dtype=np.int64), axis=0, keepdims=False)
+        x_common = x_mode_result.mode if np.isscalar(x_mode_result.mode) else x_mode_result.mode.item()
+        y_common = y_mode_result.mode if np.isscalar(y_mode_result.mode) else y_mode_result.mode.item()
         points_inlier = (np.abs(select_points[:, 0]) > x_common - 3) & \
                         (np.abs(select_points[:, 0]) < x_common + 3) & \
                         (np.abs(select_points[:, 1]) > y_common - 3) & \
@@ -348,10 +349,11 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
             continue
 
         # filter out the outlier
-        x_common = mode(np.array(np.abs(select_points[:, 0]),
-                                 dtype=np.int), axis=0)[0][0]
-        y_common = mode(np.array(np.abs(select_points[:, 1]),
-                                 dtype=np.int), axis=0)[0][0]
+        # Handle scipy mode() API change - newer versions return scalar, older return array
+        x_mode_result = mode(np.array(np.abs(select_points[:, 0]), dtype=np.int64), axis=0, keepdims=False)
+        y_mode_result = mode(np.array(np.abs(select_points[:, 1]), dtype=np.int64), axis=0, keepdims=False)
+        x_common = x_mode_result.mode if np.isscalar(x_mode_result.mode) else x_mode_result.mode.item()
+        y_common = y_mode_result.mode if np.isscalar(y_mode_result.mode) else y_mode_result.mode.item()
         points_inlier = (np.abs(select_points[:, 0]) > x_common - 3) & \
                         (np.abs(select_points[:, 0]) < x_common + 3) & \
                         (np.abs(select_points[:, 1]) > y_common - 3) & \

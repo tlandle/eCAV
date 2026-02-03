@@ -24,12 +24,34 @@ from opencda.core.sensing.perception.static_obstacle import TrafficLight
 from opencda.core.sensing.perception.o3d_lidar_libs import \
     o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, \
     o3d_camera_lidar_fusion, o3d_camera_lidar_fusion_from_tracker
-from opencda.client_debug_helper import ClientDebugHelper
+from opencda.client_metrics import ClientMetrics
 
 
 import coloredlogs, logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='ERROR', logger=logger)
+
+# Vehicle types that should be tracked (excludes firetrucks, ambulances, police, etc.)
+VALID_VEHICLE_TYPES = {
+    'vehicle.audi',
+    'vehicle.bmw',
+    'vehicle.chevrolet',
+    'vehicle.citroen',
+    'vehicle.dodge',
+    'vehicle.ford',
+    'vehicle.jeep',
+    'vehicle.lincoln',
+    'vehicle.mercedes',
+    'vehicle.mini',
+    'vehicle.mustang',
+    'vehicle.nissan',
+    'vehicle.seat',
+    'vehicle.tesla',
+    'vehicle.toyota',
+    'vehicle.volkswagen',
+    'vehicle.micro',
+    'vehicle.carlamotors',
+}
 
 class CameraSensor:
     """
@@ -59,12 +81,19 @@ class CameraSensor:
 
     """
 
-    def __init__(self, vehicle, world, relative_position, global_position):
+    def __init__(self, vehicle, world, relative_position, global_position, fov=70):
+        """
+        Parameters
+        ----------
+        fov : int
+            Camera field of view in degrees. Default 70 to match V2XSim training data.
+            V2XSim uses 1600x900 @ 70° FOV. Using 100° FOV causes 3.4x focal length mismatch.
+        """
         if world is None and vehicle is not None:
             world = vehicle.get_world()
 
         blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
-        blueprint.set_attribute('fov', '100')
+        blueprint.set_attribute('fov', str(fov))
 
         spawn_point = self.spawn_point_estimation(relative_position,
                                                   global_position)
@@ -87,7 +116,7 @@ class CameraSensor:
         # camera attributes
         self.image_width = int(self.sensor.attributes['image_size_x'])
         self.image_height = int(self.sensor.attributes['image_size_y'])
-        self.debug_helper = ClientDebugHelper(0)
+        self.client_metrics = ClientMetrics(0)
 
 
     @staticmethod
@@ -213,7 +242,7 @@ class LidarSensor:
         self.sensor.listen(
             lambda event: LidarSensor._on_data_event(
                 weak_self, event))
-        self.debug_helper = ClientDebugHelper(0)
+        self.client_metrics = ClientMetrics(0)
 
 
     @staticmethod
@@ -311,7 +340,7 @@ class SemanticLidarSensor:
             lambda event: SemanticLidarSensor._on_data_event(
                 weak_self, event))
         
-        self.debug_helper = ClientDebugHelper(0)
+        self.client_metrics = ClientMetrics(0)
 
     @staticmethod
     def _on_data_event(weak_self, event):
@@ -414,6 +443,8 @@ class PerceptionManager:
         if self.activate or self.camera_visualize:
             self.rgb_camera = []
             mount_position = config_yaml['camera']['positions']
+            # FOV default 70 to match V2XSim training data for WorldFusion/BM2CP
+            camera_fov = config_yaml['camera'].get('fov', 70)
             assert len(mount_position) == self.camera_num, \
                 "The camera number has to be the same as the length of the" \
                 "relative positions list"
@@ -422,7 +453,7 @@ class PerceptionManager:
                 self.rgb_camera.append(
                     CameraSensor(
                         vehicle, self.carla_world, mount_position[i],
-                        self.global_position))
+                        self.global_position, fov=camera_fov))
 
         else:
             self.rgb_camera = None
@@ -463,9 +494,9 @@ class PerceptionManager:
             if 'traffic_light_thresh' in config_yaml else 50
 
         if debug_helper is None:
-            self.debug_helper = ClientDebugHelper(self.id)
+            self.client_metrics = ClientMetrics(self.id)
         else:
-            self.debug_helper = debug_helper
+            self.client_metrics = debug_helper
 
     def dist(self, a):
         """
@@ -543,16 +574,16 @@ class PerceptionManager:
                         rgb_camera.image),
                     cv2.COLOR_BGR2RGB))
 
-        # yolo detection
+        # yolo detection (uses ml_manager.detect() which handles both local and distributed)
 
         detection_start_time = time.time()
-        yolo_detection = self.ml_manager.object_detector(rgb_images)
+        yolo_detection = self.ml_manager.detect(rgb_images)
 
 
         
 
         detection_end_time = time.time()
-        self.debug_helper.update_detections_time(
+        self.client_metrics.update_detections_time(
             detection_end_time - detection_start_time * 1000)
         if self.vehicle is None:
             print("RSU Yolo Detection: %s" %yolo_detection)
@@ -607,10 +638,10 @@ class PerceptionManager:
             # directly.
             self.speed_retrieve(objects)
 
-        self.debug_helper.update_tracking_time(
+        self.client_metrics.update_tracking_time(
             total_tracking_time * 1000)
 
-        self.debug_helper.update_lidar_fusion_time(
+        self.client_metrics.update_lidar_fusion_time(
             total_lidar_fusion_time * 1000)
 
         if self.camera_visualize:
@@ -634,10 +665,88 @@ class PerceptionManager:
                 self.count,
                 self.lidar.o3d_pointcloud,
                 objects)
+        # Filter out detections near excluded vehicle types (firetrucks, etc.)
+        objects = self._filter_detections_near_excluded_vehicles(objects)
+
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
 
+        return objects
+
+    def _get_excluded_vehicle_positions(self):
+        """
+        Get positions of vehicles that should be excluded from tracking
+        (firetrucks, ambulances, police, etc.)
+
+        Returns
+        -------
+        list : List of (x, y) tuples for excluded vehicles
+        """
+        excluded_positions = []
+        world = self.carla_world
+        vehicle_list = world.get_actors().filter("*vehicle*")
+
+        for vehicle in vehicle_list:
+            type_id = vehicle.type_id
+            # Check if this is NOT a valid vehicle type (i.e., it's a firetruck, ambulance, etc.)
+            is_valid = any(valid_type in type_id for valid_type in VALID_VEHICLE_TYPES)
+            if not is_valid:
+                loc = vehicle.get_location()
+                excluded_positions.append((loc.x, loc.y))
+                logger.debug(f"Excluding vehicle {vehicle.id} ({type_id}) at ({loc.x:.1f}, {loc.y:.1f})")
+
+        return excluded_positions
+
+    def _filter_detections_near_excluded_vehicles(self, objects, exclusion_radius=15.0):
+        """
+        Filter out detected vehicles that are near excluded vehicle types.
+        This prevents ghost tracks from firetrucks, ambulances, etc.
+
+        Parameters
+        ----------
+        objects : dict
+            The object dictionary containing detected vehicles.
+        exclusion_radius : float
+            Distance threshold (meters) to filter detections near excluded vehicles.
+
+        Returns
+        -------
+        objects : dict
+            Filtered object dictionary.
+        """
+        if 'vehicles' not in objects or len(objects['vehicles']) == 0:
+            return objects
+
+        excluded_positions = self._get_excluded_vehicle_positions()
+        if not excluded_positions:
+            return objects
+
+        filtered_vehicles = []
+        for vehicle in objects['vehicles']:
+            loc = vehicle.get_location()
+            if loc is None:
+                filtered_vehicles.append(vehicle)
+                continue
+
+            near_excluded = False
+            for ex, ey in excluded_positions:
+                dist = np.sqrt((loc.x - ex)**2 + (loc.y - ey)**2)
+                if dist < exclusion_radius:
+                    near_excluded = True
+                    logger.debug(f"Filtering detection at ({loc.x:.1f}, {loc.y:.1f}) - "
+                               f"near excluded vehicle at ({ex:.1f}, {ey:.1f}), dist={dist:.1f}m")
+                    break
+
+            if not near_excluded:
+                filtered_vehicles.append(vehicle)
+
+        num_filtered = len(objects['vehicles']) - len(filtered_vehicles)
+        if num_filtered > 0:
+            logger.debug(f"Filtered {num_filtered} detections near excluded vehicles")
+            print(f"[PerceptionManager] Filtered {num_filtered} detections near excluded vehicles (firetrucks, etc.)")
+
+        objects['vehicles'] = filtered_vehicles
         return objects
 
     def deactivate_mode(self, objects, call_id=None):

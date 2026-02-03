@@ -33,7 +33,7 @@ import pandas as pd
 import carla
 from easydict import EasyDict as edict
 
-from opencda.core.application.edge.edge_debug_helper import EdgeDebugHelper
+from opencda.core.application.edge.edge_metrics import EdgeMetrics
 from opencda.core.prediction.linear_predictor_manager   import LinearPredictorManager
 from opencda.core.sensing.tracking.obstacle_trajectory  import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle   import ObstacleVehicle
@@ -147,7 +147,7 @@ class _BaseEdgeManager:
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
 
         # global debug helper for perf / viz
-        self.debug = EdgeDebugHelper(0)
+        self.debug = EdgeMetrics(0)
 
         # distributed mode flag (from cav_world)
         self.run_distributed = getattr(cav_world, 'run_distributed', False) if cav_world else False
