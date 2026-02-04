@@ -3,6 +3,8 @@ description: |-
   Content: VIPS (Vehicular Intersection Perception System) baseline configuration
            Infrastructure-only perception for benchmarking against cooperative approaches
 
+scenario_name: openscenario_3_edge_vips
+
 # VIPS Baseline:
 # - Uses ONLY RSU/infrastructure sensors
 # - NO vehicle sensor contributions

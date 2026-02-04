@@ -3,6 +3,8 @@ description: |-
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
            Using Late Fusion edge manager (YOLO detection + AB3DMOT tracking)
 
+scenario_name: openscenario_3_edge_late_fusion
+
 # Carla server settings
 # distributed: true enables distributed ML inference using litserve endpoints
 # distributed: false uses local ML models loaded in memory

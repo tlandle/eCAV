@@ -262,7 +262,7 @@ class Scenario_3(BasicScenario):
     timeout = 1200
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
-                 timeout=600, scenario_params=None):
+                 timeout=600, vehicle_index=-1, scenario_params=None):
         """
         Setup all relevant parameters and create scenario
         """
@@ -295,7 +295,9 @@ class Scenario_3(BasicScenario):
                                                 config,
                                                 world,
                                                 debug_mode,
-                                                criteria_enable=criteria_enable)
+                                                criteria_enable=criteria_enable,
+                                                vehicle_index=vehicle_index,
+                                                scenario_params=scenario_params)
 
     def _initialize_actors(self, config):
         # Spawn vehicles

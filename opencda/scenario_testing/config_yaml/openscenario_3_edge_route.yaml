@@ -3,6 +3,8 @@ description: |-
   Content: Edge scenario with route XML navigation support.
            Demonstrates multi-waypoint routes loaded from XML files.
 
+scenario_name: openscenario_3_edge_route
+
 # Carla server settings
 distributed: false
 define: &perception_is_active true

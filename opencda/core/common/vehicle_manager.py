@@ -285,6 +285,13 @@ class VehicleManager(object):
                     logger.debug("No spawn location specified")
                     break
 
+                # If vehicle was already provided (e.g., from ScenarioRunner), use it
+                if self.vehicle is not None:
+                    logger.debug("Using existing vehicle %s", self.vehicle.id)
+                    self.spawn_transform = self.vehicle.get_transform()
+                    spawned = True
+                    continue
+
                 # By default, we use lincoln as our cav model.
                 default_model = 'vehicle.lincoln.mkz2017' \
                     if self.carla_version == '0.9.11' else 'vehicle.lincoln.mkz_2017'
