@@ -64,13 +64,13 @@ class Ecav2ActorClient:
     # default params which can be over-written from the simulation controller
     SPECTATOR_INDEX = 0
 
-    def __init__(self, vehicle=None, actor_type=ecloud.ActorType.VEHICLE):
+    def __init__(self, vehicle=None, actor_type=ecloud.ActorType.VEHICLE, vehicle_index=0):
         self.actor_type = actor_type
-        
+
         self.ecloud_server = None
         self.channel = None
         self.vehicle = vehicle
-        self.vehicle_index = 0 # TODO: fix me
+        self.vehicle_index = vehicle_index
         self.actor_id = None
         self.push_port = None
         self.push_server = None
@@ -160,7 +160,7 @@ class Ecav2ActorClient:
             await asyncio.sleep(self.vehicle_index + 1)
 
         if self.actor_type == ecloud.ActorType.VEHICLE:
-            self.vehicle_manager = VehicleManager(vehicle=self.vehicle, config_yaml=scenario_yaml, application=application, cav_world=cav_world, \
+            self.vehicle_manager = VehicleManager(vehicle=self.vehicle, config_yaml=scenario_yaml, vehicle_index=self.vehicle_index, application=application, cav_world=cav_world, \
                                         carla_version=version, location_type=self.location_type, run_distributed=True, is_edge=self.is_edge, perception_active=self.opt.apply_ml)
             assert self.vehicle_manager.vehicle is not None, "vehicle_manager failed to spawn the vehicle"
             self.actor_id = self.vehicle_manager.vehicle.id

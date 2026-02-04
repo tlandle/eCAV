@@ -447,21 +447,19 @@ class ScenarioManager:
         self.run_distributed = distributed
 
         # Initialize ML Manager with mode selection
-        # Only create if cav_world doesn't already have one (CavWorld may have created it)
-        if cav_world and cav_world.ml_manager is None:
+        # Only create if cav_world doesn't already have one AND apply_ml is True
+        if cav_world and cav_world.ml_manager is None and apply_ml:
             # Update scenario params with distributed flag
             scenario_params['distributed'] = distributed
 
             # Get ML configuration
             ml_config = scenario_params.get('ml_manager', {})
 
-            # Add service endpoints if distributed
+            # Add service endpoints if distributed (use ml_config values or defaults)
             if self.run_distributed:
-                ml_config.update({
-                    'yolo_endpoint': scenario_params.get('yolo_endpoint', 'http://localhost:8000'),
-                    'bm2cp_vehicle_endpoint': scenario_params.get('bm2cp_vehicle_endpoint', 'http://localhost:8001'),
-                    'bm2cp_edge_endpoint': scenario_params.get('bm2cp_edge_endpoint', 'http://localhost:8002'),
-                })
+                ml_config.setdefault('yolo_endpoint', 'http://localhost:18000')
+                ml_config.setdefault('bm2cp_vehicle_endpoint', 'http://localhost:8001')
+                ml_config.setdefault('bm2cp_edge_endpoint', 'http://localhost:8002')
 
             # Add BM2CP model config if present
             if 'edge_base' in scenario_params and 'bm2cp_model' in scenario_params['edge_base']:
@@ -580,8 +578,6 @@ class ScenarioManager:
 
         if self.run_distributed:
             self.apply_ml = False
-            if apply_ml == True:
-                assert False, logger.exception("ML should only be run on the distributed clients")
 
             channel = grpc.aio.insecure_channel(
             target=f"{ECLOUD_IP}:50051",
@@ -1285,13 +1281,13 @@ class ScenarioManager:
                     #      current_time=self.scenario_params['current_time'],
                     #      data_dumping=data_dump, carla_version=self.carla_version)
                     vehicle_manager = VehicleManager(
-                          vehicle_index=index, config_yaml=config_yaml, application=application,
+                          vehicle=ego_vehicle, vehicle_index=index, config_yaml=config_yaml, application=application,
                           carla_world=self.world,
                           carla_map=self.carla_map, cav_world=self.cav_world,
                           current_time=self.scenario_params['current_time'],
                           data_dumping=data_dump, is_edge=True, map_helper=map_helper,
                           location_type = self.ecloud_config.get_location_type(),
-                          perception_active=self.apply_ml)
+                          perception_active=self.apply_ml, run_distributed=self.run_distributed)
 
                     logger.debug("finished creating VehiceManagerProxy")
 
@@ -1401,7 +1397,7 @@ class ScenarioManager:
                           current_time=self.scenario_params['current_time'],
                           data_dumping=data_dump, is_edge=True, map_helper=map_helper,
                           location_type = self.ecloud_config.get_location_type(),
-                          perception_active=self.apply_ml)
+                          perception_active=self.apply_ml, run_distributed=self.run_distributed)
 
                     logger.debug("finished creating VehiceManagerProxy")
 

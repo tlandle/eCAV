@@ -34,6 +34,8 @@
 #include <csignal>
 #include <unistd.h>
 #include <chrono>
+#include <map>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
@@ -101,9 +103,20 @@ using ecloud::ClientDebugHelper;
 using ecloud::Timestamps;
 using ecloud::WaypointRequest;
 using ecloud::EdgeWaypoints;
+using ecloud::EdgeObjects;
 using ecloud::ObjectBuffer;
 using ecloud::EdgeObstacleObject;
 using ecloud::ObjectRequest;
+using ecloud::ActorType;
+using ecloud::ScenarioRequest;
+using ecloud::EdgeRegistrationInfo;
+using ecloud::EdgeScenarioConfig;
+using ecloud::EdgeTickComplete;
+using ecloud::EdgeTick;
+using ecloud::EdgeIndex;
+using ecloud::ActorConnectionInfo;
+using ecloud::EdgeMapping;
+using ecloud::EdgeMappingSetup;
 
 std::atomic<int16_t> numCompletedVehicles_;
 std::atomic<int16_t> numRepliedVehicles_;
@@ -111,6 +124,7 @@ std::atomic<int32_t> tickId_;
 std::atomic<bool> pushedTick_;
 
 bool repliedCars_[MAX_CARS];
+bool repliedRsus[MAX_CARS];
 std::string carNames_[MAX_CARS];
 
 bool init_;
@@ -128,6 +142,26 @@ Command command_;
 std::vector<std::pair<int16_t, std::string>> serializedEdgeWaypoints_; // vehicleIdx, serializedWPBuffer
 std::vector<std::pair<int16_t, std::string>> serializedEdgeObjects_; // vehicleIdx, serializedObjBuffer
 
+// Edge architecture state
+struct EdgeInfo {
+    int32_t edge_index;
+    std::string edge_ip;
+    int32_t edge_port;
+    int32_t num_vehicles;
+    int32_t num_rsus;
+    std::string container_name;
+    std::string edge_config_yaml;  // JSON of edge-specific YAML section
+    std::vector<int32_t> vehicle_indices;  // Global vehicle indices owned by this edge
+    std::vector<int32_t> rsu_indices;      // Global RSU indices owned by this edge
+};
+
+std::vector<EdgeInfo> edgeInfos_;  // Registered edges
+std::map<int32_t, int32_t> vehicleToEdgeMapping_;  // vehicle_index -> edge_index
+std::map<int32_t, int32_t> rsuToEdgeMapping_;      // rsu_index -> edge_index
+std::atomic<int16_t> numRegisteredEdges_;
+std::atomic<int16_t> numCompletedEdges_;
+bool hasEdges_;  // True if scenario has edges (from sim_api.py)
+int16_t numExpectedEdges_;  // Expected number of edges to register
 
 absl::Mutex mu_;
 
@@ -175,8 +209,7 @@ class PushClient
             if (status.ok()) {
                 return true;
             } else {
-                std::cout << status.error_code() << ": " << status.error_message()
-                << std::endl;
+                LOG(ERROR) << status.error_code() << ": " << status.error_message();
                 return false;
             }
         }
@@ -204,12 +237,22 @@ public:
             configYaml_ = "";
             isEdge_ = false;
 
+            // Edge architecture initialization
+            numRegisteredEdges_.store(0);
+            numCompletedEdges_.store(0);
+            hasEdges_ = false;
+            numExpectedEdges_ = 0;
+            edgeInfos_.clear();
+            vehicleToEdgeMapping_.clear();
+            rsuToEdgeMapping_.clear();
+
             simIP_ = "localhost";
 
             const std::string connection = absl::StrFormat("%s:%d", simIP_, ECLOUD_PUSH_API_PORT );
             simAPIClient_ = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
 
             vehicleClients_.clear();
+            edgeClients_.clear();
             pendingReplies_.clear();
 
             init_ = true;
@@ -267,21 +310,25 @@ public:
             }
         }
 
-        repliedCars_[request->vehicle_index()] = true; // DEBUGGING
+        if ( request->actor_type() == ActorType::VEHICLE )
+            repliedCars_[request->vehicle_index()] = true; // DEBUGGING
+        else
+            repliedRsus[request->vehicle_index()] = true; // DEBUGGING
 
         if ( request->vehicle_state() == VehicleState::TICK_DONE )
         {
             numCompletedVehicles_++;
-            DLOG(INFO) << "Client_SendUpdate - TICK_DONE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
+            DLOG(INFO) << "Client_SendUpdate - TICK_DONE - tick id: " << request->tick_id() << " vehicle id: " << request->vehicle_index();
         }
         else if ( request->vehicle_state() == VehicleState::TICK_OK )
         {
             numRepliedVehicles_++;
+            DLOG(INFO) << "Client_SendUpdate - TICK_OK - tick id: " << request->tick_id() << " vehicle id: " << request->vehicle_index();
         }
         else if ( request->vehicle_state() == VehicleState::DEBUG_INFO_UPDATE )
         {
             numCompletedVehicles_++;
-            DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << tickId_ << " vehicle id: " << request->vehicle_index();
+            DLOG(INFO) << "Client_SendUpdate - DEBUG_INFO_UPDATE - tick id: " << request->tick_id() << " vehicle id: " << request->vehicle_index();
         }
     
         const bool complete = ( numRepliedVehicles_.load() + numCompletedVehicles_.load() ) == numCars_;
@@ -292,7 +339,6 @@ public:
             simAPIClient_->PushTick( request->tick_id(), command_, lastClientDurationNS );
             LOG(INFO) << "tick " << request->tick_id() << " COMPLETE";
         }
-        DLOG(INFO) << "Client_SendUpdate - received reply from vehicle " << request->vehicle_index() << " for tick id:" << request->tick_id();
         
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -311,21 +357,21 @@ public:
             {
                 buffer->set_vehicle_index(request->vehicle_index());
                 WaypointBuffer waypointBuf;
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
                 const std::string buf = wpPair.second;
-                wpBuf.ParseFromString(buf);
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
-                for ( Waypoint wp : wpBuf.waypoint_buffer())
+                waypointBuf.ParseFromString(buf);
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
+                for ( Waypoint wp : waypointBuf.waypoint_buffer())
                 {
                     Waypoint *p = buffer->add_waypoint_buffer();
                     p->CopyFrom(wp);
-                    //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
+                    LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
                 }
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
                 break;
             }
         }
-        //LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+        LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
 
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -343,25 +389,20 @@ public:
         for ( int i = 0; i < serializedEdgeObjects_.size(); i++ )
         {
             const std::pair<int16_t, std::string > objPair = serializedEdgeObjects_[i];
-            if ( objPair.first == request->vehicle_id() )
+            if ( objPair.first == request->vehicle_index() )
             {
-                buffer->set_vehicle_id(request->vehicle_id());
+                buffer->set_vehicle_id(request->vehicle_index());
                 ObjectBuffer objBuf;
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints starting parse";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " objects starting parse";
                 const std::string buf = objPair.second;
                 objBuf.ParseFromString(buf);
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " waypoints parsed";
-                for ( EdgeObstacleObject obj : objBuf.object())
-                {
-                    EdgeObstacleObject *p = buffer->add_object();
-                    p->CopyFrom(obj);
-                    //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " single waypoint copied";
-                }
-                //LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all waypoints copied";
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " objects parsed";
+                buffer->set_pickled_edge_predictions(objBuf.pickled_edge_predictions());
+                LOG(INFO) << "Requesting vehicle " << request->vehicle_index() << " all objects copied";
                 break;
             }
         }
-        //LOG(INFO) << "vehicle " << request->vehicle_index() << " waypoints sent";
+        LOG(INFO) << "vehicle " << request->vehicle_index() << " objects sent";
 
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -433,14 +474,37 @@ public:
         return reactor;
     }
 
+    ServerUnaryReactor* Client_GetScenario(CallbackServerContext* context,
+                               const ScenarioRequest* request,
+                               SimulationInfo* reply) override {
+
+        LOG(INFO) << "Client_GetScenario - request from vehicle_index: " << request->vehicle_index();
+
+        reply->set_test_scenario(configYaml_);
+        reply->set_application(application_);
+        reply->set_version(version_);
+        reply->set_is_edge(isEdge_);
+        reply->set_carla_ip(simIP_);
+
+        DLOG(INFO) << "Client_GetScenario - returning scenario: " << configYaml_;
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
     ServerUnaryReactor* Server_DoTick(CallbackServerContext* context,
                                const Tick* request,
                                Empty* empty) override {
         for ( int i = 0; i < numCars_; i++ )
+        {
             repliedCars_[i] = false;
+            repliedRsus[i] = false;
+        }
 
         pushedTick_ = false;
         numRepliedVehicles_ = 0;
+        numCompletedEdges_ = 0;  // Reset edge completion counter
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
         command_ = request->command();
@@ -450,11 +514,24 @@ public:
             now.time_since_epoch()).count();
 
         const int32_t tickId = request->tick_id();
-        for ( int i = 0; i < vehicleClients_.size(); i++ )
-        {
-            PushClient *v = vehicleClients_[i];
-            std::thread t( &PushClient::PushTick, v, tickId, command_, INVALID_TIME );
-            t.detach();
+
+        // If we have edges, push ticks to edges instead of individual vehicles
+        if (hasEdges_ && edgeClients_.size() > 0) {
+            LOG(INFO) << "pushing tick " << tickId << " to " << edgeClients_.size() << " edges";
+            for ( int i = 0; i < edgeClients_.size(); i++ )
+            {
+                PushClient *e = edgeClients_[i];
+                std::thread t( &PushClient::PushTick, e, tickId, command_, INVALID_TIME );
+                t.detach();
+            }
+        } else {
+            // No edges, push directly to vehicles (existing behavior)
+            for ( int i = 0; i < vehicleClients_.size(); i++ )
+            {
+                PushClient *v = vehicleClients_[i];
+                std::thread t( &PushClient::PushTick, v, tickId, command_, INVALID_TIME );
+                t.detach();
+            }
         }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
@@ -468,16 +545,16 @@ public:
                                Empty* empty) override {
         serializedEdgeWaypoints_.clear();
 
-        //LOG(INFO) << "updated waypoints received";
+        LOG(INFO) << "updated waypoints received";
         for ( WaypointBuffer wpBuf : edgeWaypoints->all_waypoint_buffers() )
         {   
             std::string serializedWPs;
             wpBuf.SerializeToString(&serializedWPs);
             const std::pair< int16_t, std::string > wpPair = std::make_pair( wpBuf.vehicle_index(), serializedWPs );
             serializedEdgeWaypoints_.push_back(wpPair);
-            //LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
+            LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
         }
-        //LOG(INFO) << "updated waypoints processed";
+        LOG(INFO) << "updated waypoints processed";
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -485,25 +562,67 @@ public:
     }
 
     ServerUnaryReactor* Server_PushEdgeObjects(CallbackServerContext* context,
-                               const EdgeObstacleObjects* edgeObjects,
+                               const EdgeObjects* edgeObjects,
                                Empty* empty) override {
-        serializedEdgObjects_.clear();
+        serializedEdgeObjects_.clear();
 
-        //LOG(INFO) << "updated waypoints received";
-        for ( ObjectBuffer objBuf : edgeObjects->all_objects() )
+        LOG(INFO) << "updated edge objects received";
+        for ( ObjectBuffer objBuf : edgeObjects->all_object_buffers() )
         {   
             std::string serializedObjs;
             objBuf.SerializeToString(&serializedObjs);
             const std::pair< int16_t, std::string > objPair = std::make_pair( objBuf.vehicle_id(), serializedObjs );
-            serializedEdgeWaypoints_.push_back(wpPair);
-            //LOG(INFO) << "updated waypoints for vehicle index " << wpBuf.vehicle_index();
+            serializedEdgeObjects_.push_back(objPair);
+            LOG(INFO) << "updated generated predictions for vehicle index " << objBuf.vehicle_id();
         }
-        //LOG(INFO) << "updated waypoints processed";
+        LOG(INFO) << "updated edge objects processed";
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
-    } 
+    }
+
+    // Set up edge mappings before edges/actors start
+    ServerUnaryReactor* Server_SetEdgeMappings(CallbackServerContext* context,
+                               const EdgeMappingSetup* request,
+                               Empty* empty) override {
+
+        LOG(INFO) << "Server_SetEdgeMappings - setting up " << request->num_edges() << " edges";
+
+        mu_.Lock();
+
+        // Clear existing mappings
+        vehicleToEdgeMapping_.clear();
+        rsuToEdgeMapping_.clear();
+        numExpectedEdges_ = request->num_edges();
+        hasEdges_ = (numExpectedEdges_ > 0);
+
+        // Process each edge mapping
+        for (const EdgeMapping& mapping : request->mappings()) {
+            const int32_t edge_index = mapping.edge_index();
+
+            // Map vehicles to this edge
+            for (int32_t vehicle_idx : mapping.vehicle_indices()) {
+                vehicleToEdgeMapping_[vehicle_idx] = edge_index;
+                LOG(INFO) << "  vehicle " << vehicle_idx << " -> edge " << edge_index;
+            }
+
+            // Map RSUs to this edge
+            for (int32_t rsu_idx : mapping.rsu_indices()) {
+                rsuToEdgeMapping_[rsu_idx] = edge_index;
+                LOG(INFO) << "  rsu " << rsu_idx << " -> edge " << edge_index;
+            }
+        }
+
+        mu_.Unlock();
+
+        LOG(INFO) << "Server_SetEdgeMappings - configured " << vehicleToEdgeMapping_.size()
+                  << " vehicle mappings and " << rsuToEdgeMapping_.size() << " rsu mappings";
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
 
     ServerUnaryReactor* Server_StartScenario(CallbackServerContext* context,
                                const SimulationInfo* request,
@@ -525,14 +644,163 @@ public:
         return reactor;
     }
 
+    // ============================================
+    // Edge Architecture RPCs
+    // ============================================
+
+    // Actor asks orchestrator where to connect (edge or orchestrator)
+    ServerUnaryReactor* Client_GetConnectionInfo(CallbackServerContext* context,
+                               const RegistrationInfo* request,
+                               ActorConnectionInfo* reply) override {
+
+        const int32_t vehicle_index = request->vehicle_index();
+        LOG(INFO) << "Client_GetConnectionInfo - request for vehicle_index: " << vehicle_index;
+
+        // Check if this vehicle belongs to an edge
+        auto it = vehicleToEdgeMapping_.find(vehicle_index);
+        if (hasEdges_ && it != vehicleToEdgeMapping_.end()) {
+            const int32_t edge_index = it->second;
+            // Find the edge info
+            for (const EdgeInfo& edge : edgeInfos_) {
+                if (edge.edge_index == edge_index) {
+                    reply->set_has_edge(true);
+                    reply->set_edge_ip(edge.edge_ip);
+                    reply->set_edge_port(edge.edge_port);
+                    reply->set_edge_index(edge_index);
+                    reply->set_vehicle_index(vehicle_index);
+                    LOG(INFO) << "Client_GetConnectionInfo - vehicle " << vehicle_index
+                              << " -> edge " << edge_index << " at " << edge.edge_ip << ":" << edge.edge_port;
+                    break;
+                }
+            }
+        } else {
+            // No edge, actor connects directly to orchestrator
+            reply->set_has_edge(false);
+            reply->set_vehicle_index(vehicle_index);
+            LOG(INFO) << "Client_GetConnectionInfo - vehicle " << vehicle_index << " -> orchestrator (no edge)";
+        }
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    // Edge registers with orchestrator, receives its scenario configuration
+    ServerUnaryReactor* Edge_Register(CallbackServerContext* context,
+                               const EdgeRegistrationInfo* request,
+                               EdgeScenarioConfig* reply) override {
+
+        LOG(INFO) << "Edge_Register - edge_index: " << request->edge_index()
+                  << " at " << request->edge_ip() << ":" << request->edge_port();
+
+        mu_.Lock();
+
+        // Store edge info
+        EdgeInfo edgeInfo;
+        edgeInfo.edge_index = request->edge_index();
+        edgeInfo.edge_ip = request->edge_ip();
+        edgeInfo.edge_port = request->edge_port();
+        edgeInfo.num_vehicles = request->num_vehicles();
+        edgeInfo.num_rsus = request->num_rsus();
+        edgeInfo.container_name = request->container_name();
+
+        // Find edge config from stored mappings (set by sim_api.py via Server_StartScenario extended)
+        // For now, we'll populate these during registration processing
+        // The vehicle_indices and rsu_indices are set by sim_api.py before actors/edges start
+
+        // Create push client for this edge
+        const std::string connection = absl::StrFormat("%s:%d", request->edge_ip(), request->edge_port());
+        PushClient *edgeClient = new PushClient(grpc::CreateChannel(connection, grpc::InsecureChannelCredentials()), connection);
+        edgeClients_.push_back(std::move(edgeClient));
+        edgeInfos_.push_back(edgeInfo);
+
+        numRegisteredEdges_++;
+        mu_.Unlock();
+
+        // Build response with edge-specific config
+        reply->set_edge_index(request->edge_index());
+        reply->set_edge_config_yaml(configYaml_);  // Full config for now, edge can parse its section
+        reply->set_carla_ip(simIP_);
+        reply->set_carla_port(2000);  // Default CARLA port
+        reply->set_application(application_);
+        reply->set_version(version_);
+
+        // Copy vehicle and RSU indices if they've been set and count them
+        int32_t numVehicles = 0;
+        int32_t numRsus = 0;
+        for (const auto& mapping : vehicleToEdgeMapping_) {
+            if (mapping.second == request->edge_index()) {
+                reply->add_vehicle_indices(mapping.first);
+                numVehicles++;
+            }
+        }
+        for (const auto& mapping : rsuToEdgeMapping_) {
+            if (mapping.second == request->edge_index()) {
+                reply->add_rsu_indices(mapping.first);
+                numRsus++;
+            }
+        }
+        reply->set_num_vehicles(numVehicles);
+        reply->set_num_rsus(numRsus);
+
+        LOG(INFO) << "Edge_Register - registered edge " << request->edge_index()
+                  << " (" << numRegisteredEdges_.load() << "/" << numExpectedEdges_ << ")";
+
+        // Check if all edges are registered
+        if (numRegisteredEdges_.load() == numExpectedEdges_) {
+            LOG(INFO) << "EDGE REGISTRATION COMPLETE - all " << numExpectedEdges_ << " edges registered";
+            // Notify sim_api.py that edges are ready
+            simAPIClient_->PushTick(TICK_ID_INVALID, Command::TICK, INVALID_TIME);
+        }
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    // Edge notifies orchestrator it completed processing for a tick
+    ServerUnaryReactor* Edge_TickComplete(CallbackServerContext* context,
+                               const EdgeTickComplete* request,
+                               Empty* reply) override {
+
+        LOG(INFO) << "Edge_TickComplete - edge " << request->edge_index()
+                  << " tick " << request->tick_id() << " (" << request->num_actors_processed() << " actors)";
+
+        numCompletedEdges_++;
+
+        const bool allEdgesComplete = (numCompletedEdges_.load() == numExpectedEdges_);
+        if (allEdgesComplete && !pushedTick_) {
+            pushedTick_ = true;
+            simAPIClient_->PushTick(request->tick_id(), command_, INVALID_TIME);
+            LOG(INFO) << "tick " << request->tick_id() << " COMPLETE (all edges reported)";
+        }
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    // Orchestrator pushes tick to edge (called internally, not directly via RPC)
+    // This is implemented as a client call from Server_DoTick
+    // The Edge_PushTick RPC is handled by the edge process, not here
+
     ServerUnaryReactor* Server_EndScenario(CallbackServerContext* context,
                                const Empty* request,
                                Empty* reply) override {
         command_ = Command::END;
 
         LOG(INFO) << "pushing END";
-        for ( int i = 0; i < vehicleClients_.size(); i++ )
-            vehicleClients_[i]->PushTick(TICK_ID_INVALID, Command::END, INVALID_TIME); // don't thread --> block
+
+        // If we have edges, push END to edges instead of individual vehicles
+        if (hasEdges_ && edgeClients_.size() > 0) {
+            LOG(INFO) << "pushing END to " << edgeClients_.size() << " edges";
+            for ( int i = 0; i < edgeClients_.size(); i++ )
+                edgeClients_[i]->PushTick(TICK_ID_INVALID, Command::END, INVALID_TIME); // don't thread --> block
+        } else {
+            // No edges, push directly to vehicles (existing behavior)
+            for ( int i = 0; i < vehicleClients_.size(); i++ )
+                vehicleClients_[i]->PushTick(TICK_ID_INVALID, Command::END, INVALID_TIME); // don't thread --> block
+        }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
@@ -542,6 +810,7 @@ public:
     private:
 
         std::vector< PushClient * > vehicleClients_;
+        std::vector< PushClient * > edgeClients_;  // Clients for pushing ticks to edges
         PushClient * simAPIClient_;
 };
 
@@ -554,7 +823,7 @@ void RunServer(uint16_t port) {
     // Listen on the given address without any authentication mechanism.
     const std::string server_address = absl::StrFormat("0.0.0.0:%d", port );
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
-    std::cout << "server listening on port " << port << std::endl;
+    LOG(INFO) << "server listening on port " << port << std::endl;
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.
     builder.RegisterService(&service);
@@ -587,10 +856,9 @@ int main(int argc, char* argv[]) {
 
     absl::ParseCommandLine(argc, argv);
     //absl::InitializeLog();
+    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
     std::thread server = std::thread(&RunServer,absl::GetFlag(FLAGS_port));
-    
-    absl::SetMinLogLevel(static_cast<absl::LogSeverityAtLeast>(absl::GetFlag(FLAGS_minloglevel)));
 
     server.join();
 

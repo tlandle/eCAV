@@ -3,6 +3,8 @@ description: |-
   Content: Test configurations for `openscenario_carla` that incorporates ScenarioRunner
            Using WorldFusion edge manager with V2X-Sim 2.0 trained model
 
+scenario_name: openscenario_3_edge_worldfusion
+
 # Carla server settings
 # distributed: true enables distributed ML inference using litserve endpoints
 # distributed: false uses local ML models loaded in memory
