@@ -487,6 +487,9 @@ class PerceptionManager:
         # ego position
         self.ego_pos = None
 
+        # intermediate features for WorldFusion/BM2CP (populated from distributed client)
+        self.feature_dict = None
+
         # the dictionary contains all objects
         self.objects = {}
         # traffic light detection related

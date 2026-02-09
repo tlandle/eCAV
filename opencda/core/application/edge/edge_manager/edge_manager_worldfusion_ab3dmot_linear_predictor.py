@@ -48,11 +48,12 @@ from opencda.core.application.edge.edge_profiler import EdgeProfiler
 from .edge_manager_base import _BaseEdgeManager
 
 
-def _box_to_transform(box: np.ndarray) -> carla.Transform:
-    """Convert a detection box [x,y,z,h,w,l,yaw] to carla.Transform."""
-    loc = carla.Location(x=float(box[0]), y=float(box[1]), z=float(box[2]))
-    rot = carla.Rotation(yaw=np.degrees(float(box[6])))
-    return carla.Transform(loc, rot)
+def _box_to_transform(box: np.ndarray):
+    """Convert a detection box [x,y,z,h,w,l,yaw] to picklable Transform."""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
+    loc = _Loc(x=float(box[0]), y=float(box[1]), z=float(box[2]))
+    rot = _Rot(yaw=np.degrees(float(box[6])))
+    return _Tf(location=loc, rotation=rot)
 
 
 class WorldFusionEdge(_BaseEdgeManager):
@@ -302,9 +303,9 @@ class WorldFusionEdge(_BaseEdgeManager):
                 snapshot = next((item for item in self.feat_history if item[0] == target_id), None)
 
             if not snapshot or not snapshot[1]:
-                self._update_agents(tick, None)
+                serialized_preds = self._update_agents(tick, None)
                 frame.set_counts(num_agents=0, num_detections=0, num_tracks=0, num_predictions=0)
-                return
+                return serialized_preds
 
             frame_id, feature_dicts, poses, carla_snapshot_at_capture, excluded_vehicles = snapshot
             num_agents = len(feature_dicts)
@@ -313,7 +314,7 @@ class WorldFusionEdge(_BaseEdgeManager):
             with frame.time("fusion"):
                 spatial_features = torch.cat(
                     [d['spatial_features'] for d in feature_dicts], dim=0
-                ).cuda()
+                ).float().cuda()
 
                 pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
                 record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
@@ -404,7 +405,7 @@ class WorldFusionEdge(_BaseEdgeManager):
 
             # 9. Distribute predictions to vehicles
             with frame.time("distribution"):
-                self._update_agents(tick, predictions)
+                serialized_preds = self._update_agents(tick, predictions)
 
             # Record counts for this frame
             frame.set_counts(
@@ -413,6 +414,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 num_tracks=num_tracks,
                 num_predictions=num_predictions
             )
+
+        return serialized_preds
 
     def _run_fusion(self, spatial_features: torch.Tensor,
                     pairwise_t_matrix: torch.Tensor,
@@ -1214,26 +1217,49 @@ class WorldFusionEdge(_BaseEdgeManager):
         """
         Update all managed vehicles and RSUs with predictions.
 
-        Args:
-            tick: Current simulation tick
-            predictions: Predicted trajectories to distribute
+        Returns ecloud.EdgeObjects for distributed prediction push.
+        In sequential mode the return value is ignored by the scenario loop.
         """
+        import pickle
+        import ecloud_pb2 as ecloud
+
         print(f"[WorldFusion Edge] Broadcasting {len(predictions) if predictions else 0} predictions for tick {tick}")
 
+        serialized_preds = ecloud.EdgeObjects()
+        pickled_edge_predictions = None
+
+        if predictions is not None and len(predictions) > 0:
+            try:
+                pickled_edge_predictions = pickle.dumps(predictions)
+            except Exception as e:
+                print(f"[WorldFusion Edge] Error serializing predictions: {e}")
+
         # Distribute predictions to vehicles
-        for vm in self.vehicle_manager_list:
+        for index, vm in enumerate(self.vehicle_manager_list):
             if predictions is not None and len(predictions) > 0 and random.random() * 100 > self.downlink_pl:
-                vm.agent.edge_predictions = list(predictions)  # Create a new list copy
+                vm.agent.edge_predictions = list(predictions)
                 print(f"[WorldFusion Edge] Set {len(vm.agent.edge_predictions)} edge_predictions on vehicle")
             else:
-                vm.agent.edge_predictions = []  # Use empty list instead of .clear()
-            vm.update_info(tick)
-            vm.vehicle.apply_control(vm.run_step())
+                vm.agent.edge_predictions = []
+
+            if pickled_edge_predictions is not None:
+                object_buffer = ecloud.ObjectBuffer(
+                    vehicle_id=index,
+                    pickled_edge_predictions=pickled_edge_predictions
+                )
+                serialized_preds.all_object_buffers.append(object_buffer)
+
+            if not self.run_distributed:
+                vm.update_info(tick)
+                vm.vehicle.apply_control(vm.run_step())
 
         # Update RSUs
-        for rsu in self.rsu_manager_list:
-            rsu.update_info()
-            rsu.run_step()
+        if not self.run_distributed:
+            for rsu in self.rsu_manager_list:
+                rsu.update_info()
+                rsu.run_step()
+
+        return serialized_preds
 
     def _evaluate_predictions(self, tick: int, predictions: Optional[List],
                                carla_snapshot_at_capture: Optional[Dict] = None,

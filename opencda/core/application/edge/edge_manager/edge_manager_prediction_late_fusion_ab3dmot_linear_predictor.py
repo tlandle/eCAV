@@ -21,7 +21,7 @@ License: TDG-Attribution-NonCommercial-NoDistrib
 """
 from __future__ import annotations
 
-import math, random, time, logging
+import math, random, time, logging, pickle
 from collections import deque, defaultdict
 from typing import Dict, List, Deque
 
@@ -30,6 +30,8 @@ import carla
 
 from easydict import EasyDict as edict
 from AB3DMOT_libs.model import AB3DMOT
+
+import ecloud_pb2 as ecloud
 
 from opencda.core.prediction.linear_predictor_manager import \
     LinearPredictorManager
@@ -64,12 +66,13 @@ def _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh):
     union = box_wh[0]*box_wh[1] + ego_wh[0]*ego_wh[1] - inter
     return inter/union
 
-def _box_to_transform(box) -> carla.Transform:
-    """Convert AB3DMOT box format [h, w, l, x, y, z, yaw] to carla.Transform."""
+def _box_to_transform(box):
+    """Convert AB3DMOT box format [h, w, l, x, y, z, yaw] to picklable Transform."""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
     h, w, l, x, y, z, yaw = box  # AB3DMOT format: [h, w, l, x, y, z, yaw]
-    loc = carla.Location(x=float(x), y=float(y), z=float(z))
-    rot = carla.Rotation(yaw=np.degrees(float(yaw)))
-    return carla.Transform(loc, rot)
+    loc = _Loc(x=float(x), y=float(y), z=float(z))
+    rot = _Rot(yaw=np.degrees(float(yaw)))
+    return _Tf(location=loc, rotation=rot)
 
 def _collect_ab3d_detections(edge,
                              objects: Dict[str,List],
@@ -98,7 +101,9 @@ def _collect_ab3d_detections(edge,
         bbx = obj.bounding_box.extent
         h,w,l = bbx.z*2, bbx.y*2, bbx.x*2
         if _is_sliver(h,w,l): continue
-        loc = obj.bounding_box.location
+        # Use obj.location (world coords), NOT obj.bounding_box.location
+        # which is a local offset after set_vehicle() in ground-truth mode
+        loc = obj.location
         if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.7*max(ego_wh): continue
         if _aabb_iou_2d(_xyz(loc)[:2],[w,l], ego_xy, ego_wh) > .25:      continue
         det_rows.append([h,w,l, loc.x,loc.y,loc.z, 0.0])
@@ -276,7 +281,7 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             if lag_steps >= len(self.objects_deque):
                 frame.set_counts(num_agents=num_agents, num_detections=0,
                                  num_tracks=0, num_predictions=0)
-                return
+                return ecloud.EdgeObjects()
             as_of = tick - lag_steps
 
             # ===== 1. replay detection history into fresh AB3DMOT =========
@@ -371,18 +376,30 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
             # ===== 3. distribute predictions =============================
             with frame.time("distribution"):
-                for vm in self.vehicle_manager_list:
+                serialized_preds = ecloud.EdgeObjects()
+                pickled_edge_predictions = None
+                try:
+                    pickled_edge_predictions = pickle.dumps(preds)
+                except Exception as e:
+                    logging.warning("Error serializing predictions: %s", e)
+
+                for index, vm in enumerate(self.vehicle_manager_list):
                     if random.random()*100 < self.downlink_loss:
                         vm.agent.edge_predictions.clear()
                     else:
+                        object_buffer = ecloud.ObjectBuffer(
+                            vehicle_id=index,
+                            pickled_edge_predictions=pickled_edge_predictions)
+                        serialized_preds.all_object_buffers.append(object_buffer)
                         vm.agent.edge_predictions = preds.copy()
 
             # ===== 4. advance vehicles ===================================
-            for vm in self.vehicle_manager_list:
-                vm.update_info(tick)
-                vm.vehicle.apply_control(vm.run_step())
-            for rsu in self.rsu_manager_list:
-                rsu.update_info();  rsu.run_step()
+            if not self.run_distributed:
+                for vm in self.vehicle_manager_list:
+                    vm.update_info(tick)
+                    vm.vehicle.apply_control(vm.run_step())
+                for rsu in self.rsu_manager_list:
+                    rsu.update_info();  rsu.run_step()
 
             # Set profiler counts
             frame.set_counts(
@@ -391,6 +408,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 num_tracks=num_tracks,
                 num_predictions=num_predictions
             )
+
+            return serialized_preds
 
     # ------------------------------------------------------------------
     #  Trajectory conversion (unchanged from legacy code)

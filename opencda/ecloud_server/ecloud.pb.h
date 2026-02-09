@@ -10085,6 +10085,7 @@ class VehicleUpdate final : public ::google::protobuf::Message
   // accessors -------------------------------------------------------
   enum : int {
     kPickledAgentObjectsFieldNumber = 10,
+    kPickledFeaturesFieldNumber = 12,
     kLocDebugHelperFieldNumber = 4,
     kPlanerDebugHelperFieldNumber = 5,
     kClientDebugHelperFieldNumber = 6,
@@ -10109,6 +10110,21 @@ class VehicleUpdate final : public ::google::protobuf::Message
   const ::std::string& _internal_pickled_agent_objects() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_pickled_agent_objects(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_pickled_agent_objects();
+
+  public:
+  // bytes pickled_features = 12;
+  void clear_pickled_features() ;
+  const ::std::string& pickled_features() const;
+  template <typename Arg_ = const ::std::string&, typename... Args_>
+  void set_pickled_features(Arg_&& arg, Args_... args);
+  ::std::string* PROTOBUF_NONNULL mutable_pickled_features();
+  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_pickled_features();
+  void set_allocated_pickled_features(::std::string* PROTOBUF_NULLABLE value);
+
+  private:
+  const ::std::string& _internal_pickled_features() const;
+  PROTOBUF_ALWAYS_INLINE void _internal_set_pickled_features(const ::std::string& value);
+  ::std::string* PROTOBUF_NONNULL _internal_mutable_pickled_features();
 
   public:
   // .ecloud.LocDebugHelper loc_debug_helper = 4;
@@ -10240,7 +10256,7 @@ class VehicleUpdate final : public ::google::protobuf::Message
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 11,
+  static const ::google::protobuf::internal::TcParseTable<4, 12,
                                    5, 0,
                                    2>
       _table_;
@@ -10263,6 +10279,7 @@ class VehicleUpdate final : public ::google::protobuf::Message
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr pickled_agent_objects_;
+    ::google::protobuf::internal::ArenaStringPtr pickled_features_;
     ::ecloud::LocDebugHelper* PROTOBUF_NULLABLE loc_debug_helper_;
     ::ecloud::PlanerDebugHelper* PROTOBUF_NULLABLE planer_debug_helper_;
     ::ecloud::ClientDebugHelper* PROTOBUF_NULLABLE client_debug_helper_;
@@ -14528,7 +14545,7 @@ inline void RegistrationInfo::_internal_set_actor_type(::ecloud::ActorType value
 inline void VehicleUpdate::clear_tick_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tick_id_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000040u;
+  _impl_._has_bits_[0] &= ~0x00000080u;
 }
 inline ::int32_t VehicleUpdate::tick_id() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.tick_id)
@@ -14536,7 +14553,7 @@ inline ::int32_t VehicleUpdate::tick_id() const {
 }
 inline void VehicleUpdate::set_tick_id(::int32_t value) {
   _internal_set_tick_id(value);
-  _impl_._has_bits_[0] |= 0x00000040u;
+  _impl_._has_bits_[0] |= 0x00000080u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.tick_id)
 }
 inline ::int32_t VehicleUpdate::_internal_tick_id() const {
@@ -14552,7 +14569,7 @@ inline void VehicleUpdate::_internal_set_tick_id(::int32_t value) {
 inline void VehicleUpdate::clear_vehicle_index() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vehicle_index_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000080u;
+  _impl_._has_bits_[0] &= ~0x00000100u;
 }
 inline ::int32_t VehicleUpdate::vehicle_index() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.vehicle_index)
@@ -14560,7 +14577,7 @@ inline ::int32_t VehicleUpdate::vehicle_index() const {
 }
 inline void VehicleUpdate::set_vehicle_index(::int32_t value) {
   _internal_set_vehicle_index(value);
-  _impl_._has_bits_[0] |= 0x00000080u;
+  _impl_._has_bits_[0] |= 0x00000100u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.vehicle_index)
 }
 inline ::int32_t VehicleUpdate::_internal_vehicle_index() const {
@@ -14576,7 +14593,7 @@ inline void VehicleUpdate::_internal_set_vehicle_index(::int32_t value) {
 inline void VehicleUpdate::clear_vehicle_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vehicle_state_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000100u;
+  _impl_._has_bits_[0] &= ~0x00000200u;
 }
 inline ::ecloud::VehicleState VehicleUpdate::vehicle_state() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.vehicle_state)
@@ -14584,7 +14601,7 @@ inline ::ecloud::VehicleState VehicleUpdate::vehicle_state() const {
 }
 inline void VehicleUpdate::set_vehicle_state(::ecloud::VehicleState value) {
   _internal_set_vehicle_state(value);
-  _impl_._has_bits_[0] |= 0x00000100u;
+  _impl_._has_bits_[0] |= 0x00000200u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.vehicle_state)
 }
 inline ::ecloud::VehicleState VehicleUpdate::_internal_vehicle_state() const {
@@ -14598,14 +14615,14 @@ inline void VehicleUpdate::_internal_set_vehicle_state(::ecloud::VehicleState va
 
 // .ecloud.LocDebugHelper loc_debug_helper = 4;
 inline bool VehicleUpdate::has_loc_debug_helper() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.loc_debug_helper_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_loc_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.loc_debug_helper_ != nullptr) _impl_.loc_debug_helper_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000002u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
 }
 inline const ::ecloud::LocDebugHelper& VehicleUpdate::_internal_loc_debug_helper() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14624,16 +14641,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_loc_debug_helper(
   }
   _impl_.loc_debug_helper_ = reinterpret_cast<::ecloud::LocDebugHelper*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000002u;
+    _impl_._has_bits_[0] |= 0x00000004u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000002u;
+    _impl_._has_bits_[0] &= ~0x00000004u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.loc_debug_helper)
 }
 inline ::ecloud::LocDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::release_loc_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000002u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
   ::ecloud::LocDebugHelper* released = _impl_.loc_debug_helper_;
   _impl_.loc_debug_helper_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14653,7 +14670,7 @@ inline ::ecloud::LocDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::unsafe_arena_r
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.loc_debug_helper)
 
-  _impl_._has_bits_[0] &= ~0x00000002u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
   ::ecloud::LocDebugHelper* temp = _impl_.loc_debug_helper_;
   _impl_.loc_debug_helper_ = nullptr;
   return temp;
@@ -14668,7 +14685,7 @@ inline ::ecloud::LocDebugHelper* PROTOBUF_NONNULL VehicleUpdate::_internal_mutab
 }
 inline ::ecloud::LocDebugHelper* PROTOBUF_NONNULL VehicleUpdate::mutable_loc_debug_helper()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_._has_bits_[0] |= 0x00000004u;
   ::ecloud::LocDebugHelper* _msg = _internal_mutable_loc_debug_helper();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.loc_debug_helper)
   return _msg;
@@ -14685,9 +14702,9 @@ inline void VehicleUpdate::set_allocated_loc_debug_helper(::ecloud::LocDebugHelp
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000002u;
+    _impl_._has_bits_[0] |= 0x00000004u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000002u;
+    _impl_._has_bits_[0] &= ~0x00000004u;
   }
 
   _impl_.loc_debug_helper_ = reinterpret_cast<::ecloud::LocDebugHelper*>(value);
@@ -14696,14 +14713,14 @@ inline void VehicleUpdate::set_allocated_loc_debug_helper(::ecloud::LocDebugHelp
 
 // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
 inline bool VehicleUpdate::has_planer_debug_helper() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.planer_debug_helper_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_planer_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.planer_debug_helper_ != nullptr) _impl_.planer_debug_helper_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000004u;
+  _impl_._has_bits_[0] &= ~0x00000008u;
 }
 inline const ::ecloud::PlanerDebugHelper& VehicleUpdate::_internal_planer_debug_helper() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14722,16 +14739,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_planer_debug_helper(
   }
   _impl_.planer_debug_helper_ = reinterpret_cast<::ecloud::PlanerDebugHelper*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000004u;
+    _impl_._has_bits_[0] |= 0x00000008u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000004u;
+    _impl_._has_bits_[0] &= ~0x00000008u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.planer_debug_helper)
 }
 inline ::ecloud::PlanerDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::release_planer_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000004u;
+  _impl_._has_bits_[0] &= ~0x00000008u;
   ::ecloud::PlanerDebugHelper* released = _impl_.planer_debug_helper_;
   _impl_.planer_debug_helper_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14751,7 +14768,7 @@ inline ::ecloud::PlanerDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::unsafe_aren
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.planer_debug_helper)
 
-  _impl_._has_bits_[0] &= ~0x00000004u;
+  _impl_._has_bits_[0] &= ~0x00000008u;
   ::ecloud::PlanerDebugHelper* temp = _impl_.planer_debug_helper_;
   _impl_.planer_debug_helper_ = nullptr;
   return temp;
@@ -14766,7 +14783,7 @@ inline ::ecloud::PlanerDebugHelper* PROTOBUF_NONNULL VehicleUpdate::_internal_mu
 }
 inline ::ecloud::PlanerDebugHelper* PROTOBUF_NONNULL VehicleUpdate::mutable_planer_debug_helper()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_._has_bits_[0] |= 0x00000008u;
   ::ecloud::PlanerDebugHelper* _msg = _internal_mutable_planer_debug_helper();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.planer_debug_helper)
   return _msg;
@@ -14783,9 +14800,9 @@ inline void VehicleUpdate::set_allocated_planer_debug_helper(::ecloud::PlanerDeb
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000004u;
+    _impl_._has_bits_[0] |= 0x00000008u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000004u;
+    _impl_._has_bits_[0] &= ~0x00000008u;
   }
 
   _impl_.planer_debug_helper_ = reinterpret_cast<::ecloud::PlanerDebugHelper*>(value);
@@ -14794,14 +14811,14 @@ inline void VehicleUpdate::set_allocated_planer_debug_helper(::ecloud::PlanerDeb
 
 // .ecloud.ClientDebugHelper client_debug_helper = 6;
 inline bool VehicleUpdate::has_client_debug_helper() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000010u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.client_debug_helper_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_client_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.client_debug_helper_ != nullptr) _impl_.client_debug_helper_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000008u;
+  _impl_._has_bits_[0] &= ~0x00000010u;
 }
 inline const ::ecloud::ClientDebugHelper& VehicleUpdate::_internal_client_debug_helper() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14820,16 +14837,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_client_debug_helper(
   }
   _impl_.client_debug_helper_ = reinterpret_cast<::ecloud::ClientDebugHelper*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000008u;
+    _impl_._has_bits_[0] |= 0x00000010u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000008u;
+    _impl_._has_bits_[0] &= ~0x00000010u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.client_debug_helper)
 }
 inline ::ecloud::ClientDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::release_client_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000008u;
+  _impl_._has_bits_[0] &= ~0x00000010u;
   ::ecloud::ClientDebugHelper* released = _impl_.client_debug_helper_;
   _impl_.client_debug_helper_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14849,7 +14866,7 @@ inline ::ecloud::ClientDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::unsafe_aren
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.client_debug_helper)
 
-  _impl_._has_bits_[0] &= ~0x00000008u;
+  _impl_._has_bits_[0] &= ~0x00000010u;
   ::ecloud::ClientDebugHelper* temp = _impl_.client_debug_helper_;
   _impl_.client_debug_helper_ = nullptr;
   return temp;
@@ -14864,7 +14881,7 @@ inline ::ecloud::ClientDebugHelper* PROTOBUF_NONNULL VehicleUpdate::_internal_mu
 }
 inline ::ecloud::ClientDebugHelper* PROTOBUF_NONNULL VehicleUpdate::mutable_client_debug_helper()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000008u;
+  _impl_._has_bits_[0] |= 0x00000010u;
   ::ecloud::ClientDebugHelper* _msg = _internal_mutable_client_debug_helper();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.client_debug_helper)
   return _msg;
@@ -14881,9 +14898,9 @@ inline void VehicleUpdate::set_allocated_client_debug_helper(::ecloud::ClientDeb
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000008u;
+    _impl_._has_bits_[0] |= 0x00000010u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000008u;
+    _impl_._has_bits_[0] &= ~0x00000010u;
   }
 
   _impl_.client_debug_helper_ = reinterpret_cast<::ecloud::ClientDebugHelper*>(value);
@@ -14892,14 +14909,14 @@ inline void VehicleUpdate::set_allocated_client_debug_helper(::ecloud::ClientDeb
 
 // .ecloud.Transform transform = 7;
 inline bool VehicleUpdate::has_transform() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000010u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000020u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.transform_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_transform() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.transform_ != nullptr) _impl_.transform_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000010u;
+  _impl_._has_bits_[0] &= ~0x00000020u;
 }
 inline const ::ecloud::Transform& VehicleUpdate::_internal_transform() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14918,16 +14935,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_transform(
   }
   _impl_.transform_ = reinterpret_cast<::ecloud::Transform*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000010u;
+    _impl_._has_bits_[0] |= 0x00000020u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000010u;
+    _impl_._has_bits_[0] &= ~0x00000020u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.transform)
 }
 inline ::ecloud::Transform* PROTOBUF_NULLABLE VehicleUpdate::release_transform() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000010u;
+  _impl_._has_bits_[0] &= ~0x00000020u;
   ::ecloud::Transform* released = _impl_.transform_;
   _impl_.transform_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14947,7 +14964,7 @@ inline ::ecloud::Transform* PROTOBUF_NULLABLE VehicleUpdate::unsafe_arena_releas
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.transform)
 
-  _impl_._has_bits_[0] &= ~0x00000010u;
+  _impl_._has_bits_[0] &= ~0x00000020u;
   ::ecloud::Transform* temp = _impl_.transform_;
   _impl_.transform_ = nullptr;
   return temp;
@@ -14962,7 +14979,7 @@ inline ::ecloud::Transform* PROTOBUF_NONNULL VehicleUpdate::_internal_mutable_tr
 }
 inline ::ecloud::Transform* PROTOBUF_NONNULL VehicleUpdate::mutable_transform()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000010u;
+  _impl_._has_bits_[0] |= 0x00000020u;
   ::ecloud::Transform* _msg = _internal_mutable_transform();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.transform)
   return _msg;
@@ -14979,9 +14996,9 @@ inline void VehicleUpdate::set_allocated_transform(::ecloud::Transform* PROTOBUF
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000010u;
+    _impl_._has_bits_[0] |= 0x00000020u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000010u;
+    _impl_._has_bits_[0] &= ~0x00000020u;
   }
 
   _impl_.transform_ = reinterpret_cast<::ecloud::Transform*>(value);
@@ -14990,14 +15007,14 @@ inline void VehicleUpdate::set_allocated_transform(::ecloud::Transform* PROTOBUF
 
 // .ecloud.Velocity velocity = 8;
 inline bool VehicleUpdate::has_velocity() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000020u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000040u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.velocity_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_velocity() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.velocity_ != nullptr) _impl_.velocity_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000020u;
+  _impl_._has_bits_[0] &= ~0x00000040u;
 }
 inline const ::ecloud::Velocity& VehicleUpdate::_internal_velocity() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -15016,16 +15033,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_velocity(
   }
   _impl_.velocity_ = reinterpret_cast<::ecloud::Velocity*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000020u;
+    _impl_._has_bits_[0] |= 0x00000040u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
+    _impl_._has_bits_[0] &= ~0x00000040u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.velocity)
 }
 inline ::ecloud::Velocity* PROTOBUF_NULLABLE VehicleUpdate::release_velocity() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000020u;
+  _impl_._has_bits_[0] &= ~0x00000040u;
   ::ecloud::Velocity* released = _impl_.velocity_;
   _impl_.velocity_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -15045,7 +15062,7 @@ inline ::ecloud::Velocity* PROTOBUF_NULLABLE VehicleUpdate::unsafe_arena_release
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.velocity)
 
-  _impl_._has_bits_[0] &= ~0x00000020u;
+  _impl_._has_bits_[0] &= ~0x00000040u;
   ::ecloud::Velocity* temp = _impl_.velocity_;
   _impl_.velocity_ = nullptr;
   return temp;
@@ -15060,7 +15077,7 @@ inline ::ecloud::Velocity* PROTOBUF_NONNULL VehicleUpdate::_internal_mutable_vel
 }
 inline ::ecloud::Velocity* PROTOBUF_NONNULL VehicleUpdate::mutable_velocity()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000020u;
+  _impl_._has_bits_[0] |= 0x00000040u;
   ::ecloud::Velocity* _msg = _internal_mutable_velocity();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.velocity)
   return _msg;
@@ -15077,9 +15094,9 @@ inline void VehicleUpdate::set_allocated_velocity(::ecloud::Velocity* PROTOBUF_N
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000020u;
+    _impl_._has_bits_[0] |= 0x00000040u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
+    _impl_._has_bits_[0] &= ~0x00000040u;
   }
 
   _impl_.velocity_ = reinterpret_cast<::ecloud::Velocity*>(value);
@@ -15090,7 +15107,7 @@ inline void VehicleUpdate::set_allocated_velocity(::ecloud::Velocity* PROTOBUF_N
 inline void VehicleUpdate::clear_duration_ns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.duration_ns_ = ::int64_t{0};
-  _impl_._has_bits_[0] &= ~0x00000400u;
+  _impl_._has_bits_[0] &= ~0x00000800u;
 }
 inline ::int64_t VehicleUpdate::duration_ns() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.duration_ns)
@@ -15098,7 +15115,7 @@ inline ::int64_t VehicleUpdate::duration_ns() const {
 }
 inline void VehicleUpdate::set_duration_ns(::int64_t value) {
   _internal_set_duration_ns(value);
-  _impl_._has_bits_[0] |= 0x00000400u;
+  _impl_._has_bits_[0] |= 0x00000800u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.duration_ns)
 }
 inline ::int64_t VehicleUpdate::_internal_duration_ns() const {
@@ -15179,7 +15196,7 @@ inline void VehicleUpdate::set_allocated_pickled_agent_objects(::std::string* PR
 inline void VehicleUpdate::clear_actor_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.actor_type_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000200u;
+  _impl_._has_bits_[0] &= ~0x00000400u;
 }
 inline ::ecloud::ActorType VehicleUpdate::actor_type() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.actor_type)
@@ -15187,7 +15204,7 @@ inline ::ecloud::ActorType VehicleUpdate::actor_type() const {
 }
 inline void VehicleUpdate::set_actor_type(::ecloud::ActorType value) {
   _internal_set_actor_type(value);
-  _impl_._has_bits_[0] |= 0x00000200u;
+  _impl_._has_bits_[0] |= 0x00000400u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.actor_type)
 }
 inline ::ecloud::ActorType VehicleUpdate::_internal_actor_type() const {
@@ -15197,6 +15214,71 @@ inline ::ecloud::ActorType VehicleUpdate::_internal_actor_type() const {
 inline void VehicleUpdate::_internal_set_actor_type(::ecloud::ActorType value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.actor_type_ = value;
+}
+
+// bytes pickled_features = 12;
+inline void VehicleUpdate::clear_pickled_features() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.pickled_features_.ClearToEmpty();
+  _impl_._has_bits_[0] &= ~0x00000002u;
+}
+inline const ::std::string& VehicleUpdate::pickled_features() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.pickled_features)
+  return _internal_pickled_features();
+}
+template <typename Arg_, typename... Args_>
+PROTOBUF_ALWAYS_INLINE void VehicleUpdate::set_pickled_features(Arg_&& arg, Args_... args) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.pickled_features_.SetBytes(static_cast<Arg_&&>(arg), args..., GetArena());
+  // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.pickled_features)
+}
+inline ::std::string* PROTOBUF_NONNULL VehicleUpdate::mutable_pickled_features()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::std::string* _s = _internal_mutable_pickled_features();
+  // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.pickled_features)
+  return _s;
+}
+inline const ::std::string& VehicleUpdate::_internal_pickled_features() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.pickled_features_.Get();
+}
+inline void VehicleUpdate::_internal_set_pickled_features(const ::std::string& value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  _impl_.pickled_features_.Set(value, GetArena());
+}
+inline ::std::string* PROTOBUF_NONNULL VehicleUpdate::_internal_mutable_pickled_features() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_._has_bits_[0] |= 0x00000002u;
+  return _impl_.pickled_features_.Mutable( GetArena());
+}
+inline ::std::string* PROTOBUF_NULLABLE VehicleUpdate::release_pickled_features() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.pickled_features)
+  if ((_impl_._has_bits_[0] & 0x00000002u) == 0) {
+    return nullptr;
+  }
+  _impl_._has_bits_[0] &= ~0x00000002u;
+  auto* released = _impl_.pickled_features_.Release();
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
+    _impl_.pickled_features_.Set("", GetArena());
+  }
+  return released;
+}
+inline void VehicleUpdate::set_allocated_pickled_features(::std::string* PROTOBUF_NULLABLE value) {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  if (value != nullptr) {
+    _impl_._has_bits_[0] |= 0x00000002u;
+  } else {
+    _impl_._has_bits_[0] &= ~0x00000002u;
+  }
+  _impl_.pickled_features_.SetAllocated(value, GetArena());
+  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pickled_features_.IsDefault()) {
+    _impl_.pickled_features_.Set("", GetArena());
+  }
+  // @@protoc_insertion_point(field_set_allocated:ecloud.VehicleUpdate.pickled_features)
 }
 
 // -------------------------------------------------------------------

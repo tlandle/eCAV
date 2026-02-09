@@ -6,6 +6,7 @@ import carla
 import numpy as np
 
 from opencda.core.prediction.obstacle_prediction import ObstaclePrediction
+from opencda.opencda_carla import Location, Rotation, Transform
 
 
 class LinearPredictorManager():
@@ -68,10 +69,10 @@ class LinearPredictorManager():
             latest_transform = trajectory[0]
             rotation = latest_transform.rotation
 
-            # Convert predicted points to future Transforms
+            # Convert predicted points to future Transforms (picklable opencda_carla types)
             predictions = [
-                carla.Transform(location=carla.Location(x=pt[0], y=pt[1], z=latest_transform.location.z),
-                                rotation=rotation)
+                Transform(location=Location(x=pt[0], y=pt[1], z=latest_transform.location.z),
+                          rotation=Rotation(roll=rotation.roll, pitch=rotation.pitch, yaw=rotation.yaw))
                 for pt in predict_array
             ]
 

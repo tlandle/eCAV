@@ -823,6 +823,9 @@ void RunServer(uint16_t port) {
     // Listen on the given address without any authentication mechanism.
     const std::string server_address = absl::StrFormat("0.0.0.0:%d", port );
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
+    // Allow large messages for intermediate feature tensors (WorldFusion/BM2CP)
+    builder.SetMaxReceiveMessageSize(200 * 1024 * 1024);  // 200 MB
+    builder.SetMaxSendMessageSize(200 * 1024 * 1024);     // 200 MB
     LOG(INFO) << "server listening on port " << port << std::endl;
     // Register "service" as the instance through which we'll communicate with
     // clients. In this case it corresponds to an *synchronous* service.

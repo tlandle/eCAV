@@ -79,11 +79,12 @@ def _track_to_corners_and_bbx(track: np.ndarray):
     return corners, o3d_bbx
 
 
-def _box_to_transform(box: np.ndarray) -> carla.Transform:
-    """Helper to convert a single detection box to a carla.Transform."""
-    loc = carla.Location(x=float(box[3]), y=float(box[4]), z=float(box[5]))
-    rot = carla.Rotation(yaw=np.degrees(float(box[6])))
-    return carla.Transform(loc, rot)
+def _box_to_transform(box: np.ndarray):
+    """Helper to convert a single detection box to a picklable Transform."""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
+    loc = _Loc(x=float(box[3]), y=float(box[4]), z=float(box[5]))
+    rot = _Rot(yaw=np.degrees(float(box[6])))
+    return _Tf(location=loc, rotation=rot)
 
 class BM2CPEdge(_BaseEdgeManager):
     def __init__(self,
@@ -782,11 +783,13 @@ class BM2CPEdge(_BaseEdgeManager):
                  vm.agent.edge_predictions = predictions.copy()
             else:
                  vm.agent.edge_predictions.clear()
-            vm.update_info(tick)
-            vm.vehicle.apply_control(vm.run_step())
-        for rsu in self.rsu_manager_list:
-            rsu.update_info()
-            rsu.run_step()
+            if not self.run_distributed:
+                vm.update_info(tick)
+                vm.vehicle.apply_control(vm.run_step())
+        if not self.run_distributed:
+            for rsu in self.rsu_manager_list:
+                rsu.update_info()
+                rsu.run_step()
 
     def evaluate(self):
         """

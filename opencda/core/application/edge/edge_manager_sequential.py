@@ -66,11 +66,12 @@ def _detections_from_bm2cp(preds, frame_id):
 
 
 def _box_to_transform(box):
-    """[h,w,l,x,y,z,yaw] → CARLA Transform (centre)."""
+    """[h,w,l,x,y,z,yaw] → picklable Transform (centre)."""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
     x,y,z,l,w,h,yaw = box
-    loc = carla.Location(x=float(x), y=float(y), z=float(z))
-    rot = carla.Rotation(yaw=np.degrees(float(yaw)))
-    return carla.Transform(loc, rot)
+    loc = _Loc(x=float(x), y=float(y), z=float(z))
+    rot = _Rot(yaw=np.degrees(float(yaw)))
+    return _Tf(location=loc, rotation=rot)
 
 
 # ─────────────────── EdgeManagerSequential ───────────────────

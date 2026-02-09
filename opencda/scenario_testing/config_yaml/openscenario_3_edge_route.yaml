@@ -72,6 +72,7 @@ scenario_runner:
   output: false
   outputDir: ''
   randomize: false
+  vehicle_index: 0
 
 
 # Vehicle base configuration

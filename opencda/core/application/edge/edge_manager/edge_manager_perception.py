@@ -153,13 +153,14 @@ class PerceptionEdge(_BaseEdgeManager):
             vm.agent.other_car_speeds = self.vehicle_speeds.copy()
 
         # ===== advance each VehicleManager ============================
-        for vm in self.vehicle_manager_list:
-            vm.update_info(tick)
-            vm.vehicle.apply_control(vm.run_step())
+        if not self.run_distributed:
+            for vm in self.vehicle_manager_list:
+                vm.update_info(tick)
+                vm.vehicle.apply_control(vm.run_step())
 
-        for rsu in self.rsu_manager_list:
-            rsu.update_info()
-            rsu.run_step()
+            for rsu in self.rsu_manager_list:
+                rsu.update_info()
+                rsu.run_step()
 
     # ------------------------------------------------------------------
     #  Utility helpers

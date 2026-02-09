@@ -72,12 +72,13 @@ def _is_sliver(h, w, l):
     return (min(h, w, l) < _MIN_EDGE) or (h * w * l < _MIN_VOLUME)
 
 
-def _box_to_transform(box) -> carla.Transform:
-    """Convert AB3DMOT box [x,y,z,h,w,l,yaw] to CARLA Transform."""
+def _box_to_transform(box):
+    """Convert AB3DMOT box [x,y,z,h,w,l,yaw] to picklable Transform."""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
     x, y, z, h, w, l, yaw = box
-    loc = carla.Location(x=float(x), y=float(y), z=float(z))
-    rot = carla.Rotation(yaw=np.degrees(float(yaw)))
-    return carla.Transform(loc, rot)
+    loc = _Loc(x=float(x), y=float(y), z=float(z))
+    rot = _Rot(yaw=np.degrees(float(yaw)))
+    return _Tf(location=loc, rotation=rot)
 
 
 def _collect_rsu_only_detections(rsu_objects: Dict[str, List],
@@ -257,12 +258,13 @@ class VIPSEdge(_BaseEdgeManager):
                         vm.agent.edge_predictions = preds.copy()
 
             # ===== Advance vehicles (they still need control) =============
-            for vm in self.vehicle_manager_list:
-                vm.update_info(tick)
-                vm.vehicle.apply_control(vm.run_step())
-            for rsu in self.rsu_manager_list:
-                rsu.update_info()
-                rsu.run_step()
+            if not self.run_distributed:
+                for vm in self.vehicle_manager_list:
+                    vm.update_info(tick)
+                    vm.vehicle.apply_control(vm.run_step())
+                for rsu in self.rsu_manager_list:
+                    rsu.update_info()
+                    rsu.run_step()
 
             # Set profiler counts
             frame.set_counts(

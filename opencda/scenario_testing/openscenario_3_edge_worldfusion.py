@@ -189,7 +189,10 @@ def run_scenario(opt, scenario_params):
 
             # Run edge processing step (update_information is called internally)
             for edge in edge_list:
-                edge.run_step(step)
+                serialized_predictions = edge.run_step(step)
+
+                if opt.distributed and serialized_predictions is not None:
+                    scenario_manager.push_edge_objects(serialized_predictions)
 
             step = step + 1
             if step >= MAX_STEP:

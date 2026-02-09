@@ -100,8 +100,10 @@ class MLManager(object):
 
         # Service endpoints
         self.yolo_endpoint = self.config.get('yolo_endpoint', 'http://localhost:18000')
+        self.worldfusion_endpoint = self.config.get('worldfusion_endpoint', 'http://localhost:8001')
 
         print(f"[ML Manager] YOLO endpoint: {self.yolo_endpoint}")
+        print(f"[ML Manager] WorldFusion endpoint: {self.worldfusion_endpoint}")
 
         # Set object_detector to None to indicate distributed mode
         self.object_detector = None

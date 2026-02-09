@@ -182,6 +182,7 @@ message VehicleUpdate {
   int64 duration_ns = 9;
   bytes pickled_agent_objects = 10;
   ActorType actor_type = 11;
+  bytes pickled_features = 12;  // Compressed intermediate features (WorldFusion/BM2CP)
 }
 
 message EcloudResponse {

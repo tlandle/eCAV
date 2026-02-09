@@ -389,40 +389,49 @@ class VehicleManager(object):
         logger.debug("LocalizationManager created")
         
         # perception module
-        assert self.perception_active and sensing_config['perception']['activate'] or \
-                not self.perception_active
-
-        print("Perception Active: ", self.perception_active)
+        # When perception_active=False (distributed scenario server),
+        # override config so PerceptionManager runs in deactivate_mode.
+        # detect() returns server-side objects instead of running ML.
+        # Actual ML perception runs on the vehicle clients.
+        if not self.perception_active:
+            sensing_config['perception']['activate'] = False
+            sensing_config['perception']['camera_visualize'] = 0
+            sensing_config['perception']['lidar_visualize'] = False
 
         self.tracking_manager = TrackingManager(self.vehicle, cav_world, data_dumping, tracker_type = "SORT")
         percep_cfg = sensing_config['perception']
-        print("Perception Config: ", percep_cfg)
-        # Check both 'type' and 'backend' keys for consistency with RSU manager
         percep_type = percep_cfg.get('type', percep_cfg.get('backend', 'default'))
         percep_type = str(percep_type).lower()
-        if percep_type in ('bm2cp', 'fusion'):
+
+        # In distributed mode, server-side (is_edge) VehicleManagers are proxies
+        # that receive features via gRPC — no need to load GPU models.
+        use_base_pm = (is_edge
+                       and cav_world is not None
+                       and getattr(cav_world, 'run_distributed', False))
+
+        if use_base_pm:
+            self.perception_manager = PerceptionManager(
+                self.vehicle, percep_cfg, cav_world,
+                data_dumping, tracking_manager=self.tracking_manager,
+                debug_helper=self.client_metrics)
+            print(f"[VehicleManager] Distributed proxy — using base PerceptionManager (type={percep_type})")
+        elif percep_type in ('bm2cp', 'fusion'):
             self.perception_manager = BM2CPPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.client_metrics)
-            print("Using BM2CP Perception Manager in VehicleManager")
         elif percep_type == 'worldfusion':
             self.perception_manager = WorldFusionPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.client_metrics)
-            print("Using WorldFusion Perception Manager in VehicleManager")
         else:
             self.perception_manager = PerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.client_metrics)
-            print("Using default Perception Manager")
         logger.debug("PerceptionManager created")
 
-        #input("Perception Manager created, press enter to continue...")
-
-        
         # map manager
         self.map_manager = MapManager(self.vehicle,
                                       self.carla_map,

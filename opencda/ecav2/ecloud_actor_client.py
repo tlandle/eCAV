@@ -224,6 +224,8 @@ class Ecav2ActorClient:
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 1),
                 ("grpc.keepalive_timeout_ms", 10000),
+                ("grpc.max_send_message_length", 200 * 1024 * 1024),
+                ("grpc.max_receive_message_length", 200 * 1024 * 1024),
                 ("grpc.service_config", EcloudClient.retry_opts),],
             )
         self.ecloud_server = ecloud_rpc.EcloudStub(self.channel)
@@ -496,6 +498,22 @@ class Ecav2ActorClient:
                 else:
                     for o in self.rsu_manager.objects:
                         print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
+
+            # Send intermediate features for WorldFusion/BM2CP
+            try:
+                if self.actor_type == ecloud.ActorType.VEHICLE:
+                    pm = self.vehicle_manager.perception_manager
+                else:
+                    pm = self.rsu_manager.perception_manager
+                if hasattr(pm, 'feature_dict') and pm.feature_dict is not None:
+                    import zlib
+                    feat_payload = {k: v.half().cpu() for k, v in pm.feature_dict.items()}
+                    compressed = zlib.compress(pickle.dumps(feat_payload), level=1)
+                    vehicle_update.pickled_features = compressed
+                    print(f"[FEATURES] Sending {len(compressed)} bytes "
+                          f"({len(compressed)/1024/1024:.1f} MB compressed)", flush=True)
+            except Exception as e:
+                print(f"[FEATURES] Error serializing features: {e}", flush=True)
 
             if self.actor_type == ecloud.ActorType.VEHICLE:
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK if not self.vehicle_manager.is_close_to_scenario_destination() else ecloud.VehicleState.TICK_DONE

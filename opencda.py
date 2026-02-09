@@ -142,6 +142,10 @@ def main():
     # parse the arguments
     opt = arg_parse()
 
+    # LitServe mode implies apply_ml (ML inference via remote server)
+    if opt.litserve:
+        opt.apply_ml = True
+
     if opt.verbose:
         logger.setLevel(logging.DEBUG)
     elif opt.quiet:

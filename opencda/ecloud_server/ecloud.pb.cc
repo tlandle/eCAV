@@ -1191,6 +1191,9 @@ inline constexpr VehicleUpdate::Impl_::Impl_(
         pickled_agent_objects_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        pickled_features_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         loc_debug_helper_{nullptr},
         planer_debug_helper_{nullptr},
         client_debug_helper_{nullptr},
@@ -1488,7 +1491,7 @@ const ::uint32_t
         7,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_._has_bits_),
-        14, // hasbit index offset
+        15, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.tick_id_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.vehicle_index_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.vehicle_state_),
@@ -1500,17 +1503,19 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.duration_ns_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.pickled_agent_objects_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.actor_type_),
-        6,
+        PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.pickled_features_),
         7,
         8,
-        1,
+        9,
         2,
         3,
         4,
         5,
-        10,
+        6,
+        11,
         0,
-        9,
+        10,
+        1,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::ecloud::EcloudResponse, _impl_._has_bits_),
         5, // hasbit index offset
@@ -1768,29 +1773,29 @@ static const ::_pbi::MigrationSchema
         {148, sizeof(::ecloud::ClientDebugHelper)},
         {161, sizeof(::ecloud::RegistrationInfo)},
         {180, sizeof(::ecloud::VehicleUpdate)},
-        {205, sizeof(::ecloud::EcloudResponse)},
-        {212, sizeof(::ecloud::ObstacleVehicle)},
-        {217, sizeof(::ecloud::GeneratedTrajectory)},
-        {226, sizeof(::ecloud::ObstacleBoundingBox)},
-        {241, sizeof(::ecloud::ObjectBuffer)},
-        {248, sizeof(::ecloud::EdgeObstacleObject)},
-        {259, sizeof(::ecloud::ObjectRequest)},
-        {264, sizeof(::ecloud::EdgeObjects)},
-        {266, sizeof(::ecloud::CompressedTensor)},
-        {279, sizeof(::ecloud::AgentPose)},
-        {288, sizeof(::ecloud::IntermediateFeatures)},
-        {311, sizeof(::ecloud::IntermediateFeaturesRequest)},
-        {318, sizeof(::ecloud::FusionResult)},
-        {329, sizeof(::ecloud::IntermediateFeaturesBatch)},
-        {342, sizeof(::ecloud::EdgeRegistrationInfo)},
-        {357, sizeof(::ecloud::EdgeScenarioConfig)},
-        {380, sizeof(::ecloud::EdgeTickComplete)},
-        {389, sizeof(::ecloud::EdgeTick)},
-        {396, sizeof(::ecloud::EdgeIndex)},
-        {401, sizeof(::ecloud::ActorConnectionInfo)},
-        {414, sizeof(::ecloud::ActorUpdateWithResponse)},
-        {421, sizeof(::ecloud::EdgeMapping)},
-        {430, sizeof(::ecloud::EdgeMappingSetup)},
+        {207, sizeof(::ecloud::EcloudResponse)},
+        {214, sizeof(::ecloud::ObstacleVehicle)},
+        {219, sizeof(::ecloud::GeneratedTrajectory)},
+        {228, sizeof(::ecloud::ObstacleBoundingBox)},
+        {243, sizeof(::ecloud::ObjectBuffer)},
+        {250, sizeof(::ecloud::EdgeObstacleObject)},
+        {261, sizeof(::ecloud::ObjectRequest)},
+        {266, sizeof(::ecloud::EdgeObjects)},
+        {268, sizeof(::ecloud::CompressedTensor)},
+        {281, sizeof(::ecloud::AgentPose)},
+        {290, sizeof(::ecloud::IntermediateFeatures)},
+        {313, sizeof(::ecloud::IntermediateFeaturesRequest)},
+        {320, sizeof(::ecloud::FusionResult)},
+        {331, sizeof(::ecloud::IntermediateFeaturesBatch)},
+        {344, sizeof(::ecloud::EdgeRegistrationInfo)},
+        {359, sizeof(::ecloud::EdgeScenarioConfig)},
+        {382, sizeof(::ecloud::EdgeTickComplete)},
+        {391, sizeof(::ecloud::EdgeTick)},
+        {398, sizeof(::ecloud::EdgeIndex)},
+        {403, sizeof(::ecloud::ActorConnectionInfo)},
+        {416, sizeof(::ecloud::ActorUpdateWithResponse)},
+        {423, sizeof(::ecloud::EdgeMapping)},
+        {432, sizeof(::ecloud::EdgeMappingSetup)},
 };
 static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
     &::ecloud::_Empty_default_instance_._instance,
@@ -1900,7 +1905,7 @@ const char descriptor_table_protodef_ecloud_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "id\030\003 \001(\t\022\020\n\010actor_id\030\004 \001(\005\022\026\n\016container_"
     "name\030\005 \001(\t\022\022\n\nvehicle_ip\030\006 \001(\t\022\024\n\014vehicl"
     "e_port\030\007 \001(\005\022%\n\nactor_type\030\010 \001(\0162\021.eclou"
-    "d.ActorType\"\253\003\n\rVehicleUpdate\022\017\n\007tick_id"
+    "d.ActorType\"\305\003\n\rVehicleUpdate\022\017\n\007tick_id"
     "\030\001 \001(\005\022\025\n\rvehicle_index\030\002 \001(\005\022+\n\rvehicle"
     "_state\030\003 \001(\0162\024.ecloud.VehicleState\0220\n\020lo"
     "c_debug_helper\030\004 \001(\0132\026.ecloud.LocDebugHe"
@@ -1911,117 +1916,117 @@ const char descriptor_table_protodef_ecloud_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "locity\030\010 \001(\0132\020.ecloud.Velocity\022\023\n\013durati"
     "on_ns\030\t \001(\003\022\035\n\025pickled_agent_objects\030\n \001"
     "(\014\022%\n\nactor_type\030\013 \001(\0162\021.ecloud.ActorTyp"
-    "e\"P\n\016EcloudResponse\022\017\n\007tick_id\030\001 \001(\005\022-\n\016"
-    "vehicle_update\030\002 \003(\0132\025.ecloud.VehicleUpd"
-    "ate\"#\n\017ObstacleVehicle\022\020\n\010carla_id\030\001 \001(\005"
-    "\"\206\001\n\023GeneratedTrajectory\022)\n\010obstacle\030\001 \001"
-    "(\0132\027.ecloud.ObstacleVehicle\022\023\n\013probabili"
-    "ty\030\002 \001(\002\022/\n\024predicted_trajectory\030\003 \003(\0132\021"
-    ".ecloud.Transform\"\201\001\n\023ObstacleBoundingBo"
-    "x\022\020\n\010center_x\030\001 \001(\005\022\020\n\010center_y\030\002 \001(\005\022\020\n"
-    "\010center_z\030\003 \001(\005\022\020\n\010extent_x\030\004 \001(\005\022\020\n\010ext"
-    "ent_y\030\005 \001(\005\022\020\n\010extent_z\030\006 \001(\005\"D\n\014ObjectB"
-    "uffer\022\022\n\nvehicle_id\030\001 \001(\005\022 \n\030pickled_edg"
-    "e_predictions\030\002 \001(\014\"\241\001\n\022EdgeObstacleObje"
-    "ct\0221\n\014bounding_box\030\001 \001(\0132\033.ecloud.Obstac"
-    "leBoundingBox\022\"\n\010location\030\002 \001(\0132\020.ecloud"
-    ".Location\022\020\n\010carla_id\030\003 \001(\005\022\"\n\010velocity\030"
-    "\004 \001(\0132\020.ecloud.Velocity\"&\n\rObjectRequest"
-    "\022\025\n\rvehicle_index\030\001 \001(\005\"\?\n\013EdgeObjects\0220"
-    "\n\022all_object_buffers\030\001 \003(\0132\024.ecloud.Obje"
-    "ctBuffer\"j\n\020CompressedTensor\022\014\n\004data\030\001 \001"
-    "(\014\022\r\n\005shape\030\002 \003(\005\022\r\n\005dtype\030\003 \001(\t\022\023\n\013comp"
-    "ression\030\004 \001(\t\022\025\n\roriginal_size\030\005 \001(\005\"\?\n\t"
-    "AgentPose\022\020\n\010agent_id\030\001 \001(\005\022\014\n\004pose\030\002 \003("
-    "\002\022\022\n\nlidar_pose\030\003 \003(\002\"\203\003\n\024IntermediateFe"
-    "atures\022\020\n\010agent_id\030\001 \001(\005\022%\n\nagent_type\030\002"
-    " \001(\0162\021.ecloud.ActorType\022\037\n\004pose\030\003 \001(\0132\021."
-    "ecloud.AgentPose\0222\n\020spatial_features\030\004 \001"
-    "(\0132\030.ecloud.CompressedTensor\022%\n\003psm\030\005 \001("
-    "\0132\030.ecloud.CompressedTensor\022$\n\002rm\030\006 \001(\0132"
-    "\030.ecloud.CompressedTensor\022+\n\tthres_map\030\007"
-    " \001(\0132\030.ecloud.CompressedTensor\0221\n\017camera"
-    "_features\030\010 \001(\0132\030.ecloud.CompressedTenso"
-    "r\022\024\n\014timestamp_ns\030\t \001(\003\022\032\n\022communication"
-    "_rate\030\n \001(\002\"E\n\033IntermediateFeaturesReque"
-    "st\022\025\n\rvehicle_index\030\001 \001(\005\022\017\n\007tick_id\030\002 \001"
-    "(\005\"\203\001\n\014FusionResult\022\017\n\007tick_id\030\001 \001(\005\022.\n\n"
-    "detections\030\002 \003(\0132\032.ecloud.EdgeObstacleOb"
-    "ject\022\032\n\022communication_rate\030\003 \001(\002\022\026\n\016fusi"
-    "on_time_ns\030\004 \001(\003\"\254\001\n\031IntermediateFeature"
-    "sBatch\022\017\n\007tick_id\030\001 \001(\005\022.\n\010features\030\002 \003("
-    "\0132\034.ecloud.IntermediateFeatures\022\031\n\021pairw"
-    "ise_t_matrix\030\003 \003(\002\022\037\n\027pairwise_t_matrix_"
-    "shape\030\004 \003(\005\022\022\n\nrecord_len\030\005 \001(\005\"\216\001\n\024Edge"
-    "RegistrationInfo\022\022\n\nedge_index\030\001 \001(\005\022\017\n\007"
-    "edge_ip\030\002 \001(\t\022\021\n\tedge_port\030\003 \001(\005\022\024\n\014num_"
-    "vehicles\030\004 \001(\005\022\020\n\010num_rsus\030\005 \001(\005\022\026\n\016cont"
-    "ainer_name\030\006 \001(\t\"\344\001\n\022EdgeScenarioConfig\022"
-    "\022\n\nedge_index\030\001 \001(\005\022\030\n\020edge_config_yaml\030"
-    "\002 \001(\t\022\024\n\014num_vehicles\030\003 \001(\005\022\020\n\010num_rsus\030"
-    "\004 \001(\005\022\027\n\017vehicle_indices\030\005 \003(\005\022\023\n\013rsu_in"
-    "dices\030\006 \003(\005\022\020\n\010carla_ip\030\007 \001(\t\022\022\n\ncarla_p"
-    "ort\030\010 \001(\005\022\023\n\013application\030\t \001(\t\022\017\n\007versio"
-    "n\030\n \001(\t\"U\n\020EdgeTickComplete\022\022\n\nedge_inde"
-    "x\030\001 \001(\005\022\017\n\007tick_id\030\002 \001(\005\022\034\n\024num_actors_p"
-    "rocessed\030\003 \001(\005\"=\n\010EdgeTick\022\017\n\007tick_id\030\001 "
-    "\001(\005\022 \n\007command\030\002 \001(\0162\017.ecloud.Command\"\037\n"
-    "\tEdgeIndex\022\022\n\nedge_index\030\001 \001(\005\"v\n\023ActorC"
-    "onnectionInfo\022\020\n\010has_edge\030\001 \001(\010\022\017\n\007edge_"
-    "ip\030\002 \001(\t\022\021\n\tedge_port\030\003 \001(\005\022\022\n\nedge_inde"
-    "x\030\004 \001(\005\022\025\n\rvehicle_index\030\005 \001(\005\"m\n\027ActorU"
-    "pdateWithResponse\022%\n\006update\030\001 \001(\0132\025.eclo"
-    "ud.VehicleUpdate\022+\n\rfused_objects\030\002 \001(\0132"
-    "\024.ecloud.ObjectBuffer\"O\n\013EdgeMapping\022\022\n\n"
-    "edge_index\030\001 \001(\005\022\027\n\017vehicle_indices\030\002 \003("
-    "\005\022\023\n\013rsu_indices\030\003 \003(\005\"L\n\020EdgeMappingSet"
-    "up\022\021\n\tnum_edges\030\001 \001(\005\022%\n\010mappings\030\002 \003(\0132"
-    "\023.ecloud.EdgeMapping*l\n\007Command\022\010\n\004TICK\020"
-    "\000\022\007\n\003END\020\001\022\026\n\022REQUEST_DEBUG_INFO\020\002\022\033\n\027PU"
-    "LL_WAYPOINTS_AND_TICK\020\003\022\031\n\025PULL_OBJECTS_"
-    "AND_TICK\020\004*\240\001\n\014VehicleState\022\017\n\013REGISTERI"
-    "NG\020\000\022\020\n\014CARLA_UPDATE\020\001\022\022\n\016UPDATE_INFO_OK"
-    "\020\002\022\023\n\017GET_DESTINATION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\t"
-    "TICK_DONE\020\005\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_"
-    "INFO_UPDATE\020\010*!\n\tActorType\022\013\n\007VEHICLE\020\000\022"
-    "\007\n\003RSU\020\0012\273\013\n\006Ecloud\022\'\n\010PushTick\022\014.ecloud"
-    ".Tick\032\r.ecloud.Empty\0229\n\021Client_SendUpdat"
-    "e\022\025.ecloud.VehicleUpdate\032\r.ecloud.Empty\022"
-    "J\n\026Client_RegisterVehicle\022\030.ecloud.Regis"
-    "trationInfo\032\026.ecloud.SimulationInfo\022E\n\022C"
-    "lient_GetScenario\022\027.ecloud.ScenarioReque"
-    "st\032\026.ecloud.SimulationInfo\022F\n\023Client_Get"
-    "Waypoints\022\027.ecloud.WaypointRequest\032\026.ecl"
-    "oud.WaypointBuffer\022@\n\021Client_GetObjects\022"
-    "\025.ecloud.ObjectRequest\032\024.ecloud.ObjectBu"
-    "ffer\022Q\n\030Client_GetConnectionInfo\022\030.eclou"
-    "d.RegistrationInfo\032\033.ecloud.ActorConnect"
-    "ionInfo\022,\n\rServer_DoTick\022\014.ecloud.Tick\032\r"
-    ".ecloud.Empty\022=\n\024Server_StartScenario\022\026."
-    "ecloud.SimulationInfo\032\r.ecloud.Empty\0222\n\022"
-    "Server_EndScenario\022\r.ecloud.Empty\032\r.eclo"
-    "ud.Empty\022A\n\030Server_GetVehicleUpdates\022\r.e"
-    "cloud.Empty\032\026.ecloud.EcloudResponse\022@\n\030S"
-    "erver_PushEdgeWaypoints\022\025.ecloud.EdgeWay"
-    "points\032\r.ecloud.Empty\022<\n\026Server_PushEdge"
-    "Objects\022\023.ecloud.EdgeObjects\032\r.ecloud.Em"
-    "pty\022A\n\026Server_SetEdgeMappings\022\030.ecloud.E"
-    "dgeMappingSetup\032\r.ecloud.Empty\022I\n\rEdge_R"
-    "egister\022\034.ecloud.EdgeRegistrationInfo\032\032."
-    "ecloud.EdgeScenarioConfig\022<\n\021Edge_TickCo"
-    "mplete\022\030.ecloud.EdgeTickComplete\032\r.eclou"
-    "d.Empty\0220\n\rEdge_PushTick\022\020.ecloud.EdgeTi"
-    "ck\032\r.ecloud.Empty\022F\n\022Edge_ActorRegister\022"
-    "\030.ecloud.RegistrationInfo\032\026.ecloud.Simul"
-    "ationInfo\022C\n\024Edge_ActorSendUpdate\022\025.eclo"
-    "ud.VehicleUpdate\032\024.ecloud.ObjectBuffer\022L"
-    "\n\035Edge_SendIntermediateFeatures\022\034.ecloud"
-    ".IntermediateFeatures\032\r.ecloud.Empty\022Q\n\024"
-    "Edge_GetFusionResult\022#.ecloud.Intermedia"
-    "teFeaturesRequest\032\024.ecloud.FusionResult\022"
-    "M\n\022Edge_PerformFusion\022!.ecloud.Intermedi"
-    "ateFeaturesBatch\032\024.ecloud.FusionResultb\006"
-    "proto3"
+    "e\022\030\n\020pickled_features\030\014 \001(\014\"P\n\016EcloudRes"
+    "ponse\022\017\n\007tick_id\030\001 \001(\005\022-\n\016vehicle_update"
+    "\030\002 \003(\0132\025.ecloud.VehicleUpdate\"#\n\017Obstacl"
+    "eVehicle\022\020\n\010carla_id\030\001 \001(\005\"\206\001\n\023Generated"
+    "Trajectory\022)\n\010obstacle\030\001 \001(\0132\027.ecloud.Ob"
+    "stacleVehicle\022\023\n\013probability\030\002 \001(\002\022/\n\024pr"
+    "edicted_trajectory\030\003 \003(\0132\021.ecloud.Transf"
+    "orm\"\201\001\n\023ObstacleBoundingBox\022\020\n\010center_x\030"
+    "\001 \001(\005\022\020\n\010center_y\030\002 \001(\005\022\020\n\010center_z\030\003 \001("
+    "\005\022\020\n\010extent_x\030\004 \001(\005\022\020\n\010extent_y\030\005 \001(\005\022\020\n"
+    "\010extent_z\030\006 \001(\005\"D\n\014ObjectBuffer\022\022\n\nvehic"
+    "le_id\030\001 \001(\005\022 \n\030pickled_edge_predictions\030"
+    "\002 \001(\014\"\241\001\n\022EdgeObstacleObject\0221\n\014bounding"
+    "_box\030\001 \001(\0132\033.ecloud.ObstacleBoundingBox\022"
+    "\"\n\010location\030\002 \001(\0132\020.ecloud.Location\022\020\n\010c"
+    "arla_id\030\003 \001(\005\022\"\n\010velocity\030\004 \001(\0132\020.ecloud"
+    ".Velocity\"&\n\rObjectRequest\022\025\n\rvehicle_in"
+    "dex\030\001 \001(\005\"\?\n\013EdgeObjects\0220\n\022all_object_b"
+    "uffers\030\001 \003(\0132\024.ecloud.ObjectBuffer\"j\n\020Co"
+    "mpressedTensor\022\014\n\004data\030\001 \001(\014\022\r\n\005shape\030\002 "
+    "\003(\005\022\r\n\005dtype\030\003 \001(\t\022\023\n\013compression\030\004 \001(\t\022"
+    "\025\n\roriginal_size\030\005 \001(\005\"\?\n\tAgentPose\022\020\n\010a"
+    "gent_id\030\001 \001(\005\022\014\n\004pose\030\002 \003(\002\022\022\n\nlidar_pos"
+    "e\030\003 \003(\002\"\203\003\n\024IntermediateFeatures\022\020\n\010agen"
+    "t_id\030\001 \001(\005\022%\n\nagent_type\030\002 \001(\0162\021.ecloud."
+    "ActorType\022\037\n\004pose\030\003 \001(\0132\021.ecloud.AgentPo"
+    "se\0222\n\020spatial_features\030\004 \001(\0132\030.ecloud.Co"
+    "mpressedTensor\022%\n\003psm\030\005 \001(\0132\030.ecloud.Com"
+    "pressedTensor\022$\n\002rm\030\006 \001(\0132\030.ecloud.Compr"
+    "essedTensor\022+\n\tthres_map\030\007 \001(\0132\030.ecloud."
+    "CompressedTensor\0221\n\017camera_features\030\010 \001("
+    "\0132\030.ecloud.CompressedTensor\022\024\n\014timestamp"
+    "_ns\030\t \001(\003\022\032\n\022communication_rate\030\n \001(\002\"E\n"
+    "\033IntermediateFeaturesRequest\022\025\n\rvehicle_"
+    "index\030\001 \001(\005\022\017\n\007tick_id\030\002 \001(\005\"\203\001\n\014FusionR"
+    "esult\022\017\n\007tick_id\030\001 \001(\005\022.\n\ndetections\030\002 \003"
+    "(\0132\032.ecloud.EdgeObstacleObject\022\032\n\022commun"
+    "ication_rate\030\003 \001(\002\022\026\n\016fusion_time_ns\030\004 \001"
+    "(\003\"\254\001\n\031IntermediateFeaturesBatch\022\017\n\007tick"
+    "_id\030\001 \001(\005\022.\n\010features\030\002 \003(\0132\034.ecloud.Int"
+    "ermediateFeatures\022\031\n\021pairwise_t_matrix\030\003"
+    " \003(\002\022\037\n\027pairwise_t_matrix_shape\030\004 \003(\005\022\022\n"
+    "\nrecord_len\030\005 \001(\005\"\216\001\n\024EdgeRegistrationIn"
+    "fo\022\022\n\nedge_index\030\001 \001(\005\022\017\n\007edge_ip\030\002 \001(\t\022"
+    "\021\n\tedge_port\030\003 \001(\005\022\024\n\014num_vehicles\030\004 \001(\005"
+    "\022\020\n\010num_rsus\030\005 \001(\005\022\026\n\016container_name\030\006 \001"
+    "(\t\"\344\001\n\022EdgeScenarioConfig\022\022\n\nedge_index\030"
+    "\001 \001(\005\022\030\n\020edge_config_yaml\030\002 \001(\t\022\024\n\014num_v"
+    "ehicles\030\003 \001(\005\022\020\n\010num_rsus\030\004 \001(\005\022\027\n\017vehic"
+    "le_indices\030\005 \003(\005\022\023\n\013rsu_indices\030\006 \003(\005\022\020\n"
+    "\010carla_ip\030\007 \001(\t\022\022\n\ncarla_port\030\010 \001(\005\022\023\n\013a"
+    "pplication\030\t \001(\t\022\017\n\007version\030\n \001(\t\"U\n\020Edg"
+    "eTickComplete\022\022\n\nedge_index\030\001 \001(\005\022\017\n\007tic"
+    "k_id\030\002 \001(\005\022\034\n\024num_actors_processed\030\003 \001(\005"
+    "\"=\n\010EdgeTick\022\017\n\007tick_id\030\001 \001(\005\022 \n\007command"
+    "\030\002 \001(\0162\017.ecloud.Command\"\037\n\tEdgeIndex\022\022\n\n"
+    "edge_index\030\001 \001(\005\"v\n\023ActorConnectionInfo\022"
+    "\020\n\010has_edge\030\001 \001(\010\022\017\n\007edge_ip\030\002 \001(\t\022\021\n\ted"
+    "ge_port\030\003 \001(\005\022\022\n\nedge_index\030\004 \001(\005\022\025\n\rveh"
+    "icle_index\030\005 \001(\005\"m\n\027ActorUpdateWithRespo"
+    "nse\022%\n\006update\030\001 \001(\0132\025.ecloud.VehicleUpda"
+    "te\022+\n\rfused_objects\030\002 \001(\0132\024.ecloud.Objec"
+    "tBuffer\"O\n\013EdgeMapping\022\022\n\nedge_index\030\001 \001"
+    "(\005\022\027\n\017vehicle_indices\030\002 \003(\005\022\023\n\013rsu_indic"
+    "es\030\003 \003(\005\"L\n\020EdgeMappingSetup\022\021\n\tnum_edge"
+    "s\030\001 \001(\005\022%\n\010mappings\030\002 \003(\0132\023.ecloud.EdgeM"
+    "apping*l\n\007Command\022\010\n\004TICK\020\000\022\007\n\003END\020\001\022\026\n\022"
+    "REQUEST_DEBUG_INFO\020\002\022\033\n\027PULL_WAYPOINTS_A"
+    "ND_TICK\020\003\022\031\n\025PULL_OBJECTS_AND_TICK\020\004*\240\001\n"
+    "\014VehicleState\022\017\n\013REGISTERING\020\000\022\020\n\014CARLA_"
+    "UPDATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002\022\023\n\017GET_DEST"
+    "INATION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTICK_DONE\020\005\022\006\n"
+    "\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_INFO_UPDATE\020\010*"
+    "!\n\tActorType\022\013\n\007VEHICLE\020\000\022\007\n\003RSU\020\0012\273\013\n\006E"
+    "cloud\022\'\n\010PushTick\022\014.ecloud.Tick\032\r.ecloud"
+    ".Empty\0229\n\021Client_SendUpdate\022\025.ecloud.Veh"
+    "icleUpdate\032\r.ecloud.Empty\022J\n\026Client_Regi"
+    "sterVehicle\022\030.ecloud.RegistrationInfo\032\026."
+    "ecloud.SimulationInfo\022E\n\022Client_GetScena"
+    "rio\022\027.ecloud.ScenarioRequest\032\026.ecloud.Si"
+    "mulationInfo\022F\n\023Client_GetWaypoints\022\027.ec"
+    "loud.WaypointRequest\032\026.ecloud.WaypointBu"
+    "ffer\022@\n\021Client_GetObjects\022\025.ecloud.Objec"
+    "tRequest\032\024.ecloud.ObjectBuffer\022Q\n\030Client"
+    "_GetConnectionInfo\022\030.ecloud.Registration"
+    "Info\032\033.ecloud.ActorConnectionInfo\022,\n\rSer"
+    "ver_DoTick\022\014.ecloud.Tick\032\r.ecloud.Empty\022"
+    "=\n\024Server_StartScenario\022\026.ecloud.Simulat"
+    "ionInfo\032\r.ecloud.Empty\0222\n\022Server_EndScen"
+    "ario\022\r.ecloud.Empty\032\r.ecloud.Empty\022A\n\030Se"
+    "rver_GetVehicleUpdates\022\r.ecloud.Empty\032\026."
+    "ecloud.EcloudResponse\022@\n\030Server_PushEdge"
+    "Waypoints\022\025.ecloud.EdgeWaypoints\032\r.eclou"
+    "d.Empty\022<\n\026Server_PushEdgeObjects\022\023.eclo"
+    "ud.EdgeObjects\032\r.ecloud.Empty\022A\n\026Server_"
+    "SetEdgeMappings\022\030.ecloud.EdgeMappingSetu"
+    "p\032\r.ecloud.Empty\022I\n\rEdge_Register\022\034.eclo"
+    "ud.EdgeRegistrationInfo\032\032.ecloud.EdgeSce"
+    "narioConfig\022<\n\021Edge_TickComplete\022\030.eclou"
+    "d.EdgeTickComplete\032\r.ecloud.Empty\0220\n\rEdg"
+    "e_PushTick\022\020.ecloud.EdgeTick\032\r.ecloud.Em"
+    "pty\022F\n\022Edge_ActorRegister\022\030.ecloud.Regis"
+    "trationInfo\032\026.ecloud.SimulationInfo\022C\n\024E"
+    "dge_ActorSendUpdate\022\025.ecloud.VehicleUpda"
+    "te\032\024.ecloud.ObjectBuffer\022L\n\035Edge_SendInt"
+    "ermediateFeatures\022\034.ecloud.IntermediateF"
+    "eatures\032\r.ecloud.Empty\022Q\n\024Edge_GetFusion"
+    "Result\022#.ecloud.IntermediateFeaturesRequ"
+    "est\032\024.ecloud.FusionResult\022M\n\022Edge_Perfor"
+    "mFusion\022!.ecloud.IntermediateFeaturesBat"
+    "ch\032\024.ecloud.FusionResultb\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_ecloud_2eproto_deps[1] = {
@@ -2031,7 +2036,7 @@ static ::absl::once_flag descriptor_table_ecloud_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_ecloud_2eproto = {
     false,
     false,
-    7246,
+    7272,
     descriptor_table_protodef_ecloud_2eproto,
     "ecloud.proto",
     &descriptor_table_ecloud_2eproto_once,
@@ -9048,7 +9053,8 @@ PROTOBUF_NDEBUG_INLINE VehicleUpdate::Impl_::Impl_(
     const ::ecloud::VehicleUpdate& from_msg)
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
-        pickled_agent_objects_(arena, from.pickled_agent_objects_) {}
+        pickled_agent_objects_(arena, from.pickled_agent_objects_),
+        pickled_features_(arena, from.pickled_features_) {}
 
 VehicleUpdate::VehicleUpdate(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -9064,19 +9070,19 @@ VehicleUpdate::VehicleUpdate(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::uint32_t cached_has_bits = _impl_._has_bits_[0];
-  _impl_.loc_debug_helper_ = ((cached_has_bits & 0x00000002u) != 0)
+  _impl_.loc_debug_helper_ = ((cached_has_bits & 0x00000004u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.loc_debug_helper_)
                 : nullptr;
-  _impl_.planer_debug_helper_ = ((cached_has_bits & 0x00000004u) != 0)
+  _impl_.planer_debug_helper_ = ((cached_has_bits & 0x00000008u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.planer_debug_helper_)
                 : nullptr;
-  _impl_.client_debug_helper_ = ((cached_has_bits & 0x00000008u) != 0)
+  _impl_.client_debug_helper_ = ((cached_has_bits & 0x00000010u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.client_debug_helper_)
                 : nullptr;
-  _impl_.transform_ = ((cached_has_bits & 0x00000010u) != 0)
+  _impl_.transform_ = ((cached_has_bits & 0x00000020u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.transform_)
                 : nullptr;
-  _impl_.velocity_ = ((cached_has_bits & 0x00000020u) != 0)
+  _impl_.velocity_ = ((cached_has_bits & 0x00000040u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.velocity_)
                 : nullptr;
   ::memcpy(reinterpret_cast<char *>(&_impl_) +
@@ -9093,7 +9099,8 @@ PROTOBUF_NDEBUG_INLINE VehicleUpdate::Impl_::Impl_(
     ::google::protobuf::internal::InternalVisibility visibility,
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
-        pickled_agent_objects_(arena) {}
+        pickled_agent_objects_(arena),
+        pickled_features_(arena) {}
 
 inline void VehicleUpdate::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -9113,6 +9120,7 @@ inline void VehicleUpdate::SharedDtor(MessageLite& self) {
   this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.pickled_agent_objects_.Destroy();
+  this_._impl_.pickled_features_.Destroy();
   delete this_._impl_.loc_debug_helper_;
   delete this_._impl_.planer_debug_helper_;
   delete this_._impl_.client_debug_helper_;
@@ -9164,16 +9172,16 @@ VehicleUpdate::GetClassData() const {
   return VehicleUpdate_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<4, 11, 5, 0, 2>
+const ::_pbi::TcParseTable<4, 12, 5, 0, 2>
 VehicleUpdate::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_._has_bits_),
     0, // no _extensions_
-    11, 120,  // max_field_number, fast_idx_mask
+    12, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294965248,  // skipmap
+    4294963200,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    11,  // num_field_entries
+    12,  // num_field_entries
     5,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     VehicleUpdate_class_data_.base(),
@@ -9185,39 +9193,41 @@ VehicleUpdate::_table_ = {
   }, {{
     {::_pbi::TcParser::MiniParse, {}},
     // int32 tick_id = 1;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.tick_id_), 6>(),
-     {8, 6, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.tick_id_), 7>(),
+     {8, 7, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_)}},
     // int32 vehicle_index = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_index_), 7>(),
-     {16, 7, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_index_), 8>(),
+     {16, 8, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_)}},
     // .ecloud.VehicleState vehicle_state = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_state_), 8>(),
-     {24, 8, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_state_), 9>(),
+     {24, 9, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_)}},
     // .ecloud.LocDebugHelper loc_debug_helper = 4;
     {::_pbi::TcParser::FastMtS1,
-     {34, 1, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_)}},
+     {34, 2, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_)}},
     // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
     {::_pbi::TcParser::FastMtS1,
-     {42, 2, 1, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_)}},
+     {42, 3, 1, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_)}},
     // .ecloud.ClientDebugHelper client_debug_helper = 6;
     {::_pbi::TcParser::FastMtS1,
-     {50, 3, 2, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_)}},
+     {50, 4, 2, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_)}},
     // .ecloud.Transform transform = 7;
     {::_pbi::TcParser::FastMtS1,
-     {58, 4, 3, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_)}},
+     {58, 5, 3, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_)}},
     // .ecloud.Velocity velocity = 8;
     {::_pbi::TcParser::FastMtS1,
-     {66, 5, 4, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_)}},
+     {66, 6, 4, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_)}},
     // int64 duration_ns = 9;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(VehicleUpdate, _impl_.duration_ns_), 10>(),
-     {72, 10, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(VehicleUpdate, _impl_.duration_ns_), 11>(),
+     {72, 11, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_)}},
     // bytes pickled_agent_objects = 10;
     {::_pbi::TcParser::FastBS1,
      {82, 0, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_agent_objects_)}},
     // .ecloud.ActorType actor_type = 11;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.actor_type_), 9>(),
-     {88, 9, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_)}},
-    {::_pbi::TcParser::MiniParse, {}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.actor_type_), 10>(),
+     {88, 10, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_)}},
+    // bytes pickled_features = 12;
+    {::_pbi::TcParser::FastBS1,
+     {98, 1, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_features_)}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
     {::_pbi::TcParser::MiniParse, {}},
@@ -9225,38 +9235,41 @@ VehicleUpdate::_table_ = {
     65535, 65535
   }}, {{
     // int32 tick_id = 1;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_), _Internal::kHasBitsOffset + 6, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_), _Internal::kHasBitsOffset + 7, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
     // int32 vehicle_index = 2;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_), _Internal::kHasBitsOffset + 7, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_), _Internal::kHasBitsOffset + 8, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
     // .ecloud.VehicleState vehicle_state = 3;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_), _Internal::kHasBitsOffset + 8, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_), _Internal::kHasBitsOffset + 9, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     // .ecloud.LocDebugHelper loc_debug_helper = 4;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_), _Internal::kHasBitsOffset + 1, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_), _Internal::kHasBitsOffset + 2, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_), _Internal::kHasBitsOffset + 2, 1,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_), _Internal::kHasBitsOffset + 3, 1,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.ClientDebugHelper client_debug_helper = 6;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_), _Internal::kHasBitsOffset + 3, 2,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_), _Internal::kHasBitsOffset + 4, 2,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.Transform transform = 7;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_), _Internal::kHasBitsOffset + 4, 3,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_), _Internal::kHasBitsOffset + 5, 3,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.Velocity velocity = 8;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_), _Internal::kHasBitsOffset + 5, 4,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_), _Internal::kHasBitsOffset + 6, 4,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // int64 duration_ns = 9;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_), _Internal::kHasBitsOffset + 10, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_), _Internal::kHasBitsOffset + 11, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt64)},
     // bytes pickled_agent_objects = 10;
     {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_agent_objects_), _Internal::kHasBitsOffset + 0, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
     // .ecloud.ActorType actor_type = 11;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_), _Internal::kHasBitsOffset + 9, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_), _Internal::kHasBitsOffset + 10, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    // bytes pickled_features = 12;
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_features_), _Internal::kHasBitsOffset + 1, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
   }},
   {{
       {::_pbi::TcParser::GetTable<::ecloud::LocDebugHelper>()},
@@ -9276,40 +9289,39 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if ((cached_has_bits & 0x0000003fu) != 0) {
+  if ((cached_has_bits & 0x0000007fu) != 0) {
     if ((cached_has_bits & 0x00000001u) != 0) {
       _impl_.pickled_agent_objects_.ClearNonDefaultToEmpty();
     }
     if ((cached_has_bits & 0x00000002u) != 0) {
+      _impl_.pickled_features_.ClearNonDefaultToEmpty();
+    }
+    if ((cached_has_bits & 0x00000004u) != 0) {
       ABSL_DCHECK(_impl_.loc_debug_helper_ != nullptr);
       _impl_.loc_debug_helper_->Clear();
     }
-    if ((cached_has_bits & 0x00000004u) != 0) {
+    if ((cached_has_bits & 0x00000008u) != 0) {
       ABSL_DCHECK(_impl_.planer_debug_helper_ != nullptr);
       _impl_.planer_debug_helper_->Clear();
     }
-    if ((cached_has_bits & 0x00000008u) != 0) {
+    if ((cached_has_bits & 0x00000010u) != 0) {
       ABSL_DCHECK(_impl_.client_debug_helper_ != nullptr);
       _impl_.client_debug_helper_->Clear();
     }
-    if ((cached_has_bits & 0x00000010u) != 0) {
+    if ((cached_has_bits & 0x00000020u) != 0) {
       ABSL_DCHECK(_impl_.transform_ != nullptr);
       _impl_.transform_->Clear();
     }
-    if ((cached_has_bits & 0x00000020u) != 0) {
+    if ((cached_has_bits & 0x00000040u) != 0) {
       ABSL_DCHECK(_impl_.velocity_ != nullptr);
       _impl_.velocity_->Clear();
     }
   }
-  if ((cached_has_bits & 0x000000c0u) != 0) {
-    ::memset(&_impl_.tick_id_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.vehicle_index_) -
-        reinterpret_cast<char*>(&_impl_.tick_id_)) + sizeof(_impl_.vehicle_index_));
-  }
-  if ((cached_has_bits & 0x00000700u) != 0) {
-    ::memset(&_impl_.vehicle_state_, 0, static_cast<::size_t>(
+  _impl_.tick_id_ = 0;
+  if ((cached_has_bits & 0x00000f00u) != 0) {
+    ::memset(&_impl_.vehicle_index_, 0, static_cast<::size_t>(
         reinterpret_cast<char*>(&_impl_.duration_ns_) -
-        reinterpret_cast<char*>(&_impl_.vehicle_state_)) + sizeof(_impl_.duration_ns_));
+        reinterpret_cast<char*>(&_impl_.vehicle_index_)) + sizeof(_impl_.duration_ns_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -9331,7 +9343,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   (void)cached_has_bits;
 
   // int32 tick_id = 1;
-  if ((this_._impl_._has_bits_[0] & 0x00000040u) != 0) {
+  if ((this_._impl_._has_bits_[0] & 0x00000080u) != 0) {
     if (this_._internal_tick_id() != 0) {
       target =
           ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<1>(
@@ -9340,7 +9352,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   }
 
   // int32 vehicle_index = 2;
-  if ((this_._impl_._has_bits_[0] & 0x00000080u) != 0) {
+  if ((this_._impl_._has_bits_[0] & 0x00000100u) != 0) {
     if (this_._internal_vehicle_index() != 0) {
       target =
           ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<2>(
@@ -9349,7 +9361,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   }
 
   // .ecloud.VehicleState vehicle_state = 3;
-  if ((this_._impl_._has_bits_[0] & 0x00000100u) != 0) {
+  if ((this_._impl_._has_bits_[0] & 0x00000200u) != 0) {
     if (this_._internal_vehicle_state() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -9359,42 +9371,42 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[0];
   // .ecloud.LocDebugHelper loc_debug_helper = 4;
-  if ((cached_has_bits & 0x00000002u) != 0) {
+  if ((cached_has_bits & 0x00000004u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         4, *this_._impl_.loc_debug_helper_, this_._impl_.loc_debug_helper_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
-  if ((cached_has_bits & 0x00000004u) != 0) {
+  if ((cached_has_bits & 0x00000008u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         5, *this_._impl_.planer_debug_helper_, this_._impl_.planer_debug_helper_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.ClientDebugHelper client_debug_helper = 6;
-  if ((cached_has_bits & 0x00000008u) != 0) {
+  if ((cached_has_bits & 0x00000010u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         6, *this_._impl_.client_debug_helper_, this_._impl_.client_debug_helper_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.Transform transform = 7;
-  if ((cached_has_bits & 0x00000010u) != 0) {
+  if ((cached_has_bits & 0x00000020u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         7, *this_._impl_.transform_, this_._impl_.transform_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.Velocity velocity = 8;
-  if ((cached_has_bits & 0x00000020u) != 0) {
+  if ((cached_has_bits & 0x00000040u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         8, *this_._impl_.velocity_, this_._impl_.velocity_->GetCachedSize(), target,
         stream);
   }
 
   // int64 duration_ns = 9;
-  if ((cached_has_bits & 0x00000400u) != 0) {
+  if ((cached_has_bits & 0x00000800u) != 0) {
     if (this_._internal_duration_ns() != 0) {
       target =
           ::google::protobuf::internal::WireFormatLite::WriteInt64ToArrayWithField<9>(
@@ -9411,11 +9423,19 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   }
 
   // .ecloud.ActorType actor_type = 11;
-  if ((cached_has_bits & 0x00000200u) != 0) {
+  if ((cached_has_bits & 0x00000400u) != 0) {
     if (this_._internal_actor_type() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
           11, this_._internal_actor_type(), target);
+    }
+  }
+
+  // bytes pickled_features = 12;
+  if ((cached_has_bits & 0x00000002u) != 0) {
+    if (!this_._internal_pickled_features().empty()) {
+      const ::std::string& _s = this_._internal_pickled_features();
+      target = stream->WriteBytesMaybeAliased(12, _s, target);
     }
   }
 
@@ -9452,63 +9472,70 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
                                         this_._internal_pickled_agent_objects());
       }
     }
-    // .ecloud.LocDebugHelper loc_debug_helper = 4;
+    // bytes pickled_features = 12;
     if ((cached_has_bits & 0x00000002u) != 0) {
+      if (!this_._internal_pickled_features().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::BytesSize(
+                                        this_._internal_pickled_features());
+      }
+    }
+    // .ecloud.LocDebugHelper loc_debug_helper = 4;
+    if ((cached_has_bits & 0x00000004u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.loc_debug_helper_);
     }
     // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
-    if ((cached_has_bits & 0x00000004u) != 0) {
+    if ((cached_has_bits & 0x00000008u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.planer_debug_helper_);
     }
     // .ecloud.ClientDebugHelper client_debug_helper = 6;
-    if ((cached_has_bits & 0x00000008u) != 0) {
+    if ((cached_has_bits & 0x00000010u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.client_debug_helper_);
     }
     // .ecloud.Transform transform = 7;
-    if ((cached_has_bits & 0x00000010u) != 0) {
+    if ((cached_has_bits & 0x00000020u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.transform_);
     }
     // .ecloud.Velocity velocity = 8;
-    if ((cached_has_bits & 0x00000020u) != 0) {
+    if ((cached_has_bits & 0x00000040u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.velocity_);
     }
     // int32 tick_id = 1;
-    if ((cached_has_bits & 0x00000040u) != 0) {
+    if ((cached_has_bits & 0x00000080u) != 0) {
       if (this_._internal_tick_id() != 0) {
         total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
             this_._internal_tick_id());
       }
     }
+  }
+  if ((cached_has_bits & 0x00000f00u) != 0) {
     // int32 vehicle_index = 2;
-    if ((cached_has_bits & 0x00000080u) != 0) {
+    if ((cached_has_bits & 0x00000100u) != 0) {
       if (this_._internal_vehicle_index() != 0) {
         total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
             this_._internal_vehicle_index());
       }
     }
-  }
-  if ((cached_has_bits & 0x00000700u) != 0) {
     // .ecloud.VehicleState vehicle_state = 3;
-    if ((cached_has_bits & 0x00000100u) != 0) {
+    if ((cached_has_bits & 0x00000200u) != 0) {
       if (this_._internal_vehicle_state() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_vehicle_state());
       }
     }
     // .ecloud.ActorType actor_type = 11;
-    if ((cached_has_bits & 0x00000200u) != 0) {
+    if ((cached_has_bits & 0x00000400u) != 0) {
       if (this_._internal_actor_type() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_actor_type());
       }
     }
     // int64 duration_ns = 9;
-    if ((cached_has_bits & 0x00000400u) != 0) {
+    if ((cached_has_bits & 0x00000800u) != 0) {
       if (this_._internal_duration_ns() != 0) {
         total_size += ::_pbi::WireFormatLite::Int64SizePlusOne(
             this_._internal_duration_ns());
@@ -9540,6 +9567,15 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
       }
     }
     if ((cached_has_bits & 0x00000002u) != 0) {
+      if (!from._internal_pickled_features().empty()) {
+        _this->_internal_set_pickled_features(from._internal_pickled_features());
+      } else {
+        if (_this->_impl_.pickled_features_.IsDefault()) {
+          _this->_internal_set_pickled_features("");
+        }
+      }
+    }
+    if ((cached_has_bits & 0x00000004u) != 0) {
       ABSL_DCHECK(from._impl_.loc_debug_helper_ != nullptr);
       if (_this->_impl_.loc_debug_helper_ == nullptr) {
         _this->_impl_.loc_debug_helper_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.loc_debug_helper_);
@@ -9547,7 +9583,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.loc_debug_helper_->MergeFrom(*from._impl_.loc_debug_helper_);
       }
     }
-    if ((cached_has_bits & 0x00000004u) != 0) {
+    if ((cached_has_bits & 0x00000008u) != 0) {
       ABSL_DCHECK(from._impl_.planer_debug_helper_ != nullptr);
       if (_this->_impl_.planer_debug_helper_ == nullptr) {
         _this->_impl_.planer_debug_helper_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.planer_debug_helper_);
@@ -9555,7 +9591,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.planer_debug_helper_->MergeFrom(*from._impl_.planer_debug_helper_);
       }
     }
-    if ((cached_has_bits & 0x00000008u) != 0) {
+    if ((cached_has_bits & 0x00000010u) != 0) {
       ABSL_DCHECK(from._impl_.client_debug_helper_ != nullptr);
       if (_this->_impl_.client_debug_helper_ == nullptr) {
         _this->_impl_.client_debug_helper_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.client_debug_helper_);
@@ -9563,7 +9599,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.client_debug_helper_->MergeFrom(*from._impl_.client_debug_helper_);
       }
     }
-    if ((cached_has_bits & 0x00000010u) != 0) {
+    if ((cached_has_bits & 0x00000020u) != 0) {
       ABSL_DCHECK(from._impl_.transform_ != nullptr);
       if (_this->_impl_.transform_ == nullptr) {
         _this->_impl_.transform_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.transform_);
@@ -9571,7 +9607,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.transform_->MergeFrom(*from._impl_.transform_);
       }
     }
-    if ((cached_has_bits & 0x00000020u) != 0) {
+    if ((cached_has_bits & 0x00000040u) != 0) {
       ABSL_DCHECK(from._impl_.velocity_ != nullptr);
       if (_this->_impl_.velocity_ == nullptr) {
         _this->_impl_.velocity_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.velocity_);
@@ -9579,29 +9615,29 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.velocity_->MergeFrom(*from._impl_.velocity_);
       }
     }
-    if ((cached_has_bits & 0x00000040u) != 0) {
+    if ((cached_has_bits & 0x00000080u) != 0) {
       if (from._internal_tick_id() != 0) {
         _this->_impl_.tick_id_ = from._impl_.tick_id_;
       }
     }
-    if ((cached_has_bits & 0x00000080u) != 0) {
+  }
+  if ((cached_has_bits & 0x00000f00u) != 0) {
+    if ((cached_has_bits & 0x00000100u) != 0) {
       if (from._internal_vehicle_index() != 0) {
         _this->_impl_.vehicle_index_ = from._impl_.vehicle_index_;
       }
     }
-  }
-  if ((cached_has_bits & 0x00000700u) != 0) {
-    if ((cached_has_bits & 0x00000100u) != 0) {
+    if ((cached_has_bits & 0x00000200u) != 0) {
       if (from._internal_vehicle_state() != 0) {
         _this->_impl_.vehicle_state_ = from._impl_.vehicle_state_;
       }
     }
-    if ((cached_has_bits & 0x00000200u) != 0) {
+    if ((cached_has_bits & 0x00000400u) != 0) {
       if (from._internal_actor_type() != 0) {
         _this->_impl_.actor_type_ = from._impl_.actor_type_;
       }
     }
-    if ((cached_has_bits & 0x00000400u) != 0) {
+    if ((cached_has_bits & 0x00000800u) != 0) {
       if (from._internal_duration_ns() != 0) {
         _this->_impl_.duration_ns_ = from._impl_.duration_ns_;
       }
@@ -9626,6 +9662,7 @@ void VehicleUpdate::InternalSwap(VehicleUpdate* PROTOBUF_RESTRICT PROTOBUF_NONNU
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pickled_agent_objects_, &other->_impl_.pickled_agent_objects_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pickled_features_, &other->_impl_.pickled_features_, arena);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_)
       + sizeof(VehicleUpdate::_impl_.duration_ns_)

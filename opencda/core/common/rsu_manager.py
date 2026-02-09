@@ -90,11 +90,20 @@ class RSUManager:
         )
 
         # ------------------- perception ---------------------------- #
-        PercepCls  = _pick_perception_class(sensing_cfg["perception"])
-        backend_id = PercepCls.__name__
+        # In distributed mode, server-side RSU managers are proxies that
+        # receive features via gRPC — no need to load GPU models.
+        run_distributed = cav_world is not None and getattr(cav_world, 'run_distributed', False)
+        # Server-side RSU: cav_world.litserve is False (server never uses -l)
+        # Client-side RSU: cav_world.litserve may be True (client uses -l)
+        is_server_proxy = run_distributed and not getattr(cav_world, 'litserve', False)
 
+        if is_server_proxy:
+            from opencda.core.sensing.perception.perception_manager import PerceptionManager
+            PercepCls = PerceptionManager
+            print(f"[RSUManager] Distributed proxy — using base PerceptionManager")
+        else:
+            PercepCls = _pick_perception_class(sensing_cfg["perception"])
 
-        PercepCls = _pick_perception_class(sensing_cfg["perception"])
         self.perception_manager = PercepCls(
             vehicle=None,                         # RSU is static
             config_yaml=sensing_cfg["perception"],

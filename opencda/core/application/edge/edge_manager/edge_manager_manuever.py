@@ -141,9 +141,10 @@ class ManeuverEdge(_BaseEdgeManager):
             # send over network here if you have a channel …
 
         # finally advance vehicle controllers
-        for vm in self.vehicle_manager_list:
-            vm.update_info(tick)
-            vm.vehicle.apply_control(vm.run_step())
+        if not self.run_distributed:
+            for vm in self.vehicle_manager_list:
+                vm.update_info(tick)
+                vm.vehicle.apply_control(vm.run_step())
 
     # ------------------------------------------------------------------
     #  Internal helpers
