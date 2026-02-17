@@ -16,7 +16,6 @@ import time
 import sys
 
 import carla
-import coloredlogs
 import pickle
 
 sys.path.insert(0,'/opt/carla-simulator/PythonAPI/carla') 
@@ -41,8 +40,6 @@ import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
 
 # TODO: move to eCloudConfig
 cloud_config = load_yaml("cloud_config.yaml")
@@ -449,25 +446,24 @@ class Ecav2ActorClient:
 
         # HANDLE TICK
         elif self.pong.command == ecloud.Command.TICK:
+            t_tick_start = time.time()
             client_start_timestamp = Timestamp()
             client_start_timestamp.GetCurrentTime()
             # update info runs BEFORE waypoint injection
             update_info_start_time = time.time()
             self.vehicle_manager.update_info()
-            logger.info("update_info complete")
-            
+            t_update_info = time.time()
+
             control = self.vehicle_manager.run_step()
-            logger.debug("Applying control for vehicle manager: %s", self.vehicle_manager)
+            t_run_step = time.time()
             if self.actor_type == ecloud.ActorType.VEHICLE:
                 self.vehicle_manager.vehicle.apply_control(control)
 
                 update_info_end_time = time.time()
                 self.vehicle_manager.client_metrics.update_update_info_time((update_info_end_time-update_info_start_time)*1000)
-                
+
                 if self.is_edge:
                     self.network_emulator.update_waypoints()
-
-            logger.info("run_step complete")
 
             vehicle_update.actor_type = self.actor_type
             vehicle_update.tick_id = self.tick_id
@@ -498,6 +494,7 @@ class Ecav2ActorClient:
                 else:
                     for o in self.rsu_manager.objects:
                         print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
+            t_pickle_objects = time.time()
 
             # Send intermediate features for WorldFusion/BM2CP
             try:
@@ -506,48 +503,77 @@ class Ecav2ActorClient:
                 else:
                     pm = self.rsu_manager.perception_manager
                 if hasattr(pm, 'feature_dict') and pm.feature_dict is not None:
-                    import zlib
-                    feat_payload = {k: v.half().cpu() for k, v in pm.feature_dict.items()}
-                    compressed = zlib.compress(pickle.dumps(feat_payload), level=1)
-                    vehicle_update.pickled_features = compressed
-                    print(f"[FEATURES] Sending {len(compressed)} bytes "
-                          f"({len(compressed)/1024/1024:.1f} MB compressed)", flush=True)
+                    import msgpack
+                    import msgpack_numpy as m_np
+                    m_np.patch()
+                    feat_payload = {k: v.half().cpu().numpy() for k, v in pm.feature_dict.items()}
+                    vehicle_update.pickled_features = msgpack.packb(feat_payload, use_bin_type=True)
             except Exception as e:
                 print(f"[FEATURES] Error serializing features: {e}", flush=True)
+            t_pickle_features = time.time()
+
+            actor_label = "VEHICLE" if self.actor_type == ecloud.ActorType.VEHICLE else "RSU"
+            print(f"[CLIENT {actor_label} TICK {self.tick_id}] "
+                  f"update_info={(t_update_info-t_tick_start)*1000:.0f}ms | "
+                  f"run_step={(t_run_step-t_update_info)*1000:.0f}ms | "
+                  f"pickle_obj={(t_pickle_objects-t_run_step)*1000:.0f}ms | "
+                  f"pickle_feat={(t_pickle_features-t_pickle_objects)*1000:.0f}ms | "
+                  f"total={(t_pickle_features-t_tick_start)*1000:.0f}ms",
+                  flush=True)
+
+            # Send localized position to server
+            if self.actor_type == ecloud.ActorType.VEHICLE:
+                ego_pos = self.vehicle_manager.localizer.get_ego_pos()
+                vel = self.vehicle_manager.vehicle.get_velocity()
+            else:
+                ego_pos = self.rsu_manager.localizer.get_ego_pos()
+                vel = None
+
+            if ego_pos is not None:
+                vehicle_update.transform.location.x = ego_pos.location.x
+                vehicle_update.transform.location.y = ego_pos.location.y
+                vehicle_update.transform.location.z = ego_pos.location.z
+                vehicle_update.transform.rotation.yaw = ego_pos.rotation.yaw
+                vehicle_update.transform.rotation.pitch = ego_pos.rotation.pitch
+                vehicle_update.transform.rotation.roll = ego_pos.rotation.roll
+
+            if vel is not None:
+                vehicle_update.velocity.x = vel.x
+                vehicle_update.velocity.y = vel.y
+                vehicle_update.velocity.z = vel.z
 
             if self.actor_type == ecloud.ActorType.VEHICLE:
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK if not self.vehicle_manager.is_close_to_scenario_destination() else ecloud.VehicleState.TICK_DONE
             else:
-                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK # RSUs never "done"
-
-            # vehicle_update.vehicle_state = ecloud.VehicleState.ERROR # TODO: handle error status
-            # logger.error("ecloud_client error")
-
-            #cur_location = vehicle_manager.vehicle.get_location()
-            #logger.debug("send OK and location for vehicle_%s - is - x: %s, y: %s", vehicle_index, cur_location.x, cur_location.y)
+                vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
 
         # block waiting for a response
+        t_pre_send = time.time()
         if not self.reported_done or self.done_behavior == eDoneBehavior.CONTROL:
             if not self.reported_done:
                 vehicle_update.tick_id = self.tick_id
                 vehicle_update.vehicle_index = self.vehicle_index
-                logger.info('vehicle_update: \n vehicle_index: %s \n tick_id: %s \n %s', self.vehicle_index, self.tick_id, vehicle_update)
                 await self.send_vehicle_update( vehicle_update)
+                t_post_send = time.time()
+                actor_label = "VEHICLE" if self.actor_type == ecloud.ActorType.VEHICLE else "RSU"
+                print(f"[CLIENT {actor_label}] send_update={(t_post_send-t_pre_send)*1000:.0f}ms", flush=True)
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
                 if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and self.pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
-                    # we were asked for debug data and provided it, so NOW we exit
-                    # TODO: this is better handled by done
                     logger.info("pushed DEBUG_INFO_UPDATE")
 
                 self.reported_done = True
                 logger.info("reported_done")
 
             assert self.push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", self.push_q.get_nowait())
+            t_wait_start = time.time()
             self.pong = await self.push_q.get()
+            t_wait_end = time.time()
             self.push_q.task_done()
             assert( self.pong.tick_id != self.tick_id )
             self.tick_id = self.pong.tick_id
+            actor_label = "VEHICLE" if self.actor_type == ecloud.ActorType.VEHICLE else "RSU"
+            print(f"[CLIENT {actor_label}] wait_for_next_cmd={(t_wait_end-t_wait_start)*1000:.0f}ms", flush=True)
 
             if self.pong.command == ecloud.Command.PULL_WAYPOINTS_AND_TICK:
                 wp_request = ecloud.WaypointRequest()
@@ -557,49 +583,20 @@ class Ecav2ActorClient:
                 self.pong.command = ecloud.Command.TICK
 
             elif self.pong.command == ecloud.Command.PULL_OBJECTS_AND_TICK:
+                t_pull_start = time.time()
                 obj_request = ecloud.ObjectRequest()
                 obj_request.vehicle_index = self.vehicle_index
 
                 object_proto = await self.ecloud_server.Client_GetObjects(obj_request)
-                def recursive_print_object(obj, indent=0, visited=None):
-                    if visited is None:
-                        visited = set()
-
-                    # Prevent infinite recursion for circular references
-                    if id(obj) in visited:
-                        print(f"{'  ' * indent}<Circular Reference to {type(obj).__name__} object at {hex(id(obj))}>")
-                        return
-                    visited.add(id(obj))
-
-                    print(f"{'  ' * indent}{type(obj).__name__} object at {hex(id(obj))}:")
-                    indent += 1
-
-                    if isinstance(obj, dict):
-                        for key, value in obj.items():
-                            print(f"{'  ' * indent}{key}:")
-                            recursive_print_object(value, indent + 1, visited)
-                    elif isinstance(obj, list):
-                        for i, item in enumerate(obj):
-                            print(f"{'  ' * indent}[{i}]:")
-                            recursive_print_object(item, indent + 1, visited)
-                    elif hasattr(obj, '__dict__'):
-                        for attr_name, attr_value in obj.__dict__.items():
-                            if hasattr(attr_value, '__dict__'):  # Check if the attribute is another object
-                                print(f"{'  ' * indent}{attr_name}:")
-                                recursive_print_object(attr_value, indent + 1, visited)
-                            else:
-                                print(f"{'  ' * indent}{attr_name}: {attr_value}")
-                    else:
-                        print(f"{'  ' * indent}{obj}")
 
                 preds = pickle.loads(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
-                print("Edge Predictions:")
-                # recursive_print_object(preds)
                 if self.actor_type == ecloud.ActorType.VEHICLE:
                     self.vehicle_manager.agent.edge_predictions = preds
                 else:
                     pass # don't have a scenario yet where the RSU gets edge predictions
                 self.pong.command = ecloud.Command.TICK
+                t_pull_end = time.time()
+                print(f"[CLIENT {actor_label}] pull_objects={(t_pull_end-t_pull_start)*1000:.0f}ms", flush=True)
 
             # HANDLE END
             elif self.pong.command == ecloud.Command.END:

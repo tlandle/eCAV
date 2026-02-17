@@ -9,9 +9,8 @@ from sort.sort import Sort
 from collections import deque
 
 
-import coloredlogs, logging
+import logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='ERROR', logger=logger)
 
 class MultiObjectSORTTracker(MultiObjectTracker):
     def __init__(self, max_age, min_matching_iou):

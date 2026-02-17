@@ -26,7 +26,7 @@ import subprocess
 import signal
 
 from concurrent.futures import ThreadPoolExecutor, thread
-import coloredlogs, logging
+import logging
 import threading
 import time
 from typing import Iterable
@@ -69,7 +69,6 @@ from opencda.core.common.ecloud_config import EcloudConfig
 from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -367,22 +366,23 @@ class ScenarioManager:
                 # Unpack intermediate features for WorldFusion/BM2CP
                 if vehicle_update.pickled_features:
                     try:
-                        import zlib
-                        decompressed = zlib.decompress(vehicle_update.pickled_features)
-                        feat_dict = pickle.loads(decompressed)
+                        import torch
+                        import msgpack
+                        import msgpack_numpy as m_np
+                        m_np.patch()
+                        feat_dict_np = msgpack.unpackb(vehicle_update.pickled_features, raw=False)
+                        feat_dict = {k: torch.from_numpy(v) for k, v in feat_dict_np.items()}
                         manager_proxy.perception_manager.feature_dict = feat_dict
                         actor_label = "RSU" if is_rsu else "vehicle"
                         print(f"[UNPACK FEATURES] {actor_label} {vehicle_update.vehicle_index}: "
-                              f"{len(vehicle_update.pickled_features)} bytes compressed")
+                              f"{len(vehicle_update.pickled_features)} bytes")
                     except Exception as e:
                         print(f"[UNPACK FEATURES] FAILED index {vehicle_update.vehicle_index}: {e}")
 
-                if not vehicle_update.HasField('transform') or not vehicle_update.HasField('velocity'):
+                if not vehicle_update.HasField('transform'):
                     continue
 
-                if hasattr( manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
-                    #logger.debug("updating transform & velocity - %s", vehicle_update)
-                    t = carla.Transform(
+                t = carla.Transform(
                     carla.Location(
                         x=vehicle_update.transform.location.x,
                         y=vehicle_update.transform.location.y,
@@ -391,17 +391,25 @@ class ScenarioManager:
                         yaw=vehicle_update.transform.rotation.yaw,
                         roll=vehicle_update.transform.rotation.roll,
                         pitch=vehicle_update.transform.rotation.pitch))
+
+                # Update localizer so edge manager can read position
+                if hasattr(manager_proxy, 'localizer'):
+                    manager_proxy.localizer._ego_pos = t
+
+                if vehicle_update.HasField('velocity'):
                     v = carla.Vector3D(
                         x=vehicle_update.velocity.x,
                         y=vehicle_update.velocity.y,
                         z=vehicle_update.velocity.z)
-                    if hasattr( manager_proxy.vehicle, 'is_proxy' ):
-                        #logger.debug("updating transform & velocity - %s", vehicle_update)
-                        manager_proxy.vehicle.set_velocity(v)
-                        manager_proxy.vehicle.set_transform(t)
+                else:
+                    v = carla.Vector3D(x=0.0, y=0.0, z=0.0)
 
-                    self.sim_metrics.update_velocity_per_client_timestamp(tick_id=self.tick_id,
-                                                                           velocity=v)
+                if hasattr(manager_proxy, 'vehicle') and hasattr(manager_proxy.vehicle, 'is_proxy'):
+                    manager_proxy.vehicle.set_velocity(v)
+                    manager_proxy.vehicle.set_transform(t)
+
+                self.sim_metrics.update_velocity_per_client_timestamp(tick_id=self.tick_id,
+                                                                       velocity=v)
         except:
             logger.exception('%s', vehicle_update)
 
@@ -418,11 +426,14 @@ class ScenarioManager:
         return empty
 
     async def server_do_tick(self, stub_, update_):
+        t_do_tick_start = time.time()
         empty = await stub_.Server_DoTick(update_)
+        t_do_tick_sent = time.time()
 
         assert self.push_q.empty(), logger.exception("push_q should have been empty, but had %s", self.push_q.get_nowait())
         tick = await self.push_q.get()
         snapshot_t = time.time_ns()
+        t_clients_done = time.time()
         self.push_q.task_done()
 
         # the first tick time is dramatically slower due to startup, so we don't want it to skew runtime data
@@ -441,6 +452,13 @@ class ScenarioManager:
 
         else:
             await self.server_unpack_vehicle_updates(stub_)
+        t_unpack_done = time.time()
+
+        print(f"[SERVER TICK {self.tick_id}] "
+              f"send_cmd={(t_do_tick_sent-t_do_tick_start)*1000:.0f}ms | "
+              f"wait_clients={(t_clients_done-t_do_tick_sent)*1000:.0f}ms | "
+              f"unpack={(t_unpack_done-t_clients_done)*1000:.0f}ms",
+              flush=True)
 
         return empty
 

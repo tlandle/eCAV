@@ -23,17 +23,8 @@ from opencda.core.plan.global_route_planner import GlobalRoutePlanner
 from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
-import coloredlogs, logging
+import logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-
-cloud_config = load_yaml("cloud_config.yaml")
-if cloud_config["log_level"] == "error":
-    logger.setLevel(logging.ERROR)
-elif cloud_config["log_level"] == "warning":
-    logger.setLevel(logging.WARNING)
-elif cloud_config["log_level"] == "info":
-    logger.setLevel(logging.INFO)
 
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc

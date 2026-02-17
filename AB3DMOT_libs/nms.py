@@ -1,5 +1,6 @@
 import numpy as np
 from .bbox_coarse_hash import BBoxCoarseFilter
+from AB3DMOT_libs.box import Box3D
 from AB3DMOT_libs.dist_metrics import iou
 
 def weird_bbox(bbox):
@@ -33,13 +34,31 @@ def nms(dets, inst_types, threshold_low=0.1, threshold_high=1.0, threshold_yaw=0
         related_idxes = order[in_mask]
         related_idxes = np.asarray([i for i in related_idxes if inst_types[i] == inst_types[index]])
 
-        # compute the ious
+        # compute IoU, containment, and center distance for each related detection
         bbox_num = len(related_idxes)
         ious = np.zeros(bbox_num)
+        containment = np.zeros(bbox_num)
+        center_close = np.zeros(bbox_num, dtype=bool)
+        vol_ref = dets[index].l * dets[index].w * dets[index].h
+        ref = dets[index]
         for i, idx in enumerate(related_idxes):
-            # ious[i] = utils.iou3d(dets[index], dets[idx])[1]
-            ious[i] = iou(dets[index], dets[idx], metric='iou_3d')
-        related_inds = np.where(ious > threshold_low)
+            det = dets[idx]
+            ious[i] = iou(ref, det, metric='iou_3d')
+            # Containment = intersection / min(vol). Detects a small sensor box
+            # inside a large beacon box (same object, mismatched extents).
+            vol_idx = det.l * det.w * det.h
+            min_vol = min(vol_ref, vol_idx)
+            if min_vol > 1e-6 and ious[i] > 0:
+                union = vol_ref + vol_idx
+                inter = ious[i] * union / (1 + ious[i])
+                containment[i] = inter / min_vol
+            # Center-distance check: merge detections whose centers are within
+            # one car-length of each other. Multi-camera detections of the same
+            # vehicle can be 3-5m apart with zero IoU.
+            cdist = np.sqrt((ref.x - det.x)**2 + (ref.z - det.z)**2)  # ground plane (KITTI x,z)
+            max_dim = max(ref.l, ref.w, det.l, det.w)
+            center_close[i] = cdist < max_dim
+        related_inds = np.where((ious > threshold_low) | (containment > 0.3) | center_close)
         related_inds_vote = np.where(ious > threshold_high)
         order_vote = related_idxes[related_inds_vote]
 
@@ -72,8 +91,10 @@ def nms(dets, inst_types, threshold_low=0.1, threshold_high=1.0, threshold_yaw=0
             result_indexes.append(index)
             result_types.append(inst_types[index])
 
-        # delete the overlapped bboxes
+        # delete the current detection and any overlapping ones
         delete_idxes = related_idxes[related_inds]
+        # Always include the current index to guarantee loop termination
+        delete_idxes = np.union1d(delete_idxes, [index])
         in_mask = np.isin(order, delete_idxes, invert=True)
         order = order[in_mask]
 

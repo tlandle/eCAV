@@ -1,12 +1,12 @@
-
 # -*- coding: utf-8 -*-
-"""
 # Author: Tyler Landle <tlandle3@gatech.edu>
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
+"""
 Edge-manager package initialiser.
 
-It makes the individual manager classes directly importable and provides a
-simple registry so you can look them up by name (e.g. the “mode” field in your
-YAML).
+Makes the individual manager classes directly importable and provides a
+simple registry so you can look them up by name.
 """
 
 # --------------------------------------------------------------------------- #

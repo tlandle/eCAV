@@ -1,18 +1,13 @@
-#-*- coding: utf-8 -*-
-"""
+# -*- coding: utf-8 -*-
 # Author: Tyler Landle <tlandle3@gatech.edu>
-edge_manager.perception
-=======================
+# License: TDG-Attribution-NonCommercial-NoDistrib
 
-Implements *PERCEPTION* mode:  
-• fuses objects from the ego-vehicle perception stacks + RSUs  
-• buffers a configurable amount of history so we can replay a
-  latency-delayed snapshot  
-• forwards that snapshot (and other helpers such as predicted waypoint
-  buffers / speeds) to every VehicleManager.
+"""
+Implements PERCEPTION mode for the EdgeManager.
 
-Author : Tyler Landle <tlandle3@gatech.edu>
-License: TDG-Attribution-NonCommercial-NoDistrib
+Fuses objects from ego-vehicle perception stacks and RSUs, buffers
+configurable history for latency-delayed snapshots, and forwards
+results to every VehicleManager.
 """
 from __future__ import annotations
 

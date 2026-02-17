@@ -27,4 +27,23 @@ vehicle_client_public_ip: "localhost"
 # 256 Cars - all clients
 #vehicle_client_public_ip: "20.172.248.156,20.242.82.41,172.200.91.133,172.171.196.63,172.190.137.118"  # ndm, client4, client3, client2, client1
 
-log_level: "info" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+log_level: "info" # default console level: DEBUG, INFO, WARNING, ERROR, CRITICAL
+file_log_level: "debug" # log file level (captures to log/logfile_*.log)
+
+# Per-module log level overrides (matches last component of python module name)
+# Modules not listed here inherit log_level above
+module_log_levels:
+  behavior_agent: "debug"
+  collision_check: "debug"
+  perception_manager: "error"
+  o3d_lidar_libs: "error"
+  sort_tracker: "error"
+  vehicle_manager: "debug"
+  sim_api: "debug"
+  EdgeManager: "info"
+  networking: "debug"
+  astar_edge_manager: "debug"
+  ecloud_comms: "debug"
+  ecloud_actor_client: "debug"
+  distributed_actor_client: "debug"
+  edge_process: "debug"

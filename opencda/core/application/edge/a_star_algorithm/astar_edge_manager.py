@@ -14,14 +14,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 import opencda.logging_ecloud
-import coloredlogs, logging
+import logging
 import sys
 
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
 
 cloud_config = load_yaml("cloud_config.yaml")
 

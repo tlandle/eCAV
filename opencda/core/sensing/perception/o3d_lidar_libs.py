@@ -22,9 +22,8 @@ from opencda.core.sensing.perception.obstacle_vehicle import \
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 
 
-import coloredlogs, logging
+import logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='ERROR', logger=logger)
 
 VIRIDIS = np.array(cm.get_cmap('plasma').colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])

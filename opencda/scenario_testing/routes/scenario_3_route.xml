@@ -10,7 +10,7 @@
   <!-- Main route: Ego vehicle left turn through intersection -->
   <route id="1" town="Town03">
     <!-- Start: Ego spawn position -->
-    <waypoint x="-84.8" y="100.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
+    <waypoint x="-84.8" y="80.0" z="1.0" yaw="90" connection="LANEFOLLOW" />
 
     <!-- Approach intersection -->
     <waypoint x="-84.8" y="115.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
@@ -30,7 +30,7 @@
 
   <!-- Alternative route: Straight through intersection -->
   <route id="2" town="Town03">
-    <waypoint x="-84.8" y="100.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
+    <waypoint x="-84.8" y="80.0" z="1.0" yaw="90" connection="LANEFOLLOW" />
     <waypoint x="-84.8" y="150.0" z="0.3" yaw="90" connection="STRAIGHT" />
     <waypoint x="-84.8" y="200.0" z="0.3" yaw="90" connection="LANEFOLLOW" />
   </route>
@@ -38,7 +38,7 @@
   <!-- Lincoln vehicle route (adversarial) -->
   <route id="lincoln" town="Town03">
     <!-- Start: Lincoln spawn position (crosses ego's path) -->
-    <waypoint x="-60.0" y="127.7" z="0.3" yaw="180" connection="LANEFOLLOW" />
+    <waypoint x="-35.0" y="127.7" z="0.3" yaw="180" connection="LANEFOLLOW" />
 
     <!-- Continue west through intersection -->
     <waypoint x="-90.0" y="127.7" z="0.3" yaw="180" connection="STRAIGHT" />

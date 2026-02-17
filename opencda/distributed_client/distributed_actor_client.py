@@ -21,7 +21,6 @@ import time
 import sys
 
 import carla
-import coloredlogs
 import pickle
 
 sys.path.insert(0, '/opt/carla-simulator/PythonAPI/carla')
@@ -46,8 +45,6 @@ import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
 
 # Load cloud configuration
 cloud_config = load_yaml("cloud_config.yaml")

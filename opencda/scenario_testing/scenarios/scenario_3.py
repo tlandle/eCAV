@@ -262,13 +262,14 @@ class Scenario_3(BasicScenario):
     timeout = 1200
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
-                 timeout=600, vehicle_index=-1, scenario_params=None):
+                 timeout=600, vehicle_index=-1, scenario_params=None, distributed=False):
         """
         Setup all relevant parameters and create scenario
         """
         print("Running Unprotected Red-light Violation Scenario")
         self.timeout = timeout
         self.vehicle_index = vehicle_index
+        self.distributed = distributed
         self._map = CarlaDataProvider.get_map()
         self._reference_waypoint = self._map.get_waypoint(
             config.trigger_points[0].location)
@@ -280,7 +281,7 @@ class Scenario_3(BasicScenario):
         self.vehicle_04_velocity = 0
         self.vehicle_05_velocity = 0
         self.vehicle_06_velocity = 0
-        self._trigger_distance = 75
+        self._trigger_distance = 80
         self.agents = []
 
         # scenario_params is now **a list of "key=value" strings**
@@ -302,7 +303,7 @@ class Scenario_3(BasicScenario):
 
     def _initialize_actors(self, config):
         # In distributed mode, vehicle clients don't spawn background actors
-        if self.vehicle_index >= 0:
+        if self.distributed and self.vehicle_index >= 0:
             return
 
         # Spawn vehicles
@@ -330,7 +331,7 @@ class Scenario_3(BasicScenario):
 
     def _create_behavior(self):
         # In distributed mode, vehicle clients use a minimal behavior tree
-        if self.vehicle_index >= 0:
+        if self.distributed and self.vehicle_index >= 0:
             termination = DriveDistance(self.ego_vehicles[self.vehicle_index], 200)
             root = py_trees.composites.Parallel(
                 "Parallel Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)

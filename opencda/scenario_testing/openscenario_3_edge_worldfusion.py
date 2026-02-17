@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 # Author: Tyler Landle <tlandle3@gatech.edu>
-# License: MIT
+# License: TDG-Attribution-NonCommercial-NoDistrib
 
 import time
 from multiprocessing import Process
@@ -32,6 +32,8 @@ def exec_scenario_runner(scenario_params):
     Returns
     -------
     """
+    scenario_params.scenario_runner.distributed = scenario_params.get(
+        'distributed', False)
     scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
     scenario_runner.run()
     scenario_runner.destroy()
@@ -104,7 +106,7 @@ def run_scenario(opt, scenario_params):
             asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
         else:
             # Sequential mode: launch ScenarioRunner in subprocess
-            print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
+            print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner, flush=True)
             sr_process = Process(target=exec_scenario_runner,
                                  args=(scenario_params,))
             sr_process.start()
@@ -114,7 +116,7 @@ def run_scenario(opt, scenario_params):
         num_actors = 0
 
         while ego_vehicle is None or num_actors < scenario_params.scenario_runner.num_actors:
-            print("Waiting for the actors")
+            print("Waiting for the actors", flush=True)
             time.sleep(2)
             vehicles = world.get_actors().filter('vehicle.*')
             walkers = world.get_actors().filter('walker.*')
@@ -165,27 +167,35 @@ def run_scenario(opt, scenario_params):
 
         flag = True
         while flag:
+            t_step_start = time.time()
+
             # Determine continue condition and command based on mode
             if opt.distributed:
+                t0 = time.time()
                 command = ecloud.Command.PULL_OBJECTS_AND_TICK if step > 0 else ecloud.Command.TICK
                 flag = scenario_manager.broadcast_message(command)
-                scenario_manager.tick_world()
-            else:
-                scenario_manager.tick()
+                t_broadcast = time.time()
 
-            print("about to set ego cav")
+                scenario_manager.tick_world()
+                t_tick = time.time()
+            else:
+                t0 = time.time()
+                scenario_manager.tick()
+                t_broadcast = t0
+                t_tick = time.time()
+
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
-            print("bird view following")
+            loc = ego_cav.get_transform().location
+            if loc.x == 0 and loc.y == 0:
+                break
 
             # Bird view following
             view_transform = carla.Transform()
-            view_transform.location = ego_cav.get_transform().location
-            print("ego_cav.get_transform().location: %s" % ego_cav.get_transform().location)
-            if ego_cav.get_transform().location.x == 0 and ego_cav.get_transform().location.y == 0:
-                break
+            view_transform.location = loc
             view_transform.location.z = view_transform.location.z + spectator_altitude
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
+            t_spectator = time.time()
 
             # Run edge processing step (update_information is called internally)
             for edge in edge_list:
@@ -193,6 +203,14 @@ def run_scenario(opt, scenario_params):
 
                 if opt.distributed and serialized_predictions is not None:
                     scenario_manager.push_edge_objects(serialized_predictions)
+            t_edge = time.time()
+
+            t_total = time.time() - t_step_start
+            print(f"\n[TICK {step}] total={t_total*1000:.0f}ms | "
+                  f"broadcast={((t_broadcast-t0)*1000):.0f}ms | "
+                  f"world_tick={((t_tick-t_broadcast)*1000):.0f}ms | "
+                  f"spectator={((t_spectator-t_tick)*1000):.0f}ms | "
+                  f"edge={((t_edge-t_spectator)*1000):.0f}ms\n")
 
             step = step + 1
             if step >= MAX_STEP:

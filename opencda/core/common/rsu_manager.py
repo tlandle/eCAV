@@ -1,29 +1,18 @@
-
-
 # -*- coding: utf-8 -*-
+# Author: Tyler Landle <tlandle3@gatech.edu>
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
 """
 Road-Side-Unit (RSU) manager.
 
-• Loads either the classic OpenCDA perception pipeline **or** the BM2CP
-  multi-modal network, depending on the YAML entry:
-
-    sensing:
-      perception:
-        backend: bm2cp     #  "bm2cp"  or  "default" (classic)
-
+Loads either the classic OpenCDA perception pipeline, BM2CP, or
+WorldFusion, depending on the YAML sensing.perception.backend entry.
 """
-
-# Author: Tyler Landle <tlandle3@gatech.edu> for BM2CP integration
-# License: TDG-Attribution-NonCommercial-NoDistrib
-# -----------------------------------------------------------------------------
 
 from opencda.core.common.data_dumper import DataDumper
 from opencda.core.sensing.localization.rsu_localization_manager import \
     LocalizationManager
 from opencda.core.sensing.tracking.tracking_manager import TrackingManager
-
-# opencda/core/common/rsu_manager.py
-# … imports unchanged …
 
 # ------------------------------------------------------------------ #
 #  Runtime backend selector
@@ -52,7 +41,6 @@ def _pick_perception_class(percep_yaml: dict):
 #  RSU Manager
 # ------------------------------------------------------------------ #
 class RSUManager:
-    # … docstring & __init__ header unchanged …
     def __init__(
         self,
         carla_world,
@@ -67,6 +55,7 @@ class RSUManager:
         # ------------------- build local copies -------------------- #
         sensing_cfg = config_yaml["sensing"]
         spawn_pos   = config_yaml["spawn_position"]
+        self.spawn_position = spawn_pos
 
         # absolute world position for this fixed RSU
         sensing_cfg.setdefault("localization", {})["global_position"] = spawn_pos
@@ -123,12 +112,19 @@ class RSUManager:
         )
         cav_world.update_rsu_manager(self)
 
-    # ------------------- public API (unchanged) ------------------- #
+    # ------------------- public API -------------------------------- #
     def update_info(self):
+        import time as _t
+        t0 = _t.time()
         self.objects.clear()
         self.localizer.localize()
+        t_loc = _t.time()
         ego_pos = self.localizer.get_ego_pos()
         self.objects = self.perception_manager.detect(ego_pos)
+        t_det = _t.time()
+        print(f"[RSU update_info] localize={(t_loc-t0)*1000:.0f}ms | "
+              f"detect={(t_det-t_loc)*1000:.0f}ms | "
+              f"total={(t_det-t0)*1000:.0f}ms", flush=True)
 
     def run_step(self):
         if self.data_dumper:

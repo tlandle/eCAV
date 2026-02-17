@@ -70,6 +70,9 @@ class PlanningMetrics(object):
 
         self.count = 0
 
+        # Braking attribution — populated by BehaviorAgent.collision_manager
+        self.brake_attributions = []
+
     def get_agent_step_list(self):
         return self.agent_step_list
 
@@ -184,6 +187,11 @@ class PlanningMetrics(object):
         ttc_avg = np.nanmean(ttc_array) if len(ttc_array) > 0 else np.nan
         ttc_std = np.nanstd(ttc_array) if len(ttc_array) > 0 else np.nan
 
+        # Braking attribution
+        total_brakes = len(self.brake_attributions)
+        ghost_brakes = sum(1 for a in self.brake_attributions if a.get('is_ego_ghost'))
+        false_brake_rate = ghost_brakes / max(1, total_brakes)
+
         return {
             "actor_id": self.actor_id,
             "avg_speed_mps": float(spd_avg),
@@ -198,6 +206,9 @@ class PlanningMetrics(object):
             "avg_lateral_deviation_m": float(lat_dev_avg),
             "std_lateral_deviation_m": float(lat_dev_std),
             "max_lateral_deviation_m": float(lat_dev_max),
+            "total_brake_events": total_brakes,
+            "ghost_brake_events": ghost_brakes,
+            "false_brake_rate": float(false_brake_rate),
         }
 
     def evaluate(self):

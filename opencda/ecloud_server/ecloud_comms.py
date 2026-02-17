@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-import coloredlogs, logging
+import logging
 import time
 from typing import Iterator
 import os
@@ -19,8 +19,6 @@ import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
 
 cloud_config = load_yaml("cloud_config.yaml")
 if cloud_config["log_level"] == "error":

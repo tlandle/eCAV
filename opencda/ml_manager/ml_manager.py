@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""
-ML Manager supporting both local and distributed modes for model inference
-"""
-
 # Author: Tyler Landle <tlandle3@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+
+"""
+ML Manager supporting both local and distributed modes for model inference.
+"""
 
 import os
 import time
@@ -100,7 +100,7 @@ class MLManager(object):
 
         # Service endpoints
         self.yolo_endpoint = self.config.get('yolo_endpoint', 'http://localhost:18000')
-        self.worldfusion_endpoint = self.config.get('worldfusion_endpoint', 'http://localhost:8001')
+        self.worldfusion_endpoint = self.config.get('worldfusion_endpoint', 'http://localhost:18000')
 
         print(f"[ML Manager] YOLO endpoint: {self.yolo_endpoint}")
         print(f"[ML Manager] WorldFusion endpoint: {self.worldfusion_endpoint}")
@@ -392,7 +392,6 @@ class MLManager(object):
             print(f"[ML Manager] BM2CP edge distributed error: {e}")
             return None
 
-    # ============= Existing draw_2d_box method (unchanged) =============
 
     def draw_2d_box(self, result, rgb_image, index):
         """

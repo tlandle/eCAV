@@ -52,6 +52,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import \
     ObstacleVehicle
 from opencda.core.application.edge.edge_metrics import EdgeMetrics
 from opencda.core.application.edge.edge_profiler import EdgeProfiler
+from opencda.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 
 from .edge_manager_base import _BaseEdgeManager, logger
 
@@ -60,23 +61,22 @@ from .edge_manager_base import _BaseEdgeManager, logger
 #  Helpers
 # ──────────────────────────────────────────────────────────────────────
 _GUID = 0
-_MIN_EDGE, _MIN_VOLUME = 0.60, 1.0  # sliver reject thresholds
 
 
 def _xyz(loc: carla.Location) -> np.ndarray:
     return np.asarray([loc.x, loc.y, loc.z], np.float32)
 
 
-def _is_sliver(h, w, l):
-    """Reject detection if too small (noise/artifact)."""
-    return (min(h, w, l) < _MIN_EDGE) or (h * w * l < _MIN_VOLUME)
-
-
 def _box_to_transform(box):
-    """Convert AB3DMOT box [x,y,z,h,w,l,yaw] to picklable Transform."""
+    """Convert AB3DMOT box [h,w,l,x,y,z,yaw] to picklable Transform.
+
+    Coordinates are in KITTI camera convention inside the tracker:
+        KITTI x = CARLA x,  KITTI y = CARLA z (height),  KITTI z = CARLA y
+    Swap y↔z back to CARLA world coordinates on output.
+    """
     from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
-    x, y, z, h, w, l, yaw = box
-    loc = _Loc(x=float(x), y=float(y), z=float(z))
+    h, w, l, x, ky, kz, yaw = box  # ky=CARLA_z, kz=CARLA_y
+    loc = _Loc(x=float(x), y=float(kz), z=float(ky))
     rot = _Rot(yaw=np.degrees(float(yaw)))
     return _Tf(location=loc, rotation=rot)
 
@@ -92,18 +92,17 @@ def _collect_rsu_only_detections(rsu_objects: Dict[str, List],
     det_rows, info_rows = [], []
 
     # Only RSU detections - no vehicle contributions
+    # KITTI camera convention: KITTI_x=CARLA_x, KITTI_y=CARLA_z, KITTI_z=CARLA_y
     for obj in rsu_objects.get("vehicles", []):
         bbx = obj.bounding_box.extent
         h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
-        if _is_sliver(h, w, l):
-            continue
         loc = obj.bounding_box.location
-        det_rows.append([h, w, l, loc.x, loc.y, loc.z, 0.0])
+        det_rows.append([h, w, l, loc.x, loc.z, loc.y, 0.0, 0.5])
         _GUID += 1
         info_rows.append([frame_idx, _GUID, -1])  # -1 = not a beacon
 
     return {
-        'dets': np.asarray(det_rows, np.float32) if det_rows else np.empty((0, 7), np.float32),
+        'dets': np.asarray(det_rows, np.float32) if det_rows else np.empty((0, 8), np.float32),
         'info': np.asarray(info_rows, np.int64) if info_rows else np.empty((0, 3), np.int64)
     }
 
@@ -137,11 +136,12 @@ class VIPSEdge(_BaseEdgeManager):
         # managers
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
 
-        # AB3DMOT tracker configuration
+        # AB3DMOT tracker configuration — VIPS has no beacons, so anchoring is off
         self.mot_cfg = edict({
-            'vis': False, 'save_path': None, 'use_3d_iou': False, 'thres': 2.0,
-            'output_dir': None, 'min_hits': 3, 'max_age': 2, 'ego_com': None,
-            'affi_pro': False, 'dataset': 'KITTI', 'det_name': 'deprecated'
+            'vis': False, 'save_path': None, 'use_3d_iou': True, 'thres': 2.0,
+            'output_dir': None, 'min_hits': 3, 'max_age': 6, 'ego_com': None,
+            'affi_pro': False, 'dataset': 'KITTI', 'det_name': 'pvrcnn',
+            'anchoring': False
         })
         self.mot_category = 'Car'
 
@@ -158,6 +158,12 @@ class VIPSEdge(_BaseEdgeManager):
             history_size=2000,
             sample_gpu_utilization=True
         )
+
+        # Ego-Uniqueness monitor
+        self.ego_monitor = EgoUniquenessMonitor()
+
+        # GT snapshot history for ego-uniqueness evaluation
+        self.carla_snapshot_history: Deque[Dict] = deque(maxlen=100)
 
         logger.info("VIPSEdge initialized - infrastructure-only baseline")
 
@@ -180,6 +186,35 @@ class VIPSEdge(_BaseEdgeManager):
             self._dict_extend(rsu_objects, rsu.objects)
 
         self.rsu_objects_deque.appendleft(rsu_objects)
+
+        # Capture GT snapshot for ego-uniqueness evaluation
+        carla_snapshot = {}
+        DETECTION_RANGE = 50.0
+        managed_locs = [vm.vehicle.get_location() for vm in self.vehicle_manager_list]
+        try:
+            for actor in self.world.get_actors():
+                if 'vehicle' not in actor.type_id.lower():
+                    continue
+                loc = actor.get_location()
+                if loc.z < -10.0:
+                    continue
+                in_range = any(
+                    np.sqrt((loc.x - ml.x)**2 + (loc.y - ml.y)**2) <= DETECTION_RANGE
+                    for ml in managed_locs
+                )
+                if not in_range:
+                    continue
+                vel = actor.get_velocity()
+                carla_snapshot[actor.id] = {
+                    'type': actor.type_id.split('.')[-1],
+                    'x': loc.x, 'y': loc.y, 'z': loc.z,
+                    'yaw': actor.get_transform().rotation.yaw,
+                    'vx': vel.x, 'vy': vel.y,
+                    'speed': np.sqrt(vel.x**2 + vel.y**2),
+                }
+        except Exception as e:
+            logger.warning(f"Could not capture CARLA snapshot: {e}")
+        self.carla_snapshot_history.appendleft(carla_snapshot)
 
     # ------------------------------------------------------------------
     def run_step(self, tick: int):
@@ -237,6 +272,23 @@ class VIPSEdge(_BaseEdgeManager):
                 self._ab3d_history_to_trajs(history, horizon=10)
                 num_tracks = len(self.tracked_trajectories)
 
+            # Ego-Uniqueness analysis
+            gt_snapshot = None
+            if lag_steps < len(self.carla_snapshot_history):
+                gt_snapshot = self.carla_snapshot_history[lag_steps]
+            latest_tracks = history[-1] if history else None
+            managed_ids = {vm.vehicle.id for vm in self.vehicle_manager_list}
+            self.ego_monitor.update(tick, latest_tracks, gt_snapshot, managed_ids)
+            tick_record = self.ego_monitor.per_tick_records[-1]
+            ego_ghost_count = sum(
+                1 for cid in tick_record.duplicate_identities if cid in managed_ids
+            )
+            frame.set_ego_uniqueness_metrics(
+                violations=tick_record.num_duplicates,
+                duplicate_tracks=tick_record.num_duplicates,
+                ego_ghosts=ego_ghost_count,
+            )
+
             # ===== Prediction =============================================
             with frame.time("prediction"):
                 t0 = time.perf_counter()
@@ -280,6 +332,10 @@ class VIPSEdge(_BaseEdgeManager):
     def _ab3d_history_to_trajs(self, hist: Deque[np.ndarray], horizon: int = 10):
         """Convert AB3DMOT track history to ObstacleTrajectory objects."""
         updated: set[int] = set()
+        # Clear trajectory deques — each tick replays AB3DMOT from scratch,
+        # so stale positions from the previous tick's replay must not remain.
+        for traj in self.tracked_trajectories.values():
+            traj.trajectory.clear()
         for frame in hist:
             if frame is None or len(frame) == 0:
                 continue
@@ -305,6 +361,14 @@ class VIPSEdge(_BaseEdgeManager):
                 traj.obstacle.location = tf.location
                 traj.obstacle.carla_id = cid
                 self.track_to_carla[tid] = cid
+                # KF velocity (m/tick) → m/s for downstream prediction gating
+                # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy (ground plane)
+                if len(trk) > 12:
+                    kf_vx, kf_vy = float(trk[10]), float(trk[12])
+                    traj.obstacle.kf_speed_mps = ((kf_vx**2 + kf_vy**2)**0.5) / self.dt
+                    # Store per-axis velocity (m/tick) for KF-based prediction
+                    traj.obstacle.kf_vx = kf_vx
+                    traj.obstacle.kf_vy = kf_vy
 
         # prune stale tracks
         for tid in list(self.tracked_trajectories):
@@ -337,7 +401,9 @@ class VIPSEdge(_BaseEdgeManager):
         Returns:
             Tuple[figure, perform_txt, metrics]
         """
-        return self.profiler.get_evaluation_result()
+        fig, txt, metrics = self.profiler.get_evaluation_result()
+        metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
+        return fig, txt, metrics
 
 
 # ---------------------------------------------------------------------

@@ -1,5 +1,4 @@
 import numpy as np, time
-from numba import jit
 from scipy.spatial import ConvexHull
 from AB3DMOT_libs.box import Box3D
 

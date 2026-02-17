@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""
-Basic class of CAV
-"""
 # Author: Tyler Landle <tlandle3@gatech.edu>, Jordan Rapp <jrapp7@gatech.edu>
-# Author: Runsheng Xu <rxx3386@ucla.edu>
+# Original: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+
+"""
+Connected Autonomous Vehicle (CAV) manager.
+"""
 
 import random
 import uuid
@@ -52,9 +53,8 @@ from opencda.client_metrics import ClientMetrics
 from opencda.core.common.ecloud_config import eLocationType
 from opencda.core.common.traffic_event import TrafficEvent, TrafficEventType
 
-import coloredlogs, logging
+import logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -403,11 +403,11 @@ class VehicleManager(object):
         percep_type = percep_cfg.get('type', percep_cfg.get('backend', 'default'))
         percep_type = str(percep_type).lower()
 
-        # In distributed mode, server-side (is_edge) VehicleManagers are proxies
-        # that receive features via gRPC — no need to load GPU models.
-        use_base_pm = (is_edge
-                       and cav_world is not None
-                       and getattr(cav_world, 'run_distributed', False))
+        # In distributed mode, server-side proxies receive features via gRPC
+        # and don't need GPU models. Server passes carla_world explicitly;
+        # clients leave it None and get it later via initialize_process().
+        use_base_pm = (carla_world is not None
+                       and run_distributed)
 
         if use_base_pm:
             self.perception_manager = PerceptionManager(
@@ -663,12 +663,17 @@ class VehicleManager(object):
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
+        t_localize_ms = (end_time - start_time) * 1000
         logger.debug("Localizer time: %s" %(end_time - start_time))
-        self.client_metrics.update_localization_time((end_time-start_time)*1000)
+        self.client_metrics.update_localization_time(t_localize_ms)
 
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
+        t_detect_ms = (time.time() - start_time) * 1000
+        print(f"[VehicleManager update_info] localize={t_localize_ms:.0f}ms | "
+              f"detect={t_detect_ms:.0f}ms | "
+              f"total={t_localize_ms + t_detect_ms:.0f}ms", flush=True)
         #logger.debug(f"Objects", {objects})
 
         #self.tracked_local_trajectories = self.update_local_trajectories(objects, self.localizer.get_sim_time())
