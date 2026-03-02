@@ -165,3 +165,6 @@ video_dumping
 velocity_list*
 *data_dumping*
 ready*
+
+# VSCode
+.vscode/settings.json
