@@ -11,7 +11,7 @@ results to every VehicleManager.
 """
 from __future__ import annotations
 
-import time, math, logging, random
+import time, logging, random
 from collections import deque, defaultdict
 from typing import Dict, List
 
@@ -43,18 +43,9 @@ class PerceptionEdge(_BaseEdgeManager):
         self.vehicle_speeds: Dict[int,carla.Vector3D] = {}
         self.other_vehicles: list = kw.get("other_vehicles", [])
 
-        # packet-loss parameters
-        self.uplink_loss_pct   = cfg.get("uplink_packet_loss_pct", 0)
-        self.downlink_loss_pct = cfg.get("downlink_packet_loss_pct", 0)
-
-        # latency modelling
-        self.latency_ms        = cfg.get("latency", 0) * 1000.0   # ms
-        self.latency_jitter_ms = cfg.get("jitter_std", 0) * 1000.0
-        self.latency_dist      = cfg.get("latency_distribution", "normal")
-
-        # step-time
-        self.dt   : float = world_dt          # seconds
-        self.debug: EdgeMetrics = EdgeMetrics(0)
+        # NOTE: latency_model (uplink latency + loss) and downlink_pl
+        # are created by _BaseEdgeManager.__init__ from the same cfg.
+        # dt and debug are also set by the base class.
 
     # ------------------------------------------------------------------
     #  Life-cycle hooks required by _BaseEdgeManager
@@ -86,8 +77,8 @@ class PerceptionEdge(_BaseEdgeManager):
                     o for o in olist
                     if o.get_location().distance(vm.vehicle.get_location()) > 3
                 ]
-            # uplink packet loss simulation
-            if random.random()*100 >= self.uplink_loss_pct:
+            # uplink packet loss simulation (delegated to latency model)
+            if not self.latency_model.should_drop():
                 self._dict_extend(objects, vm_objects)
 
             # record trajectory / speed helpers for co-operative planning
@@ -118,9 +109,9 @@ class PerceptionEdge(_BaseEdgeManager):
         """
         self.update_information(tick)
 
-        # ===== latency sampling =======================================
-        total_latency_ms = self._sample_latency_ms()
-        lag_steps = int(round(total_latency_ms / (self.dt * 1000.0)))
+        # ===== latency sampling (via pluggable latency model) =========
+        arrival = self.latency_model.stamp(tick)
+        lag_steps = arrival - tick
         if lag_steps >= len(self.objects_deque):
             # not enough history yet – skip this edge step
             return
@@ -130,7 +121,7 @@ class PerceptionEdge(_BaseEdgeManager):
         for vm in self.vehicle_manager_list:
 
             # simulate down-link loss
-            if random.random()*100 < self.downlink_loss_pct:
+            if random.random() * 100 < self.downlink_pl:
                 vm.edge_objects.clear()
             else:
                 # make a per-car copy so downstream modifications don’t clash
@@ -157,22 +148,3 @@ class PerceptionEdge(_BaseEdgeManager):
                 rsu.update_info()
                 rsu.run_step()
 
-    # ------------------------------------------------------------------
-    #  Utility helpers
-    # ------------------------------------------------------------------
-    def _dict_extend(self, dest:dict, src:dict):
-        """dest[key] += src[key]  (creating lists if necessary)."""
-        for k, v in src.items():
-            dest.setdefault(k, []).extend(v)
-
-    # ------------------------------------------------------------------
-    def _sample_latency_ms(self) -> float:
-        """Return a (jittered) latency sample in *milliseconds*."""
-        if self.latency_dist == "normal":
-            return max(0.0, random.gauss(self.latency_ms,
-                                         self.latency_jitter_ms))
-        elif self.latency_dist == "lognormal":
-            mean = math.log(self.latency_ms) if self.latency_ms > 0 else 0
-            return np.random.lognormal(mean, 0.5)
-        else:      # fixed
-            return self.latency_ms

@@ -124,6 +124,15 @@ class FrameMetrics:
     ego_uniqueness_violations: int = 0   # identities with >1 active track this tick
     duplicate_track_count: int = 0       # total extra tracks (sum of |tracks|-1 per dup identity)
     ego_ghost_tracks: int = 0            # duplicates involving managed/ego vehicles
+    geom_dup_clusters: int = 0           # geometric duplicate clusters (always defined)
+    geom_dup_tracks: int = 0             # tracks participating in geometric duplicate clusters
+
+    # Age-of-Information at publish boundary (ticks)
+    aoi_ticks: int = 0  # current_tick - latest_source_tick
+
+    # Compute-contention metrics
+    contention_vehicles_affected: int = 0   # vehicles that got stale predictions
+    contention_budget_exceeded_ms: float = 0.0  # simulated compute overshoot
 
     # Additional timing detail
     timing_detail: Dict[str, float] = field(default_factory=dict)
@@ -194,6 +203,24 @@ class IntersectionMetrics:
     violation_tick_fraction: float = 0.0
     total_duplicate_tracks: int = 0
     total_ego_ghost_tracks: int = 0
+    # Geometric duplicates (aggregate, always defined)
+    total_geom_dup_clusters: int = 0
+    total_geom_dup_tracks: int = 0
+    ticks_with_geom_dups: int = 0
+    geom_dup_tick_fraction: float = 0.0
+
+    # AoI at publish boundary (aggregate)
+    aoi_mean_ticks: float = 0.0
+    aoi_p50_ticks: float = 0.0
+    aoi_p95_ticks: float = 0.0
+    aoi_p99_ticks: float = 0.0
+    aoi_max_ticks: int = 0
+
+    # Compute-contention metrics (aggregate)
+    total_contention_vehicles_affected: int = 0
+    ticks_with_contention: int = 0
+    contention_tick_fraction: float = 0.0
+    avg_contention_budget_exceeded_ms: float = 0.0
 
 
 class EdgeProfiler:
@@ -555,7 +582,9 @@ class EdgeProfiler:
         self,
         violations: int = 0,
         duplicate_tracks: int = 0,
-        ego_ghosts: int = 0
+        ego_ghosts: int = 0,
+        geom_dup_clusters: int = 0,
+        geom_dup_tracks: int = 0,
     ):
         """Set Ego-Uniqueness metrics for current frame."""
         if self._current_frame is None:
@@ -563,6 +592,35 @@ class EdgeProfiler:
         self._current_frame.ego_uniqueness_violations = violations
         self._current_frame.duplicate_track_count = duplicate_tracks
         self._current_frame.ego_ghost_tracks = ego_ghosts
+        self._current_frame.geom_dup_clusters = geom_dup_clusters
+        self._current_frame.geom_dup_tracks = geom_dup_tracks
+
+    def set_aoi_ticks(self, aoi_ticks: int):
+        """Set Age-of-Information for current frame (ticks since source)."""
+        if self._current_frame is None:
+            return
+        self._current_frame.aoi_ticks = aoi_ticks
+
+    def set_contention_metrics(
+        self,
+        vehicles_affected: int = 0,
+        budget_exceeded_ms: float = 0.0
+    ):
+        """Set compute-contention metrics for current frame.
+
+        Parameters
+        ----------
+        vehicles_affected : int
+            Number of vehicles that received stale (previous-tick) predictions
+            because the simulated compute budget was exceeded.
+        budget_exceeded_ms : float
+            Amount (ms) by which the simulated per-vehicle compute sum exceeded
+            the configured budget.
+        """
+        if self._current_frame is None:
+            return
+        self._current_frame.contention_vehicles_affected = vehicles_affected
+        self._current_frame.contention_budget_exceeded_ms = budget_exceeded_ms
 
     def get_summary(self) -> IntersectionMetrics:
         """Get aggregate metrics summary"""
@@ -619,6 +677,9 @@ class EdgeProfiler:
         avg_min_ade = sum(min_ade_values) / len(min_ade_values) if min_ade_values else 0.0
         avg_min_fde = sum(min_fde_values) / len(min_fde_values) if min_fde_values else 0.0
         avg_num_modes = sum(num_modes_values) / len(num_modes_values) if num_modes_values else 1.0
+
+        # AoI aggregates (only count ticks with valid source_tick)
+        aoi_vals = [f.aoi_ticks for f in frames if f.aoi_ticks > 0]
 
         summary = IntersectionMetrics(
             intersection_id=self.intersection_id,
@@ -684,6 +745,34 @@ class EdgeProfiler:
             ),
             total_duplicate_tracks=sum(f.duplicate_track_count for f in frames),
             total_ego_ghost_tracks=sum(f.ego_ghost_tracks for f in frames),
+            total_geom_dup_clusters=sum(f.geom_dup_clusters for f in frames),
+            total_geom_dup_tracks=sum(f.geom_dup_tracks for f in frames),
+            ticks_with_geom_dups=sum(1 for f in frames if f.geom_dup_clusters > 0),
+            geom_dup_tick_fraction=(
+                sum(1 for f in frames if f.geom_dup_clusters > 0) / len(frames)
+                if frames else 0.0
+            ),
+
+            # AoI at publish boundary
+            aoi_mean_ticks=float(np.mean(aoi_vals)) if aoi_vals else 0.0,
+            aoi_p50_ticks=float(np.median(aoi_vals)) if aoi_vals else 0.0,
+            aoi_p95_ticks=float(np.percentile(aoi_vals, 95)) if aoi_vals else 0.0,
+            aoi_p99_ticks=float(np.percentile(aoi_vals, 99)) if aoi_vals else 0.0,
+            aoi_max_ticks=int(max(aoi_vals)) if aoi_vals else 0,
+
+            # Compute-contention metrics
+            total_contention_vehicles_affected=sum(f.contention_vehicles_affected for f in frames),
+            ticks_with_contention=sum(1 for f in frames if f.contention_vehicles_affected > 0),
+            contention_tick_fraction=(
+                sum(1 for f in frames if f.contention_vehicles_affected > 0) / len(frames)
+                if frames else 0.0
+            ),
+            avg_contention_budget_exceeded_ms=(
+                np.mean([f.contention_budget_exceeded_ms for f in frames
+                         if f.contention_budget_exceeded_ms > 0])
+                if any(f.contention_budget_exceeded_ms > 0 for f in frames)
+                else 0.0
+            ),
         )
 
         return summary
@@ -828,6 +917,23 @@ class EdgeProfiler:
             'ego_uniqueness_violation_tick_fraction': summary.violation_tick_fraction,
             'ego_uniqueness_total_duplicate_tracks': summary.total_duplicate_tracks,
             'ego_uniqueness_total_ego_ghost_tracks': summary.total_ego_ghost_tracks,
+            'geom_dup_total_clusters': summary.total_geom_dup_clusters,
+            'geom_dup_total_tracks': summary.total_geom_dup_tracks,
+            'geom_dup_ticks_with': summary.ticks_with_geom_dups,
+            'geom_dup_tick_fraction': summary.geom_dup_tick_fraction,
+
+            # AoI at publish boundary
+            'aoi_mean_ticks': summary.aoi_mean_ticks,
+            'aoi_p50_ticks': summary.aoi_p50_ticks,
+            'aoi_p95_ticks': summary.aoi_p95_ticks,
+            'aoi_p99_ticks': summary.aoi_p99_ticks,
+            'aoi_max_ticks': summary.aoi_max_ticks,
+
+            # Compute-contention metrics
+            'contention_total_vehicles_affected': summary.total_contention_vehicles_affected,
+            'contention_ticks_with_contention': summary.ticks_with_contention,
+            'contention_tick_fraction': summary.contention_tick_fraction,
+            'contention_avg_budget_exceeded_ms': summary.avg_contention_budget_exceeded_ms,
         }
 
         # Build text summary
@@ -856,6 +962,11 @@ Prediction Metrics:
 Ego-Uniqueness:
   Violations: {summary.total_ego_uniqueness_violations}, Ticks w/ violations: {summary.ticks_with_violations} ({summary.violation_tick_fraction:.1%})
   Duplicate tracks: {summary.total_duplicate_tracks}, Ego ghosts: {summary.total_ego_ghost_tracks}
+  Geom duplicates: {summary.total_geom_dup_clusters} clusters / {summary.total_geom_dup_tracks} tracks ({summary.geom_dup_tick_fraction:.1%} ticks)
+
+Compute Contention:
+  Vehicles affected: {summary.total_contention_vehicles_affected}, Ticks w/ contention: {summary.ticks_with_contention} ({summary.contention_tick_fraction:.1%})
+  Avg budget exceeded: {summary.avg_contention_budget_exceeded_ms:.2f}ms
 """
 
         # Create figure with subplots (3x2 for more comprehensive view)
@@ -1001,6 +1112,14 @@ class FrameProfileContext:
     def set_ego_uniqueness_metrics(self, **kwargs):
         """Set Ego-Uniqueness metrics (violations, duplicates, ghosts)"""
         self.profiler.set_ego_uniqueness_metrics(**kwargs)
+
+    def set_contention_metrics(self, **kwargs):
+        """Set compute-contention metrics (vehicles affected, budget exceeded)"""
+        self.profiler.set_contention_metrics(**kwargs)
+
+    def set_aoi_ticks(self, aoi_ticks: int):
+        """Set Age-of-Information for this frame."""
+        self.profiler.set_aoi_ticks(aoi_ticks)
 
 
 class ComponentTimerContext:
