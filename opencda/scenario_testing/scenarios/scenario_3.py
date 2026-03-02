@@ -16,8 +16,7 @@ import random
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
                                                                       WaypointFollower,
-                                                                      Idle,
-                                                                      SyncArrival)
+                                                                      Idle)
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import DriveDistance, InTriggerDistanceToLocation
 from srunner.scenarios.basic_scenario import BasicScenario
@@ -227,29 +226,6 @@ class RandomHardBrake(py_trees.behaviour.Behaviour):
 
         return py_trees.common.Status.SUCCESS
 
-# Helper: ego-speed  →  on-coming speed  (km h⁻¹)
-# Anchor points:   (50 → 10) , (70 → 25) , (100 → 35)
-def _oncoming_speed_for(ego_kmh):
-    x = [25.0, 50.0, 70.0, 100.0]            # ego target-speed
-    y = [5.0, 12.0, 25.0,  50.0]            # desired on-coming speed
-
-    # below first anchor → extrapolate with first segment slope
-    if ego_kmh <= x[0]:
-        m = (y[1] - y[0]) / (x[1] - x[0])
-        return y[0] + m * (ego_kmh - x[0])
-
-    # above last anchor → extrapolate with last segment slope
-    if ego_kmh >= x[-1]:
-        m = (y[-1] - y[-2]) / (x[-1] - x[-2])
-        return y[-1] + m * (ego_kmh - x[-1])
-
-    # inside range → linear-interpolate between surrounding anchors
-    for i in range(1, len(x)):
-        if ego_kmh <= x[i]:
-            m = (y[i] - y[i-1]) / (x[i] - x[i-1])
-            return y[i-1] + m * (ego_kmh - x[i-1])
-
-
 class Scenario_3(BasicScenario):
     """
     The class spawns two background vehicles and two pedestrians in front of the ego vehicle.
@@ -348,77 +324,31 @@ class Scenario_3(BasicScenario):
             transform = getattr(self, f"car_0{i + 1}_visible")
             velocity = getattr(self, f"vehicle_0{i + 1}_velocity")
 
-            sync_arrival = SyncArrival(actor, self.ego_vehicles[0] , carla.Location(x=-83.55, y=127.9, z=0.5))
-
             trigger_behavior = InTriggerDistanceToLocation(self.ego_vehicles[0], trigger_location,
                                                            self._trigger_distance)
             set_transform_behavior = ActorTransformSetter(actor, transform)
             if i == 0:
-                waypoint = [carla.Location(x=-108.6, y=129.5, z=0.5), carla.Location(x=-120.6, y=129.5, z=0.5), carla.Location(x=-140.6, y=115.2, z=0.5), carla.Location(x=-142.0, y=87.6, z=0.5)]
-                ego_velocity = self.ego_max_speed_kmh  # km h⁻¹
-                #velocity = _oncoming_speed_for(ego_velocity)  # convert to km h⁻¹
-                velocity = self.oncoming_speed_kmh  # km h⁻¹
-                #velocity = 3
-                print(f"Vehicle 01 velocity: {velocity} km/h")
+                # Fixed-speed drive: Lincoln drives at a pre-computed constant
+                # speed from spawn through the intersection.  No SyncArrival —
+                # that created a feedback loop (ego brakes → Lincoln slows →
+                # scenario becomes non-physical).  The speed is set once by
+                # test_runner's oncoming_speed_for() and never adapts to ego.
+                waypoint = [
+                    carla.Location(x=-83.55, y=127.9, z=0.5),   # intersection
+                    carla.Location(x=-108.6, y=129.5, z=0.5),
+                    carla.Location(x=-120.6, y=129.5, z=0.5),
+                    carla.Location(x=-140.6, y=115.2, z=0.5),
+                    carla.Location(x=-142.0, y=87.6, z=0.5),
+                ]
+                velocity = self.oncoming_speed_kmh  # km h⁻¹ (fixed)
+                print(f"Vehicle 01 velocity: {velocity} km/h (fixed, no SyncArrival)")
                 drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
-                #drive_behavior = sync_arrival
             else:
                 drive_behavior = WaypointFollower(actor, velocity)
 
-            if (i == 0):
-                sync_arrival_parallel = py_trees.composites.Parallel(
-                    f"SyncArrival_{i}", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
-                waypoint_follower_parallel = py_trees.composites.Parallel(
-                    f"WaypointFollower_{i}", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
-
             sequence_vehicle[i].add_child(set_transform_behavior)
-            #if i == 0:
-            #    sequence_vehicle[i].add_child(trigger_behavior)
-            #    sequence_vehicle[i].add_child(sync_arrival_parallel)
-            #    sequence_vehicle[i].add_child(waypoint_follower_parallel)
-            #    waypoint_follower_parallel.add_child(drive_behavior)
-            #    sync_arrival_parallel.add_child(sync_arrival)
-            #if i == 0:
-                #sequence_vehicle[i].add_child(trigger_behavior)
-                #sequence_vehicle[i].add_child(sync_arrival)
-                #sequence_vehicle[i].add_child(drive_behavior)
-            #else:
-
-        # Run brake and follower in *parallel* so the follower pauses
-        # automatically while RandomBrake is RUNNING
-            if i == 0:
-                parallel = py_trees.composites.Parallel(
-                "Brake+Follow", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
-
-                
-                #brake_behavior = RandomHardBrake(actor,
-                #                 start_delay=2.0,
-                #                 p_brake=0.5,      # 1.0 = always brake
-                #                 min_dur=1.0,
-                #                 max_dur=5.0,
-                #                 full_throttle=1.0)
-
-                brake_behavior = ProbabilisticBrakeJitter(actor,
-                                        start_delay=2.0,
-                                        stop_time=3,
-                                        p_brake=0.0,      # 1.0 = always brake
-                                        brake_strength=.8,
-                                        full_throttle=1.0)
-
-                jitter_behavior = SteeringJitter(actor,
-                                     amplitude_deg=4.0,
-                                     period=0.1,
-                                     dur=3.0)
-
-                parallel.add_child(drive_behavior)
-                #parallel.add_child(brake_behavior)
-                #parallel.add_child(jitter_behavior)
-
-                sequence_vehicle[i].add_child(trigger_behavior)
-                sequence_vehicle[i].add_child(parallel)
-            else:
-                sequence_vehicle[i].add_child(trigger_behavior)
-                sequence_vehicle[i].add_child(drive_behavior)
+            sequence_vehicle[i].add_child(trigger_behavior)
+            sequence_vehicle[i].add_child(drive_behavior)
             sequence_vehicle[i].add_child(Idle())
             self.agents.append(drive_behavior)
 
