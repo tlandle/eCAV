@@ -25,6 +25,7 @@ Pipeline:
 """
 from __future__ import annotations
 import os
+import math
 import random
 import time
 from collections import deque
@@ -45,6 +46,9 @@ from opencda.core.prediction.linear_predictor_manager import LinearPredictorMana
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.application.edge.edge_profiler import EdgeProfiler
+from opencda.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
+from opencda.core.application.edge.beacon_id_manager import BeaconIdManager
+from opencda.core.application.edge.latency import JitterBuffer
 from .edge_manager_base import _BaseEdgeManager
 
 
@@ -120,6 +124,7 @@ class WorldFusionEdge(_BaseEdgeManager):
             'det_name': "deprecated",
             'anchoring': cfg.get("anchoring", True)
         })
+        self.anchoring = cfg.get("anchoring", True)
         self.ab3dmot_category = 'Car'
 
         # Create persistent tracker instance (reused across frames)
@@ -132,8 +137,15 @@ class WorldFusionEdge(_BaseEdgeManager):
         self.tracked_trajectories: Dict[int, ObstacleTrajectory] = {}
         self.track_to_carla: Dict[int, int] = {}
 
-        # Feature history buffer (frame_id, feature_list, poses_list, carla_vehicles_snapshot, excluded_vehicles)
-        self.feat_history: Deque[Tuple[int, List[Dict], List[carla.Transform], Dict, Dict]] = deque(maxlen=200)
+        # Jitter buffer: features are stamped with per-packet arrival times
+        # and drained in source-tick order (Apollo/Autoware pattern).
+        # Payload: (feature_dicts, poses, carla_snapshot, excluded_vehicles)
+        self._jitter_buffer: JitterBuffer = JitterBuffer(capacity=200)
+
+        # GT snapshots indexed by source tick (for metrics evaluation)
+        self._gt_snapshots: Dict[int, Dict] = {}
+        self._excluded_snapshots: Dict[int, Dict] = {}
+        self._latest_source_tick = None
 
         # Track history for AB3DMOT replay (following late fusion pattern)
         self.track_history: Deque[Dict] = deque(maxlen=10)
@@ -162,11 +174,24 @@ class WorldFusionEdge(_BaseEdgeManager):
         }
 
         self._last_update_tick = -1  # Guard against double-update
+
+        # Ego-Uniqueness monitor
+        self.ego_monitor = EgoUniquenessMonitor()
+
+        # BSM J2945-inspired temporary ID rotation manager
+        self.beacon_id_mgr = BeaconIdManager(
+            rotation_interval_ticks=cfg.get(
+                "beacon_id_rotation_interval", 200),
+            rotation_distance_m=cfg.get(
+                "beacon_id_rotation_distance", 100.0),
+            world_dt=world_dt,
+        )
+
         print("[WorldFusion Edge] Initialization complete.")
 
     def start_edge(self):
-        """Called when edge starts - no special initialization needed."""
-        pass
+        for vm in self.vehicle_manager_list:
+            vm.agent._anchoring = self.anchoring
 
     def update_information(self, frame_idx: int):
         """
@@ -278,9 +303,25 @@ class WorldFusionEdge(_BaseEdgeManager):
                 print(f"[WorldFusion Edge] RSU CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
                 print(f"[WorldFusion Edge]   CARLA offset from anchor: dx={dx:.2f}, dy={dy:.2f}")
 
+        # Tick the BSM temp-ID rotation for every managed vehicle so that
+        # time/distance thresholds are evaluated each frame.
+        for vm in self.vehicle_manager_list:
+            loc = vm.vehicle.get_location()
+            self.beacon_id_mgr.get_temp_id(vm.vehicle.id, loc, frame_idx)
+
         if feature_dicts:
             print(f"[WorldFusion Edge] Collected {len(feature_dicts)} feature_dicts from {len(self.vehicle_manager_list)} vehicles + {len(self.rsu_manager_list)} RSUs")
-            self.feat_history.appendleft((frame_idx, feature_dicts, poses, carla_vehicles_snapshot, excluded_vehicles_snapshot))
+            # Stamp with per-packet arrival time and push to jitter buffer
+            arrival = self.latency_model.stamp(frame_idx)
+            payload = (feature_dicts, poses, carla_vehicles_snapshot, excluded_vehicles_snapshot)
+            self._jitter_buffer.push(frame_idx, arrival, payload)
+            # Store GT snapshots by source tick for metrics evaluation
+            self._gt_snapshots[frame_idx] = carla_vehicles_snapshot
+            self._excluded_snapshots[frame_idx] = excluded_vehicles_snapshot
+            # Prune old GT entries (keep last 200 ticks)
+            for old in [k for k in self._gt_snapshots if frame_idx - k > 200]:
+                del self._gt_snapshots[old]
+                self._excluded_snapshots.pop(old, None)
         else:
             print(f"[WorldFusion Edge] WARNING: No feature_dicts collected!")
 
@@ -301,20 +342,19 @@ class WorldFusionEdge(_BaseEdgeManager):
             with frame.time("feature_collection"):
                 self.update_information(tick)
 
-                # 1. Latency handling
-                lat_ms = self._sample_latency_ms()
-                lag_steps = int(round(lat_ms / (self.dt * 1000)))
-                target_id = tick - lag_steps
+                # Drain jitter buffer for all arrived frames
+                new_frames = self._jitter_buffer.drain(tick)
 
-                # 2. Get delayed snapshot
-                snapshot = next((item for item in self.feat_history if item[0] == target_id), None)
-
-            if not snapshot or not snapshot[1]:
+            if not new_frames:
                 serialized_preds = self._update_agents(tick, None)
                 frame.set_counts(num_agents=0, num_detections=0, num_tracks=0, num_predictions=0)
                 return serialized_preds
 
-            frame_id, feature_dicts, poses, carla_snapshot_at_capture, excluded_vehicles = snapshot
+            # Process the latest arrived frame (NN fusion is expensive)
+            latest_source_tick, (feature_dicts, poses, carla_snapshot_at_capture, excluded_vehicles) = new_frames[-1]
+            frame_id = latest_source_tick
+            lag_steps = tick - latest_source_tick
+            frame.set_aoi_ticks(lag_steps)
             num_agents = len(feature_dicts)
 
             # 3. Stack features and compute pairwise transforms
@@ -366,11 +406,30 @@ class WorldFusionEdge(_BaseEdgeManager):
                 self.track_history.appendleft(det_results)
                 tracks, _ = self.tracker.track(det_results, frame_id)
 
+                # Reconcile any pending BSM temp-ID rotations
+                for evt in self.beacon_id_mgr.pop_pending_rotations():
+                    rec = self.beacon_id_mgr.get_record(evt.carla_id)
+                    old_pos = evt.position
+                    new_pos = rec.last_position if rec is not None else evt.position
+                    old_vel = evt.velocity if evt.velocity is not None \
+                        else np.zeros(3, dtype=np.float32)
+                    elapsed = max(tick - evt.tick, 1)
+                    if self.beacon_id_mgr.reconcile_id_change(
+                            evt.old_temp_id, evt.new_temp_id,
+                            old_pos, new_pos, old_vel, elapsed):
+                        BeaconIdManager.remap_tracker_identity(
+                            self.tracker, evt.old_temp_id, evt.new_temp_id)
+                    else:
+                        print(
+                            f"[WorldFusion Edge] BSM rotation reconcile FAILED "
+                            f"carla={evt.carla_id} {evt.old_temp_id}->{evt.new_temp_id}")
+
                 history_frames: Deque[np.ndarray] = deque(maxlen=10)
                 if tracks and len(tracks[0]) > 0:
                     history_frames.append(tracks[0])
 
                 # 7. Convert tracks to trajectories
+                self._latest_source_tick = latest_source_tick
                 self._ab3d_history_to_trajs(history_frames)
 
                 # 7.5 Filter out ghost/static tracks
@@ -390,10 +449,37 @@ class WorldFusionEdge(_BaseEdgeManager):
                 mota=track_metrics['mota']
             )
 
+            # Ego-Uniqueness analysis
+            latest_tracks = tracks[0] if tracks and len(tracks[0]) > 0 else None
+            managed_ids = {vm.vehicle.id for vm in self.vehicle_manager_list}
+            ego_poses = {}
+            for vm in self.vehicle_manager_list:
+                tf = vm.vehicle.get_transform()
+                ego_poses[vm.vehicle.id] = (
+                    tf.location.x, tf.location.y,
+                    math.radians(tf.rotation.yaw))
+            self.ego_monitor.update(tick, latest_tracks,
+                                    carla_snapshot_at_capture, managed_ids,
+                                    ego_poses=ego_poses)
+            tick_record = self.ego_monitor.per_tick_records[-1]
+            ego_ghost_count = sum(
+                1 for cid in tick_record.duplicate_identities
+                if cid in managed_ids
+            )
+            frame.set_ego_uniqueness_metrics(
+                violations=tick_record.num_duplicates,
+                duplicate_tracks=tick_record.num_duplicates,
+                ego_ghosts=ego_ghost_count,
+                geom_dup_clusters=tick_record.geom_dup_clusters,
+                geom_dup_tracks=tick_record.geom_dup_tracks,
+            )
+
             # 8. Linear prediction
             with frame.time("prediction"):
                 predictions = self.lin_pred.generate_predicted_trajectories(
-                    self.tracked_trajectories
+                    self.tracked_trajectories,
+                    source_tick=latest_source_tick,
+                    publish_tick=tick
                 )
                 num_predictions = len(predictions) if predictions else 0
 
@@ -1125,7 +1211,12 @@ class WorldFusionEdge(_BaseEdgeManager):
             for trk in frame:
                 # Track format: [h,w,l,x,y,z,ry,track_id,carla_id,...]
                 tid = int(trk[7])
-                cid = int(trk[8]) if len(trk) > 8 else -1
+                cid_raw = int(trk[8]) if len(trk) > 8 else -1
+                if self.anchoring:
+                    real_cid = self.beacon_id_mgr.get_carla_id_for_temp(cid_raw)
+                    cid = real_cid if real_cid is not None else cid_raw
+                else:
+                    cid = cid_raw
 
                 # Convert to [x,y,z,h,w,l,yaw] for transform
                 box_7dof = np.array([trk[3], trk[4], trk[5], trk[0], trk[1], trk[2], trk[6]])
@@ -1180,6 +1271,40 @@ class WorldFusionEdge(_BaseEdgeManager):
                 if tid not in updated:
                     del self.tracked_trajectories[tid]
         print(f"[WorldFusion Edge] {len(updated)} tracks updated, {len(self.tracked_trajectories)} total trajectories")
+
+        # Spatial self-identification (anchoring OFF only)
+        # Time-aligned (used) + naive (logged). See oracle for docstring.
+        if not self.anchoring:
+            src_tick = getattr(self, '_latest_source_tick', None)
+            gt_snap = self._gt_snapshots.get(src_tick) if src_tick else None
+
+            for vm in self.vehicle_manager_list:
+                ego_loc_now = vm.vehicle.get_location()
+
+                if gt_snap and vm.vehicle.id in gt_snap:
+                    ego_x_aligned = gt_snap[vm.vehicle.id]['x']
+                    ego_y_aligned = gt_snap[vm.vehicle.id]['y']
+                else:
+                    ego_x_aligned = ego_loc_now.x
+                    ego_y_aligned = ego_loc_now.y
+
+                best_tid, best_dist = None, float('inf')
+                naive_best_dist = float('inf')
+                for tid, traj in self.tracked_trajectories.items():
+                    loc = traj.obstacle.location
+                    d_aligned = np.sqrt((loc.x - ego_x_aligned)**2 +
+                                        (loc.y - ego_y_aligned)**2)
+                    d_naive = np.sqrt((loc.x - ego_loc_now.x)**2 +
+                                      (loc.y - ego_loc_now.y)**2)
+                    if d_naive < naive_best_dist:
+                        naive_best_dist = d_naive
+                    if d_aligned < best_dist and d_aligned < self._self_id_radius:
+                        best_dist = d_aligned
+                        best_tid = tid
+                if best_tid is not None:
+                    self.tracked_trajectories[best_tid].obstacle.carla_id = \
+                        vm.vehicle.id
+                    self.track_to_carla[best_tid] = vm.vehicle.id
 
     def _filter_ghost_tracks(self, min_speed_threshold: float = 0.3, static_frames_to_remove: int = 5):
         """
@@ -1256,6 +1381,10 @@ class WorldFusionEdge(_BaseEdgeManager):
             except Exception as e:
                 print(f"[WorldFusion Edge] Error serializing predictions: {e}")
 
+        # Ego-consistency gate check at publish boundary
+        if predictions:
+            self._check_ego_gate_violations(tick, predictions)
+
         # Distribute predictions to vehicles
         for index, vm in enumerate(self.vehicle_manager_list):
             if predictions is not None and len(predictions) > 0 and random.random() * 100 > self.downlink_pl:
@@ -1274,6 +1403,8 @@ class WorldFusionEdge(_BaseEdgeManager):
             if not self.run_distributed:
                 vm.update_info(tick)
                 vm.vehicle.apply_control(vm.run_step())
+                self._label_brake_attributions_gt(vm)
+                self._record_time_to_events(tick, vm)
 
         # Update RSUs
         if not self.run_distributed:
@@ -1571,4 +1702,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 - perform_txt: Text summary for log file
                 - metrics: Dict of metrics for global_metrics
         """
-        return self.profiler.get_evaluation_result()
+        fig, txt, metrics = self.profiler.get_evaluation_result()
+        metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
+        metrics.update(self._get_latency_component_stats())
+        metrics.update(self._get_contract_metrics())
+        return fig, txt, metrics
