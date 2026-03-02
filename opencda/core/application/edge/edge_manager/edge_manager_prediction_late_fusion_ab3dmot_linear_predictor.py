@@ -15,10 +15,11 @@ Pipeline:
 from __future__ import annotations
 
 import math, random, time, logging, pickle
-from collections import deque, defaultdict
+from collections import deque
 from typing import Dict, List, Deque
 
 import numpy as np
+from scipy.optimize import linear_sum_assignment
 import carla
 
 from easydict import EasyDict as edict
@@ -35,6 +36,7 @@ from opencda.core.sensing.perception.obstacle_vehicle import \
 from opencda.core.application.edge.edge_metrics import EdgeMetrics
 from opencda.core.application.edge.edge_profiler import EdgeProfiler
 from opencda.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
+from opencda.core.application.edge.beacon_id_manager import BeaconIdManager
 
 from .edge_manager_base import _BaseEdgeManager, logger
 
@@ -63,10 +65,16 @@ def _box_to_transform(box):
 def _collect_ab3d_detections(edge,
                              objects: Dict[str,List],
                              beacons: Dict[int,tuple],
-                             frame_idx: int):
+                             frame_idx: int,
+                             beacon_id_mgr: BeaconIdManager = None):
     """
     Build the dict that AB3DMOT.track() expects.
     *beacons* = {carla_id : (loc, extent)}
+
+    When *beacon_id_mgr* is provided the CID column in the info array
+    carries a **temporary ID** (rotated per J2945 policy) instead of
+    the raw ``carla_id``.  This lets the anchoring protocol inside
+    ``matching.py`` work with pseudonymous identities.
     """
     global _GUID
     det_rows, info_rows = [], []
@@ -79,7 +87,13 @@ def _collect_ab3d_detections(edge,
         h,w,l = ext.z*2, ext.y*2, ext.x*2
         det_rows.append([h,w,l, loc.x,loc.z,loc.y, 0.0, 1.0])
         _GUID += 1
-        info_rows.append([frame_idx, _GUID, vm.vehicle.id])
+        # Use temp_id instead of raw carla_id when manager is present
+        if beacon_id_mgr is not None:
+            identity = beacon_id_mgr.get_temp_id(
+                vm.vehicle.id, loc, frame_idx)
+        else:
+            identity = vm.vehicle.id
+        info_rows.append([frame_idx, _GUID, identity])
 
     # b) sensor detections -------------------------------------------
     for obj in objects.get("vehicles", []):
@@ -108,18 +122,12 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         super().__init__(world, cfg, cav_world, carla_client,
                          world_dt=world_dt, **kw)
 
-        # latency / loss ------------------------------------------------
-        self.lat_ms   = cfg.get("latency", 0)*1000.0
-        self.jit_ms   = cfg.get("jitter_std", 0)*1000.0
-        self.lat_dist = cfg.get("latency_distribution", "normal")
-        self.uplink_loss   = cfg.get("uplink_packet_loss_pct", 0)
-        self.downlink_loss = cfg.get("downlink_packet_loss_pct", 0)
         self.dt = world_dt
 
         # managers ------------------------------------------------------
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
 
-        # AB3DMOT tracker template (fresh instance for every replay)
+        # AB3DMOT tracker — persistent across ticks (jitter-buffer arch)
         self.anchoring = cfg.get("anchoring", True)
         self.mot_cfg = edict({
             'vis':False,'save_path':None,'use_3d_iou':True,'thres':2.0,
@@ -127,13 +135,20 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             'affi_pro':False,'dataset':'KITTI','det_name':'pvrcnn',
             'anchoring': self.anchoring})
         self.mot_category = 'Car'
+        self.tracker = AB3DMOT(self.mot_cfg, self.mot_category)
 
-        # history buffers ----------------------------------------------
-        self.objects_deque : Deque[Dict] = deque(maxlen=100)
-        self.beacon_history= defaultdict(lambda: deque(maxlen=100))
+        # Jitter buffer: detections are stamped with per-packet arrival
+        # times and drained in source-tick order (Apollo/Autoware pattern).
+        from opencda.core.application.edge.latency import JitterBuffer
+        self._jitter_buffer: JitterBuffer = JitterBuffer(capacity=100)
+        self._track_history: Deque[np.ndarray] = deque(maxlen=10)
+
+        # GT snapshots indexed by source tick (for metrics evaluation)
+        self._gt_snapshots: Dict[int, Dict] = {}
+        self._excluded_snapshots: Dict[int, Dict] = {}
+
         self.tracked_trajectories : Dict[int,ObstacleTrajectory] = {}
         self.track_to_carla : Dict[int,int] = {}
-        self.carla_snapshot_history: Deque[Dict] = deque(maxlen=100)  # GT snapshots
 
         # Tracking metrics accumulators
         self._prev_track_ids: set = set()
@@ -145,6 +160,11 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
         self.debug = EdgeMetrics(0)
         self._last_update_tick = -1  # Guard against double-update
+        self._latest_source_tick = None
+
+        # Compute-contention: cache of previous tick's per-vehicle predictions
+        self._prev_per_vehicle_preds: Dict[int, list] = {}  # vehicle index -> preds
+        self._prev_pickled_preds: bytes | None = None
 
         # Edge profiler for capacity planning
         self.profiler = EdgeProfiler(
@@ -156,9 +176,23 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         # Ego-Uniqueness monitor
         self.ego_monitor = EgoUniquenessMonitor()
 
+        # Spatial self-ID failure tracking
+        self._self_id_failures = 0
+        self._tick_count = 0
+
+        # BSM J2945-inspired temporary ID rotation manager ----------------
+        self.beacon_id_mgr = BeaconIdManager(
+            rotation_interval_ticks=cfg.get(
+                "beacon_id_rotation_interval", 200),
+            rotation_distance_m=cfg.get(
+                "beacon_id_rotation_distance", 100.0),
+            world_dt=world_dt,
+        )
+
     # ------------------------------------------------------------------
-    def start_edge(self):   # nothing special to pre-compute
-        pass
+    def start_edge(self):
+        for vm in self.vehicle_manager_list:
+            vm.agent._anchoring = self.anchoring
 
     # ------------------------------------------------------------------
     def update_information(self, frame_idx:int=0):
@@ -230,27 +264,34 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
         except Exception as e:
             logger.warning(f"Could not capture CARLA snapshot: {e}")
-        self.carla_snapshot_history.appendleft(carla_snapshot)
 
-        # Store excluded vehicles for detection filtering
-        if not hasattr(self, 'excluded_vehicles_history'):
-            self.excluded_vehicles_history = deque(maxlen=200)
-        self.excluded_vehicles_history.appendleft(excluded_vehicles_snapshot)
+        # GT snapshots stored by source tick (always immediately available)
+        self._gt_snapshots[frame_idx] = carla_snapshot
+        self._excluded_snapshots[frame_idx] = excluded_vehicles_snapshot
+        # Prune old entries (keep last 100 ticks)
+        for old in [k for k in self._gt_snapshots if frame_idx - k > 100]:
+            del self._gt_snapshots[old]
+            self._excluded_snapshots.pop(old, None)
+
+        # Collect detections + beacons together as one packet
+        beacons = {}
+        vehicle_ids = [vm.vehicle.id for vm in self.vehicle_manager_list]
+        mac_delivery = self.mac_model.attempt_tick(frame_idx, vehicle_ids)
 
         for vm in self.vehicle_manager_list:
-            # uplink loss simulation
-            if random.random()*100 < self.uplink_loss: continue
+            vid = vm.vehicle.id
+            if not mac_delivery.get(vid, True):
+                continue  # uplink loss — per-vehicle
             self._dict_extend(objects, vm.agent.objects)
-            # beacon history (for delayed pose)
-            self.beacon_history[vm.vehicle.id].appendleft((
-                frame_idx,
-                vm.vehicle.get_location(),
-                vm.vehicle.bounding_box.extent))
+            beacons[vid] = (vm.vehicle.get_location(),
+                            vm.vehicle.bounding_box.extent)
 
         for rsu in self.rsu_manager_list:
             self._dict_extend(objects, rsu.objects)
 
-        self.objects_deque.appendleft(objects)
+        # Stamp with per-packet arrival time and push to jitter buffer
+        arrival = self.latency_model.stamp(frame_idx)
+        self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
 
     # ------------------------------------------------------------------
     def run_step(self, tick:int):
@@ -260,67 +301,80 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 self.update_information(tick)
                 num_agents = len(self.vehicle_manager_list) + len(self.rsu_manager_list)
 
-            # ===== latency handling =======================================
-            total_ms  = self._sample_latency_ms()
-            lag_steps = int(round(total_ms / (self.dt*1000)))
-            if lag_steps >= len(self.objects_deque):
+            # ===== 1. Drain jitter buffer → feed persistent tracker ========
+            with frame.time("tracking"):
+                new_frames = self._jitter_buffer.drain(tick)
+                latest_dets = None
+                latest_source_tick = None
+                num_dets = 0
+
+                for source_tick, (objects, beacons) in new_frames:
+                    if not beacons:
+                        dets_all = {'dets': np.empty((0, 7)),
+                                    'info': np.empty((0, 3))}
+                    else:
+                        dets_all = _collect_ab3d_detections(
+                            self, objects, beacons, frame_idx=source_tick,
+                            beacon_id_mgr=self.beacon_id_mgr)
+                        num_dets = max(num_dets, len(dets_all['dets']))
+
+                    _t0 = time.perf_counter()
+                    tracks, _ = self.tracker.track(dets_all, source_tick)
+                    logger.debug("tracker.track() tick=%d src=%d dets=%d "
+                                 "took %.1fms", tick, source_tick,
+                                 len(dets_all['dets']),
+                                 (time.perf_counter() - _t0) * 1000)
+                    if tracks and len(tracks[0]) > 0:
+                        self._track_history.append(tracks[0])
+                    latest_dets = dets_all
+                    latest_source_tick = source_tick
+
+                # BSM rotation reconciliation (persistent tracker)
+                for evt in self.beacon_id_mgr.pop_pending_rotations():
+                    rec = self.beacon_id_mgr.get_record(evt.carla_id)
+                    old_pos = evt.position
+                    new_pos = (rec.last_position if rec is not None
+                               else evt.position)
+                    old_vel = (evt.velocity if evt.velocity is not None
+                               else np.zeros(3, dtype=np.float32))
+                    elapsed = max(tick - evt.tick, 1)
+                    if self.beacon_id_mgr.reconcile_id_change(
+                            evt.old_temp_id, evt.new_temp_id,
+                            old_pos, new_pos, old_vel, elapsed):
+                        BeaconIdManager.remap_tracker_identity(
+                            self.tracker, evt.old_temp_id, evt.new_temp_id)
+                    else:
+                        logger.warning(
+                            "BSM rotation reconcile FAILED carla=%d "
+                            "%d->%d", evt.carla_id,
+                            evt.old_temp_id, evt.new_temp_id)
+
+                tracker_ms = (self.tracker.total_time
+                              if hasattr(self.tracker, 'total_time') else 0.0)
+
+            # No new data arrived this tick — return empty
+            if not new_frames:
                 frame.set_counts(num_agents=num_agents, num_detections=0,
                                  num_tracks=0, num_predictions=0)
                 return ecloud.EdgeObjects()
-            as_of = tick - lag_steps
-
-            # ===== 1. replay detection history into fresh AB3DMOT =========
-            with frame.time("tracking"):
-                tracker   = AB3DMOT(self.mot_cfg, self.mot_category)
-                history   : Deque[np.ndarray] = deque(maxlen=10)
-                oldest    = max(0, tick-(len(self.objects_deque)-1))
-                num_dets = 0
-                for step in range(oldest, as_of+1):
-                    idx = tick - step
-                    if idx >= len(self.objects_deque):
-                        dets_all = {'dets':np.empty((0,7)), 'info':np.empty((0,3))}
-                    else:
-                        snapshot = self.objects_deque[idx]
-                        # build beacons dict for this historical frame
-                        beacons = {}
-                        for vm in self.vehicle_manager_list:
-                            hist = self.beacon_history[vm.vehicle.id]
-                            if idx < len(hist):
-                                _,loc,ext = hist[idx];  beacons[vm.vehicle.id]=(loc,ext)
-                        if not beacons:
-                            dets_all = {'dets':np.empty((0,7)), 'info':np.empty((0,3))}
-                        else:
-                            dets_all = _collect_ab3d_detections(
-                                self, snapshot, beacons, frame_idx=step)
-                            num_dets = max(num_dets, len(dets_all['dets']))
-                    _t0 = time.perf_counter()
-                    tracks, _ = tracker.track(dets_all, step)
-                    logger.debug("tracker.track() step=%d dets=%d took %.1fms",
-                                 step, len(dets_all['dets']),
-                                 (time.perf_counter() - _t0) * 1000)
-                    if tracks and len(tracks[0])>0: history.append(tracks[0])
-
-                tracker_ms = tracker.total_time if hasattr(tracker,'total_time') \
-                             else 0.0
 
             # ===== 2. convert to trajectories & predict ===================
             with frame.time("detection"):
-                self._ab3d_history_to_trajs(history, horizon=10)
+                self._latest_source_tick = latest_source_tick
+                self._ab3d_history_to_trajs(self._track_history, horizon=10)
                 num_tracks = len(self.tracked_trajectories)
 
-                # Get delayed GT snapshot for evaluation
-                gt_snapshot = None
-                if lag_steps < len(self.carla_snapshot_history):
-                    gt_snapshot = self.carla_snapshot_history[lag_steps]
-
-                # Get excluded vehicles snapshot for filtering detections near firetrucks
-                excluded_vehicles = None
-                if hasattr(self, 'excluded_vehicles_history') and lag_steps < len(self.excluded_vehicles_history):
-                    excluded_vehicles = self.excluded_vehicles_history[lag_steps]
+                # GT snapshot at the source tick of the latest drained frame
+                gt_snapshot = self._gt_snapshots.get(latest_source_tick)
+                excluded_vehicles = self._excluded_snapshots.get(
+                    latest_source_tick)
 
                 # Compute detection metrics
-                managed_positions = [vm.vehicle.get_location() for vm in self.vehicle_manager_list]
-                det_metrics = self._compute_detection_metrics(dets_all, gt_snapshot, managed_positions, excluded_vehicles=excluded_vehicles)
+                managed_positions = [vm.vehicle.get_location()
+                                     for vm in self.vehicle_manager_list]
+                det_metrics = self._compute_detection_metrics(
+                    latest_dets, gt_snapshot, managed_positions,
+                    excluded_vehicles=excluded_vehicles)
 
             # Set detection metrics
             frame.set_detection_metrics(
@@ -330,28 +384,56 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             )
 
             # Ego-Uniqueness analysis
-            latest_tracks = history[-1] if history else None
+            # With anchoring, tracks carry temp_ids from BeaconIdManager;
+            # translate back so the monitor can match managed vehicles.
+            # Without anchoring, tracks have raw temp_ids/cid=-1 which
+            # won't match managed vehicle IDs — the monitor will see
+            # these as potential duplicates/ghosts (correct behaviour).
+            latest_tracks = (self._track_history[-1]
+                             if self._track_history else None)
+            if self.anchoring and latest_tracks is not None and len(latest_tracks) > 0:
+                latest_tracks = latest_tracks.copy()
+                for i_trk in range(len(latest_tracks)):
+                    if len(latest_tracks[i_trk]) > 8:
+                        raw = int(latest_tracks[i_trk][8])
+                        real = self.beacon_id_mgr.get_carla_id_for_temp(raw)
+                        if real is not None:
+                            latest_tracks[i_trk] = latest_tracks[i_trk].copy()
+                            latest_tracks[i_trk][8] = real
             managed_ids = {vm.vehicle.id for vm in self.vehicle_manager_list}
-            self.ego_monitor.update(tick, latest_tracks, gt_snapshot, managed_ids)
+            ego_poses = {}
+            for vm in self.vehicle_manager_list:
+                tf = vm.vehicle.get_transform()
+                ego_poses[vm.vehicle.id] = (
+                    tf.location.x, tf.location.y,
+                    math.radians(tf.rotation.yaw))
+            self.ego_monitor.update(tick, latest_tracks, gt_snapshot,
+                                    managed_ids, ego_poses=ego_poses)
             tick_record = self.ego_monitor.per_tick_records[-1]
             ego_ghost_count = sum(
-                1 for cid in tick_record.duplicate_identities if cid in managed_ids
+                1 for cid in tick_record.duplicate_identities
+                if cid in managed_ids
             )
             frame.set_ego_uniqueness_metrics(
                 violations=tick_record.num_duplicates,
                 duplicate_tracks=tick_record.num_duplicates,
                 ego_ghosts=ego_ghost_count,
+                geom_dup_clusters=tick_record.geom_dup_clusters,
+                geom_dup_tracks=tick_record.geom_dup_tracks,
             )
 
             with frame.time("prediction"):
                 t0 = time.perf_counter()
                 preds = self.lin_pred.generate_predicted_trajectories(
-                            self.tracked_trajectories)
-                predict_ms = (time.perf_counter()-t0)*1e3
+                            self.tracked_trajectories,
+                            source_tick=latest_source_tick,
+                            publish_tick=tick)
+                predict_ms = (time.perf_counter() - t0) * 1e3
                 num_predictions = len(preds)
 
                 # Compute tracking metrics
-                track_metrics = self._compute_tracking_metrics(history, gt_snapshot, managed_positions)
+                track_metrics = self._compute_tracking_metrics(
+                    self._track_history, gt_snapshot, managed_positions)
 
             # Set tracking metrics
             frame.set_tracking_metrics(
@@ -362,7 +444,10 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             )
 
             # Compute prediction metrics
-            pred_metrics = self._evaluate_predictions(tick, preds, gt_snapshot, lag_steps)
+            lag_steps = tick - latest_source_tick if latest_source_tick else 0
+            frame.set_aoi_ticks(lag_steps)
+            pred_metrics = self._evaluate_predictions(
+                tick, preds, gt_snapshot, lag_steps)
 
             # Set prediction metrics
             frame.set_prediction_metrics(
@@ -373,34 +458,246 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 miss_rate=pred_metrics.get('miss_rate', 0.0)
             )
 
+            total_ms = lag_steps * self.dt * 1000
             self.debug.update_edge(0, tracking_time=tracker_ms,
                                       prediction_time=predict_ms,
                                       latency=total_ms)
 
-            # ===== 3. distribute predictions =============================
+            # ===== Per-ego ego-consistency suppression (publish boundary) ==
+            # Part of the anchoring contract: anchor + enforce ego-uniqueness.
+            # For each consumer ego, suppress anonymous tracks satisfying
+            # gate G(e): distance < r_pos AND |v_track - v_ego| < r_v.
+            # Per-ego lists prevent cross-consumer coupling (suppressing a
+            # legitimate obstacle near ego2 from ego1's view) and the speed
+            # gate avoids false-suppression of adjacent-lane vehicles.
+            #
+            # IMPORTANT: Never mutate obs.carla_id — preds is shared across
+            # all per-ego iterations.  Use ego-local `cid` override only.
+            ego_suppress_sets = {}  # {vehicle_id: set of pred indices}
+            _SWAP_MARGIN = 0.5   # metres — avoid borderline flips
+            _FOOTPRINT_L = 1.2   # longitudinal margin beyond half-length
+            _FOOTPRINT_W = 1.0   # lateral margin beyond half-width
+            if self.anchoring:
+                managed_ids_supp = {vm.vehicle.id
+                                    for vm in self.vehicle_manager_list}
+                # Time-consistent snapshot: use get_transform() once per
+                # ego so position and yaw come from the same pose.
+                managed_tfs = {vm.vehicle.id: vm.vehicle.get_transform()
+                               for vm in self.vehicle_manager_list}
+                managed_locs = {vid: tf.location
+                                for vid, tf in managed_tfs.items()}
+                for vm in self.vehicle_manager_list:
+                    ego_tf = managed_tfs[vm.vehicle.id]
+                    ego_loc = ego_tf.location
+                    ego_vel = vm.vehicle.get_velocity()
+                    ego_speed = (ego_vel.x**2 + ego_vel.y**2)**0.5
+
+                    # Ego footprint for stationary-track suppression:
+                    # suppress obs within inflated bounding box in ego
+                    # frame.  Catches "sensor echo on own body" without
+                    # nuking a real stopped lead vehicle whose centroid
+                    # is ahead of the footprint.
+                    yaw_rad = math.radians(ego_tf.rotation.yaw)
+                    cos_y, sin_y = math.cos(yaw_rad), math.sin(yaw_rad)
+                    ext = vm.vehicle.bounding_box.extent
+                    half_L = ext.x + _FOOTPRINT_L
+                    half_W = ext.y + _FOOTPRINT_W
+
+                    suppress_idx = set()
+                    # Instrumentation counters
+                    n_footprint = 0    # suppressed by footprint overlap
+                    n_speed_gate = 0   # suppressed by speed gate match
+                    n_swap_detect = 0  # swaps detected (ID stripped)
+                    n_stat_cand = 0    # stationary candidates examined
+
+                    for i, pred in enumerate(preds):
+                        obs = pred.obstacle_trajectory.obstacle
+                        cid = getattr(obs, 'carla_id', -1)
+                        if cid in managed_ids_supp:
+                            # Check for beacon identity swap: track
+                            # carries another ego's ID but is physically
+                            # closer to *us* than to the claimed ego.
+                            ploc = obs.location
+                            d_to_us = ((ploc.x - ego_loc.x)**2 +
+                                       (ploc.y - ego_loc.y)**2)**0.5
+                            # Guard 1: only suspect swap if near us
+                            if d_to_us >= self._self_id_radius:
+                                continue
+                            # Guard 2: compare to claimed ego's location
+                            claimed_loc = managed_locs.get(cid)
+                            if claimed_loc is not None:
+                                d_to_claimed = (
+                                    (ploc.x - claimed_loc.x)**2 +
+                                    (ploc.y - claimed_loc.y)**2)**0.5
+                                if d_to_us + _SWAP_MARGIN < d_to_claimed:
+                                    # Ego-local override only — do NOT
+                                    # mutate obs.carla_id (shared object).
+                                    cid = -1
+                                    n_swap_detect += 1
+                                    logger.debug(
+                                        "[SWAP-DETECT] tick=%d ego=%d "
+                                        "pred_idx=%d: d_to_us=%.2f "
+                                        "d_to_claimed=%.2f margin=%.1f",
+                                        tick, vm.vehicle.id, i,
+                                        d_to_us, d_to_claimed,
+                                        _SWAP_MARGIN)
+                                else:
+                                    continue  # legit other-ego track
+                            else:
+                                continue  # can't verify — pass through
+                        else:
+                            ploc = obs.location
+                            d_to_us = ((ploc.x - ego_loc.x)**2 +
+                                       (ploc.y - ego_loc.y)**2)**0.5
+                        # Anonymous / stripped-ID suppression gate
+                        if d_to_us >= self._self_id_radius:
+                            continue
+                        obs_speed = getattr(obs, 'kf_speed_mps', 0.0)
+
+                        # Two suppression paths:
+                        # (a) Ego-footprint overlap: stationary track
+                        #     whose center lies within the inflated ego
+                        #     bounding box.  Catches camera self-echo
+                        #     without suppressing a stopped lead vehicle
+                        #     whose centroid is ahead of the footprint.
+                        if obs_speed < 1.0:
+                            n_stat_cand += 1
+                            wx = ploc.x - ego_loc.x
+                            wy = ploc.y - ego_loc.y
+                            dx_ego = wx * cos_y + wy * sin_y
+                            dy_ego = -wx * sin_y + wy * cos_y
+                            if abs(dx_ego) <= half_L and \
+                                    abs(dy_ego) <= half_W:
+                                n_footprint += 1
+                                suppress_idx.add(i)
+                                logger.debug(
+                                    "[FOOTPRINT] tick=%d ego=%d "
+                                    "pred_idx=%d dx=%.2f dy=%.2f "
+                                    "half_L=%.2f half_W=%.2f "
+                                    "obs_spd=%.1f d=%.2f",
+                                    tick, vm.vehicle.id, i,
+                                    dx_ego, dy_ego, half_L, half_W,
+                                    obs_speed, d_to_us)
+                                continue
+                        # (b) Speed-gate: moving track whose speed
+                        #     matches the ego (within tolerance).
+                        if abs(obs_speed - ego_speed) >= \
+                                self._self_id_speed_gate:
+                            continue
+                        n_speed_gate += 1
+                        suppress_idx.add(i)
+                        logger.debug(
+                            "[SPEED-GATE] tick=%d ego=%d "
+                            "pred_idx=%d obs_spd=%.2f ego_spd=%.2f "
+                            "gate=%.1f d=%.2f",
+                            tick, vm.vehicle.id, i,
+                            obs_speed, ego_speed,
+                            self._self_id_speed_gate, d_to_us)
+                    ego_suppress_sets[vm.vehicle.id] = suppress_idx
+                    if suppress_idx or n_swap_detect:
+                        logger.debug(
+                            "[EGO-SUPPRESS] tick=%d ego=%d "
+                            "suppressed=%d (footprint=%d speed_gate=%d) "
+                            "swaps_detected=%d stat_candidates=%d "
+                            "r_pos=%.1f r_v=%.1f",
+                            tick, vm.vehicle.id, len(suppress_idx),
+                            n_footprint, n_speed_gate, n_swap_detect,
+                            n_stat_cand, self._self_id_radius,
+                            self._self_id_speed_gate)
+
+            # ===== 3. distribute predictions (with compute contention) =====
             with frame.time("distribution"):
                 serialized_preds = ecloud.EdgeObjects()
-                pickled_edge_predictions = None
+                # Pickle full set as fallback (egos without suppression)
+                pickled_fresh = None
                 try:
-                    pickled_edge_predictions = pickle.dumps(preds)
+                    pickled_fresh = pickle.dumps(preds)
                 except Exception as e:
                     logging.warning("Error serializing predictions: %s", e)
 
+                # --- compute contention model ---
+                budget = self.compute_budget_ms
+                per_veh = self.per_vehicle_compute_ms
+                cumulative_ms = 0.0
+                contended_ids: list[int] = []
+
                 for index, vm in enumerate(self.vehicle_manager_list):
-                    if random.random()*100 < self.downlink_loss:
+                    cumulative_ms += per_veh
+                    is_contended = (budget is not None
+                                    and cumulative_ms > budget)
+                    if is_contended:
+                        contended_ids.append(vm.vehicle.id)
+
+                    # Per-ego filtered predictions (publish boundary)
+                    suppress_set = ego_suppress_sets.get(
+                        vm.vehicle.id, set())
+                    if suppress_set:
+                        ego_preds = [p for i, p in enumerate(preds)
+                                     if i not in suppress_set]
+                        try:
+                            ego_pickled = pickle.dumps(ego_preds)
+                        except Exception:
+                            ego_pickled = pickled_fresh
+                    else:
+                        ego_preds = preds
+                        ego_pickled = pickled_fresh
+
+                    if random.random()*100 < self.downlink_pl:
                         vm.agent.edge_predictions.clear()
+                    elif is_contended:
+                        # stale: use previous tick's predictions
+                        stale = self._prev_per_vehicle_preds.get(index, [])
+                        vm.agent.edge_predictions = list(stale)
+                        stale_pickled = self._prev_pickled_preds
+                        if stale_pickled is not None:
+                            object_buffer = ecloud.ObjectBuffer(
+                                vehicle_id=index,
+                                pickled_edge_predictions=stale_pickled)
+                        else:
+                            object_buffer = ecloud.ObjectBuffer(
+                                vehicle_id=index,
+                                pickled_edge_predictions=ego_pickled)
+                        serialized_preds.all_object_buffers.append(
+                            object_buffer)
                     else:
                         object_buffer = ecloud.ObjectBuffer(
                             vehicle_id=index,
-                            pickled_edge_predictions=pickled_edge_predictions)
-                        serialized_preds.all_object_buffers.append(object_buffer)
-                        vm.agent.edge_predictions = preds.copy()
+                            pickled_edge_predictions=ego_pickled)
+                        serialized_preds.all_object_buffers.append(
+                            object_buffer)
+                        vm.agent.edge_predictions = ego_preds.copy()
 
-            # ===== 4. advance vehicles ===================================
+                    # cache per-ego predictions for contention fallback
+                    self._prev_per_vehicle_preds[index] = ego_preds.copy()
+
+                self._prev_pickled_preds = pickled_fresh
+
+                # log and record contention
+                if contended_ids:
+                    overshoot = cumulative_ms - (budget if budget else 0.0)
+                    logger.info(
+                        "[CONTENTION] tick=%d budget=%.1fms used=%.1fms "
+                        "contended %d vehicles: %s",
+                        tick, budget, cumulative_ms,
+                        len(contended_ids), contended_ids)
+                    frame.set_contention_metrics(
+                        vehicles_affected=len(contended_ids),
+                        budget_exceeded_ms=max(overshoot, 0.0))
+                else:
+                    frame.set_contention_metrics(
+                        vehicles_affected=0,
+                        budget_exceeded_ms=0.0)
+
+            # ===== 4. ego-consistency gate check at publish boundary ========
+            self._check_ego_gate_violations(tick, preds)
+
+            # ===== 5. advance vehicles ===================================
             if not self.run_distributed:
                 for vm in self.vehicle_manager_list:
                     vm.update_info(tick)
                     vm.vehicle.apply_control(vm.run_step())
+                    self._label_brake_attributions_gt(vm)
+                    self._record_time_to_events(tick, vm)
                 for rsu in self.rsu_manager_list:
                     rsu.update_info();  rsu.run_step()
 
@@ -419,14 +716,29 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
     # ------------------------------------------------------------------
     def _ab3d_history_to_trajs(self, hist:Deque[np.ndarray], horizon:int=10):
         updated: set[int] = set()
-        # Clear trajectory deques — each tick replays AB3DMOT from scratch,
-        # so stale positions from the previous tick's replay must not remain.
+        # Clear and rebuild from the last N track outputs in hist.
         for traj in self.tracked_trajectories.values():
             traj.trajectory.clear()
         for frame in hist:
             if frame is None or len(frame)==0: continue
             for trk in frame:
-                tid = int(trk[7]);  cid = int(trk[8])
+                tid = int(trk[7]);  cid_raw = int(trk[8])
+
+                if self.anchoring:
+                    # With beacon anchoring: the vehicle knows its own
+                    # temp_ids (it generated them), so it can identify
+                    # beacon-associated tracks by matching temp_id.
+                    # This is realistic — the reverse-mapping represents
+                    # the vehicle's own knowledge of its pseudonyms.
+                    real_cid = self.beacon_id_mgr.get_carla_id_for_temp(cid_raw)
+                    cid = real_cid if real_cid is not None else cid_raw
+                else:
+                    # Without beacon anchoring: naive edge baseline.
+                    # All tracks are anonymous — the vehicle has no
+                    # identity protocol and must rely on spatial self-
+                    # identification (below) to find itself among tracks.
+                    cid = cid_raw
+
                 tf  = _box_to_transform(trk[:7])
                 updated.add(tid)
 
@@ -456,6 +768,70 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         for tid in list(self.tracked_trajectories):
             if tid not in updated:
                 del self.tracked_trajectories[tid]
+
+        # --- Spatial self-identification (anchoring OFF only) --------
+        # Uses Hungarian (min-cost) assignment across all egos and
+        # tracks to prevent one ego from stealing another's track.
+        # Time-aligned: compare track state at source_tick vs ego
+        # GT pose at source_tick.
+        if not self.anchoring:
+            self._tick_count += 1
+            src_tick = getattr(self, '_latest_source_tick', None)
+            gt_snap = self._gt_snapshots.get(src_tick) if src_tick else None
+
+            egos = []  # [(vm, ego_x, ego_y)]
+            for vm in self.vehicle_manager_list:
+                ego_loc_now = vm.vehicle.get_location()
+                if gt_snap and vm.vehicle.id in gt_snap:
+                    ex = gt_snap[vm.vehicle.id]['x']
+                    ey = gt_snap[vm.vehicle.id]['y']
+                else:
+                    ex = ego_loc_now.x
+                    ey = ego_loc_now.y
+                egos.append((vm, ex, ey))
+
+            tids = list(self.tracked_trajectories.keys())
+            n_egos = len(egos)
+            n_tracks = len(tids)
+
+            if n_egos > 0 and n_tracks > 0:
+                # Build cost matrix: D[ego_i, track_j] = aligned distance
+                # Gate entries beyond self_id_radius with INF
+                INF = 1e9
+                cost = np.full((n_egos, n_tracks), INF, dtype=np.float64)
+                for i, (vm, ex, ey) in enumerate(egos):
+                    for j, tid in enumerate(tids):
+                        loc = self.tracked_trajectories[tid].obstacle.location
+                        d = np.sqrt((loc.x - ex)**2 + (loc.y - ey)**2)
+                        if d < self._self_id_radius:
+                            cost[i, j] = d
+
+                # Solve assignment (handles n_egos != n_tracks)
+                row_ind, col_ind = linear_sum_assignment(cost)
+
+                assigned_egos = set()
+                for ri, ci in zip(row_ind, col_ind):
+                    if cost[ri, ci] >= INF:
+                        continue  # no valid match
+                    vm, ex, ey = egos[ri]
+                    tid = tids[ci]
+                    self.tracked_trajectories[tid].obstacle.carla_id = \
+                        vm.vehicle.id
+                    self.track_to_carla[tid] = vm.vehicle.id
+                    assigned_egos.add(ri)
+                    logger.debug(
+                        "Self-ID: vm %d -> track %d "
+                        "(dist=%.2fm, src_tick=%s)",
+                        vm.vehicle.id, tid, cost[ri, ci], src_tick)
+
+                for i, (vm, ex, ey) in enumerate(egos):
+                    if i not in assigned_egos:
+                        self._self_id_failures += 1
+                        logger.warning(
+                            "[SELF-ID FAIL] vm %d: no track within "
+                            "radius=%.1fm (src_tick=%s, n_tracks=%d)",
+                            vm.vehicle.id, self._self_id_radius,
+                            src_tick, n_tracks)
 
     # ------------------------------------------------------------------
     #  Metrics computation
@@ -496,12 +872,21 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                              for mx, my in managed_xy)]
 
         # Filter detections near excluded vehicles (firetrucks, etc.)
-        # These are ignored - not counted as TP or FP
+        # AND beacon detections near managed vehicles (these are GPS
+        # anchoring injections, not real sensor detections).
         # After KITTI coord swap: index 3=CARLA_x, index 5=CARLA_y (ground plane)
         valid_det_indices = []
         excluded_det_count = 0
+        beacon_det_count = 0
         for det_idx in range(len(dets)):
             det_x, det_y = dets[det_idx, 3], dets[det_idx, 5]
+
+            # Skip beacon detections (near managed ego vehicles)
+            if any(np.sqrt((det_x - mx)**2 + (det_y - my)**2) < 3.0
+                   for mx, my in managed_xy):
+                beacon_det_count += 1
+                continue
+
             near_excluded = False
             for ex, ey in excluded_positions:
                 if np.sqrt((det_x - ex)**2 + (det_y - ey)**2) < EXCLUSION_RADIUS:
@@ -511,8 +896,9 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             if not near_excluded:
                 valid_det_indices.append(det_idx)
 
-        if excluded_det_count > 0:
-            logger.debug("Filtered %d detections near excluded vehicles", excluded_det_count)
+        if excluded_det_count > 0 or beacon_det_count > 0:
+            logger.debug("Filtered %d beacon dets, %d near excluded vehicles",
+                         beacon_det_count, excluded_det_count)
 
         # Greedy matching with filtered detections
         # AB3DMOT detection format: [h, w, l, x(KITTI), y(KITTI=CARLA_z), z(KITTI=CARLA_y), yaw]
@@ -549,8 +935,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         if gt_vehicles is None or not history:
             return {'id_switches': 0, 'fragmentations': 0, 'mota': 0.0, 'motp': 0.0}
 
-        # Get latest tracks
-        latest_tracks = history[0] if history and len(history[0]) > 0 else np.empty((0, 9))
+        # Get latest tracks (history[-1] is the most recent replayed step)
+        latest_tracks = history[-1] if history and len(history[-1]) > 0 else np.empty((0, 9))
         if len(latest_tracks) == 0:
             return {'id_switches': 0, 'fragmentations': 0, 'mota': 0.0, 'motp': 0.0}
 
@@ -691,21 +1077,6 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             self._last_ade_fde['miss_rate'] = miss_count / total_preds if total_preds > 0 else 0.0
 
     # ------------------------------------------------------------------
-    #  Utilities
-    # ------------------------------------------------------------------
-    def _dict_extend(self, dest:dict, src:dict):
-        for k,v in src.items(): dest.setdefault(k, []).extend(v)
-
-    def _sample_latency_ms(self)->float:
-        if self.lat_dist=="normal":
-            return max(0., random.gauss(self.lat_ms, self.jit_ms))
-        elif self.lat_dist=="lognormal":
-            mean = math.log(self.lat_ms) if self.lat_ms>0 else 0
-            return np.random.lognormal(mean, 0.5)
-        else:
-            return self.lat_ms
-
-    # ------------------------------------------------------------------
     #  Evaluation
     # ------------------------------------------------------------------
     def evaluate(self):
@@ -717,6 +1088,13 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         """
         fig, txt, metrics = self.profiler.get_evaluation_result()
         metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
+        metrics['spatial_self_id_failures'] = self._self_id_failures
+        metrics['spatial_self_id_failure_rate'] = (
+            self._self_id_failures / max(1, self._tick_count))
+        metrics.update(self._get_latency_component_stats())
+        metrics.update(self._get_contract_metrics())
+        self.mac_model.metrics.finalize()
+        metrics['mac'] = self.mac_model.metrics.get_summary()
         return fig, txt, metrics
 
 # ---------------------------------------------------------------------
