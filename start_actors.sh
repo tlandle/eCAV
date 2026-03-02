@@ -156,7 +156,7 @@ echo "  Log file: $OPENCDA_LOG"
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
 _CONDA_ROOT="/home/jordan/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python opencda.py -t '$scenario_name' $ml_flag -v 0.9.15 -d > '$OPENCDA_LOG' 2>&1" &
+bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python opencda.py -t '$scenario_name' -v 0.9.15 -d > '$OPENCDA_LOG' 2>&1" &
 OPENCDA_PID=$!
 
 echo "  ✓ Base process started (PID: $OPENCDA_PID)"
