@@ -8,7 +8,8 @@ FRAME_IDX = 0          # simulation step or frame number
 GUID      = 1          # globally-unique ID supplied by beacon / vehicle
 CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknown
 
-def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None, anchoring=True):
+def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None,
+                     anchoring=True, anchoring_epoch=40):
 	# compute affinity matrix
 
 	aff_matrix = np.zeros((len(dets), len(trks)), dtype=np.float32)
@@ -31,7 +32,14 @@ def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None, anchoring=Tr
 			    if det_cid != trk_cid:
 			        dist_now = COST_MAX      # forbid: beacon ID disagrees with track ID
 			    elif anchoring:
-			        dist_now = -0.01         # force match: beacon ID agrees with track ID
+			        # Only force the identity match while the track's
+			        # anchoring epoch has not expired.  After anchoring_epoch
+			        # ticks without a beacon-matched update the constraint
+			        # lapses and we fall through to geometry-only scoring.
+			        trk_age = getattr(trk, "anchoring_age", 0)
+			        if trk_age < anchoring_epoch:
+			            dist_now = -0.01     # force match: beacon ID agrees & epoch valid
+			        # else: keep geometry-only dist_now
 			#  ────────────────────────────────────────────────────────────────────
 			aff_matrix[d, t] = dist_now
 
@@ -65,7 +73,7 @@ def greedy_matching(cost_matrix):
     return np.asarray(matched_indices)
 
 def data_association(dets, trks, metric, threshold, algm='greedy', \
-	trk_innovation_matrix=None, hypothesis=1, anchoring=True):
+	trk_innovation_matrix=None, hypothesis=1, anchoring=True, anchoring_epoch=40):
 	"""
 	Assigns detections to tracked object
 
@@ -90,7 +98,8 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 		trk_inv_inn_matrices = None
 
 	# compute affinity matrix
-	aff_matrix = compute_affinity(dets, trks, metric, trk_inv_inn_matrices, anchoring=anchoring)
+	aff_matrix = compute_affinity(dets, trks, metric, trk_inv_inn_matrices,
+	                              anchoring=anchoring, anchoring_epoch=anchoring_epoch)
 
 	# association based on the affinity matrix
 	if hypothesis == 1:
