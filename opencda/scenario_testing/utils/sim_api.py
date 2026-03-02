@@ -107,10 +107,11 @@ def _select_edge_manager(edge_yaml_block):
     key = edge_yaml_block.get('manager_type', 'late_fusion').upper()
 
     alias = {
-        'BM2CP':        'BM2CP_PRED',
-        'LATE_FUSION':  'LATE_FUSION',
-        'PERCEPTION':   'PERCEPTION',
-        'MANEUVER':     'MANEUVER',
+        'LATE_FUSION':    'LATE_FUSION',
+        'PERCEPTION':     'PERCEPTION',
+        'MANEUVER':       'MANEUVER',
+        'ORACLE':         'ORACLE',
+        'VIPS_TEMPORAL':  'VIPS_TEMPORAL',
     }
     return get_edge_class(alias.get(key, key))
 
@@ -1337,16 +1338,16 @@ class ScenarioManager:
                     print(f"[RSU MANAGER] Registered RSU manager with key={rsu_id}")
             if 'vehicles' in edge:
                 for index, cav in enumerate(edge['vehicles']): 
-                    logger.debug("Creating VehiceManager for vehicle %s", index)
-                    # create vehicle manager for each cav
-                    #vehicle_manager = VehicleManagerProxy(
-                    #      vehicle_index=index, config_yaml=config_yaml, application=application,
-                    #      carla_world=self.world,
-                    #      carla_map=self.carla_map, cav_world=self.cav_world,
-                    #      current_time=self.scenario_params['current_time'],
-                    #      data_dumping=data_dump, carla_version=self.carla_version)
+                    logger.debug("Creating VehicleManager for vehicle %s", index)
+                    # Multi-ego support: first vehicle uses pre-spawned ego,
+                    # subsequent vehicles spawn from their config spawn_position
+                    if isinstance(ego_vehicle, list):
+                        v = ego_vehicle[index] if index < len(ego_vehicle) else None
+                    else:
+                        v = ego_vehicle if index == 0 else None
+
                     vehicle_manager = VehicleManager(
-                          vehicle=ego_vehicle, vehicle_index=index, config_yaml=config_yaml, application=application,
+                          vehicle=v, vehicle_index=index, config_yaml=config_yaml, application=application,
                           carla_world=self.world,
                           carla_map=self.carla_map, cav_world=self.cav_world,
                           current_time=self.scenario_params['current_time'],
@@ -1354,7 +1355,7 @@ class ScenarioManager:
                           location_type = self.ecloud_config.get_location_type(),
                           perception_active=self.apply_ml, run_distributed=self.run_distributed)
 
-                    logger.debug("finished creating VehiceManagerProxy")
+                    logger.debug("finished creating VehicleManager for vehicle %s", index)
 
                     self.world.tick()
 
@@ -1448,27 +1449,44 @@ class ScenarioManager:
                     self.rsu_managers[rsu_id] = rsu_manager
                     print(f"[RSU MANAGER] Registered RSU manager with key={rsu_id}")
             if 'vehicles' in edge:
-                for index, cav in enumerate(edge['vehicles']): 
-                    logger.debug("Creating VehiceManager for vehicle %s", index)
-                    # create vehicle manager for each cav
-                    #vehicle_manager = VehicleManagerProxy(
-                    #      vehicle_index=index, config_yaml=config_yaml, application=application,
-                    #      carla_world=self.world,
-                    #      carla_map=self.carla_map, cav_world=self.cav_world,
-                    #      current_time=self.scenario_params['current_time'],
-                    #      data_dumping=data_dump, carla_version=self.carla_version)
+                n_total_vehicles = len(edge['vehicles'])
+                for index, cav in enumerate(edge['vehicles']):
+                    print(f"[SPAWN LOOP] === vm_idx={index}/{n_total_vehicles-1} "
+                          f"name={cav.get('name','?')} ===", flush=True)
+                    logger.debug("Creating VehicleManager for vehicle %s", index)
+                    # Multi-ego support: first vehicle uses pre-spawned ego,
+                    # subsequent vehicles spawn from their config spawn_position
+                    if isinstance(ego_vehicle, list):
+                        v = ego_vehicle[index] if index < len(ego_vehicle) else None
+                    else:
+                        v = ego_vehicle if index == 0 else None
+
                     vehicle_manager = VehicleManager(
-                          vehicle=ego_vehicle, vehicle_index=index, config_yaml=config_yaml, application=application,
+                          vehicle=v, vehicle_index=index, config_yaml=config_yaml, application=application,
                           carla_world=self.world,
                           carla_map=self.carla_map, cav_world=self.cav_world,
                           current_time=self.scenario_params['current_time'],
                           data_dumping=data_dump, is_edge=True, map_helper=map_helper,
                           location_type = self.ecloud_config.get_location_type(),
                           perception_active=self.apply_ml, run_distributed=self.run_distributed)
+                    print(f"[SPAWN LOOP] vm_idx={index} VehicleManager created", flush=True)
 
-                    logger.debug("finished creating VehiceManagerProxy")
+                    logger.debug("finished creating VehicleManager for vehicle %s", index)
 
+                    # --- Spawn-tick diagnostic: log ALL vehicle positions before tick ---
+                    _snap = self.world.get_snapshot()
+                    _all_actors = self.world.get_actors().filter('vehicle.*')
+                    for _a in _all_actors:
+                        _loc = _a.get_transform().location
+                        _vel = _a.get_velocity()
+                        _spd = (_vel.x**2 + _vel.y**2 + _vel.z**2)**0.5
+                        print(f"[SPAWN TICK] vm_idx={index} sim_t={_snap.timestamp.elapsed_seconds:.3f} "
+                              f"actor={_a.id} type={_a.type_id} "
+                              f"pos=({_loc.x:.1f},{_loc.y:.1f}) spd={_spd:.1f}", flush=True)
+
+                    print(f"[SPAWN LOOP] vm_idx={index} calling world.tick()...", flush=True)
                     self.world.tick()
+                    print(f"[SPAWN LOOP] vm_idx={index} world.tick() done", flush=True)
 
                     # send gRPC with START info
                     self.application = application
@@ -1484,11 +1502,14 @@ class ScenarioManager:
                     # Get destination from vehicle_manager (handles route_file, destination, etc.)
                     destination = vehicle_manager.destination_location
 
+                    print(f"[SPAWN LOOP] vm_idx={index} calling update_info()...", flush=True)
                     vehicle_manager.update_info()
+                    print(f"[SPAWN LOOP] vm_idx={index} update_info() done, calling set_destination()...", flush=True)
                     vehicle_manager.set_destination(
                       vehicle_manager.vehicle.get_location(),
                       destination,
                       clean=True)
+                    print(f"[SPAWN LOOP] vm_idx={index} complete", flush=True)
 
 
             try:

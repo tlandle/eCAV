@@ -60,6 +60,7 @@ cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 MIN_DESTINATION_DISTANCE_M = 500 # TODO: config?
 COLLISION_ERROR = "Spawn failed because of collision at spawn position"
+MAX_SPAWN_RETRIES = 5
 
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)
@@ -298,7 +299,11 @@ class VehicleManager(object):
 
                 cav_vehicle_bp = self.world.get_blueprint_library().find(default_model)
                 cav_vehicle_bp.set_attribute('color', '0, 0, 255')
+                print(f"[VM __init__] spawn_actor at ({self.spawn_transform.location.x:.1f},"
+                      f"{self.spawn_transform.location.y:.1f},"
+                      f"{self.spawn_transform.location.z:.1f})...", flush=True)
                 self.vehicle = self.world.spawn_actor(cav_vehicle_bp, self.spawn_transform)
+                print(f"[VM __init__] spawn_actor done, id={self.vehicle.id}", flush=True)
 
                 logger.debug("spawned @ %s", self.spawn_transform)
 
@@ -332,6 +337,24 @@ class VehicleManager(object):
                 if COLLISION_ERROR not in f'{e}':
                     raise
 
+                spawn_retries = getattr(self, '_spawn_retries', 0) + 1
+                self._spawn_retries = spawn_retries
+                if spawn_retries <= 3 or spawn_retries % 10 == 0:
+                    print(f"[VM __init__] spawn collision retry #{spawn_retries} "
+                          f"at ({self.spawn_transform.location.x:.1f},"
+                          f"{self.spawn_transform.location.y:.1f},"
+                          f"{self.spawn_transform.location.z:.1f})", flush=True)
+                if spawn_retries >= MAX_SPAWN_RETRIES:
+                    raise RuntimeError(
+                        f"Failed to spawn vehicle after {MAX_SPAWN_RETRIES} retries "
+                        f"at ({self.spawn_transform.location.x:.1f},"
+                        f"{self.spawn_transform.location.y:.1f},"
+                        f"{self.spawn_transform.location.z:.1f}). "
+                        f"Check for overlapping spawn positions in scenario YAML."
+                    ) from e
+                # Nudge z upward on retries to clear minor ground collisions
+                if spawn_retries >= 3:
+                    self.spawn_transform.location.z += 0.2
                 continue
 
         # teleport vehicle to desired spawn point
@@ -384,11 +407,13 @@ class VehicleManager(object):
         logger.debug("V2XManager created")
         
         # localization module
+        print(f"[VM __init__] creating LocalizationManager...", flush=True)
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)
         logger.debug("LocalizationManager created")
         
         # perception module
+        print(f"[VM __init__] creating PerceptionManager...", flush=True)
         # When perception_active=False (distributed scenario server),
         # override config so PerceptionManager runs in deactivate_mode.
         # detect() returns server-side objects instead of running ML.
