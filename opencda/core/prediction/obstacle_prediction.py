@@ -19,7 +19,8 @@ class ObstaclePrediction(object):
     """
     def __init__(self, obstacle_trajectory: ObstacleTrajectory,
                  transform: carla.Transform, probability: float,
-                 predicted_trajectory):
+                 predicted_trajectory, source_tick=None,
+                 publish_tick=None):
         # Trajectory in ego frame of coordinates.
         self.obstacle_trajectory = obstacle_trajectory
         # The transform is in world coordinates.
@@ -27,6 +28,10 @@ class ObstaclePrediction(object):
         self.probability = probability
         # Predicted trajectory in ego frame of coordinates.
         self.predicted_trajectory = predicted_trajectory
+        # Simulation tick when the underlying detection was captured.
+        self.source_tick = source_tick
+        # Simulation tick when the edge pushed this prediction to vehicles.
+        self.publish_tick = publish_tick
 
     @property
     def id(self):
