@@ -40,6 +40,7 @@ class AB3DMOT(object):
 		self.oxts = oxts
 		self.affi_process = cfg.affi_pro	# post-processing affinity
 		self.anchoring = getattr(cfg, 'anchoring', True)
+		self.anchoring_epoch = getattr(cfg, 'anchoring_epoch', 40)  # ticks before forced-match expires (default 40 = 2s at 0.05s/tick)
 		self.get_param(cfg, cat)
 
 		# Allow config-level overrides (take precedence over get_param defaults)
@@ -226,14 +227,16 @@ class AB3DMOT(object):
 			kf_tmp.kf.x[3] = self.within_range(kf_tmp.kf.x[3])
 
 			# update statistics
-			kf_tmp.time_since_update += 1 		
+			kf_tmp.time_since_update += 1
+			kf_tmp.anchoring_age += 1  			# tick the anchoring epoch counter
 			trk_tmp = kf_tmp.kf.x.reshape((-1))[:7]
 
 			trk_box = Box3D.array2bbox(trk_tmp)
 
 			# attach meta so compute_affinity can read it
-			trk_box.carla_id = getattr(kf_tmp, "carla_id", -1)
-			trk_box.guid     = getattr(kf_tmp, "guid",     -1)
+			trk_box.carla_id     = getattr(kf_tmp, "carla_id", -1)
+			trk_box.guid         = getattr(kf_tmp, "guid",     -1)
+			trk_box.anchoring_age = kf_tmp.anchoring_age
 
 			trks.append(trk_box)
 			#trks.append(Box3D.array2bbox(trk_tmp))
@@ -271,13 +274,17 @@ class AB3DMOT(object):
 				trk.kf.update(bbox3d)
 				idx = d[0] if isinstance(d, np.ndarray) else d		# convert to scalar
 
-				cid_in = int(info[idx, CID])          # beacon’s carla_id
+				cid_in = int(info[idx, CID])          # beacon's carla_id
 				if cid_in != -1:
+					# Reset anchoring age when beacon confirms the track
+					if trk.carla_id != -1 and cid_in == trk.carla_id:
+						trk.anchoring_age = 0
 					if trk.carla_id == -1:
 						already = any((o is not trk) and (o.carla_id == cid_in)
 									  for o in self.trackers)
 						if not already:
 							trk.carla_id = cid_in
+							trk.anchoring_age = 0  # fresh anchor
 
 				if trk.id == self.debug_id:
 					print('after matching')
@@ -322,6 +329,13 @@ class AB3DMOT(object):
 
 			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):
 				vel = trk.get_velocity().flatten()
+				# Zero out velocity for coasting tracks (predict-only, no
+				# fresh measurement).  Without update(), velocity is frozen
+				# at whatever the KF estimated during initialization — often
+				# a phantom artifact from LiDAR noise.  Setting it to zero
+				# lets the downstream _MIN_KF_SPEED_MPS gate filter them.
+				if trk.time_since_update > 0:
+					vel = np.zeros(3)
 				out_row = np.concatenate([
 					d,                         # 0..6  [h,w,l,x,y,z,theta]
 					[trk.id],                  # 7     track id
@@ -463,7 +477,7 @@ class AB3DMOT(object):
 			trk_innovation_matrix = [trk.compute_innovation_matrix() for trk in self.trackers]
 		matched, unmatched_dets, unmatched_trks, cost, affi = \
 			data_association(dets, trks, self.metric, self.thres, self.algm, trk_innovation_matrix,
-			                 anchoring=self.anchoring)
+			                 anchoring=self.anchoring, anchoring_epoch=self.anchoring_epoch)
 		# print_log('detections are', log=self.log, display=False)
 		# print_log(dets, log=self.log, display=False)
 		# print_log('tracklets are', log=self.log, display=False)

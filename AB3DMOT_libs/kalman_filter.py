@@ -11,7 +11,8 @@ class Filter(object):
 		self.carla_id = int(info[2]) if len(info) > 2 else -1
 		self.guid     = int(info[1]) if len(info) > 1 else -1
 		#self.class_id = int(info[3])   # class id, 0 for vehicle, 1 for pedestrian, 2 for cyclist
-		self.info = info        		# other information associated	
+		self.info = info        		# other information associated
+		self.anchoring_age = 0  		# ticks since last beacon-matched update
 
 class KF(Filter):
 	def __init__(self, bbox3D, info, ID):
@@ -43,10 +44,15 @@ class KF(Filter):
 		                      [0,0,0,0,0,1,0,0,0,0],
 		                      [0,0,0,0,0,0,1,0,0,0]])
 
-		# measurement uncertainty — increase for monocular-depth 3D detections
-		# which have ±1-3m position noise (vs ±0.1m for LiDAR-based detections
-		# that AB3DMOT was originally calibrated for)
-		self.kf.R[0:,0:] *= 10.
+		# measurement uncertainty — R=3 balances two failure modes:
+		#   R=1:  too responsive to viewpoint-dependent AABB centroid drift
+		#         (frustum-based LiDAR fusion shifts ~0.3m/frame as ego moves)
+		#   R=10: prevents KF from correcting phantom velocity from init noise
+		# R=3 dampens viewpoint drift while still correcting phantom velocity
+		# within ~10 frames.  Combined with zeroed velocity for coasting
+		# tracks (model.py), this handles both actively-measured and
+		# predict-only false positives.
+		self.kf.R[0:,0:] *= 3.
 
 		# initial state uncertainty at time 0
 		# Given a single data, the initial velocity is very uncertain, so giv a high uncertainty to start
