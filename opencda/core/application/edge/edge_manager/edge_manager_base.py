@@ -6,7 +6,7 @@
 Common utilities used by all edge-manager backends.
 
 Provides the base class with shared infrastructure:
-- Global latency / packet-loss model (CSV loader)
+- Pluggable latency model (via ``opencda.core.application.edge.latency``)
 - Shared metric helper instances
 - _BaseEdgeManager superclass (add_member, add_rsu, set_destination)
 """
@@ -16,87 +16,21 @@ from __future__ import annotations
 import logging
 import uuid
 import weakref
-import random
-import math
-import pathlib
 import time
-from collections import deque, defaultdict
-from typing import Dict, List, Deque, Any
+from typing import Dict, List, Any
 
 import numpy as np
-import pandas as pd
 import carla
-from easydict import EasyDict as edict
 
 from opencda.core.application.edge.edge_metrics import EdgeMetrics
+from opencda.core.application.edge.latency import create_latency_model
+from opencda.core.application.edge.latency import create_mac_model, reset_global_macs
 from opencda.core.prediction.linear_predictor_manager   import LinearPredictorManager
 from opencda.core.sensing.tracking.obstacle_trajectory  import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle   import ObstacleVehicle
 
 
 logger = logging.getLogger("EdgeManager")
-
-# ──────────────────────────────────────────────────────────────
-#  Latency-trace loader (pandas-only version)
-# ──────────────────────────────────────────────────────────────
-_TRACE_FILE = pathlib.Path("merged_latency.csv")
-if _TRACE_FILE.is_file():
-    try:
-        _C_V2X_TRACE_MS: np.ndarray = (
-            pd.read_csv(_TRACE_FILE, usecols=["latency_ms"])
-              .latency_ms
-              .dropna()
-              .to_numpy(dtype=np.float32)
-        )
-        logger.info("loaded %d C-V2X RTT samples", _C_V2X_TRACE_MS.size)
-    except Exception as exc:
-        logger.error("failed to parse merged_latency.csv: %s", exc)
-        _C_V2X_TRACE_MS = None
-else:
-    logger.warning(
-        "'merged_latency.csv' not found – radio RTT will be U(30–80 ms) fallback"
-    )
-    _C_V2X_TRACE_MS = None
-
-# back-haul log-normal fit (from your paper / old code)
-_BACKHAUL_MU, _BACKHAUL_SIGMA = 2.9957, 0.6556   # ms in log-space
-
-
-def _draw_latency_ms(base_ms: float,
-                     jitter_ms: float,
-                     dist: str) -> float:
-    """
-    One random latency sample according to *latency_distribution*.
-
-    Parameters
-    ----------
-    base_ms   : YAML 'latency' (already in ms)
-    jitter_ms : YAML 'jitter_std' (ms, only used for 'normal')
-    dist      : one of {'fixed','normal','lognormal','hybrid'}
-    """
-    dist = (dist or "fixed").lower()
-
-    if dist in ("fixed", "none"):
-        return base_ms
-
-    if dist == "normal":
-        return max(0.0, random.gauss(base_ms, jitter_ms))
-
-    if dist == "lognormal":
-        mu = math.log(max(base_ms, 1e-3))
-        return float(np.random.lognormal(mu, 0.5))
-
-    if dist == "hybrid":
-        # — radio link RTT (one-way)
-        if _C_V2X_TRACE_MS is not None and _C_V2X_TRACE_MS.size > 0:
-            rtt_radio = float(np.random.choice(_C_V2X_TRACE_MS))
-        else:
-            rtt_radio = random.uniform(30.0, 80.0)
-        # — back-haul RTT
-        rtt_back = float(np.random.lognormal(_BACKHAUL_MU, _BACKHAUL_SIGMA))
-        return rtt_radio + rtt_back + base_ms
-
-    raise ValueError(f"unknown latency_distribution '{dist}'")
 
 
 # ──────────────────────────────────────────────────────────────
@@ -131,18 +65,48 @@ class _BaseEdgeManager:
         self.vehicle_manager_list: List[Any] = []
         self.rsu_manager_list:     List[Any] = []
 
-        # latency / packet-loss (ms or %)
-        self.latency_ms  = float(cfg.get("latency",        0) * 1000)
-        self.jitter_ms   = float(cfg.get("jitter_std",     0) * 1000)
-        self.lat_dist    = cfg.get("latency_distribution", "fixed").lower()
-        self.uplink_pl   = float(cfg.get("uplink_packet_loss_pct",   0))
+        # latency model (pluggable: fixed, normal, lognormal, hybrid)
+        self.latency_model = create_latency_model(cfg, world_dt)
         self.downlink_pl = float(cfg.get("downlink_packet_loss_pct", 0))
+
+        # MAC model (pluggable: legacy/null/sbsps)
+        reset_global_macs()  # idempotent — prevents cross-test contamination
+        _mac_seed = cfg.get("mac", {}).get("seed", 0)
+        self.mac_model = create_mac_model(
+            cfg, latency_model=self.latency_model, seed=_mac_seed)
+
+        # compute-contention model (ms)
+        _budget = cfg.get("compute_budget_ms", None)
+        self.compute_budget_ms: float | None = (
+            float(_budget) if _budget is not None else None
+        )
+        self.per_vehicle_compute_ms: float = float(
+            cfg.get("per_vehicle_compute_ms", 5.0)
+        )
+
+        # Spatial self-ID radius (m) for non-anchored ego identification
+        self._self_id_radius = float(cfg.get("self_id_radius", 5.0))
+        # Speed gate (m/s) for ego-consistency suppression G(e)
+        self._self_id_speed_gate = float(cfg.get("self_id_speed_gate", 3.0))
+
+        # A1 freshness contract threshold (ticks).  Default 20 = 1.0s at dt=0.05
+        self._aoi_freshness_threshold_ticks = int(
+            cfg.get("aoi_freshness_threshold_ticks", 20)
+        )
 
         # shared predictor helper (used by some back-ends)
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
 
         # global debug helper for perf / viz
         self.debug = EdgeMetrics(0)
+
+        # Ego-consistency gate violation tracking (publish-boundary invariant)
+        self._ego_gate_violations_total = 0
+        self._ego_gate_violation_ticks = []  # (tick, per_ego_counts_dict)
+
+        # Competing-risk time-to-event tracking
+        # Records the first tick each failure class occurs per ego vehicle
+        self._first_event_ticks = {}  # {vehicle_id: {class: tick}}
 
         # distributed mode flag (from cav_world)
         self.run_distributed = getattr(cav_world, 'run_distributed', False) if cav_world else False
@@ -154,12 +118,6 @@ class _BaseEdgeManager:
     def start_edge(self):                     raise NotImplementedError
     def update_information(self, frame_idx):  raise NotImplementedError
     def run_step(self, tick):                 raise NotImplementedError
-
-    # ─── convenience for latency sampling ─────────────────────
-    def _sample_latency_ms(self) -> float:
-        return _draw_latency_ms(self.latency_ms,
-                                self.jitter_ms,
-                                self.lat_dist)
 
     # ─── helpers common to all concrete back-ends ────────────
     def add_member(self, vm: Any) -> None:
@@ -176,6 +134,334 @@ class _BaseEdgeManager:
         Store it for use in your edge logic.
         """
         self.destination = destination
+
+    # ─── Latency component statistics (for Fig 1 CDFs) ────────────
+    def _get_latency_component_stats(self) -> Dict:
+        """Return per-component latency statistics from sample history.
+
+        Only meaningful for HybridModel which logs radio/backhaul/base.
+        Other models return total-only stats.
+        """
+        history = getattr(self.latency_model, 'sample_history', [])
+        if not history:
+            return {}
+        import numpy as _np
+        result = {}
+        for key in history[0]:
+            vals = _np.array([s[key] for s in history])
+            result[f'latency_{key}_mean'] = float(_np.mean(vals))
+            result[f'latency_{key}_p50'] = float(_np.median(vals))
+            result[f'latency_{key}_p95'] = float(_np.percentile(vals, 95))
+            result[f'latency_{key}_p99'] = float(_np.percentile(vals, 99))
+        result['latency_num_samples'] = len(history)
+        return result
+
+    # ─── Ego-consistency gate G(ego) at publish boundary ──────────
+    def _check_ego_gate_violations(self, tick, preds):
+        """Count predictions inside G(ego) that are NOT identified as ego.
+
+        The ego-consistency invariant states: no published obstacle may lie
+        inside the state-space gate G(ego_pos, self._self_id_radius) unless
+        it carries the ego identity.  Violations → potential ghost brakes.
+
+        Stores per-tick violation counts for later analysis.
+        """
+        per_ego = {}
+        for vm in self.vehicle_manager_list:
+            ego_loc = vm.vehicle.get_location()
+            ego_id = vm.vehicle.id
+            violations = 0
+            for pred in preds:
+                obs = pred.obstacle_trajectory.obstacle
+                obs_loc = obs.location
+                dist = ((obs_loc.x - ego_loc.x)**2 +
+                        (obs_loc.y - ego_loc.y)**2)**0.5
+                if dist < self._self_id_radius and obs.carla_id != ego_id:
+                    violations += 1
+            per_ego[ego_id] = violations
+            self._ego_gate_violations_total += violations
+
+        self._ego_gate_violation_ticks.append((tick, per_ego))
+        return per_ego
+
+    def get_ego_gate_metrics(self):
+        """Return summary metrics for ego-gate violations across the run."""
+        if not self._ego_gate_violation_ticks:
+            return {
+                'ego_gate_violations_total': 0,
+                'ego_gate_violation_tick_count': 0,
+                'ego_gate_violation_tick_fraction': 0.0,
+            }
+        total_ticks = len(self._ego_gate_violation_ticks)
+        ticks_with_violations = sum(
+            1 for _, per_ego in self._ego_gate_violation_ticks
+            if any(v > 0 for v in per_ego.values())
+        )
+        return {
+            'ego_gate_violations_total': self._ego_gate_violations_total,
+            'ego_gate_violation_tick_count': ticks_with_violations,
+            'ego_gate_violation_tick_fraction': ticks_with_violations / total_ticks,
+        }
+
+    # ─── Publish-boundary contract metrics (A1/A2/A3) ──────────
+    def _get_contract_metrics(self) -> Dict:
+        """Assemble unified contract metrics for Fig 12.
+
+        A1 — Freshness: fraction of ticks where AoI > threshold.
+        A2 — Ego-Gate:  fraction of ticks with ego-gate violations.
+        A3 — Uniqueness: fraction of ticks with identity-dup violations.
+
+        Requires ``self.profiler`` (set by every concrete subclass).
+        """
+        result: Dict = {}
+
+        # Profiler frame history (all concrete subclasses set self.profiler)
+        frames = (list(self.profiler.frame_history)
+                  if hasattr(self, 'profiler') else [])
+
+        # ── A1: Freshness ────────────────────────────────────────
+        threshold = self._aoi_freshness_threshold_ticks
+        if frames:
+            # Only count ticks where the edge actually published (aoi > 0)
+            published = [f for f in frames if f.aoi_ticks > 0]
+            a1_violations = sum(1 for f in published
+                                if f.aoi_ticks > threshold)
+            result['contract_a1_freshness_threshold_ticks'] = threshold
+            result['contract_a1_freshness_violations'] = a1_violations
+            result['contract_a1_freshness_violation_fraction'] = (
+                a1_violations / len(published) if published else 0.0
+            )
+        else:
+            result['contract_a1_freshness_threshold_ticks'] = threshold
+            result['contract_a1_freshness_violations'] = 0
+            result['contract_a1_freshness_violation_fraction'] = 0.0
+
+        # ── A2: Ego-Gate ─────────────────────────────────────────
+        ego_gate = self.get_ego_gate_metrics()
+        result['contract_a2_ego_gate_violations'] = (
+            ego_gate['ego_gate_violations_total'])
+        result['contract_a2_ego_gate_violation_tick_count'] = (
+            ego_gate['ego_gate_violation_tick_count'])
+        result['contract_a2_ego_gate_violation_fraction'] = (
+            ego_gate['ego_gate_violation_tick_fraction'])
+
+        # ── A3: Uniqueness ───────────────────────────────────────
+        if frames:
+            uniq_tick_count = sum(
+                1 for f in frames if f.ego_uniqueness_violations > 0)
+            uniq_total = sum(f.ego_uniqueness_violations for f in frames)
+            result['contract_a3_uniqueness_violations'] = uniq_total
+            result['contract_a3_uniqueness_violation_tick_count'] = (
+                uniq_tick_count)
+            result['contract_a3_uniqueness_violation_fraction'] = (
+                uniq_tick_count / len(frames))
+        else:
+            result['contract_a3_uniqueness_violations'] = 0
+            result['contract_a3_uniqueness_violation_tick_count'] = 0
+            result['contract_a3_uniqueness_violation_fraction'] = 0.0
+
+        return result
+
+    # ─── Competing-risk time-to-event tracking ──────────────────
+    def _record_time_to_events(self, tick, vm):
+        """Record first-occurrence tick for each brake failure class."""
+        vid = vm.vehicle.id
+        if vid not in self._first_event_ticks:
+            self._first_event_ticks[vid] = {}
+
+        events = self._first_event_ticks[vid]
+        for attr in vm.agent.planning_metrics.brake_attributions:
+            cls = attr.get('gt_brake_class')
+            if cls and cls not in events:
+                events[cls] = tick
+
+    def get_competing_risk_metrics(self):
+        """Return first-event ticks per vehicle and tie-rate analysis."""
+        result = {}
+        for vid, events in self._first_event_ticks.items():
+            result[str(vid)] = dict(events)
+        return result
+
+    # Thresholds for GT hazard predicate
+    _GT_HAZARD_SPEED_THRESH = 2.0      # m/s — actor must be moving
+    _GT_HAZARD_DCA_THRESH   = 8.0      # m  — closest approach distance
+    #   Perpendicular vehicles at intersection: need to account for both
+    #   vehicles' physical dimensions (each ~4.5m × 2m).  Diagonal
+    #   clearance ≈ sqrt((2.25+1)^2 + (2.25+1)^2) ≈ 4.6m center-to-center
+    #   plus prediction noise margin.  8m captures real near-misses.
+    _GT_HAZARD_TIME_HORIZON = 5.0      # s  — look-ahead for closest approach
+
+    def _label_brake_attributions_gt(self, vm) -> None:
+        """
+        GT-label any new brake attributions from the behavior agent.
+
+        For each brake event with ``ghost_brake_gt is None``:
+
+        1. Match the triggering track's position (obs_x, obs_y) to the
+           nearest CARLA actor by center distance (evaluation identity).
+        2. Classify into three categories:
+           - **self-ghost FP**: matched actor = ego vehicle
+           - **true positive**: matched actor is a GT hazard (moving toward
+             ego on collision course, per linear extrapolation using
+             *relative* velocity — actor minus ego)
+           - **other FP**: matched actor is NOT a GT hazard (parked,
+             stationary, or moving away from ego)
+        """
+        attrs = vm.agent.planning_metrics.brake_attributions
+        if not attrs:
+            return
+
+        # Only process unlabeled entries
+        unlabeled = [a for a in attrs if a.get('ghost_brake_gt') is None]
+        if not unlabeled:
+            return
+
+        # Get current GT state of all CARLA vehicle actors
+        vehicles = self.world.get_actors().filter('vehicle.*')
+        gt_actors = []
+        for v in vehicles:
+            loc = v.get_location()
+            vel = v.get_velocity()
+            gt_actors.append({
+                'id': v.id,
+                'x': loc.x, 'y': loc.y,
+                'vx': vel.x, 'vy': vel.y,
+                'speed': (vel.x**2 + vel.y**2)**0.5,
+            })
+
+        if not gt_actors:
+            return
+
+        ego_id = vm.vehicle.id
+        # Set of all managed ego vehicle IDs for provenance tagging
+        managed_ids = {m.vehicle.id for m in self.vehicle_manager_list}
+        # Get ego velocity for relative-motion DCA calculation
+        ego_vel = vm.vehicle.get_velocity()
+        ego_vx, ego_vy = ego_vel.x, ego_vel.y
+
+        gt_xy  = np.array([[a['x'], a['y']] for a in gt_actors])
+
+        for attr in unlabeled:
+            obs_xy = np.array([attr['obs_x'], attr['obs_y']])
+            ego_xy = np.array([attr['ego_x'], attr['ego_y']])
+            dists = np.linalg.norm(gt_xy - obs_xy, axis=1)
+            best_idx = int(np.argmin(dists))
+            matched = gt_actors[best_idx]
+            matched_id = matched['id']
+
+            attr['gt_matched_actor_id'] = matched_id
+            attr['gt_match_dist_m'] = float(dists[best_idx])
+
+            # Category 1: self-ghost (matched actor is the ego itself)
+            if matched_id == ego_id:
+                attr['ghost_brake_gt'] = True
+                attr['false_positive_gt'] = False
+                attr['true_positive_gt'] = False
+                attr['gt_brake_class'] = 'self_ghost'
+                attr['gt_provenance'] = 'self'
+                logger.warning(
+                    "[GT GHOST] ego %d: track=%s cid=%s -> GT actor %d "
+                    "(dist=%.2fm) obs=(%.1f,%.1f) ego=(%.1f,%.1f)",
+                    ego_id, attr.get('trigger_track_id'),
+                    attr.get('trigger_carla_id'),
+                    matched_id, dists[best_idx],
+                    attr['obs_x'], attr['obs_y'],
+                    attr['ego_x'], attr['ego_y'])
+                continue
+
+            # Category 2 or 3: check if matched actor is a GT hazard
+            is_hazard, dca, t_ca = self._is_gt_hazard(
+                matched, ego_xy, ego_vx, ego_vy)
+
+            attr['ghost_brake_gt'] = False
+            attr['gt_actor_speed'] = matched['speed']
+            attr['gt_dca_m'] = dca
+            attr['gt_t_ca_s'] = t_ca
+
+            # Provenance: classify the source identity of the triggering actor
+            if matched_id in managed_ids and matched_id != ego_id:
+                attr['gt_provenance'] = 'cross_ego'
+            elif matched['speed'] < 0.5:
+                attr['gt_provenance'] = 'parked'
+            elif is_hazard:
+                attr['gt_provenance'] = 'npc_hazard'
+            else:
+                attr['gt_provenance'] = 'npc_non_hazard'
+
+            if is_hazard:
+                attr['false_positive_gt'] = False
+                attr['true_positive_gt'] = True
+                attr['gt_brake_class'] = 'true_positive'
+                logger.debug(
+                    "[GT TP] ego %d: track=%s -> GT actor %d "
+                    "(speed=%.1f m/s, DCA=%.2fm, t_ca=%.2fs) "
+                    "obs=(%.1f,%.1f) ego=(%.1f,%.1f)",
+                    ego_id, attr.get('trigger_track_id'),
+                    matched_id, matched['speed'], dca, t_ca,
+                    attr['obs_x'], attr['obs_y'],
+                    attr['ego_x'], attr['ego_y'])
+            else:
+                attr['false_positive_gt'] = True
+                attr['true_positive_gt'] = False
+                attr['gt_brake_class'] = 'other_fp'
+                logger.warning(
+                    "[GT OTHER-FP] ego %d: track=%s -> GT actor %d "
+                    "(speed=%.1f m/s, DCA=%.2fm, t_ca=%.2fs prov=%s) "
+                    "not a GT hazard. obs=(%.1f,%.1f) ego=(%.1f,%.1f)",
+                    ego_id, attr.get('trigger_track_id'),
+                    matched_id, matched['speed'], dca, t_ca,
+                    attr['gt_provenance'],
+                    attr['obs_x'], attr['obs_y'],
+                    attr['ego_x'], attr['ego_y'])
+
+    @classmethod
+    def _is_gt_hazard(cls, actor: dict, ego_xy: np.ndarray,
+                      ego_vx: float = 0.0, ego_vy: float = 0.0):
+        """
+        GT conflict predicate: is ``actor`` actually on a collision course
+        with the ego?
+
+        Uses linear extrapolation of **relative** velocity (actor − ego)
+        to compute the distance of closest approach (DCA).
+
+        Returns
+        -------
+        (is_hazard, dca, t_ca) : (bool, float, float)
+            is_hazard: True if closing, within DCA threshold, within horizon
+            dca:       distance of closest approach (m), or inf if not closing
+            t_ca:      time of closest approach (s), or -1 if not closing
+        """
+        speed = actor['speed']
+        if speed < cls._GT_HAZARD_SPEED_THRESH:
+            return False, float('inf'), -1.0
+
+        # Relative position: ego − actor
+        dx = ego_xy[0] - actor['x']
+        dy = ego_xy[1] - actor['y']
+
+        # Relative velocity: actor − ego (motion of actor in ego's frame)
+        rel_vx = actor['vx'] - ego_vx
+        rel_vy = actor['vy'] - ego_vy
+        rel_v_sq = rel_vx**2 + rel_vy**2
+        if rel_v_sq < 1e-6:
+            return False, float('inf'), -1.0
+
+        # Time of closest approach (relative motion)
+        # t_ca = dot(ego−actor, actor_vel−ego_vel) / |rel_vel|^2
+        t_ca = (dx * rel_vx + dy * rel_vy) / rel_v_sq
+
+        # Must be in the future and within horizon
+        if t_ca < 0 or t_ca > cls._GT_HAZARD_TIME_HORIZON:
+            return False, float('inf'), float(t_ca)
+
+        # Distance at closest approach (both vehicles extrapolated)
+        actor_x_ca = actor['x'] + actor['vx'] * t_ca
+        actor_y_ca = actor['y'] + actor['vy'] * t_ca
+        ego_x_ca = ego_xy[0] + ego_vx * t_ca
+        ego_y_ca = ego_xy[1] + ego_vy * t_ca
+        dca = ((actor_x_ca - ego_x_ca)**2 + (actor_y_ca - ego_y_ca)**2)**0.5
+
+        return dca < cls._GT_HAZARD_DCA_THRESH, float(dca), float(t_ca)
 
     @staticmethod
     def _dict_extend(dest: Dict[str, list], src: Dict[str, list]) -> None:
