@@ -23,7 +23,6 @@ sys.path.insert(0, os.path.join(os.getcwd(), 'opencda'))
 sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
 sys.path.insert(0, os.getcwd())
 
-import coloredlogs
 import grpc
 
 from opencda.scenario_testing.utils.yaml_utils import load_yaml
@@ -33,8 +32,6 @@ import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
-logger.setLevel(logging.DEBUG)
 
 # Load cloud config
 cloud_config = load_yaml("cloud_config.yaml")

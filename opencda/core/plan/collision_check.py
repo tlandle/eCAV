@@ -7,7 +7,7 @@ import math
 from math import sin, cos
 from scipy import spatial
 from scipy.interpolate import interp1d
-import coloredlogs, logging
+import logging
 
 import carla
 import numpy as np
@@ -18,7 +18,6 @@ from opencda.core.plan.spline import Spline2D
 
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='ERROR', logger=logger)
 
 def create_waypoint_roadoption_tuple(vehicle, carla_map):
     # Get the current location of the vehicle
@@ -109,7 +108,7 @@ def linear_interp_trajectory(points):
     return sp, np.stack((rx, ry), axis=1)
 
 def time_reparametrize(points, sp, speed):
-    tp = sp / max(speed, 5)
+    tp = sp / max(speed, 0.1)
     x, y = points[:, 0], points[:, 1]
     xt = interp1d(tp, x, kind='linear')
     yt = interp1d(tp, y, kind='linear')
@@ -533,7 +532,7 @@ class CollisionChecker:
         ego_x = ego_points[:, 0]
         ego_y = ego_points[:, 1]
 
-        print("ego waypoints: %s" %ego_points)
+        logger.debug("ego waypoints: %s", ego_points)
 
         # get spline
         ds = 0.1
@@ -564,9 +563,6 @@ class CollisionChecker:
         Check whether the vehicle will collide with the obstacle vehicle
         in the future.
         """
-        if obstacle_speed < 5:
-            return False, 1000    # ignore "stationary" obstacles
-
         is_collision = False
         ttc = 1000
 
@@ -624,7 +620,7 @@ class CollisionChecker:
                 length = min(len(ego_x_points), len(obs_x_points))
                 ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
                 obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-                proximity_check = min(10, ego_speed / 2.0)
+                proximity_check = 2.0  # vehicle width + safety margin
                 is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=proximity_check, dt=time_step)
             else:
                 obs_x_points = obs_path[:, 0]

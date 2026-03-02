@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
+# Author: Tyler Landle <tlandle3@gatech.edu>
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
 """
-worldfusion_perception_manager.py
-Author: Tyler Landle <tlandle3@gatech.edu>
-Description: Perception manager for WorldFusion model integration in eCAV.
-             Extracts intermediate spatial_features (before backbone) for
-             transmission to edge where Where2comm fusion is performed.
-TDG non-commercial use license.
+WorldFusion perception manager.
+
+Extracts intermediate spatial_features (before backbone) for
+transmission to edge where Where2comm fusion is performed.
 """
 from __future__ import annotations
 import pathlib
@@ -59,7 +60,6 @@ class WorldFusionPerceptionManager(PerceptionManager):
         print("\n[WorldFusion] Initialising Perception Manager...")
         model_config = config_yaml['worldfusion_model']
         hypes_path = pathlib.Path(model_config['hypes_yaml'])
-        ckpt_path = pathlib.Path(model_config['checkpoint'])
 
         self.hypes = load_yaml(str(hypes_path))
         print("[WorldFusion] Hypes loaded and parsed successfully.")
@@ -68,17 +68,32 @@ class WorldFusionPerceptionManager(PerceptionManager):
         self._vp = SpVoxelPreprocessor(pre_config, train=False)
         print("[WorldFusion] SpVoxelPreprocessor initialized.")
 
-        # Load the WorldFusion model (we'll use just the sensor encoder for feature extraction)
-        from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
-        self.model = PointPillarWorldFusion(self.hypes['model']['args']).to(self.device).eval()
-        print("[WorldFusion] Model created successfully.")
+        # Determine litserve mode:
+        # 1. Explicit per-model config: litserve_endpoint in worldfusion_model
+        # 2. Global -l flag: cav_world.litserve → use ml_manager.worldfusion_endpoint
+        self.litserve_endpoint = model_config.get('litserve_endpoint', None)
+        if self.litserve_endpoint is None and cav_world is not None and getattr(cav_world, 'litserve', False):
+            if cav_world.ml_manager is not None:
+                self.litserve_endpoint = getattr(cav_world.ml_manager, 'worldfusion_endpoint', 'http://localhost:18000')
 
-        epoch, self.model = train_utils.load_model(
-            str(ckpt_path.parent),
-            self.model,
-            epoch=int(str(ckpt_path.name).split('epoch')[-1].split('.')[0])
-        )
-        print(f"[WorldFusion] Loaded model weights from epoch {epoch}.")
+        self.use_litserve = self.litserve_endpoint is not None
+
+        if self.use_litserve:
+            print(f"[WorldFusion] Using LitServe endpoint: {self.litserve_endpoint}")
+            self.model = None
+        else:
+            # Load the WorldFusion model locally for GPU feature extraction
+            ckpt_path = pathlib.Path(model_config['checkpoint'])
+            from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
+            self.model = PointPillarWorldFusion(self.hypes['model']['args']).to(self.device).eval()
+            print("[WorldFusion] Model created successfully.")
+
+            epoch, self.model = train_utils.load_model(
+                str(ckpt_path.parent),
+                self.model,
+                epoch=int(str(ckpt_path.name).split('epoch')[-1].split('.')[0])
+            )
+            print(f"[WorldFusion] Loaded model weights from epoch {epoch}.")
 
         # Feature dictionary - only stores spatial_features for edge transmission
         self.feature_dict = None
@@ -192,23 +207,105 @@ class WorldFusionPerceptionManager(PerceptionManager):
                 print(f"[WorldFusion LIDAR DEBUG]   These points X: [{vehicle_region[:, 0].min():.1f}, {vehicle_region[:, 0].max():.1f}]")
                 print(f"[WorldFusion LIDAR DEBUG]   These points Y: [{vehicle_region[:, 1].min():.1f}, {vehicle_region[:, 1].max():.1f}]")
 
+        import time as _t
+        t_batch_start = _t.time()
         batch = self._build_batch()
-        batch = train_utils.to_device(batch, self.device)
+        t_batch_end = _t.time()
 
-        # Run the sensor encoder to get intermediate features
-        # We need to call the internal _SensorEncoder up to the point before backbone
-        feature_dict_gpu = self._extract_intermediate_features(batch)
+        if self.use_litserve:
+            # Send preprocessed batch to remote GPU server
+            feature_dict_cpu = self._extract_features_remote(batch)
+        else:
+            # Run locally on GPU
+            batch = train_utils.to_device(batch, self.device)
+            feature_dict_gpu = self._extract_intermediate_features(batch)
+            feature_dict_cpu = {
+                'spatial_features': feature_dict_gpu['spatial_features'].cpu()
+            }
+        t_extract_end = _t.time()
 
         # Store only spatial_features for transmission (keep on CPU for transfer)
-        self.feature_dict = {
-            'spatial_features': feature_dict_gpu['spatial_features'].cpu()
-        }
+        self.feature_dict = feature_dict_cpu
         self.feature_map = self.feature_dict['spatial_features'].half()
+
+        print(f"[WorldFusion run_step] {agent_type}: "
+              f"build_batch={(t_batch_end-t_batch_start)*1000:.0f}ms | "
+              f"extract_features={(t_extract_end-t_batch_end)*1000:.0f}ms | "
+              f"total={(t_extract_end-t_batch_start)*1000:.0f}ms", flush=True)
 
         if self._first_run:
             print(f"\n[WorldFusion] >>> SUCCESS: FEATURE EXTRACTION COMPLETE. <<<")
             print(f"[WorldFusion] spatial_features shape: {self.feature_map.shape}")
             self._first_run = False
+
+    def _extract_features_remote(self, batch: Dict) -> Dict:
+        """
+        Send preprocessed batch to LitServe endpoint for GPU feature extraction.
+
+        Parameters
+        ----------
+        batch : dict
+            CPU batch from _build_batch() with processed_lidar, image_inputs, record_len
+
+        Returns
+        -------
+        dict with 'spatial_features' tensor on CPU
+        """
+        import time as _t
+        import msgpack
+        import msgpack_numpy as m_np
+        m_np.patch()
+        import requests
+
+        t0 = _t.time()
+
+        def _tensors_to_numpy(obj):
+            if isinstance(obj, torch.Tensor):
+                return obj.contiguous().numpy()
+            if isinstance(obj, dict):
+                return {k: _tensors_to_numpy(v) for k, v in obj.items()}
+            return obj
+
+        batch_np = _tensors_to_numpy(batch)
+        t1 = _t.time()
+
+        payload = msgpack.packb(batch_np, use_bin_type=True)
+        t2 = _t.time()
+
+        response = requests.post(
+            f"{self.litserve_endpoint}/extract_features",
+            data=payload,
+            headers={"Content-Type": "application/octet-stream"},
+            timeout=30,
+        )
+        t3 = _t.time()
+
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"WorldFusion LitServe error: {response.status_code} {response.text}"
+            )
+
+        result = msgpack.unpackb(response.content, raw=False)
+        t4 = _t.time()
+
+        result_tensors = {k: torch.from_numpy(v) for k, v in result.items()}
+        t5 = _t.time()
+
+        agent_type = "RSU" if self.vehicle is None else "Vehicle"
+
+        # Server-side timing from response headers
+        srv_total = response.headers.get('X-Server-Total-Ms', '?')
+        srv_infer = response.headers.get('X-Server-Inference-Ms', '?')
+
+        print(f"[WorldFusion REMOTE {agent_type}] "
+              f"to_numpy={(t1-t0)*1000:.0f}ms | "
+              f"pack={(t2-t1)*1000:.0f}ms ({len(payload)/1024:.0f}KB) | "
+              f"http={(t3-t2)*1000:.0f}ms (srv={srv_total}ms, infer={srv_infer}ms) | "
+              f"unpack={(t4-t3)*1000:.0f}ms ({len(response.content)/1024:.0f}KB) | "
+              f"to_tensor={(t5-t4)*1000:.0f}ms | "
+              f"total={(t5-t0)*1000:.0f}ms", flush=True)
+
+        return result_tensors
 
     def _extract_intermediate_features(self, batch: Dict) -> Dict:
         """

@@ -120,6 +120,11 @@ class FrameMetrics:
     score_penalty: float = 1.0      # Penalty multiplier (starts at 1.0, decreases with infractions)
     score_composed: float = 0.0     # score_route * score_penalty
 
+    # Ego-Uniqueness metrics
+    ego_uniqueness_violations: int = 0   # identities with >1 active track this tick
+    duplicate_track_count: int = 0       # total extra tracks (sum of |tracks|-1 per dup identity)
+    ego_ghost_tracks: int = 0            # duplicates involving managed/ego vehicles
+
     # Additional timing detail
     timing_detail: Dict[str, float] = field(default_factory=dict)
 
@@ -182,6 +187,13 @@ class IntersectionMetrics:
     avg_min_ade_m: float = 0.0
     avg_min_fde_m: float = 0.0
     avg_num_modes: float = 1.0
+
+    # Ego-Uniqueness metrics (aggregate)
+    total_ego_uniqueness_violations: int = 0
+    ticks_with_violations: int = 0
+    violation_tick_fraction: float = 0.0
+    total_duplicate_tracks: int = 0
+    total_ego_ghost_tracks: int = 0
 
 
 class EdgeProfiler:
@@ -539,6 +551,19 @@ class EdgeProfiler:
         else:
             self._current_frame.prediction_min_fde_m = fde_m
 
+    def set_ego_uniqueness_metrics(
+        self,
+        violations: int = 0,
+        duplicate_tracks: int = 0,
+        ego_ghosts: int = 0
+    ):
+        """Set Ego-Uniqueness metrics for current frame."""
+        if self._current_frame is None:
+            return
+        self._current_frame.ego_uniqueness_violations = violations
+        self._current_frame.duplicate_track_count = duplicate_tracks
+        self._current_frame.ego_ghost_tracks = ego_ghosts
+
     def get_summary(self) -> IntersectionMetrics:
         """Get aggregate metrics summary"""
         if not self.frame_history:
@@ -649,6 +674,16 @@ class EdgeProfiler:
             avg_min_ade_m=avg_min_ade,
             avg_min_fde_m=avg_min_fde,
             avg_num_modes=avg_num_modes,
+
+            # Ego-Uniqueness metrics
+            total_ego_uniqueness_violations=sum(f.ego_uniqueness_violations for f in frames),
+            ticks_with_violations=sum(1 for f in frames if f.ego_uniqueness_violations > 0),
+            violation_tick_fraction=(
+                sum(1 for f in frames if f.ego_uniqueness_violations > 0) / len(frames)
+                if frames else 0.0
+            ),
+            total_duplicate_tracks=sum(f.duplicate_track_count for f in frames),
+            total_ego_ghost_tracks=sum(f.ego_ghost_tracks for f in frames),
         )
 
         return summary
@@ -786,6 +821,13 @@ class EdgeProfiler:
             'prediction_min_ade_m': summary.avg_min_ade_m,
             'prediction_min_fde_m': summary.avg_min_fde_m,
             'prediction_avg_num_modes': summary.avg_num_modes,
+
+            # Ego-Uniqueness metrics
+            'ego_uniqueness_total_violations': summary.total_ego_uniqueness_violations,
+            'ego_uniqueness_ticks_with_violations': summary.ticks_with_violations,
+            'ego_uniqueness_violation_tick_fraction': summary.violation_tick_fraction,
+            'ego_uniqueness_total_duplicate_tracks': summary.total_duplicate_tracks,
+            'ego_uniqueness_total_ego_ghost_tracks': summary.total_ego_ghost_tracks,
         }
 
         # Build text summary
@@ -810,6 +852,10 @@ Prediction Metrics:
   ADE @1s: {summary.avg_prediction_error_1s_m:.2f}m, @2s: {summary.avg_prediction_error_2s_m:.2f}m, @3s: {summary.avg_prediction_error_3s_m:.2f}m
   FDE: {summary.avg_prediction_fde_m:.2f}m, Miss Rate: {summary.avg_miss_rate:.1%}
   minADE: {summary.avg_min_ade_m:.2f}m, minFDE: {summary.avg_min_fde_m:.2f}m (avg {summary.avg_num_modes:.1f} modes)
+
+Ego-Uniqueness:
+  Violations: {summary.total_ego_uniqueness_violations}, Ticks w/ violations: {summary.ticks_with_violations} ({summary.violation_tick_fraction:.1%})
+  Duplicate tracks: {summary.total_duplicate_tracks}, Ego ghosts: {summary.total_ego_ghost_tracks}
 """
 
         # Create figure with subplots (3x2 for more comprehensive view)
@@ -951,6 +997,10 @@ class FrameProfileContext:
     def set_prediction_metrics(self, **kwargs):
         """Set prediction quality metrics (ADE, FDE, miss rate)"""
         self.profiler.set_prediction_metrics(**kwargs)
+
+    def set_ego_uniqueness_metrics(self, **kwargs):
+        """Set Ego-Uniqueness metrics (violations, duplicates, ghosts)"""
+        self.profiler.set_ego_uniqueness_metrics(**kwargs)
 
 
 class ComponentTimerContext:

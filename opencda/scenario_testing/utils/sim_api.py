@@ -26,7 +26,7 @@ import subprocess
 import signal
 
 from concurrent.futures import ThreadPoolExecutor, thread
-import coloredlogs, logging
+import logging
 import threading
 import time
 from typing import Iterable
@@ -50,7 +50,6 @@ import pickle
 import matplotlib.pyplot as plt
 #import k_means_constrained
 
-from opencda.core.common.vehicle_manager_proxy import VehicleManagerProxy
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.application.platooning.platooning_manager import \
     PlatooningManager
@@ -70,7 +69,6 @@ from opencda.core.common.ecloud_config import EcloudConfig
 from opencda.ecloud_server.ecloud_comms import EcloudClient, EcloudPushServer, ecloud_run_push_server
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -275,6 +273,7 @@ class ScenarioManager:
     vehicle_managers = {}
     vehicles = {} # vehicle_index -> tuple (actor_id, vid)
     vehicle_count = 0
+    rsu_count = 0
 
     rsu_managers = {}
 
@@ -302,14 +301,14 @@ class ScenarioManager:
             await asyncio.sleep(0.1)
         #logger.debug("%s", ecloud_update)
         for vehicle_update in vehicle_updates_list:
-            vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
-            vehicle_manager_proxy.localizer.localization_metrics.deserialize_debug_info( vehicle_update.loc_debug_helper )
-            vehicle_manager_proxy.agent.planning_metrics.deserialize_debug_info( vehicle_update.planer_debug_helper )
-            vehicle_manager_proxy.client_metrics.deserialize_debug_info(vehicle_update.client_debug_helper)
+            manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
+            manager_proxy.localizer.localization_metrics.deserialize_debug_info( vehicle_update.loc_debug_helper )
+            manager_proxy.agent.planning_metrics.deserialize_debug_info( vehicle_update.planer_debug_helper )
+            manager_proxy.client_metrics.deserialize_debug_info(vehicle_update.client_debug_helper)
 
             latencies_by_tick = self.sim_metrics.network_time_dict
             overall_steps_by_tick = self.sim_metrics.client_tick_time_dict
-            for timestamps in vehicle_manager_proxy.client_metrics.timestamps_list:
+            for timestamps in manager_proxy.client_metrics.timestamps_list:
                 if timestamps.tick_id in overall_steps_by_tick:
                     assert timestamps.tick_id in latencies_by_tick, logger.exception('%s not in latencies_by_tick: %s', timestamps.tick_id, latencies_by_tick)
                     client_process_time_ms = (timestamps.client_end_tstamp.ToNanoseconds() - timestamps.client_start_tstamp.ToNanoseconds()) * NSEC_TO_MSEC # doing work
@@ -320,14 +319,14 @@ class ScenarioManager:
                     logger.debug("timestamps: client_end - %s client_start - %s", timestamps.client_end_tstamp.ToDatetime().time(), timestamps.client_start_tstamp.ToDatetime().time())
                     logger.info('client process time: %sms', round(client_process_time_ms, 2))
                     logger.info('idle time: %sms', round(idle_time_ms, 2))
-                    self.sim_metrics.update_idle_time_timestamp(vehicle_manager_proxy.vehicle_index, idle_time_ms) # this inferred
-                    self.sim_metrics.update_client_process_time_timestamp(vehicle_manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
+                    self.sim_metrics.update_idle_time_timestamp(manager_proxy.vehicle_index, idle_time_ms) # this inferred
+                    self.sim_metrics.update_client_process_time_timestamp(manager_proxy.vehicle_index, client_process_time_ms) # how long client actually was active
 
                     # dupe the data since it makes evaluation simpler
-                    self.sim_metrics.update_network_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, latencies_by_tick[timestamps.tick_id])
-                    self.sim_metrics.update_overall_step_time_per_client_timestamp(vehicle_manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
+                    self.sim_metrics.update_network_time_per_client_timestamp(manager_proxy.vehicle_index, latencies_by_tick[timestamps.tick_id])
+                    self.sim_metrics.update_overall_step_time_per_client_timestamp(manager_proxy.vehicle_index, overall_steps_by_tick[timestamps.tick_id])
 
-                    logger.debug("updated time stamp data for vehicle %s", vehicle_manager_proxy.vehicle_index)
+                    logger.debug("updated time stamp data for vehicle %s", manager_proxy.vehicle_index)
 
     async def server_unpack_vehicle_updates(self, stub_):
         logger.debug("getting vehicle updates")
@@ -335,16 +334,55 @@ class ScenarioManager:
         logger.debug("unpacking vehicle updates")
         try:
             for vehicle_update in ecloud_update.vehicle_update:
-                if not vehicle_update.HasField('transform') or not vehicle_update.HasField('velocity'):
-                    continue
-
                 if not ( self.is_edge or self.verbose_updates ) and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
                     continue
 
-                vehicle_manager_proxy = self.vehicle_managers[ vehicle_update.vehicle_index ]
-                if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ) or self.verbose_updates :
-                    #logger.debug("updating transform & velocity - %s", vehicle_update)
-                    t = carla.Transform(
+                # Route to correct manager based on actor type
+                is_rsu = vehicle_update.actor_type == ecloud.ActorType.RSU
+                if is_rsu:
+                    manager_proxy = self.rsu_managers.get(vehicle_update.vehicle_index)
+                    if manager_proxy is None:
+                        print(f"[UNPACK] WARNING: no RSU manager for index {vehicle_update.vehicle_index}")
+                        continue
+                else:
+                    manager_proxy = self.vehicle_managers[vehicle_update.vehicle_index]
+
+                # Unpack detection objects from distributed actors for edge processing
+                if vehicle_update.pickled_agent_objects:
+                    try:
+                        unpacked = pickle.loads(vehicle_update.pickled_agent_objects)
+                        if is_rsu:
+                            manager_proxy.objects = unpacked
+                        else:
+                            manager_proxy.agent.objects = unpacked
+                        num_vehs = len(unpacked.get('vehicles', []))
+                        actor_label = "RSU" if is_rsu else "vehicle"
+                        print(f"[UNPACK] {actor_label} {vehicle_update.vehicle_index}: "
+                              f"{num_vehs} vehicles, "
+                              f"{len(vehicle_update.pickled_agent_objects)} bytes")
+                    except Exception as e:
+                        print(f"[UNPACK] FAILED for index {vehicle_update.vehicle_index}: {e}")
+
+                # Unpack intermediate features for WorldFusion/BM2CP
+                if vehicle_update.pickled_features:
+                    try:
+                        import torch
+                        import msgpack
+                        import msgpack_numpy as m_np
+                        m_np.patch()
+                        feat_dict_np = msgpack.unpackb(vehicle_update.pickled_features, raw=False)
+                        feat_dict = {k: torch.from_numpy(v) for k, v in feat_dict_np.items()}
+                        manager_proxy.perception_manager.feature_dict = feat_dict
+                        actor_label = "RSU" if is_rsu else "vehicle"
+                        print(f"[UNPACK FEATURES] {actor_label} {vehicle_update.vehicle_index}: "
+                              f"{len(vehicle_update.pickled_features)} bytes")
+                    except Exception as e:
+                        print(f"[UNPACK FEATURES] FAILED index {vehicle_update.vehicle_index}: {e}")
+
+                if not vehicle_update.HasField('transform'):
+                    continue
+
+                t = carla.Transform(
                     carla.Location(
                         x=vehicle_update.transform.location.x,
                         y=vehicle_update.transform.location.y,
@@ -353,17 +391,25 @@ class ScenarioManager:
                         yaw=vehicle_update.transform.rotation.yaw,
                         roll=vehicle_update.transform.rotation.roll,
                         pitch=vehicle_update.transform.rotation.pitch))
+
+                # Update localizer so edge manager can read position
+                if hasattr(manager_proxy, 'localizer'):
+                    manager_proxy.localizer._ego_pos = t
+
+                if vehicle_update.HasField('velocity'):
                     v = carla.Vector3D(
                         x=vehicle_update.velocity.x,
                         y=vehicle_update.velocity.y,
                         z=vehicle_update.velocity.z)
-                    if hasattr( vehicle_manager_proxy.vehicle, 'is_proxy' ):
-                        #logger.debug("updating transform & velocity - %s", vehicle_update)
-                        vehicle_manager_proxy.vehicle.set_velocity(v)
-                        vehicle_manager_proxy.vehicle.set_transform(t)  
-                    
-                    self.sim_metrics.update_velocity_per_client_timestamp(tick_id=self.tick_id,
-                                                                           velocity=v)
+                else:
+                    v = carla.Vector3D(x=0.0, y=0.0, z=0.0)
+
+                if hasattr(manager_proxy, 'vehicle') and hasattr(manager_proxy.vehicle, 'is_proxy'):
+                    manager_proxy.vehicle.set_velocity(v)
+                    manager_proxy.vehicle.set_transform(t)
+
+                self.sim_metrics.update_velocity_per_client_timestamp(tick_id=self.tick_id,
+                                                                       velocity=v)
         except:
             logger.exception('%s', vehicle_update)
 
@@ -374,12 +420,20 @@ class ScenarioManager:
 
         return empty
 
+    async def server_push_edge_objects(self, stub_, eos_):
+        empty = await stub_.Server_PushEdgeObjects(eos_)
+
+        return empty
+
     async def server_do_tick(self, stub_, update_):
+        t_do_tick_start = time.time()
         empty = await stub_.Server_DoTick(update_)
+        t_do_tick_sent = time.time()
 
         assert self.push_q.empty(), logger.exception("push_q should have been empty, but had %s", self.push_q.get_nowait())
         tick = await self.push_q.get()
         snapshot_t = time.time_ns()
+        t_clients_done = time.time()
         self.push_q.task_done()
 
         # the first tick time is dramatically slower due to startup, so we don't want it to skew runtime data
@@ -398,6 +452,13 @@ class ScenarioManager:
 
         else:
             await self.server_unpack_vehicle_updates(stub_)
+        t_unpack_done = time.time()
+
+        print(f"[SERVER TICK {self.tick_id}] "
+              f"send_cmd={(t_do_tick_sent-t_do_tick_start)*1000:.0f}ms | "
+              f"wait_clients={(t_clients_done-t_do_tick_sent)*1000:.0f}ms | "
+              f"unpack={(t_unpack_done-t_clients_done)*1000:.0f}ms",
+              flush=True)
 
         return empty
 
@@ -585,6 +646,8 @@ class ScenarioManager:
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 1),
                 ("grpc.keepalive_timeout_ms", TIMEOUT_MS),
+                ("grpc.max_send_message_length", 200 * 1024 * 1024),
+                ("grpc.max_receive_message_length", 200 * 1024 * 1024),
                 ("grpc.service_config", EcloudClient.retry_opts)],
             )
             self.ecloud_server = ecloud_rpc.EcloudStub(channel)
@@ -593,7 +656,7 @@ class ScenarioManager:
 
             logger.info(type(scenario_params))
 
-            self.scenario = json.dumps(OmegaConf.to_container(scenario_params))
+            self.scenario = json.dumps(OmegaConf.to_container(scenario_params, resolve=True))
             self.carla_version = self.carla_version
 
         # eCLOUD END
@@ -614,7 +677,7 @@ class ScenarioManager:
           server_request.test_scenario = self.scenario
           server_request.application = self.application[0]
           server_request.version = self.carla_version
-          server_request.vehicle_index = self.vehicle_count # bit of a hack to use vindex as count here
+          server_request.vehicle_index = self.vehicle_count + self.rsu_count # bit of a hack to use vindex as count here
           server_request.is_edge = self.is_edge or self.verbose_updates
 
           logger.info("Waiting for scenario start")
@@ -1193,7 +1256,7 @@ class ScenarioManager:
               logger.debug("Creating VehiceManagerProxy for vehicle %s", vehicle_index)
 
               # create vehicle manager for each cav
-              vehicle_manager_proxy = VehicleManagerProxy(
+              manager_proxy = VehicleManagerProxy(
                   vehicle_index, config_yaml, application,
                   self.carla_map, self.cav_world,
                   current_time=self.scenario_params['current_time'],
@@ -1205,13 +1268,13 @@ class ScenarioManager:
               # send gRPC with START info
               self.application = application
 
-              vehicle_manager_proxy.start_vehicle()
+              manager_proxy.start_vehicle()
 
-              vehicle_manager_proxy.v2x_manager.set_platoon(None)
+              manager_proxy.v2x_manager.set_platoon(None)
               logger.debug("set platoon on vehicle manager")
 
-              single_cav_list.append(vehicle_manager_proxy)
-              self.vehicle_managers[vehicle_index] = vehicle_manager_proxy
+              single_cav_list.append(manager_proxy)
+              self.vehicle_managers[vehicle_index] = manager_proxy
             except Exception as e:
               logger.exception("Failed to create vehicle manager proxy")
 
@@ -1269,7 +1332,9 @@ class ScenarioManager:
                                        self.scenario_params['current_time'],
                                        data_dump)
                     edge_manager.add_rsu(rsu_manager)
-                    self.rsu_managers[index] = rsu_manager
+                    rsu_id = cav.get('id', index)
+                    self.rsu_managers[rsu_id] = rsu_manager
+                    print(f"[RSU MANAGER] Registered RSU manager with key={rsu_id}")
             if 'vehicles' in edge:
                 for index, cav in enumerate(edge['vehicles']): 
                     logger.debug("Creating VehiceManager for vehicle %s", index)
@@ -1379,7 +1444,9 @@ class ScenarioManager:
                                        self.scenario_params['current_time'],
                                        data_dump)
                     edge_manager.add_rsu(rsu_manager)
-                    self.rsu_managers[index] = rsu_manager
+                    rsu_id = cav.get('id', index)
+                    self.rsu_managers[rsu_id] = rsu_manager
+                    print(f"[RSU MANAGER] Registered RSU manager with key={rsu_id}")
             if 'vehicles' in edge:
                 for index, cav in enumerate(edge['vehicles']): 
                     logger.debug("Creating VehiceManager for vehicle %s", index)
@@ -1473,6 +1540,7 @@ class ScenarioManager:
         returns bool
         """
         pre_client_tick_time = time.time()
+        self.tick_id = self.tick_id + 1
 
         if command == ecloud.Command.REQUEST_DEBUG_INFO:
             self.vehicle_state = ecloud.VehicleState.DEBUG_INFO_UPDATE
@@ -1518,6 +1586,11 @@ class ScenarioManager:
             edge_wp.all_waypoint_buffers.extend([wpb_proto])
 
         asyncio.get_event_loop().run_until_complete(self.server_push_waypoints(self.ecloud_server, edge_wp))
+
+        return True
+
+    def push_edge_objects(self, edge_objects):
+        asyncio.get_event_loop().run_until_complete(self.server_push_edge_objects(self.ecloud_server, edge_objects))
 
         return True
 
@@ -1570,8 +1643,8 @@ class ScenarioManager:
 
         PLANER_AGENT_STEPS = 12
         all_agent_data_lists = [[] for _ in range(PLANER_AGENT_STEPS)]
-        for _, vehicle_manager_proxy in self.vehicle_managers.items():
-            agent_data_list = vehicle_manager_proxy.agent.planning_metrics.get_agent_step_list()
+        for _, manager_proxy in self.vehicle_managers.items():
+            agent_data_list = manager_proxy.agent.planning_metrics.get_agent_step_list()
             for idx, sub_list in enumerate(agent_data_list):
                 all_agent_data_lists[idx].append(sub_list)
 
@@ -1655,8 +1728,8 @@ class ScenarioManager:
 
     def evaluate_client_data(self, client_data_key, cumulative_stats_folder_path):
         all_client_data_list = []
-        for _, vehicle_manager_proxy in self.vehicle_managers.items():
-            client_data_list = vehicle_manager_proxy.client_metrics.get_debug_data()[client_data_key]
+        for _, manager_proxy in self.vehicle_managers.items():
+            client_data_list = manager_proxy.client_metrics.get_debug_data()[client_data_key]
             all_client_data_list.append(client_data_list)
 
         logger.debug(all_client_data_list)
@@ -1676,8 +1749,8 @@ class ScenarioManager:
 
     def evaluate_collision_data(self, cumulative_stats_folder_path):
         all_client_data_list = []
-        for _, vehicle_manager_proxy in self.vehicle_managers.items():
-            client_data_list = vehicle_manager_proxy.client_metrics.get_debug_data()["client_collisons_list"]
+        for _, manager_proxy in self.vehicle_managers.items():
+            client_data_list = manager_proxy.client_metrics.get_debug_data()["client_collisons_list"]
             for collision_event in client_data_list:
               all_client_data_list.append()
 

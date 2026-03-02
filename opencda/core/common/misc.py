@@ -50,8 +50,11 @@ def draw_trajetory_points(world, waypoints, z=0.25,
         else:
             wpt_t = wpt
 
+        loc = wpt_t.location
+        if not isinstance(loc, carla.Location):
+            loc = carla.Location(x=loc.x, y=loc.y, z=loc.z)
         world.debug.draw_point(
-            wpt_t.location,
+            loc,
             size=size,
             color=color,
             life_time=lt)

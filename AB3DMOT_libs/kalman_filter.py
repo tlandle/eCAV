@@ -43,8 +43,10 @@ class KF(Filter):
 		                      [0,0,0,0,0,1,0,0,0,0],
 		                      [0,0,0,0,0,0,1,0,0,0]])
 
-		# measurement uncertainty, uncomment if not super trust the measurement data due to detection noise
-		# self.kf.R[0:,0:] *= 10.   
+		# measurement uncertainty — increase for monocular-depth 3D detections
+		# which have ±1-3m position noise (vs ±0.1m for LiDAR-based detections
+		# that AB3DMOT was originally calibrated for)
+		self.kf.R[0:,0:] *= 10.
 
 		# initial state uncertainty at time 0
 		# Given a single data, the initial velocity is very uncertain, so giv a high uncertainty to start

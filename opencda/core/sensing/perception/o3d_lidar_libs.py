@@ -18,13 +18,12 @@ from scipy.stats import mode
 
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.sensing.perception.obstacle_vehicle import \
-    is_vehicle_cococlass, ObstacleVehicle
+    is_vehicle_cococlass, ObstacleVehicle, AlignedBoundingBox
 from opencda.core.sensing.perception.static_obstacle import StaticObstacle
 
 
-import coloredlogs, logging
+import logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='ERROR', logger=logger)
 
 VIRIDIS = np.array(cm.get_cmap('plasma').colors)
 VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
@@ -281,13 +280,14 @@ def o3d_camera_lidar_fusion(objects,
     return objects
 
 def _make_transform_from_corners(corner_pts):
-    """Return a carla.Transform whose location is the center of the 3-D bbox.
+    """Return a picklable Transform whose location is the center of the 3-D bbox.
        (Rotation left at zero; refine later if you estimate yaw.)"""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
     cx = np.mean(corner_pts[:, 0])
     cy = np.mean(corner_pts[:, 1])
     cz = np.mean(corner_pts[:, 2])
-    loc = carla.Location(x=cx, y=cy, z=cz)
-    return carla.Transform(location=loc)   # zero rotation
+    loc = _Loc(x=float(cx), y=float(cy), z=float(cz))
+    return _Tf(location=loc, rotation=_Rot())   # zero rotation
 
 def o3d_camera_lidar_fusion_from_tracker(objects,
                             track,
@@ -407,7 +407,8 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         for vehicle in objects.get("vehicles", []):
             if vehicle.track_id == track_id:
                 vehicle.corner = corner
-                vehicle.aabb   = aabb
+                vehicle.o3d_bbx = AlignedBoundingBox(min_bound=aabb.min_bound,
+                                                      max_bound=aabb.max_bound)
                 found = True
                 break                     # we updated the right one
 

@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-"""
 # Author: Tyler Landle <tlandle3@gatech.edu>
-edge_manager.maneuver
-=====================
+# License: TDG-Attribution-NonCommercial-NoDistrib
 
-Implements the *MANEUVER* backend of the EdgeManager.
-
-Author:  Tyler Landle  <tlandle3@gatech.edu>
-License: TDG-Attribution-NonCommercial-NoDistrib
+"""
+Implements the MANEUVER backend of the EdgeManager.
 """
 from __future__ import annotations
 
@@ -18,10 +14,7 @@ import numpy as np
 import carla
 from easydict import EasyDict as edict
 
-from .edge_manager_base import _BaseEdgeManager, logger          # re-use global logger
-# ───────────────────────────────────────────────────────────────────────
-#  External helpers you already had; same import paths as before
-# ───────────────────────────────────────────────────────────────────────
+from .edge_manager_base import _BaseEdgeManager, logger
 import opencda.core.plan.drive_profile_plotting as open_plt
 from opencda.core.application.edge.astar_test_groupcaps_transform import (
         generate_limits_grid, get_slices_clustered, Traffic,
@@ -141,9 +134,10 @@ class ManeuverEdge(_BaseEdgeManager):
             # send over network here if you have a channel …
 
         # finally advance vehicle controllers
-        for vm in self.vehicle_manager_list:
-            vm.update_info(tick)
-            vm.vehicle.apply_control(vm.run_step())
+        if not self.run_distributed:
+            for vm in self.vehicle_manager_list:
+                vm.update_info(tick)
+                vm.vehicle.apply_control(vm.run_step())
 
     # ------------------------------------------------------------------
     #  Internal helpers

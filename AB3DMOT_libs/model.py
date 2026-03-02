@@ -4,6 +4,7 @@
 import numpy as np, os, copy, math
 from AB3DMOT_libs.box import Box3D
 from AB3DMOT_libs.matching import data_association
+from AB3DMOT_libs.nms import nms
 from AB3DMOT_libs.kalman_filter import KF
 from AB3DMOT_libs.vis import vis_obj
 #from xinshuo_miscellaneous import print_log
@@ -17,7 +18,7 @@ CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknow
 
 # A Baseline of 3D Multi-Object Tracking
 class AB3DMOT(object):			  	
-	def __init__(self, cfg, cat, calib=None, oxts=None, img_dir=None, vis_dir=None, hw=None, log=None, ID_init=0):                    
+	def __init__(self, cfg, cat, calib=None, oxts=None, img_dir=None, vis_dir=None, hw=None, log=None, ID_init=0):
 
 		# vis and log purposes
 		self.img_dir = img_dir
@@ -38,7 +39,14 @@ class AB3DMOT(object):
 		self.calib = calib
 		self.oxts = oxts
 		self.affi_process = cfg.affi_pro	# post-processing affinity
+		self.anchoring = getattr(cfg, 'anchoring', True)
 		self.get_param(cfg, cat)
+
+		# Allow config-level overrides (take precedence over get_param defaults)
+		if hasattr(cfg, 'max_age'):
+			self.max_age = cfg.max_age
+		if hasattr(cfg, 'min_hits'):
+			self.min_hits = cfg.min_hits
 
 		# debug
 		# self.debug_id = 2
@@ -246,7 +254,7 @@ class AB3DMOT(object):
 				trk.hits += 1
 
 				# update orientation in propagated tracks and detected boxes so that they are within 90 degree
-				bbox3d = Box3D.bbox2array(dets[d[0]])
+				bbox3d = Box3D.bbox2array(dets[d[0]])[:7]
 				trk.kf.x[3], bbox3d[3] = self.orientation_correction(trk.kf.x[3], bbox3d[3])
 
 				if trk.id == self.debug_id:
@@ -290,7 +298,7 @@ class AB3DMOT(object):
 		# dets = copy.copy(dets)
 		new_id_list = list()					# new ID generated for unmatched detections
 		for i in unmatched_dets:        			# a scalar of index
-			trk = KF(Box3D.bbox2array(dets[i]), info[i, :], self.ID_count[0])
+			trk = KF(Box3D.bbox2array(dets[i])[:7], info[i, :], self.ID_count[0])
 			trk.carla_id = int(info[i, CID])                # NEW
 			trk.guid     = int(info[i, GUID])               # NEW
 			self.trackers.append(trk)
@@ -313,12 +321,14 @@ class AB3DMOT(object):
 			d = Box3D.bbox2array_raw(d)
 
 			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):
+				vel = trk.get_velocity().flatten()
 				out_row = np.concatenate([
-					d,                         # 0..6
-					[trk.id],                  # 7  track id
-					[trk.carla_id],            # 8  CARLA actor id
-					[trk.guid],                # 9  sender GUID
-					trk.info                   # 10… frame, guid, carla_id, …
+					d,                         # 0..6  [h,w,l,x,y,z,theta]
+					[trk.id],                  # 7     track id
+					[trk.carla_id],            # 8     CARLA actor id
+					[trk.guid],                # 9     sender GUID
+					vel[:3],                   # 10..12 KF velocity [dx,dy,dz] (m/tick)
+					trk.info                   # 13…   frame, guid, carla_id, …
 				]).reshape(1, -1)
 				results.append(out_row)		# append the output row
 				#results.append(np.concatenate((d, [trk.id], trk.info)).reshape(1, -1)) 		
@@ -427,6 +437,13 @@ class AB3DMOT(object):
 		# process detection format
 		dets = self.process_dets(dets, info)		# convert to Box3D objects
 
+		# NMS: suppress duplicate detections (e.g. sensor echo of a beacon)
+		if len(dets) > 0:
+			inst_types = [self.cat] * len(dets)
+			keep_idx, _ = nms(dets, inst_types)
+			dets = [dets[i] for i in keep_idx]
+			info = info[keep_idx]
+
 		# tracks propagation based on velocity
 		trks = self.prediction()
 
@@ -443,9 +460,10 @@ class AB3DMOT(object):
 		# matching
 		trk_innovation_matrix = None
 		if self.metric == 'm_dis':
-			trk_innovation_matrix = [trk.compute_innovation_matrix() for trk in self.trackers] 
+			trk_innovation_matrix = [trk.compute_innovation_matrix() for trk in self.trackers]
 		matched, unmatched_dets, unmatched_trks, cost, affi = \
-			data_association(dets, trks, self.metric, self.thres, self.algm, trk_innovation_matrix)
+			data_association(dets, trks, self.metric, self.thres, self.algm, trk_innovation_matrix,
+			                 anchoring=self.anchoring)
 		# print_log('detections are', log=self.log, display=False)
 		# print_log(dets, log=self.log, display=False)
 		# print_log('tracklets are', log=self.log, display=False)
@@ -464,7 +482,7 @@ class AB3DMOT(object):
 		# output existing valid tracks
 		results = self.output()
 		if len(results) > 0: results = [np.concatenate(results)]		# h,w,l,x,y,z,theta, ID, other info, confidence
-		else:            	 results = [np.empty((0, 15))]
+		else:            	 results = [np.empty((0, 16))]
 		self.id_now_output = results[0][:, 7].tolist()					# only the active tracks that are outputed
 
 		# post-processing affinity to convert to the affinity between resulting tracklets

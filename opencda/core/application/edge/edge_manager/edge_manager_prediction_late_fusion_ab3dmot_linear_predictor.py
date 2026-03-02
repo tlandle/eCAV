@@ -1,27 +1,20 @@
 # -*- coding: utf-8 -*-
-"""
 # Author: Tyler Landle <tlandle3@gatech.edu>
-edge_manager.prediction
-=======================
+# License: TDG-Attribution-NonCommercial-NoDistrib
 
-“Late-fusion” pipeline:
+"""
+Late-fusion edge manager with AB3DMOT tracking and linear prediction.
 
-    ego/R SU detections  ─►  latency buffer  ─►  AB3DMOT (3-D MOT)
-                               │
-                               └►  track history (10 frames) ─►  linear
+Pipeline:
+    ego/RSU detections  ->  latency buffer  ->  AB3DMOT (3-D MOT)
+                              |
+                              +->  track history (10 frames)  ->  linear
                                    constant-velocity predictor
-                                   → 25 future steps
-
-All helper code (IoU gates, distance checks, trajectory conversion, etc.)
-is directly ported from the old monolithic *EdgeManager* so behaviour
-stays unchanged.
-
-Author : Tyler Landle <tlandle3@gatech.edu>
-License: TDG-Attribution-NonCommercial-NoDistrib
+                                   -> 25 future steps
 """
 from __future__ import annotations
 
-import math, random, time, logging
+import math, random, time, logging, pickle
 from collections import deque, defaultdict
 from typing import Dict, List, Deque
 
@@ -31,6 +24,8 @@ import carla
 from easydict import EasyDict as edict
 from AB3DMOT_libs.model import AB3DMOT
 
+import ecloud_pb2 as ecloud
+
 from opencda.core.prediction.linear_predictor_manager import \
     LinearPredictorManager
 from opencda.core.sensing.tracking.obstacle_trajectory import \
@@ -39,37 +34,31 @@ from opencda.core.sensing.perception.obstacle_vehicle import \
     ObstacleVehicle
 from opencda.core.application.edge.edge_metrics import EdgeMetrics
 from opencda.core.application.edge.edge_profiler import EdgeProfiler
+from opencda.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 
 from .edge_manager_base import _BaseEdgeManager, logger
 
 
 # ──────────────────────────────────────────────────────────────────────
-#  Helpers (unchanged logic)
+#  Helpers
 # ──────────────────────────────────────────────────────────────────────
 _GUID = 0
-_MIN_EDGE, _MIN_VOLUME = 0.60, 1.0      # sliver reject
 
 def _xyz(loc: carla.Location) -> np.ndarray:
     return np.asarray([loc.x, loc.y, loc.z], np.float32)
 
-def _is_sliver(h,w,l):
-    return (min(h,w,l) < _MIN_EDGE) or (h*w*l < _MIN_VOLUME)
+def _box_to_transform(box):
+    """Convert AB3DMOT box format [h, w, l, x, y, z, yaw] to picklable Transform.
 
-def _aabb_iou_2d(box_xy, box_wh, ego_xy, ego_wh):
-    dx, dy = np.abs(box_xy - ego_xy)
-    ix = max(0., .5*(box_wh[0]+ego_wh[0]) - dx)
-    iy = max(0., .5*(box_wh[1]+ego_wh[1]) - dy)
-    inter = ix*iy
-    if inter==0: return 0.
-    union = box_wh[0]*box_wh[1] + ego_wh[0]*ego_wh[1] - inter
-    return inter/union
-
-def _box_to_transform(box) -> carla.Transform:
-    """Convert AB3DMOT box format [h, w, l, x, y, z, yaw] to carla.Transform."""
-    h, w, l, x, y, z, yaw = box  # AB3DMOT format: [h, w, l, x, y, z, yaw]
-    loc = carla.Location(x=float(x), y=float(y), z=float(z))
-    rot = carla.Rotation(yaw=np.degrees(float(yaw)))
-    return carla.Transform(loc, rot)
+    Coordinates are in KITTI camera convention inside the tracker:
+        KITTI x = CARLA x,  KITTI y = CARLA z (height),  KITTI z = CARLA y
+    Swap y↔z back to CARLA world coordinates on output.
+    """
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
+    h, w, l, x, ky, kz, yaw = box  # ky=CARLA_z, kz=CARLA_y
+    loc = _Loc(x=float(x), y=float(kz), z=float(ky))
+    rot = _Rot(yaw=np.degrees(float(yaw)))
+    return _Tf(location=loc, rotation=rot)
 
 def _collect_ab3d_detections(edge,
                              objects: Dict[str,List],
@@ -80,28 +69,24 @@ def _collect_ab3d_detections(edge,
     *beacons* = {carla_id : (loc, extent)}
     """
     global _GUID
-    det_rows, info_rows, beacons_xyz = [], [], []
+    det_rows, info_rows = [], []
 
     # a) beacons (one per managed vehicle) ----------------------------
+    #    KITTI camera convention: x=right, y=down(height), z=front
+    #    Map: KITTI_x=CARLA_x, KITTI_y=CARLA_z, KITTI_z=CARLA_y
     for vm in edge.vehicle_manager_list:
         loc, ext = beacons[vm.vehicle.id]
         h,w,l = ext.z*2, ext.y*2, ext.x*2
-        det_rows.append([h,w,l, loc.x,loc.y,loc.z, 0.0])
+        det_rows.append([h,w,l, loc.x,loc.z,loc.y, 0.0, 1.0])
         _GUID += 1
         info_rows.append([frame_idx, _GUID, vm.vehicle.id])
-        beacons_xyz.append(_xyz(loc))
-        ego_h,ego_w,ego_l = h,w,l
-    ego_xy = beacons_xyz[0][:2];  ego_wh = np.array([ego_w, ego_l],np.float32)
 
     # b) sensor detections -------------------------------------------
     for obj in objects.get("vehicles", []):
         bbx = obj.bounding_box.extent
         h,w,l = bbx.z*2, bbx.y*2, bbx.x*2
-        if _is_sliver(h,w,l): continue
-        loc = obj.bounding_box.location
-        if np.linalg.norm(_xyz(loc) - beacons_xyz[0]) < 0.7*max(ego_wh): continue
-        if _aabb_iou_2d(_xyz(loc)[:2],[w,l], ego_xy, ego_wh) > .25:      continue
-        det_rows.append([h,w,l, loc.x,loc.y,loc.z, 0.0])
+        loc = obj.location
+        det_rows.append([h,w,l, loc.x,loc.z,loc.y, 0.0, 0.5])
         _GUID += 1
         info_rows.append([frame_idx, _GUID, -1])
 
@@ -135,10 +120,12 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
 
         # AB3DMOT tracker template (fresh instance for every replay)
+        self.anchoring = cfg.get("anchoring", True)
         self.mot_cfg = edict({
-            'vis':False,'save_path':None,'use_3d_iou':False,'thres':2.0,
-            'output_dir':None,'min_hits':3,'max_age':2,'ego_com':None,
-            'affi_pro':False,'dataset':'KITTI','det_name':'deprecated'})
+            'vis':False,'save_path':None,'use_3d_iou':True,'thres':2.0,
+            'output_dir':None,'min_hits':3,'max_age':6,'ego_com':None,
+            'affi_pro':False,'dataset':'KITTI','det_name':'pvrcnn',
+            'anchoring': self.anchoring})
         self.mot_category = 'Car'
 
         # history buffers ----------------------------------------------
@@ -165,6 +152,9 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             history_size=2000,
             sample_gpu_utilization=True
         )
+
+        # Ego-Uniqueness monitor
+        self.ego_monitor = EgoUniquenessMonitor()
 
     # ------------------------------------------------------------------
     def start_edge(self):   # nothing special to pre-compute
@@ -276,7 +266,7 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             if lag_steps >= len(self.objects_deque):
                 frame.set_counts(num_agents=num_agents, num_detections=0,
                                  num_tracks=0, num_predictions=0)
-                return
+                return ecloud.EdgeObjects()
             as_of = tick - lag_steps
 
             # ===== 1. replay detection history into fresh AB3DMOT =========
@@ -303,7 +293,11 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                             dets_all = _collect_ab3d_detections(
                                 self, snapshot, beacons, frame_idx=step)
                             num_dets = max(num_dets, len(dets_all['dets']))
+                    _t0 = time.perf_counter()
                     tracks, _ = tracker.track(dets_all, step)
+                    logger.debug("tracker.track() step=%d dets=%d took %.1fms",
+                                 step, len(dets_all['dets']),
+                                 (time.perf_counter() - _t0) * 1000)
                     if tracks and len(tracks[0])>0: history.append(tracks[0])
 
                 tracker_ms = tracker.total_time if hasattr(tracker,'total_time') \
@@ -333,6 +327,20 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 true_positives=det_metrics['tp'],
                 false_positives=det_metrics['fp'],
                 false_negatives=det_metrics['fn']
+            )
+
+            # Ego-Uniqueness analysis
+            latest_tracks = history[-1] if history else None
+            managed_ids = {vm.vehicle.id for vm in self.vehicle_manager_list}
+            self.ego_monitor.update(tick, latest_tracks, gt_snapshot, managed_ids)
+            tick_record = self.ego_monitor.per_tick_records[-1]
+            ego_ghost_count = sum(
+                1 for cid in tick_record.duplicate_identities if cid in managed_ids
+            )
+            frame.set_ego_uniqueness_metrics(
+                violations=tick_record.num_duplicates,
+                duplicate_tracks=tick_record.num_duplicates,
+                ego_ghosts=ego_ghost_count,
             )
 
             with frame.time("prediction"):
@@ -371,18 +379,30 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
             # ===== 3. distribute predictions =============================
             with frame.time("distribution"):
-                for vm in self.vehicle_manager_list:
+                serialized_preds = ecloud.EdgeObjects()
+                pickled_edge_predictions = None
+                try:
+                    pickled_edge_predictions = pickle.dumps(preds)
+                except Exception as e:
+                    logging.warning("Error serializing predictions: %s", e)
+
+                for index, vm in enumerate(self.vehicle_manager_list):
                     if random.random()*100 < self.downlink_loss:
                         vm.agent.edge_predictions.clear()
                     else:
+                        object_buffer = ecloud.ObjectBuffer(
+                            vehicle_id=index,
+                            pickled_edge_predictions=pickled_edge_predictions)
+                        serialized_preds.all_object_buffers.append(object_buffer)
                         vm.agent.edge_predictions = preds.copy()
 
             # ===== 4. advance vehicles ===================================
-            for vm in self.vehicle_manager_list:
-                vm.update_info(tick)
-                vm.vehicle.apply_control(vm.run_step())
-            for rsu in self.rsu_manager_list:
-                rsu.update_info();  rsu.run_step()
+            if not self.run_distributed:
+                for vm in self.vehicle_manager_list:
+                    vm.update_info(tick)
+                    vm.vehicle.apply_control(vm.run_step())
+                for rsu in self.rsu_manager_list:
+                    rsu.update_info();  rsu.run_step()
 
             # Set profiler counts
             frame.set_counts(
@@ -392,11 +412,17 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 num_predictions=num_predictions
             )
 
+            return serialized_preds
+
     # ------------------------------------------------------------------
-    #  Trajectory conversion (unchanged from legacy code)
+    #  Trajectory conversion
     # ------------------------------------------------------------------
     def _ab3d_history_to_trajs(self, hist:Deque[np.ndarray], horizon:int=10):
         updated: set[int] = set()
+        # Clear trajectory deques — each tick replays AB3DMOT from scratch,
+        # so stale positions from the previous tick's replay must not remain.
+        for traj in self.tracked_trajectories.values():
+            traj.trajectory.clear()
         for frame in hist:
             if frame is None or len(frame)==0: continue
             for trk in frame:
@@ -417,6 +443,14 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 traj.obstacle.location  = tf.location
                 traj.obstacle.carla_id  = cid
                 self.track_to_carla[tid]= cid
+                # KF velocity (m/tick) → m/s for downstream prediction gating
+                # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy (ground plane)
+                if len(trk) > 12:
+                    kf_vx, kf_vy = float(trk[10]), float(trk[12])
+                    traj.obstacle.kf_speed_mps = ((kf_vx**2 + kf_vy**2)**0.5) / self.dt
+                    # Store per-axis velocity (m/tick) for KF-based prediction
+                    traj.obstacle.kf_vx = kf_vx
+                    traj.obstacle.kf_vy = kf_vy
 
         # prune stale
         for tid in list(self.tracked_trajectories):
@@ -463,10 +497,11 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
         # Filter detections near excluded vehicles (firetrucks, etc.)
         # These are ignored - not counted as TP or FP
+        # After KITTI coord swap: index 3=CARLA_x, index 5=CARLA_y (ground plane)
         valid_det_indices = []
         excluded_det_count = 0
         for det_idx in range(len(dets)):
-            det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]
+            det_x, det_y = dets[det_idx, 3], dets[det_idx, 5]
             near_excluded = False
             for ex, ey in excluded_positions:
                 if np.sqrt((det_x - ex)**2 + (det_y - ey)**2) < EXCLUSION_RADIUS:
@@ -477,13 +512,13 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 valid_det_indices.append(det_idx)
 
         if excluded_det_count > 0:
-            print(f"[LateFusion] Filtered {excluded_det_count} detections near excluded vehicles (firetrucks, etc.)")
+            logger.debug("Filtered %d detections near excluded vehicles", excluded_det_count)
 
         # Greedy matching with filtered detections
-        # AB3DMOT detection format: [h, w, l, x, y, z, yaw]
+        # AB3DMOT detection format: [h, w, l, x(KITTI), y(KITTI=CARLA_z), z(KITTI=CARLA_y), yaw]
         gt_matched, det_matched = set(), set()
         for det_idx in valid_det_indices:
-            det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]  # x, y from detection (indices 3, 4)
+            det_x, det_y = dets[det_idx, 3], dets[det_idx, 5]  # KITTI x, z = CARLA x, y
             best_dist, best_gt_idx = float('inf'), -1
 
             for gt_idx, (v_id, gx, gy) in enumerate(gt_list):
@@ -501,23 +536,10 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         fp = len(valid_det_indices) - tp  # Only count valid (non-excluded) detections
         fn = len(gt_list) - len(gt_matched)
 
-        # Debug output for every frame
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        print(f"\n[DET DEBUG] GT={len(gt_list)}, Dets={len(valid_det_indices)} (filtered {excluded_det_count}), TP={tp}, FP={fp}, FN={fn}, P={precision:.2f}, R={recall:.2f}")
-
-        for i, (v_id, gx, gy) in enumerate(gt_list):
-            v_data = gt_vehicles.get(v_id, {})
-            v_type = v_data.get('type', 'unknown')
-            matched = i in gt_matched
-            status = "MATCHED" if matched else "MISSED"
-            print(f"[DET DEBUG]   GT[{i}]: {v_type} id={v_id} at ({gx:.1f}, {gy:.1f}) - {status}")
-
-        for det_idx in valid_det_indices:
-            det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]
-            matched = det_idx in det_matched
-            status = "TP" if matched else "FP"
-            print(f"[DET DEBUG]   DET[{det_idx}]: ({det_x:.1f}, {det_y:.1f}) - {status}")
+        logger.debug("[DET] GT=%d Dets=%d TP=%d FP=%d FN=%d P=%.2f R=%.2f",
+                     len(gt_list), len(valid_det_indices), tp, fp, fn, precision, recall)
 
         return {'tp': tp, 'fp': fp, 'fn': fn}
 
@@ -547,10 +569,11 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         id_switches = 0
         motp_errors = []
 
-        # AB3DMOT track format: [h, w, l, x, y, z, yaw, track_id, carla_id, guid, ...]
+        # AB3DMOT track format: [h,w,l, KITTI_x, KITTI_y, KITTI_z, yaw, track_id, ...]
+        # KITTI x=CARLA_x (idx 3), KITTI z=CARLA_y (idx 5)
         for trk in latest_tracks:
             track_id = int(trk[7])
-            tx, ty = trk[3], trk[4]  # x, y are at indices 3, 4
+            tx, ty = trk[3], trk[5]  # KITTI x, z = CARLA x, y
             current_track_ids.add(track_id)
 
             best_dist, best_gt_id = float('inf'), None
@@ -692,7 +715,9 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         Returns:
             Tuple[figure, perform_txt, metrics]
         """
-        return self.profiler.get_evaluation_result()
+        fig, txt, metrics = self.profiler.get_evaluation_result()
+        metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
+        return fig, txt, metrics
 
 # ---------------------------------------------------------------------
 # alias expected by edge_manager/__init__.py

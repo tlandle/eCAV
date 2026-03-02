@@ -15,7 +15,6 @@ import logging
 import opencda.logging_ecloud
 import numpy as np
 import carla
-import coloredlogs
 import copy
 
 from opencda.core.common.misc import get_speed, positive, cal_distance_angle
@@ -26,92 +25,15 @@ from opencda.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
 from opencda.core.plan.planning_metrics import PlanningMetrics
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
-from opencda.core.prediction.obstacle_prediction import ObstaclePrediction
+
 from opencda.core.common.misc import distance_vehicle, draw_trajetory_points
 from opencda.core.prediction.linear_predictor_manager import LinearPredictorManager
 
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
 
 SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
-def is_likely_ego(pred: ObstaclePrediction,
-                  ego_latest_tf: carla.Transform,
-                  safety_margin: float = 4.0) -> bool:
-    """
-    Return True if the edge prediction is almost certainly *my own* vehicle.
-
-    A single conservative gate:
-        distance(predicted_last_pos , my_current_pos)  < safety_margin
-    """
-    # last pose used to generate this prediction
-    pred_last = pred.obstacle_trajectory.trajectory[-1].location
-    ego_last  = ego_latest_tf.location
-
-    logger.debug("Prediction Last: (%s, %s, %s)" %(pred_last.x, pred_last.y, pred_last.z))
-    logger.debug("Ego Last: (%s, %s, %s)" %(ego_last.x, ego_last.y, ego_last.z))
-
-    dx = pred_last.x - ego_last.x
-    dy = pred_last.y - ego_last.y
-    dist = (dx*dx + dy*dy) ** 0.5
-    
-    if dist < safety_margin:
-        logger.debug("Prediction is likely ego, distance is too small: %s" %dist)
-        return True
-
-    return dist < safety_margin
-
-def is_prediction_matching_ego(prediction, ego_locations, threshold=4, max_compare_steps=10, world=None):
-    """
-    Check if the predicted trajectory matches the ego vehicle's path.
-    Parameters
-    ----------
-    prediction : ObstaclePrediction
-        The predicted trajectory of the obstacle vehicle.
-    ego_locations : list[carla.Location]
-        A list of previous positions for the ego vehicle.
-    threshold : float
-        The threshold for matching.
-    max_compare_steps : int
-        The maximum number of steps to compare.
-    Returns
-    -------
-    bool
-        True if the predicted trajectory matches the ego vehicle's path.
-    """
-    tracked_trajectory = prediction.obstacle_trajectory.trajectory
-    num_transforms = min(max_compare_steps, len(tracked_trajectory))
-    tracked_transforms = []
-    for i in range(-num_transforms, 0, 1):
-        tracked_transforms.append(tracked_trajectory[i])
-
-    min_len = min(len(tracked_transforms), len(ego_locations))
-    # logger.debug("min_len: %s" %min_len)
-
-    if min_len < 2:
-        return False
-
-    total_dist = 0.0
-    for i in range(min_len):
-        pred_loc = tracked_transforms[i].location
-        ego_loc = ego_locations[i]
-        dx = pred_loc.x - ego_loc.x
-        dy = pred_loc.y - ego_loc.y
-        dist = (dx**2 + dy**2)**0.5
-
-        # logger.debug("tracked location: ({}, {})".format(pred_loc.x, pred_loc.y))
-        # logger.debug("ego location: ({}, {})".format(ego_loc.x, ego_loc.y))
-
-        total_dist += dist
-
-        # if world is not None:
-        #     world.debug.draw_point(carla.Location(x=pred_loc.x, y=pred_loc.y, z=.5), color=carla.Color(255,0,0), size=0.1, life_time=0.25)
-        #     world.debug.draw_point(carla.Location(x=ego_loc.x, y=ego_loc.y, z=.5), color=carla.Color(0,255,0), size=0.1, life_time=0.25)
-
-    avg_dist = total_dist / min_len
-    is_ego = avg_dist < threshold
-    # logger.debug("is ego? %s" %is_ego)
-    return is_ego
+PATH_RESOLUTION = 0.1  # meters per path point (ds=0.1 in local_planner)
 
 def will_prediction_collide_with_ego(
     prediction,
@@ -120,11 +42,15 @@ def will_prediction_collide_with_ego(
     ego_path_yaw,
     ego_speed_mps,
     time_step=0.05,
-    lateral_threshold=1.5,
-    max_steps=30
+    lateral_threshold=2.0,
+    max_steps=25
 ):
     """
     Checks if the predicted trajectory intersects ego path, and returns TTC.
+
+    Time-synchronizes both paths: at each future time step, compare the
+    obstacle's predicted position with the ego's expected position along
+    its planned path.
 
     Returns:
         (bool, float): (True, time_to_collision_in_sec) if collision likely, else (False, None).
@@ -136,7 +62,7 @@ def will_prediction_collide_with_ego(
     for i, pred_transform in enumerate(pred_traj):
         pred_time = i * time_step
         ego_distance_ahead = ego_speed_mps * pred_time
-        ego_idx = min(int(ego_distance_ahead), len(ego_path_x) - 1)
+        ego_idx = min(int(ego_distance_ahead / PATH_RESOLUTION), len(ego_path_x) - 1)
 
         ego_x = ego_path_x[ego_idx]
         ego_y = ego_path_y[ego_idx]
@@ -147,7 +73,7 @@ def will_prediction_collide_with_ego(
         lateral_dist = (dx**2 + dy**2) ** 0.5
 
         if lateral_dist < lateral_threshold:
-            return True, pred_time  # Collision and TTC
+            return True, pred_time
 
     return False, None
 
@@ -245,6 +171,11 @@ class BehaviorAgent(object):
         self.ego_location_buffer = []
         # used to indicate whether a vehicle is on the planned path
         self.hazard_flag = False
+        # RSS-inspired proper response state
+        self._committed_brake_ttl = 0
+        self._rss_threat_carla_id = -1
+        self._rss_last_lateral_dist = 0.0
+        self._rss_lateral_growing_ticks = 0
 
         # route planner related
         self._global_planner = None
@@ -284,6 +215,8 @@ class BehaviorAgent(object):
 
         # debug helper
         self.planning_metrics = PlanningMetrics(self.vehicle.id)
+        # braking attribution: shared list between behavior_agent and planning_metrics
+        self.brake_attributions = self.planning_metrics.brake_attributions
         # logger.debug message in debug mode
         self.debug = False if 'debug' not in \
                               config_yaml else config_yaml['debug']
@@ -309,7 +242,7 @@ class BehaviorAgent(object):
         • Runs the linear predictor to populate self.local_predictions.
         """
         # 1. Update or create trajectories
-        print("Obstacle Vehicles: %s" %self.obstacle_vehicles)
+        logger.debug("Obstacle Vehicles: %s", self.obstacle_vehicles)
         for obs in self.obstacle_vehicles:
             tid = getattr(obs, "carla_id", None) or obs.id      # robust id
             if tid not in self.tracked_obstacles:
@@ -710,87 +643,98 @@ class BehaviorAgent(object):
                     min_distance = distance
                     target_vehicle = vehicle
 
-        collisions = []
-        print("num predictions: %s" %len(self.generated_predictions))
+        # Pass 2: Edge/local prediction collision check
+        ego_speed_mps = self._ego_speed / 3.6
+        ego_loc = self.vehicle.get_location()
+        time_step = 0.05
+        world = self.vehicle.get_world()
+
+        # Detailed prediction inventory logging
+        n_total = len(self.generated_predictions)
+        n_ego = sum(1 for p in self.generated_predictions
+                    if p.obstacle_trajectory.obstacle.carla_id == self.vehicle.id)
+        logger.debug("[PRED INVENTORY] total=%d, ego_filtered=%d, to_check=%d | ego_pos=(%.1f,%.1f) ego_speed=%.1f m/s",
+                     n_total, n_ego, n_total - n_ego, ego_loc.x, ego_loc.y, ego_speed_mps)
+        for i, pred in enumerate(self.generated_predictions):
+            obs = pred.obstacle_trajectory.obstacle
+            traj = pred.predicted_trajectory
+            start_loc = traj[0].location if traj else None
+            end_loc = traj[-1].location if traj else None
+            logger.debug("[PRED %d/%d] carla_id=%s track_id=%s start=(%.1f,%.1f) end=(%.1f,%.1f) traj_len=%d",
+                         i+1, n_total,
+                         obs.carla_id, obs.track_id,
+                         start_loc.x if start_loc else 0, start_loc.y if start_loc else 0,
+                         end_loc.x if end_loc else 0, end_loc.y if end_loc else 0,
+                         len(traj))
+
         for pred in self.generated_predictions:
-            print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
-            print("My Id: %s" %self.vehicle.id)
+            # Identity filter via anchoring protocol
             if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
-                print("Skipping prediction for ego vehicle")
-                # self.generated_predictions.remove(pred)
                 continue
 
-            # ignore any predictions that match the ego vehicle
-            if is_likely_ego(pred, self._ego_pos):
-                logger.debug("Prediction is likely ego, removing it")
-                # self.generated_predictions.remove(pred)
-                #continue
-
-            # for transform in pred.obstacle_trajectory.trajectory:
-            #     print("Predicted Trajectory Point: (%s, %s, %s)" %(transform.location.x, transform.location.y, transform.location.z))
-            
-            # get speed from pred
-            dt = 0.05 # time step duration for simulator
-            detected_traj = pred.obstacle_trajectory.trajectory
-            obstacle_speed = 0
-            count = 0
-            for i in range(len(detected_traj)-1, 0, -1):
-                prev_pos, current_pos = detected_traj[i-1].location, detected_traj[i].location
-                distance = current_pos.distance(prev_pos)
-                obstacle_speed += distance / dt
-                count += 1
-            if count > 0:
-                obstacle_speed /= count
+            # Derive obstacle speed from predicted trajectory
+            pred_traj = pred.predicted_trajectory
+            if len(pred_traj) >= 2:
+                p0, p1 = pred_traj[0].location, pred_traj[1].location
+                obs_speed = ((p1.x - p0.x)**2 + (p1.y - p0.y)**2)**0.5 / time_step
             else:
-                obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
+                obs_speed = 0.0
 
-            if obstacle_speed > 120:
-                # we can just assume something bugged
-                obstacle_speed = 0
-
-            if obstacle_speed < 3:
-                print("Obstacle too slow, ignored")
-                continue
-
-            print("Predicted Trajectory:")
-            for pred_transform in pred.predicted_trajectory:
-                pred_loc = pred_transform.location
-                print(f"({pred_loc.x}, {pred_loc.y})")
-
-            print("Obstacle speed: %s" %obstacle_speed)
-            print("Obstacle Vehicle ID: %s" %pred.obstacle_trajectory.obstacle.carla_id)
-            #print("Obstacle Vehicle Trajectory Id: %s" %pred.obstacle_trajectory.id)
-            print("My Id: %s" %self.vehicle.id)
-            if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
-                print("Skipping prediction for ego vehicle")
-                continue
-            
+            # First pass: check collision WITHOUT drawing (world=None)
             collision, ttc = self._collision_check.trajectory_collision_check(
-                rx, ry, self._ego_speed / 3.6,
-                pred.predicted_trajectory, obstacle_speed,
-                world=self.vehicle.get_world(), time_step=dt,
-                check_full_path=check_full_path
-            )
+                rx, ry, ego_speed_mps,
+                pred.predicted_trajectory, obs_speed,
+                time_step=time_step,
+                world=None)
 
-            if ttc is not None:
+            # Only act on time-synchronized collisions (valid TTC).
+            # TTC=1000 means only the spatial-overlap fallback triggered
+            # (e.g. parked cars near the path) — not a real collision course.
+            if collision and ttc < self._collision_check.time_ahead:
+                # Re-run WITH drawing for confirmed collisions only
+                self._collision_check.trajectory_collision_check(
+                    rx, ry, ego_speed_mps,
+                    pred.predicted_trajectory, obs_speed,
+                    time_step=time_step,
+                    world=world)
+
                 self.ttc = ttc
-
-            if collision:
-                self.planning_metrics.update(self._ego_speed / 3.6, ttc)
+                self.planning_metrics.update(ego_speed_mps, ttc)
                 vehicle_state = True
-                distance = 2.0
-                if distance < min_distance:
-                    min_distance = distance
-                    # target_vehicle = pred.obstacle_trajectory.obstacle
-                collisions.append(pred)
-                print("Collision detected")
-                # for point in pred.predicted_trajectory:
-                #     self.vehicle.get_world().debug.draw_point(point.location, size=.1, life_time=0.2,
-                #                                 color=carla.Color(255, 0, 0))
-                #     print("Predicted Trajectory Point: (%s, %s, %s)" %(point.location.x, point.location.y, point.location.z))
-                #     input("Collision")
+
+                # TTC-derived distance for downstream car-following logic
+                ttc_distance = max(ego_speed_mps * ttc, 0.5)
+                if ttc_distance < min_distance:
+                    min_distance = ttc_distance
+                    target_vehicle = pred.obstacle_trajectory.obstacle
+
+                obs = pred.obstacle_trajectory.obstacle
+                logger.debug("[PRED COLLISION] carla_id=%s track_id=%s TTC=%.2fs dist=%.2fm obs_speed=%.1f m/s",
+                             obs.carla_id, obs.track_id, ttc, ttc_distance, obs_speed)
+
+                # Braking attribution
+                trigger_cid = pred.obstacle_trajectory.obstacle.carla_id
+                self.brake_attributions.append({
+                    'trigger_track_id': pred.obstacle_trajectory.obstacle.track_id,
+                    'trigger_carla_id': trigger_cid,
+                    'is_ego_ghost': (trigger_cid == self.vehicle.id),
+                    'obstacle_speed': obs_speed,
+                    'ttc': ttc,
+                })
 
         return vehicle_state, target_vehicle, min_distance
+
+    def _find_threat_distance(self, ego_loc, threat_carla_id):
+        """Return Euclidean distance to the tracked threat obstacle, or None."""
+        if threat_carla_id < 0:
+            return None
+        for pred in self.generated_predictions:
+            obs = pred.obstacle_trajectory.obstacle
+            if getattr(obs, 'carla_id', -1) == threat_carla_id:
+                obs_loc = obs.get_location()
+                return ((obs_loc.x - ego_loc.x)**2 +
+                        (obs_loc.y - ego_loc.y)**2)**0.5
+        return None
 
     def overtake_management(self, obstacle_vehicle, set_destination=True):
         """
@@ -808,7 +752,7 @@ class BehaviorAgent(object):
         """
         # obstacle vehicle's location
         obstacle_vehicle_loc = obstacle_vehicle.get_location()
-        print(f"obstacle vehicle loc: {obstacle_vehicle_loc.x}, {obstacle_vehicle_loc.y}")
+        logger.debug("obstacle vehicle loc: %.1f, %.1f", obstacle_vehicle_loc.x, obstacle_vehicle_loc.y)
         obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
 
         # whether a lane change is allowed
@@ -942,36 +886,30 @@ class BehaviorAgent(object):
                     
                     return vehicle_state
                 else:
-                    print("checking for collisions along overtake path")
+                    logger.debug("checking for collisions along overtake path")
+                    dt = 0.05
                     for pred in self.generated_predictions:
-                        # ignore any predictions that match the ego vehicle
-                        if is_prediction_matching_ego(pred, self.ego_location_buffer, world=self.vehicle.get_world()):
+                        # Identity filter via anchoring protocol
+                        if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
                             continue
-                        
-                        # get speed from pred
-                        dt = 0.05 # time step duration for simulator
-                        detected_traj = pred.obstacle_trajectory.trajectory
-                        if len(detected_traj) > 2:
-                            prev_pos, current_pos = detected_traj[-2], detected_traj[-1]
-                            vel_x = (current_pos.location.x - prev_pos.location.x) / dt
-                            vel_y = (current_pos.location.y - prev_pos.location.y) / dt
-                            obstacle_speed = np.sqrt(vel_x ** 2 + vel_y ** 2)
-                        else:
-                            obstacle_speed = 0 # assume the obstacle is stationary if it only has one point
 
-                        if obstacle_speed > 120:
-                            # we can just assume something bugged
-                            obstacle_speed = 0
+                        # Derive obstacle speed from predicted trajectory
+                        pred_traj = pred.predicted_trajectory
+                        if len(pred_traj) >= 2:
+                            p0, p1 = pred_traj[0].location, pred_traj[1].location
+                            obstacle_speed = ((p1.x - p0.x)**2 + (p1.y - p0.y)**2)**0.5 / dt
+                        else:
+                            obstacle_speed = 0.0
 
                         collision, ttc = self._collision_check.waypoint_collision_check(
                                 next_wpt_list, self._ego_pos.location, self._ego_speed / 3.6,
                                 pred.predicted_trajectory, obstacle_speed,
                                 world=self.vehicle.get_world())
-                        
+
                         if collision:
                             self.planning_metrics.update(self._ego_speed / 3.6, ttc)
                             return True
-                        
+
                     return False
 
         if (right_turn == carla.LaneChange.Right or right_turn ==
@@ -1390,6 +1328,87 @@ class BehaviorAgent(object):
         if collision_detector_enabled:
             is_hazard, obstacle_vehicle, distance = self.collision_manager(
                 rx, ry, ryaw, ego_vehicle_wp, is_left_turn_at_intersection=left_turn)
+
+        # RSS-inspired proper response: once a prediction collision is
+        # detected, the ego must execute a "proper response" (braking) until
+        # a provably safe state is reached.  Without this, decelerating
+        # changes the ego's projected path → collision check says "safe" →
+        # ego accelerates → collision reappears (oscillation).
+        #
+        # Enter condition:  prediction collision with TTC < time_ahead
+        # Proper response:  emergency stop (target_speed = 0)
+        # Exit conditions:  (a) ego has stopped (speed < 2 km/h), OR
+        #                   (b) obstacle has cleared — its lateral distance
+        #                       to ego is growing for consecutive ticks, OR
+        #                   (c) safety TTL expires (fallback upper bound)
+        ego_loc = self._ego_pos.location if self._ego_pos else None
+
+        if is_hazard and self.ttc < self._collision_check.time_ahead:
+            # Enter proper response — record the threatening obstacle
+            # and force emergency stop immediately (distance=0 bypasses
+            # car_following → local_planner → PID, which only gives
+            # gentle braking; emergency stop gives brake=1.0)
+            self._committed_brake_ttl = max(
+                self._committed_brake_ttl,
+                max(20, int(self.ttc / 0.05)))
+            distance = 0  # force emergency stop on FIRST tick too
+            if obstacle_vehicle is not None and ego_loc is not None:
+                obs_loc = obstacle_vehicle.get_location()
+                self._rss_threat_carla_id = getattr(
+                    obstacle_vehicle, 'carla_id', -1)
+                self._rss_last_lateral_dist = (
+                    (obs_loc.x - ego_loc.x)**2 +
+                    (obs_loc.y - ego_loc.y)**2)**0.5
+                self._rss_lateral_growing_ticks = 0
+            logger.debug("[RSS] Enter proper response — TTC=%.2fs, "
+                         "ego_speed=%.1f km/h",
+                         self.ttc, self._ego_speed)
+
+        elif not is_hazard and self._committed_brake_ttl > 0:
+            # Collision check says safe, but we are in proper response.
+            # Check formal exit conditions before releasing.
+            safe = False
+
+            # (a) Ego has stopped
+            if self._ego_speed < 2.0:
+                safe = True
+                logger.debug("[RSS] Exit: ego stopped (%.1f km/h)",
+                             self._ego_speed)
+
+            # (b) Obstacle lateral distance growing (cleared the path)
+            if not safe and ego_loc is not None:
+                threat_dist = self._find_threat_distance(
+                    ego_loc, self._rss_threat_carla_id)
+                if threat_dist is not None:
+                    if threat_dist > self._rss_last_lateral_dist + 0.5:
+                        self._rss_lateral_growing_ticks += 1
+                    else:
+                        self._rss_lateral_growing_ticks = 0
+                    self._rss_last_lateral_dist = threat_dist
+                    if self._rss_lateral_growing_ticks >= 3:
+                        safe = True
+                        logger.debug(
+                            "[RSS] Exit: obstacle clearing (dist=%.1f, "
+                            "growing %d ticks)", threat_dist,
+                            self._rss_lateral_growing_ticks)
+
+            # (c) TTL fallback (upper bound safety net)
+            self._committed_brake_ttl -= 1
+            if self._committed_brake_ttl <= 0:
+                safe = True
+                logger.debug("[RSS] Exit: TTL expired")
+
+            if not safe:
+                is_hazard = True
+                distance = 0  # force emergency stop
+                logger.debug(
+                    "[RSS] Proper response active — TTL=%d, "
+                    "ego_speed=%.1f km/h",
+                    self._committed_brake_ttl, self._ego_speed)
+            else:
+                self._committed_brake_ttl = 0
+                self._rss_lateral_growing_ticks = 0
+
         car_following_flag = False
         end_time = time.time()
         self.planning_metrics.update_agent_step_list(5, end_time-start_time)
@@ -1471,12 +1490,12 @@ class BehaviorAgent(object):
                 if self._ego_speed >= obstacle_speed - 5:
                     # we want to perform an overtake, but we have to wait first
                     if self.overtake_wait_counter > 0 and not self.do_overtake:
-                        print("overtake wait counter: %s" %self.overtake_wait_counter)
+                        logger.debug("overtake wait counter: %s", self.overtake_wait_counter)
                         self.overtake_wait_counter -= 1
                         collision = self.overtake_management(obstacle_vehicle, set_destination=False)
                         if collision:
                             self.num_overtake_collisions += 1
-                            print("num collisions in overtake: %s" %self.num_overtake_collisions)
+                            logger.debug("num collisions in overtake: %s", self.num_overtake_collisions)
                         car_following_flag = True  
                     elif self.overtake_wait_counter <= 0 and not self.do_overtake:
                         car_following_flag = self.overtake_management(obstacle_vehicle, set_destination=False)
@@ -1487,7 +1506,7 @@ class BehaviorAgent(object):
                         else:
                             self.do_overtake = True
                             car_following_flag = self.overtake_management(obstacle_vehicle, set_destination=True)
-                            print("vehicle state in overtake %s" %car_following_flag)
+                            logger.debug("vehicle state in overtake %s", car_following_flag)
                         self.num_overtake_collisions = 0
 
                     rx, ry, rk, ryaw = self._local_planner.generate_path()

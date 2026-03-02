@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
+# Author: Tyler Landle <tlandle3@gatech.edu>
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
 """
-bm2cp_perception_manager.pu
-Author: Tyler Landle <tlandle3@gatech.edu>
-Description: Perception manager for BM2CP model integration in eCAV.
-TDG non-commercial use license.
+BM2CP perception manager.
+
+Handles BM2CP cooperative perception model integration with feature
+extraction for intermediate fusion.
 """
 from __future__ import annotations
 import pathlib
@@ -18,17 +21,19 @@ from opencood.data_utils.pre_processor.sp_voxel_preprocessor import SpVoxelPrepr
 from opencda.core.sensing.perception.perception_manager import PerceptionManager
 import opencda.core.sensing.perception.sensor_transformation as st
 
-### DEBUG HELPER ###
+import logging
+logger = logging.getLogger(__name__)
+
 def print_tensor_dict(d, indent=0):
     for key, value in d.items():
         if isinstance(value, torch.Tensor):
-            print(' ' * indent + f"'{key}': Tensor(shape={value.shape}, dtype={value.dtype}, device={value.device})")
+            logger.debug(' ' * indent + f"'{key}': Tensor(shape={value.shape}, dtype={value.dtype}, device={value.device})")
         elif isinstance(value, dict):
-            print(' ' * indent + f"'{key}': {{")
+            logger.debug(' ' * indent + f"'{key}': {{")
             print_tensor_dict(value, indent + 2)
-            print(' ' * indent + "}")
+            logger.debug(' ' * indent + "}")
         else:
-            print(' ' * indent + f"'{key}': {type(value)}")
+            logger.debug(' ' * indent + f"'{key}': {type(value)}")
 
 class BM2CPPerceptionManager(PerceptionManager):
     def __init__(self,
@@ -53,30 +58,30 @@ class BM2CPPerceptionManager(PerceptionManager):
                          debug_helper=debug_helper)
         self.device = device
 
-        print("\n[BM2CP] Initialising Perception Manager...")
+        logger.debug("\nInitialising Perception Manager...")
         model_config = config_yaml['bm2cp_model']
         hypes_path = pathlib.Path(model_config['hypes_yaml'])
         ckpt_path = pathlib.Path(model_config['checkpoint'])
 
         self.hypes = load_yaml(str(hypes_path))
-        print('[HYPES DEBUG] ybound =', self.hypes['fusion']['args']['grid_conf']['ybound'])
-        print("[BM2CP] Hypes loaded and parsed successfully.")
+        logger.debug(f"ybound = {self.hypes['fusion']['args']['grid_conf']['ybound']}")
+        logger.debug("Hypes loaded and parsed successfully.")
         
         pre_config = self.hypes["preprocess"]
         self._vp = SpVoxelPreprocessor(pre_config, train=False)
-        print("[BM2CP] SpVoxelPreprocessor initialized.")
+        logger.debug("SpVoxelPreprocessor initialized.")
         
         from opencood.models.point_pillar_bm2cp import PointPillarBM2CP
         self.model = PointPillarBM2CP(self.hypes['model']['args']).to(self.device).eval()
-        print("[BM2CP] Model created successfully.")
+        logger.debug("Model created successfully.")
 
         epoch, self.model = train_utils.load_model(str(ckpt_path.parent), self.model, epoch=int(str(ckpt_path.name).split('epoch')[-1].split('.')[0]))
-        print(f"[BM2CP] Loaded model weights from epoch {epoch}.")
+        logger.debug(f"Loaded model weights from epoch {epoch}.")
 
         self.feature_dict = None
         self.feature_map = None
         self._first_run = True
-        print("[BM2CP] Init complete.\n")
+        logger.debug("Init complete.\n")
 
     def detect(self, ego_pos, **kw):
         lidar_ready = self.lidar and self.lidar.data is not None
@@ -88,46 +93,44 @@ class BM2CPPerceptionManager(PerceptionManager):
 
     @torch.inference_mode()
     def run_step(self):
-        ### DEBUG ###
-        print("\n[PERCEPTION_MANAGER] >>> run_step() called.")
+        logger.debug("\n>>> run_step() called.")
         batch = self._build_batch()
-        print("[PERCEPTION_MANAGER] Batch construction complete.")
+        logger.debug("Batch construction complete.")
 
-        print("\n[PERCEPTION_MANAGER] BATCH MANIFEST (before moving to device):")
+        logger.debug("\nBATCH MANIFEST (before moving to device):")
         print_tensor_dict(batch)
         
         batch = train_utils.to_device(batch, self.device)
-        print(f"\n[PERCEPTION_MANAGER] Batch moved to {self.device}.")
+        logger.debug(f"\nBatch moved to {self.device}.")
 
-        print("\n==================== CALLING MODEL.GET_FEATURE() ====================")
+        logger.debug("CALLING MODEL.GET_FEATURE() ====================")
         feature_dict_gpu = self.model.get_feature(batch)
-        print("==================== MODEL.GET_FEATURE() CALL COMPLETE ====================\n")
+        logger.debug("MODEL.GET_FEATURE() CALL COMPLETE ====================\n")
         
         # Store the dictionary of features
         self.feature_dict = {k: v.cpu() for k, v in feature_dict_gpu.items()}
         self.feature_map = self.feature_dict['spatial_features'].half()
-        print("\n[PERCEPTION_MANAGER] Feature dictionary generated successfully.")
-        print("\n[PERCEPTION_MANAGER] FEATURE DICTIONARY:")
+        logger.debug("\nFeature dictionary generated successfully.")
+        logger.debug("\nFEATURE DICTIONARY:")
         print_tensor_dict(self.feature_dict)
-        print("\n[PERCEPTION_MANAGER] FEATURE MAP SHAPE:", self.feature_map.shape)
-        print("\n[PERCEPTION_MANAGER] FEATURE MAP DATA TYPE:", self.feature_map.dtype)
-        print("\n[PERCEPTION_MANAGER] FEATURE MAP DEVICE:", self.feature_map.device)
+        logger.debug(f"\nFEATURE MAP SHAPE: {self.feature_map.shape}")
+        logger.debug(f"\nFEATURE MAP DATA TYPE: {self.feature_map.dtype}")
+        logger.debug(f"\nFEATURE MAP DEVICE: {self.feature_map.device}")
         
         if self._first_run:
-            print(f"\n[BM2CP] >>> SUCCESS: ON-VEHICLE FUSION COMPLETE. FEATURE DICTIONARY GENERATED. <<<\n")
+            logger.debug(f"\n>>> SUCCESS: ON-VEHICLE FUSION COMPLETE. FEATURE DICTIONARY GENERATED. <<<\n")
             self._first_run = False
 
     def _build_batch(self) -> Dict[str, Any]:
-        ### DEBUG ###
-        print("[PERCEPTION_MANAGER] [_build_batch] Preparing LiDAR data...")
+        logger.debug("[_build_batch] Preparing LiDAR data...")
         proc_lidar_np = self._vp.preprocess(np.ascontiguousarray(self.lidar.data, dtype=np.float32))
         proc_lidar = {k: torch.from_numpy(v) for k, v in proc_lidar_np.items()}
         coords = proc_lidar['voxel_coords']
         batch_index_column = torch.zeros(coords.shape[0], 1, dtype=torch.int32)
         proc_lidar['voxel_coords'] = torch.cat((batch_index_column, coords), dim=1).int()
-        print("[PERCEPTION_MANAGER] [_build_batch] LiDAR processing complete.")
+        logger.debug("[_build_batch] LiDAR processing complete.")
 
-        print("[PERCEPTION_MANAGER] [_build_batch] Preparing Camera data...")
+        logger.debug("[_build_batch] Preparing Camera data...")
 
         # Get target dimensions from model config (data_aug_conf.final_dim)
         data_aug_conf = self.hypes.get('fusion', {}).get('args', {}).get('data_aug_conf', {})
@@ -171,7 +174,7 @@ class BM2CPPerceptionManager(PerceptionManager):
             "post_trans": torch.zeros(3, dtype=torch.float32).view(1, 1, 3).expand(B, N_cams, 3),
             "depth_map": placeholder_depth
         }
-        print(f"[PERCEPTION_MANAGER] [_build_batch] Camera processing complete. Resized to {target_h}x{target_w}")
+        logger.debug(f"[_build_batch] Camera processing complete. Resized to {target_h}x{target_w}")
         
         return {"processed_lidar": proc_lidar, "image_inputs": image_inputs, "record_len": torch.tensor([N_cams], dtype=torch.int64)}
 

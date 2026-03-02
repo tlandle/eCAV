@@ -1,19 +1,14 @@
 # -*- coding: utf-8 -*-
-"""
 # Author: Tyler Landle <tlandle3@gatech.edu>
-edge_manager_base.py
-====================
+# License: TDG-Attribution-NonCommercial-NoDistrib
 
-Common utilities used by *all* Edge-manager back-ends
-(BM2CP, late-fusion, manoeuvre, …):
+"""
+Common utilities used by all edge-manager backends.
 
-* global latency / packet-loss model (pandas-only CSV loader)
-* shared debug-helper instances
-* lightweight `_BaseEdgeManager` superclass that holds the lists of
-  VehicleManager / RSUManager, plus:
-    - add_member
-    - add_rsu
-    - set_destination
+Provides the base class with shared infrastructure:
+- Global latency / packet-loss model (CSV loader)
+- Shared metric helper instances
+- _BaseEdgeManager superclass (add_member, add_rsu, set_destination)
 """
 
 from __future__ import annotations

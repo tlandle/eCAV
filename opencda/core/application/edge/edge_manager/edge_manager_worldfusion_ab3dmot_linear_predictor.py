@@ -1,27 +1,27 @@
 # -*- coding: utf-8 -*-
+# Author: Tyler Landle <tlandle3@gatech.edu>
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
 """
-edge_manager_worldfusion_ab3dmot_linear_predictor.py
-Author: Tyler Landle <tlandle3@gatech.edu>
-=========================================================
-WorldFusion Edge Manager: Combines intermediate fusion from PointPillarWorldFusion
-(Where2comm attention-based fusion in world coordinates) with the tracking/prediction
-pipeline from Late Fusion (AB3DMOT → Linear Predictor).
+WorldFusion edge manager with AB3DMOT tracking and linear prediction.
 
-Architecture:
-    Vehicles/RSUs (WorldFusionPerceptionManager)
-        → Extract spatial_features (before backbone)
-        → Transmit spatial_features + pose to edge
+Combines intermediate fusion from PointPillarWorldFusion (Where2comm
+attention-based fusion in world coordinates) with AB3DMOT 3D multi-object
+tracking and linear constant-velocity prediction.
 
-    Edge (WorldFusionEdge)
-        1. Collect spatial_features from all agents (history buffer)
+Pipeline:
+    Vehicles/RSUs extract spatial_features (before backbone)
+    and transmit features + pose to edge.
+
+    Edge:
+        1. Collect spatial_features from all agents
         2. Compute pairwise transforms to world anchor
-        3. Run backbone on each agent's features
-        4. Run Where2comm fusion (attention-based aggregation)
-        5. Run detection heads (cls_head, reg_head) on fused features
-        6. Post-process → world-frame detections
-        7. AB3DMOT tracking (replay history like late fusion)
-        8. Linear Predictor (25 future steps)
-        9. Distribute predictions to vehicles
+        3. Run backbone + Where2comm fusion
+        4. Run detection heads on fused features
+        5. Post-process to world-frame detections
+        6. AB3DMOT tracking
+        7. Linear prediction (25 future steps)
+        8. Distribute predictions to vehicles
 """
 from __future__ import annotations
 import os
@@ -48,11 +48,12 @@ from opencda.core.application.edge.edge_profiler import EdgeProfiler
 from .edge_manager_base import _BaseEdgeManager
 
 
-def _box_to_transform(box: np.ndarray) -> carla.Transform:
-    """Convert a detection box [x,y,z,h,w,l,yaw] to carla.Transform."""
-    loc = carla.Location(x=float(box[0]), y=float(box[1]), z=float(box[2]))
-    rot = carla.Rotation(yaw=np.degrees(float(box[6])))
-    return carla.Transform(loc, rot)
+def _box_to_transform(box: np.ndarray):
+    """Convert a detection box [x,y,z,h,w,l,yaw] to picklable Transform."""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
+    loc = _Loc(x=float(box[0]), y=float(box[1]), z=float(box[2]))
+    rot = _Rot(yaw=np.degrees(float(box[6])))
+    return _Tf(location=loc, rotation=rot)
 
 
 class WorldFusionEdge(_BaseEdgeManager):
@@ -116,7 +117,8 @@ class WorldFusionEdge(_BaseEdgeManager):
             'ego_com': None,
             'affi_pro': False,
             'dataset': "KITTI",
-            'det_name': "deprecated"
+            'det_name': "deprecated",
+            'anchoring': cfg.get("anchoring", True)
         })
         self.ab3dmot_category = 'Car'
 
@@ -264,6 +266,12 @@ class WorldFusionEdge(_BaseEdgeManager):
             if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
                 feature_dicts.append(pm.feature_dict)
                 pos = rsu.localizer.get_ego_pos()
+                if pos is None and hasattr(rsu, 'spawn_position'):
+                    sp = rsu.spawn_position
+                    pos = carla.Transform(
+                        carla.Location(x=sp[0], y=sp[1], z=sp[2] if len(sp) > 2 else 0.0),
+                        carla.Rotation()
+                    )
                 poses.append(pos)
                 dx = pos.location.x - self.world_anchor[0]
                 dy = pos.location.y - self.world_anchor[1]
@@ -302,18 +310,19 @@ class WorldFusionEdge(_BaseEdgeManager):
                 snapshot = next((item for item in self.feat_history if item[0] == target_id), None)
 
             if not snapshot or not snapshot[1]:
-                self._update_agents(tick, None)
+                serialized_preds = self._update_agents(tick, None)
                 frame.set_counts(num_agents=0, num_detections=0, num_tracks=0, num_predictions=0)
-                return
+                return serialized_preds
 
             frame_id, feature_dicts, poses, carla_snapshot_at_capture, excluded_vehicles = snapshot
             num_agents = len(feature_dicts)
 
             # 3. Stack features and compute pairwise transforms
             with frame.time("fusion"):
+                torch.cuda.empty_cache()
                 spatial_features = torch.cat(
                     [d['spatial_features'] for d in feature_dicts], dim=0
-                ).cuda()
+                ).float().cuda()
 
                 pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
                 record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
@@ -404,7 +413,7 @@ class WorldFusionEdge(_BaseEdgeManager):
 
             # 9. Distribute predictions to vehicles
             with frame.time("distribution"):
-                self._update_agents(tick, predictions)
+                serialized_preds = self._update_agents(tick, predictions)
 
             # Record counts for this frame
             frame.set_counts(
@@ -413,6 +422,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 num_tracks=num_tracks,
                 num_predictions=num_predictions
             )
+
+        return serialized_preds
 
     def _run_fusion(self, spatial_features: torch.Tensor,
                     pairwise_t_matrix: torch.Tensor,
@@ -1103,6 +1114,10 @@ class WorldFusionEdge(_BaseEdgeManager):
             horizon: Maximum trajectory length
         """
         updated: set = set()
+        # Clear trajectory deques — each tick replays AB3DMOT from scratch,
+        # so stale positions from the previous tick's replay must not remain.
+        for traj in self.tracked_trajectories.values():
+            traj.trajectory.clear()
 
         for frame in hist:
             if frame is None or len(frame) == 0:
@@ -1135,11 +1150,13 @@ class WorldFusionEdge(_BaseEdgeManager):
                 # Correct 180° yaw ambiguity using velocity direction
                 corrected_yaw = self._correct_yaw_from_velocity(traj, box_7dof[6])
                 if corrected_yaw != box_7dof[6]:
-                    # Update transform with corrected yaw
-                    tf = carla.Transform(
-                        tf.location,
-                        carla.Rotation(yaw=np.degrees(corrected_yaw))
-                    )
+                    # Update transform with corrected yaw (opencda_carla types
+                    # to stay consistent with _box_to_transform output)
+                    tf = _box_to_transform(np.array([
+                        tf.location.x, tf.location.y, tf.location.z,
+                        box_7dof[3], box_7dof[4], box_7dof[5],
+                        corrected_yaw
+                    ]))
                     # Also update the trajectory entry
                     traj.trajectory[0] = tf
 
@@ -1147,6 +1164,14 @@ class WorldFusionEdge(_BaseEdgeManager):
                 traj.obstacle.location = tf.location
                 traj.obstacle.carla_id = cid
                 self.track_to_carla[tid] = cid
+                # KF velocity (m/tick) for prediction
+                # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy
+                if len(trk) > 12:
+                    kf_vx, kf_vy = float(trk[10]), float(trk[12])
+                    traj.obstacle.kf_speed_mps = (
+                        (kf_vx**2 + kf_vy**2)**0.5) / 0.05
+                    traj.obstacle.kf_vx = kf_vx
+                    traj.obstacle.kf_vy = kf_vy
 
         # Only prune trajectories for tracks that AB3DMOT has stopped outputting
         # Don't prune if no updates this frame (let trajectories persist)
@@ -1214,26 +1239,49 @@ class WorldFusionEdge(_BaseEdgeManager):
         """
         Update all managed vehicles and RSUs with predictions.
 
-        Args:
-            tick: Current simulation tick
-            predictions: Predicted trajectories to distribute
+        Returns ecloud.EdgeObjects for distributed prediction push.
+        In sequential mode the return value is ignored by the scenario loop.
         """
+        import pickle
+        import ecloud_pb2 as ecloud
+
         print(f"[WorldFusion Edge] Broadcasting {len(predictions) if predictions else 0} predictions for tick {tick}")
 
+        serialized_preds = ecloud.EdgeObjects()
+        pickled_edge_predictions = None
+
+        if predictions is not None and len(predictions) > 0:
+            try:
+                pickled_edge_predictions = pickle.dumps(predictions)
+            except Exception as e:
+                print(f"[WorldFusion Edge] Error serializing predictions: {e}")
+
         # Distribute predictions to vehicles
-        for vm in self.vehicle_manager_list:
+        for index, vm in enumerate(self.vehicle_manager_list):
             if predictions is not None and len(predictions) > 0 and random.random() * 100 > self.downlink_pl:
-                vm.agent.edge_predictions = list(predictions)  # Create a new list copy
+                vm.agent.edge_predictions = list(predictions)
                 print(f"[WorldFusion Edge] Set {len(vm.agent.edge_predictions)} edge_predictions on vehicle")
             else:
-                vm.agent.edge_predictions = []  # Use empty list instead of .clear()
-            vm.update_info(tick)
-            vm.vehicle.apply_control(vm.run_step())
+                vm.agent.edge_predictions = []
+
+            if pickled_edge_predictions is not None:
+                object_buffer = ecloud.ObjectBuffer(
+                    vehicle_id=index,
+                    pickled_edge_predictions=pickled_edge_predictions
+                )
+                serialized_preds.all_object_buffers.append(object_buffer)
+
+            if not self.run_distributed:
+                vm.update_info(tick)
+                vm.vehicle.apply_control(vm.run_step())
 
         # Update RSUs
-        for rsu in self.rsu_manager_list:
-            rsu.update_info()
-            rsu.run_step()
+        if not self.run_distributed:
+            for rsu in self.rsu_manager_list:
+                rsu.update_info()
+                rsu.run_step()
+
+        return serialized_preds
 
     def _evaluate_predictions(self, tick: int, predictions: Optional[List],
                                carla_snapshot_at_capture: Optional[Dict] = None,

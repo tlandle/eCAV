@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-"""
-Basic class of CAV
-"""
 # Author: Tyler Landle <tlandle3@gatech.edu>, Jordan Rapp <jrapp7@gatech.edu>
-# Author: Runsheng Xu <rxx3386@ucla.edu>
+# Original: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
+
+"""
+Connected Autonomous Vehicle (CAV) manager.
+"""
 
 import random
 import uuid
@@ -52,9 +53,8 @@ from opencda.client_metrics import ClientMetrics
 from opencda.core.common.ecloud_config import eLocationType
 from opencda.core.common.traffic_event import TrafficEvent, TrafficEventType
 
-import coloredlogs, logging
+import logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='DEBUG', logger=logger)
 
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
@@ -389,40 +389,49 @@ class VehicleManager(object):
         logger.debug("LocalizationManager created")
         
         # perception module
-        assert self.perception_active and sensing_config['perception']['activate'] or \
-                not self.perception_active
-
-        print("Perception Active: ", self.perception_active)
+        # When perception_active=False (distributed scenario server),
+        # override config so PerceptionManager runs in deactivate_mode.
+        # detect() returns server-side objects instead of running ML.
+        # Actual ML perception runs on the vehicle clients.
+        if not self.perception_active:
+            sensing_config['perception']['activate'] = False
+            sensing_config['perception']['camera_visualize'] = 0
+            sensing_config['perception']['lidar_visualize'] = False
 
         self.tracking_manager = TrackingManager(self.vehicle, cav_world, data_dumping, tracker_type = "SORT")
         percep_cfg = sensing_config['perception']
-        print("Perception Config: ", percep_cfg)
-        # Check both 'type' and 'backend' keys for consistency with RSU manager
         percep_type = percep_cfg.get('type', percep_cfg.get('backend', 'default'))
         percep_type = str(percep_type).lower()
-        if percep_type in ('bm2cp', 'fusion'):
+
+        # In distributed mode, server-side proxies receive features via gRPC
+        # and don't need GPU models. Server passes carla_world explicitly;
+        # clients leave it None and get it later via initialize_process().
+        use_base_pm = (carla_world is not None
+                       and run_distributed)
+
+        if use_base_pm:
+            self.perception_manager = PerceptionManager(
+                self.vehicle, percep_cfg, cav_world,
+                data_dumping, tracking_manager=self.tracking_manager,
+                debug_helper=self.client_metrics)
+            print(f"[VehicleManager] Distributed proxy — using base PerceptionManager (type={percep_type})")
+        elif percep_type in ('bm2cp', 'fusion'):
             self.perception_manager = BM2CPPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.client_metrics)
-            print("Using BM2CP Perception Manager in VehicleManager")
         elif percep_type == 'worldfusion':
             self.perception_manager = WorldFusionPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.client_metrics)
-            print("Using WorldFusion Perception Manager in VehicleManager")
         else:
             self.perception_manager = PerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.client_metrics)
-            print("Using default Perception Manager")
         logger.debug("PerceptionManager created")
 
-        #input("Perception Manager created, press enter to continue...")
-
-        
         # map manager
         self.map_manager = MapManager(self.vehicle,
                                       self.carla_map,
@@ -654,12 +663,17 @@ class VehicleManager(object):
         ego_pos = self.localizer.get_ego_pos()
         ego_spd = self.localizer.get_ego_spd()
         end_time = time.time()
+        t_localize_ms = (end_time - start_time) * 1000
         logger.debug("Localizer time: %s" %(end_time - start_time))
-        self.client_metrics.update_localization_time((end_time-start_time)*1000)
+        self.client_metrics.update_localization_time(t_localize_ms)
 
         # object detection
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
+        t_detect_ms = (time.time() - start_time) * 1000
+        print(f"[VehicleManager update_info] localize={t_localize_ms:.0f}ms | "
+              f"detect={t_detect_ms:.0f}ms | "
+              f"total={t_localize_ms + t_detect_ms:.0f}ms", flush=True)
         #logger.debug(f"Objects", {objects})
 
         #self.tracked_local_trajectories = self.update_local_trajectories(objects, self.localizer.get_sim_time())

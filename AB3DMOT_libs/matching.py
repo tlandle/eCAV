@@ -1,5 +1,4 @@
 import numpy as np
-from numba import jit
 from scipy.optimize import linear_sum_assignment
 from AB3DMOT_libs.dist_metrics import iou, dist3d, dist_ground, m_distance
 
@@ -9,7 +8,7 @@ FRAME_IDX = 0          # simulation step or frame number
 GUID      = 1          # globally-unique ID supplied by beacon / vehicle
 CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknown
 
-def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None):
+def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None, anchoring=True):
 	# compute affinity matrix
 
 	aff_matrix = np.zeros((len(dets), len(trks)), dtype=np.float32)
@@ -17,28 +16,22 @@ def compute_affinity(dets, trks, metric, trk_inv_inn_matrices=None):
 		for t, trk in enumerate(trks):
 
 			# choose to use different distance metrics
-			if 'iou' in metric:    	  dist_now = iou(det, trk, metric)            
+			if 'iou' in metric:    	  dist_now = iou(det, trk, metric)
 			elif metric == 'm_dis':   dist_now = -m_distance(det, trk, trk_inv_inn_matrices[t])
 			elif metric == 'euler':   dist_now = -m_distance(det, trk, None)
-			elif metric == 'dist_2d': dist_now = -dist_ground(det, trk)              	
-			elif metric == 'dist_3d': dist_now = -dist3d(det, trk)              		
+			elif metric == 'dist_2d': dist_now = -dist_ground(det, trk)
+			elif metric == 'dist_3d': dist_now = -dist3d(det, trk)
 			else: assert False, 'error'
 
-			
-			#len_ratio = max(det.l, trk.l) / max(1e-3, min(det.l, trk.l))
-			#if len_ratio > SIZE_RATIO_TH:
-		#		dist_now = COST_MAX     # forbid this pair
-	#		width_ratio = max(det.w, trk.w) / max(1e-3, min(det.w, trk.w))
-	#		if width_ratio > SIZE_RATIO_TH:
-	#			dist_now = COST_MAX
+			#  ─── identity-aware association ──────────────────────────────────────
+			det_cid = det.info[CID] if hasattr(det, "info") else -1
+			trk_cid = trk.carla_id
 
-
-			#  ─── prevent cross-id matches ───────────────────────────────────────
-			det_cid = det.info[CID] if hasattr(det, "info") else -1   # -1 for normal det
-			trk_cid = trk.carla_id                                    # already stored
-
-			if det_cid != -1 and trk_cid != -1 and det_cid != trk_cid:
-			    dist_now = COST_MAX      # forbid: beacon ID disagrees with track ID
+			if det_cid != -1 and trk_cid != -1:
+			    if det_cid != trk_cid:
+			        dist_now = COST_MAX      # forbid: beacon ID disagrees with track ID
+			    elif anchoring:
+			        dist_now = -0.01         # force match: beacon ID agrees with track ID
 			#  ────────────────────────────────────────────────────────────────────
 			aff_matrix[d, t] = dist_now
 
@@ -72,7 +65,7 @@ def greedy_matching(cost_matrix):
     return np.asarray(matched_indices)
 
 def data_association(dets, trks, metric, threshold, algm='greedy', \
-	trk_innovation_matrix=None, hypothesis=1):   
+	trk_innovation_matrix=None, hypothesis=1, anchoring=True):
 	"""
 	Assigns detections to tracked object
 
@@ -84,11 +77,11 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 
 	# if there is no item in either row/col, skip the association and return all as unmatched
 	aff_matrix = np.zeros((len(dets), len(trks)), dtype=np.float32)
-	if len(trks) == 0: 
+	if len(trks) == 0:
 		return np.empty((0, 2), dtype=int), np.arange(len(dets)), [], 0, aff_matrix
-	if len(dets) == 0: 
-		return np.empty((0, 2), dtype=int), [], np.arange(len(trks)), 0, aff_matrix		
-	
+	if len(dets) == 0:
+		return np.empty((0, 2), dtype=int), [], np.arange(len(trks)), 0, aff_matrix
+
 	# prepare inverse innovation matrix for m_dis
 	if metric == 'm_dis':
 		assert trk_innovation_matrix is not None, 'error'
@@ -97,7 +90,7 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 		trk_inv_inn_matrices = None
 
 	# compute affinity matrix
-	aff_matrix = compute_affinity(dets, trks, metric, trk_inv_inn_matrices)
+	aff_matrix = compute_affinity(dets, trks, metric, trk_inv_inn_matrices, anchoring=anchoring)
 
 	# association based on the affinity matrix
 	if hypothesis == 1:

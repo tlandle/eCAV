@@ -1,10 +1,12 @@
 import math
+from collections import deque
 
 import carla
 
 #from pylot.perception.detection.obstacle import Obstacle
 #from pylot.utils import Transform, Vector2D
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from opencda.opencda_carla import Location, Rotation, Transform
 
 
 class ObstacleTrajectory(object):
@@ -18,11 +20,18 @@ class ObstacleTrajectory(object):
     """
     def __init__(self, obstacle: ObstacleVehicle, trajectory):
         self.obstacle = obstacle
-        self.trajectory = trajectory
+        traj = deque()
+        for tr in trajectory:
+            if isinstance(tr, carla.Transform):
+                tr = Transform.from_simulator_transform(tr)
+            traj.append(tr)
+        self.trajectory = traj
         self.time_since_update = 0.0
 
     def update(self, transform):
         """Appends a new transform and resets update timer."""
+        if isinstance(transform, carla.Transform):
+            transform = Transform.from_simulator_transform(transform)
         self.trajectory.append(transform)
         self.time_since_update = 0.0
 

@@ -679,6 +679,13 @@ class EvaluationManager(object):
                 f.write(f"    Perception Latency: {vdata.get('perception_mean_ms', 0):.1f} ± {vdata.get('perception_std_ms', 0):.1f} ms\n")
                 f.write(f"    Tracking Latency: {vdata.get('tracking_mean_ms', 0):.1f} ± {vdata.get('tracking_std_ms', 0):.1f} ms\n")
 
+                # Braking Attribution
+                if vdata.get('total_brake_events', 0) > 0:
+                    f.write(f"  Braking Attribution:\n")
+                    f.write(f"    Total Brake Events: {vdata.get('total_brake_events', 0)}\n")
+                    f.write(f"    Ghost Brake Events: {vdata.get('ghost_brake_events', 0)}\n")
+                    f.write(f"    False Brake Rate: {vdata.get('false_brake_rate', 0):.3f}\n")
+
                 f.write(f"  Safety:\n")
                 f.write(f"    Collisions: {vdata.get('collisions', 0)}\n")
                 # Include detailed safety metrics if available
@@ -754,6 +761,18 @@ class EvaluationManager(object):
                 f.write(f"    Miss Rate: {edata.get('prediction_miss_rate', 0):.1%}\n")
                 f.write(f"    minADE: {edata.get('prediction_min_ade_m', 0):.2f} m\n")
                 f.write(f"    minFDE: {edata.get('prediction_min_fde_m', 0):.2f} m\n")
+
+                # Ego-Uniqueness Metrics
+                eu = edata.get('ego_uniqueness', {})
+                if eu:
+                    f.write(f"  Ego-Uniqueness:\n")
+                    f.write(f"    Total Violations: {eu.get('total_violations', 0)}\n")
+                    f.write(f"    Violations/min: {eu.get('violations_per_min', 0):.2f}\n")
+                    f.write(f"    Violation Tick Fraction: {eu.get('violation_tick_fraction', 0):.3f}\n")
+                    f.write(f"    Duplicate Track Rate: {eu.get('duplicate_track_rate', 0):.4f}\n")
+                    f.write(f"    Duplicate Lifetime (mean): {eu.get('duplicate_lifetime_mean_ticks', 0):.1f} ticks\n")
+                    f.write(f"    Duplicate Lifetime (p95): {eu.get('duplicate_lifetime_p95_ticks', 0):.1f} ticks\n")
+                    f.write(f"    Ego Ghost Violations: {eu.get('ego_ghost_violation_count', 0)}\n")
 
             # Simulation Timing
             f.write("\n")

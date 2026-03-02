@@ -27,9 +27,8 @@ from opencda.core.sensing.perception.o3d_lidar_libs import \
 from opencda.client_metrics import ClientMetrics
 
 
-import coloredlogs, logging
+import logging
 logger = logging.getLogger(__name__)
-coloredlogs.install(level='ERROR', logger=logger)
 
 # Vehicle types that should be tracked (excludes firetrucks, ambulances, police, etc.)
 VALID_VEHICLE_TYPES = {
@@ -487,6 +486,9 @@ class PerceptionManager:
         # ego position
         self.ego_pos = None
 
+        # intermediate features for WorldFusion/BM2CP (populated from distributed client)
+        self.feature_dict = None
+
         # the dictionary contains all objects
         self.objects = {}
         # traffic light detection related
@@ -644,6 +646,12 @@ class PerceptionManager:
         self.client_metrics.update_lidar_fusion_time(
             total_lidar_fusion_time * 1000)
 
+        # Cross-camera deduplication: each camera independently detects
+        # vehicles, producing 2-4 bounding boxes per physical vehicle at
+        # slightly different positions (3-5m offset).  Greedy NMS by center
+        # distance keeps one detection per physical vehicle.
+        objects = self._cross_camera_nms(objects)
+
         if self.camera_visualize:
             for (i, rgb_image) in enumerate(rgb_draw_images):
                 if i > self.camera_num - 1 or i > self.camera_visualize - 1:
@@ -697,6 +705,55 @@ class PerceptionManager:
                 logger.debug(f"Excluding vehicle {vehicle.id} ({type_id}) at ({loc.x:.1f}, {loc.y:.1f})")
 
         return excluded_positions
+
+    def _cross_camera_nms(self, objects, distance_threshold=5.0):
+        """
+        Deduplicate detections from overlapping camera views.
+
+        Multiple cameras may detect the same vehicle from different angles,
+        producing bounding boxes at slightly different positions (3-5m
+        offset due to monocular depth estimation error).  Greedy NMS by
+        ground-plane center distance keeps the first detection per physical
+        vehicle, suppressing later duplicates.
+
+        Parameters
+        ----------
+        objects : dict
+            Detection dict with ``objects["vehicles"]`` list.
+        distance_threshold : float
+            Max ground-plane distance (m) between two detection centers to
+            be considered the same physical vehicle.  Default 5 m ≈ one
+            car-length.
+
+        Returns
+        -------
+        objects : dict
+            Filtered detection dict.
+        """
+        vehicles = objects.get("vehicles", [])
+        if len(vehicles) <= 1:
+            return objects
+
+        keep = [True] * len(vehicles)
+        for i in range(len(vehicles)):
+            if not keep[i]:
+                continue
+            loc_i = vehicles[i].location
+            if loc_i is None:
+                continue
+            for j in range(i + 1, len(vehicles)):
+                if not keep[j]:
+                    continue
+                loc_j = vehicles[j].location
+                if loc_j is None:
+                    continue
+                dist = ((loc_i.x - loc_j.x)**2
+                        + (loc_i.y - loc_j.y)**2) ** 0.5
+                if dist < distance_threshold:
+                    keep[j] = False
+
+        objects["vehicles"] = [v for v, k in zip(vehicles, keep) if k]
+        return objects
 
     def _filter_detections_near_excluded_vehicles(self, objects, exclusion_radius=15.0):
         """

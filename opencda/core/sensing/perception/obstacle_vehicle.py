@@ -14,6 +14,7 @@ import time
 
 import opencda.core.sensing.perception.sensor_transformation as st
 from opencda.core.common.misc import get_speed_sumo
+from opencda.opencda_carla import Location, Rotation, Transform, Vector3D
 
 
 
@@ -54,8 +55,14 @@ class BoundingBox(object):
         extent_y = (np.max(corners[:, 1]) - np.min(corners[:, 1])) / 2
         extent_z = (np.max(corners[:, 2]) - np.min(corners[:, 2])) / 2
 
-        self.location = carla.Location(x=center_x, y=center_y, z=center_z)
-        self.extent = carla.Vector3D(x=extent_x, y=extent_y, z=extent_z)
+        self.location = Location(x=center_x, y=center_y, z=center_z)
+        self.extent = Vector3D(x=extent_x, y=extent_y, z=extent_z)
+
+
+class AlignedBoundingBox(object):
+    def __init__(self, min_bound, max_bound):
+        self.min_bound = min_bound
+        self.max_bound = max_bound
 
 
 class ObstacleVehicle(object):
@@ -109,9 +116,10 @@ class ObstacleVehicle(object):
             self.location = self.bounding_box.location
             # todo: next version will add rotation estimation
             self.transform = None
-            self.o3d_bbx = o3d_bbx
+            self.o3d_bbx = AlignedBoundingBox(min_bound=o3d_bbx.min_bound,
+                                       max_bound=o3d_bbx.max_bound) if o3d_bbx is not None else None
             self.carla_id = -1
-            self.velocity = carla.Vector3D(0.0, 0.0, 0.0)
+            self.velocity = Vector3D(0.0, 0.0, 0.0)
             # monotonically increasing unique id for the obstacle vehicle starting from 0
             # and doesn't collide with other obstacle vehicle ids
             self.obstacle_id = int(time.time() * 1000) % sys.maxsize 
@@ -131,15 +139,16 @@ class ObstacleVehicle(object):
 
     def get_location(self):
         """
-        Return the location of the object vehicle.
+        Return the location of the object vehicle as carla.Location
+        for CARLA API compatibility.
         """
-        return self.location
+        return carla.Location(x=self.location.x, y=self.location.y, z=self.location.z)
 
     def get_velocity(self):
         """
         Return the velocity of the object vehicle.
         """
-        return self.velocity
+        return carla.Vector3D(self.velocity.x, self.velocity.y, self.velocity.z)
 
     def set_carla_id(self, id):
         """
@@ -162,7 +171,7 @@ class ObstacleVehicle(object):
             The target velocity in 3d vector format.
 
         """
-        self.velocity = velocity
+        self.velocity = Vector3D(velocity.x, velocity.y, velocity.z)
 
     def set_vehicle(self, vehicle, lidar, sumo2carla_ids):
         """
@@ -184,9 +193,12 @@ class ObstacleVehicle(object):
             server. We will need this dict to read vehicle speed
             from sumo api--traci.
         """
-        self.location = vehicle.get_location()
-        self.transform = vehicle.get_transform()
-        self.bounding_box = vehicle.bounding_box
+        self.location = Location.from_simulator_location(vehicle.get_location())
+        self.transform = Transform.from_simulator_transform(vehicle.get_transform())
+        bbox = vehicle.bounding_box
+        self.bounding_box = BoundingBox.__new__(BoundingBox)
+        self.bounding_box.location = Location(x=bbox.location.x, y=bbox.location.y, z=bbox.location.z)
+        self.bounding_box.extent = Vector3D(x=bbox.extent.x, y=bbox.extent.y, z=bbox.extent.z)
         self.carla_id = vehicle.id
         self.type_id = vehicle.type_id
         self.color = vehicle.attributes["color"] \
@@ -200,7 +212,7 @@ class ObstacleVehicle(object):
             sumo_speed = get_speed_sumo(sumo2carla_ids, self.carla_id)
             if sumo_speed > 0:
                 # todo: consider the yaw angle in the future
-                speed_vector = carla.Vector3D(sumo_speed, 0, 0)
+                speed_vector = Vector3D(sumo_speed, 0, 0)
                 self.set_velocity(speed_vector)
 
         # find the min and max boundary
@@ -236,4 +248,5 @@ class ObstacleVehicle(object):
             o3d.geometry.AxisAlignedBoundingBox(min_bound=min_boundary_sensor,
                                                 max_bound=max_boundary_sensor)
         aabb.color = (1, 0, 0)
-        self.o3d_bbx = aabb
+        self.o3d_bbx = AlignedBoundingBox(min_bound=min_boundary_sensor,
+                                    max_bound=max_boundary_sensor)
