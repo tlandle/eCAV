@@ -420,6 +420,8 @@ class PerceptionManager:
         self.camera_visualize = config_yaml['camera']['visualize']
         self.camera_num = config_yaml['camera']['num']
         self.lidar_visualize = config_yaml['lidar']['visualize']
+        self._nms_distance_threshold = config_yaml.get(
+            'cross_camera_nms_threshold', 5.0)
         self.global_position = config_yaml['global_position'] \
             if 'global_position' in config_yaml else None
 
@@ -499,6 +501,38 @@ class PerceptionManager:
             self.client_metrics = ClientMetrics(self.id)
         else:
             self.client_metrics = debug_helper
+
+        # Per-camera disagreement tracking: measures inter-source position
+        # disagreement before cross-camera NMS suppresses duplicates.
+        self._camera_disagreement_dists = []   # max pairwise dist per cluster
+        self._camera_disagreement_counts = []  # detections per cluster
+        self._camera_disagreement_nms_leaks = 0  # clusters > 4.5m (survive AB3DMOT NMS)
+
+    def get_camera_disagreement_metrics(self):
+        """Return inter-source disagreement summary for simulation metrics."""
+        import numpy as np
+        dists = self._camera_disagreement_dists
+        counts = self._camera_disagreement_counts
+        if not dists:
+            return {
+                "camera_disagreement_total_clusters": 0,
+                "camera_disagreement_mean_dist_m": 0.0,
+                "camera_disagreement_max_dist_m": 0.0,
+                "camera_disagreement_p95_dist_m": 0.0,
+                "camera_disagreement_frac_gt_4_5m": 0.0,
+                "camera_disagreement_nms_leaks": 0,
+                "camera_disagreement_avg_cluster_size": 0.0,
+            }
+        arr = np.array(dists)
+        return {
+            "camera_disagreement_total_clusters": len(dists),
+            "camera_disagreement_mean_dist_m": float(np.mean(arr)),
+            "camera_disagreement_max_dist_m": float(np.max(arr)),
+            "camera_disagreement_p95_dist_m": float(np.percentile(arr, 95)),
+            "camera_disagreement_frac_gt_4_5m": float(np.mean(arr > 4.5)),
+            "camera_disagreement_nms_leaks": self._camera_disagreement_nms_leaks,
+            "camera_disagreement_avg_cluster_size": float(np.mean(counts)),
+        }
 
     def dist(self, a):
         """
@@ -650,7 +684,7 @@ class PerceptionManager:
         # vehicles, producing 2-4 bounding boxes per physical vehicle at
         # slightly different positions (3-5m offset).  Greedy NMS by center
         # distance keeps one detection per physical vehicle.
-        objects = self._cross_camera_nms(objects)
+        objects = self._cross_camera_nms(objects, self._nms_distance_threshold)
 
         if self.camera_visualize:
             for (i, rgb_image) in enumerate(rgb_draw_images):
@@ -716,6 +750,10 @@ class PerceptionManager:
         ground-plane center distance keeps the first detection per physical
         vehicle, suppressing later duplicates.
 
+        Also records inter-source disagreement statistics for each cluster
+        of detections that were merged, enabling analysis of when
+        perception duplicates survive NMS and reach the tracker.
+
         Parameters
         ----------
         objects : dict
@@ -734,25 +772,71 @@ class PerceptionManager:
         if len(vehicles) <= 1:
             return objects
 
-        keep = [True] * len(vehicles)
-        for i in range(len(vehicles)):
-            if not keep[i]:
-                continue
+        # Build clusters: group detections within distance_threshold
+        n = len(vehicles)
+        cluster_id = list(range(n))  # union-find init
+
+        def find(x):
+            while cluster_id[x] != x:
+                cluster_id[x] = cluster_id[cluster_id[x]]
+                x = cluster_id[x]
+            return x
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                cluster_id[rb] = ra
+
+        for i in range(n):
             loc_i = vehicles[i].location
             if loc_i is None:
                 continue
-            for j in range(i + 1, len(vehicles)):
-                if not keep[j]:
-                    continue
+            for j in range(i + 1, n):
                 loc_j = vehicles[j].location
                 if loc_j is None:
                     continue
                 dist = ((loc_i.x - loc_j.x)**2
                         + (loc_i.y - loc_j.y)**2) ** 0.5
                 if dist < distance_threshold:
-                    keep[j] = False
+                    union(i, j)
 
-        objects["vehicles"] = [v for v, k in zip(vehicles, keep) if k]
+        # Gather clusters
+        clusters = {}
+        for i in range(n):
+            root = find(i)
+            clusters.setdefault(root, []).append(i)
+
+        # Record disagreement stats for multi-detection clusters
+        for indices in clusters.values():
+            if len(indices) < 2:
+                continue
+            locs = []
+            for idx in indices:
+                loc = vehicles[idx].location
+                if loc is not None:
+                    locs.append((loc.x, loc.y))
+            if len(locs) < 2:
+                continue
+            # Compute max pairwise center distance in this cluster
+            max_dist = 0.0
+            for a in range(len(locs)):
+                for b in range(a + 1, len(locs)):
+                    d = ((locs[a][0] - locs[b][0])**2 +
+                         (locs[a][1] - locs[b][1])**2) ** 0.5
+                    max_dist = max(max_dist, d)
+            self._camera_disagreement_dists.append(max_dist)
+            self._camera_disagreement_counts.append(len(indices))
+            # Track whether this cluster has members that would survive
+            # the AB3DMOT NMS (center dist > max(l,w) ≈ 4.5m)
+            if max_dist > 4.5:
+                self._camera_disagreement_nms_leaks += 1
+
+        # Keep first detection per cluster (greedy NMS)
+        keep = set()
+        for root, indices in clusters.items():
+            keep.add(indices[0])
+
+        objects["vehicles"] = [v for i, v in enumerate(vehicles) if i in keep]
         return objects
 
     def _filter_detections_near_excluded_vehicles(self, objects, exclusion_radius=15.0):

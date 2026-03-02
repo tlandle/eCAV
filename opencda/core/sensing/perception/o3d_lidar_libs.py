@@ -289,6 +289,35 @@ def _make_transform_from_corners(corner_pts):
     loc = _Loc(x=float(cx), y=float(cy), z=float(cz))
     return _Tf(location=loc, rotation=_Rot())   # zero rotation
 
+def _nearest_surface_centroid(select_points):
+    """Return the centroid of the nearest-to-sensor LiDAR points.
+
+    The AABB centroid shifts as the ego's viewing angle changes because
+    more of the vehicle's far side becomes visible, expanding the box.
+    Using only the nearest 50% of points (front-facing surface) gives a
+    position estimate that is stable regardless of viewing angle.
+
+    Must be called BEFORE the o3d x-flip on select_points.
+    """
+    depths = np.linalg.norm(select_points, axis=1)
+    near_mask = depths <= np.percentile(depths, 50)
+    near_pts = select_points[near_mask] if near_mask.sum() >= 2 else select_points
+    return near_pts.mean(axis=0)
+
+
+def _sensor_point_to_world_transform(point_sensor, lidar_sensor):
+    """Transform a sensor-space 3D point into a picklable world-space Transform."""
+    from opencda.opencda_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
+    pt_h = np.array([[point_sensor[0]], [point_sensor[1]],
+                     [point_sensor[2]], [1.0]])
+    pt_world = st.sensor_to_world(pt_h, lidar_sensor.get_transform())
+    return _Tf(
+        location=_Loc(x=float(pt_world[0, 0]),
+                      y=float(pt_world[1, 0]),
+                      z=float(pt_world[2, 0])),
+        rotation=_Rot())
+
+
 def o3d_camera_lidar_fusion_from_tracker(objects,
                             track,
                             lidar_3d,
@@ -365,6 +394,9 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         if select_points.shape[0] < 2:
             continue
 
+        # Compute nearest-surface centroid BEFORE the o3d x-flip.
+        near_centroid_sensor = _nearest_surface_centroid(select_points)
+
         # to visualize 3d lidar points in o3d visualizer, we need to
         # revert the x coordinates
         select_points[:, :1] = -select_points[:, :1]
@@ -387,7 +419,8 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         corner = st.sensor_to_world(corner, lidar_sensor.get_transform())
         corner = corner.transpose()[:, :3]
 
-        vehicle_tf = _make_transform_from_corners(corner)
+        vehicle_tf = _sensor_point_to_world_transform(
+            near_centroid_sensor, lidar_sensor)
         #print("vehicle tf location: ", vehicle_tf.location)
 
         #logger.debug("corner shape: ", corner.shape)
@@ -409,6 +442,8 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
                 vehicle.corner = corner
                 vehicle.o3d_bbx = AlignedBoundingBox(min_bound=aabb.min_bound,
                                                       max_bound=aabb.max_bound)
+                vehicle.transform = vehicle_tf
+                vehicle.location = vehicle_tf.location
                 found = True
                 break                     # we updated the right one
 

@@ -5,6 +5,7 @@ Localization module
 # Author: Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import random
 import weakref
 from collections import deque
 
@@ -64,6 +65,22 @@ class GnssSensor(object):
 
         # latitude and longitude at current timestamp
         self.lat, self.lon, self.alt, self.timestamp = 0.0, 0.0, 0.0, 0.0
+        self._vehicle_id = vehicle.id
+        _parent = self.sensor.parent
+        print(f"[GNSS INIT] vehicle={vehicle.id} sensor={self.sensor.id} "
+              f"parent={_parent.id if _parent else 'NONE'} "
+              f"veh_loc=({vehicle.get_transform().location.x:.1f},"
+              f"{vehicle.get_transform().location.y:.1f})", flush=True)
+
+        # ----- Bursty GPS dropout simulation -----
+        # gnss_dropout_pct: probability (0-100) per tick of entering dropout
+        # gnss_dropout_duration_ticks: mean burst length (exponential dist)
+        self._dropout_prob = config.get('gnss_dropout_pct', 0.0) / 100.0
+        self._dropout_mean_ticks = config.get(
+            'gnss_dropout_duration_ticks', 10)
+        # Remaining ticks in current dropout burst (0 = not in dropout)
+        self._dropout_remaining = 0
+
         # create weak reference to avoid circular reference
         weak_self = weakref.ref(self)
         self.sensor.listen(
@@ -72,14 +89,54 @@ class GnssSensor(object):
 
     @staticmethod
     def _on_gnss_event(weak_self, event):
-        """GNSS method that returns the current geo location."""
+        """GNSS method that returns the current geo location.
+
+        When bursty GPS dropout is enabled (gnss_dropout_pct > 0), this
+        callback may suppress the incoming GNSS reading and hold the
+        last known position instead -- simulating signal loss in tunnels
+        or urban canyons.
+
+        Dropout model:
+        - Each tick while *not* in dropout, a Bernoulli trial with
+          probability ``gnss_dropout_pct / 100`` decides whether a new
+          dropout burst begins.
+        - When a burst starts its duration (in ticks) is drawn from an
+          exponential distribution with mean
+          ``gnss_dropout_duration_ticks`` (clamped to >= 1).
+        - While the burst countdown is positive the GNSS update is
+          suppressed (lat/lon/alt/timestamp retain their previous
+          values, i.e. position-hold).
+        """
         self = weak_self()
         if not self:
             return
+
+        # --- Bursty dropout state machine ---
+        if self._dropout_remaining > 0:
+            # Currently inside a dropout burst -- suppress this reading
+            self._dropout_remaining -= 1
+            return
+
+        if self._dropout_prob > 0.0 and random.random() < self._dropout_prob:
+            # Start a new dropout burst
+            duration = int(
+                max(1, random.expovariate(1.0 / self._dropout_mean_ticks)))
+            self._dropout_remaining = duration
+            # Suppress this tick's reading as well (first tick of burst)
+            return
+
+        # Normal operation -- accept the GNSS reading
         self.lat = event.latitude
         self.lon = event.longitude
         self.alt = event.altitude
         self.timestamp = event.timestamp
+        if not hasattr(self, '_cb_count'):
+            self._cb_count = 0
+        self._cb_count += 1
+        if self._cb_count <= 5:
+            print(f"[GNSS CB] veh={self._vehicle_id} cb#{self._cb_count} "
+                  f"lat={event.latitude:.8f} lon={event.longitude:.8f} "
+                  f"ts={event.timestamp:.3f}", flush=True)
 
 
 class ImuSensor(object):
@@ -236,6 +293,21 @@ class LocalizationManager(object):
                                                  gt_geo.altitude,
                                                  self.geo_ref.latitude,
                                                  self.geo_ref.longitude, 0.0)
+
+            # Diagnostic: every tick, compact format
+            _n = len(self._ego_pos_history)
+            _xerr = abs(x - gt_x)
+            _yerr = abs(y - gt_y)
+            _stuck = (hasattr(self, '_prev_gnss_lat') and
+                      self.gnss.lat == self._prev_gnss_lat and
+                      self.gnss.lon == self._prev_gnss_lon)
+            print(f"[LOC] v={self.vehicle.id} t={_n} "
+                  f"gnss=({x:.1f},{y:.1f}) gt=({gt_x:.1f},{gt_y:.1f}) "
+                  f"carla=({location.x:.1f},{location.y:.1f}) "
+                  f"err=({_xerr:.1f},{_yerr:.1f}) "
+                  f"ts={self.gnss.timestamp:.3f} stuck={_stuck}", flush=True)
+            self._prev_gnss_lat = self.gnss.lat
+            self._prev_gnss_lon = self.gnss.lon
 
 
             # We add synthetic noise to the heading direction
