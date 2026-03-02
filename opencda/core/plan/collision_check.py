@@ -573,6 +573,32 @@ class CollisionChecker:
             y = pred_transform.location.y
             obs_points.append([x, y])
         obs_points = np.asarray(obs_points)
+
+        # Stationary obstacle: all prediction points are (nearly) identical.
+        # linear_interp_trajectory would crash on zero-length arc, so handle
+        # separately with a simple point-vs-ego-path distance check.
+        obs_spread = np.ptp(obs_points, axis=0)
+        if obs_spread[0] < 0.01 and obs_spread[1] < 0.01:
+            obs_xy = obs_points[0]
+            ego_path = np.stack((ego_path_x, ego_path_y), axis=1)
+            dists = np.linalg.norm(ego_path - obs_xy, axis=1)
+            min_idx = int(np.argmin(dists))
+            if dists[min_idx] < self._circle_radius * 2:
+                is_collision = True
+                # TTC = time for ego to reach that point along its path
+                ego_dist_to_point = min_idx * 0.1  # path resolution
+                ttc = ego_dist_to_point / max(ego_speed, 0.1)
+            # For debug drawing
+            obs_x_points = np.array([obs_xy[0]])
+            obs_y_points = np.array([obs_xy[1]])
+            ego_x_points = ego_path_x
+            ego_y_points = ego_path_y
+            if world is not None:
+                for i in range(len(ego_x_points)):
+                    world.debug.draw_point(carla.Location(x=ego_x_points[i], y=ego_y_points[i], z=.5), color=carla.Color(0,255,255), size=0.1, life_time=0.25)
+                world.debug.draw_point(carla.Location(x=obs_xy[0], y=obs_xy[1], z=.5), color=carla.Color(255,0,0), size=0.2, life_time=0.25)
+            return is_collision, ttc
+
         obs_sp, obs_path = linear_interp_trajectory(obs_points)
 
         # print("Obstacle Path Length: %s" %len(obs_path))

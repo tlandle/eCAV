@@ -138,9 +138,12 @@ class BehaviorAgent(object):
         The helper class that help with the debug functions.
     """
 
-    def __init__(self, vehicle, carla_map, config_yaml, is_dist=False):
+    def __init__(self, vehicle, carla_map, config_yaml, is_dist=False,
+                 exit_on_destination=True, anchoring=False):
 
         self.vehicle = vehicle
+        self._exit_on_destination = exit_on_destination
+        self._anchoring = anchoring
         # ego pos(transform) and speed(km/h) retrieved from localization module
         self._ego_pos = None
         self._ego_speed = 0.0
@@ -176,6 +179,8 @@ class BehaviorAgent(object):
         self._rss_threat_carla_id = -1
         self._rss_last_lateral_dist = 0.0
         self._rss_lateral_growing_ticks = 0
+        # Step counter for AoI tracking (incremented each run_step call)
+        self._step_count = 0
 
         # route planner related
         self._global_planner = None
@@ -666,6 +671,14 @@ class BehaviorAgent(object):
                          start_loc.x if start_loc else 0, start_loc.y if start_loc else 0,
                          end_loc.x if end_loc else 0, end_loc.y if end_loc else 0,
                          len(traj))
+            # Flag predictions near ego that aren't identified as ego
+            if obs.carla_id != self.vehicle.id and start_loc is not None:
+                dist_to_ego = ((start_loc.x - ego_loc.x)**2 + (start_loc.y - ego_loc.y)**2)**0.5
+                if dist_to_ego < 10.0:
+                    logger.warning("[POTENTIAL GHOST] carla_id=%s track_id=%s dist_to_ego=%.2fm "
+                                   "start=(%.1f,%.1f) ego=(%.1f,%.1f)",
+                                   obs.carla_id, obs.track_id, dist_to_ego,
+                                   start_loc.x, start_loc.y, ego_loc.x, ego_loc.y)
 
         for pred in self.generated_predictions:
             # Identity filter via anchoring protocol
@@ -709,17 +722,61 @@ class BehaviorAgent(object):
                     target_vehicle = pred.obstacle_trajectory.obstacle
 
                 obs = pred.obstacle_trajectory.obstacle
-                logger.debug("[PRED COLLISION] carla_id=%s track_id=%s TTC=%.2fs dist=%.2fm obs_speed=%.1f m/s",
-                             obs.carla_id, obs.track_id, ttc, ttc_distance, obs_speed)
+                obs_loc = obs.location
+                logger.warning("[PRED COLLISION] carla_id=%s track_id=%s TTC=%.2fs dist=%.2fm "
+                               "obs_speed=%.1f m/s obs_pos=(%.1f,%.1f) ego_pos=(%.1f,%.1f) "
+                               "kf_speed=%s",
+                               obs.carla_id, obs.track_id, ttc, ttc_distance,
+                               obs_speed, obs_loc.x, obs_loc.y, ego_loc.x, ego_loc.y,
+                               f"{getattr(obs, 'kf_speed_mps', None)}")
 
-                # Braking attribution
+                # Braking attribution — spatial proximity catches the
+                # real self-ghosting case where carla_id is unidentified
                 trigger_cid = pred.obstacle_trajectory.obstacle.carla_id
+                obs_loc_attr = pred.obstacle_trajectory.obstacle.location
+                ego_dist = ((obs_loc_attr.x - ego_loc.x)**2 +
+                            (obs_loc_attr.y - ego_loc.y)**2)**0.5
+
+                # A ghost brake is triggered by a track that is:
+                #   (a) carla_id matches ego (ID provenance — works with anchoring), OR
+                #   (b) unidentified track within 8m of ego (proximity heuristic).
+                #       Only used when anchoring is OFF, because with anchoring
+                #       ON, NPC tracks also have carla_id=-1 and a nearby NPC
+                #       (e.g., Lincoln crossing) would be falsely attributed.
+                is_ego_by_id = (trigger_cid == self.vehicle.id)
+                if not self._anchoring:
+                    is_unidentified = (trigger_cid == -1 or trigger_cid > 10000)
+                    is_ego_by_proximity = (is_unidentified and ego_dist < 8.0)
+                else:
+                    is_ego_by_proximity = False
+
                 self.brake_attributions.append({
                     'trigger_track_id': pred.obstacle_trajectory.obstacle.track_id,
                     'trigger_carla_id': trigger_cid,
-                    'is_ego_ghost': (trigger_cid == self.vehicle.id),
+                    'is_ego_ghost': is_ego_by_id or is_ego_by_proximity,
+                    'ghost_reason': 'id_match' if is_ego_by_id else ('proximity' if is_ego_by_proximity else 'none'),
+                    'ego_dist_m': ego_dist,
                     'obstacle_speed': obs_speed,
                     'ttc': ttc,
+                    # AoI tracking: source_tick = when detection was captured,
+                    # publish_tick = when edge pushed prediction,
+                    # trigger_tick = when brake decision was made
+                    'source_tick': getattr(pred, 'source_tick', None),
+                    'publish_tick': getattr(pred, 'publish_tick', None),
+                    'trigger_tick': self._step_count,
+                    # Prediction horizon in seconds
+                    'prediction_horizon_s': len(pred.predicted_trajectory) * 0.05 if pred.predicted_trajectory else None,
+                    # Position for GT matching (edge manager will label)
+                    'obs_x': obs_loc_attr.x,
+                    'obs_y': obs_loc_attr.y,
+                    'ego_x': ego_loc.x,
+                    'ego_y': ego_loc.y,
+                    # GT labels — set by edge manager after this tick
+                    'gt_matched_actor_id': None,
+                    'ghost_brake_gt': None,
+                    'false_positive_gt': None,
+                    'true_positive_gt': None,
+                    'gt_brake_class': None,
                 })
 
         return vehicle_state, target_vehicle, min_distance
@@ -1219,6 +1276,7 @@ class BehaviorAgent(object):
         """
 
         agent_step_start_time = time.time()
+        self._step_count += 1
         # retrieve ego location
         ego_vehicle_loc = self._ego_pos.location
         if len(self.ego_location_buffer) == 10:
@@ -1249,8 +1307,11 @@ class BehaviorAgent(object):
             # eCLOUD
             if self._is_dist:
                 return -1, None # eCloud: Use -1 to indicate simulation end. Need a better way than this.
-            else:
+            elif self._exit_on_destination:
                 sys.exit(0)
+            else:
+                # Non-hero ego in multi-ego scenario: just stop, don't kill sim
+                return 0, None
         end_time = time.time()
         self.planning_metrics.update_agent_step_list(0, end_time-start_time)
         logger.debug("step 0 complete")
@@ -1360,9 +1421,9 @@ class BehaviorAgent(object):
                     (obs_loc.x - ego_loc.x)**2 +
                     (obs_loc.y - ego_loc.y)**2)**0.5
                 self._rss_lateral_growing_ticks = 0
-            logger.debug("[RSS] Enter proper response — TTC=%.2fs, "
-                         "ego_speed=%.1f km/h",
-                         self.ttc, self._ego_speed)
+            logger.warning("[RSS] Enter proper response — TTC=%.2fs, "
+                          "ego_speed=%.1f km/h, threat_cid=%s",
+                          self.ttc, self._ego_speed, self._rss_threat_carla_id)
 
         elif not is_hazard and self._committed_brake_ttl > 0:
             # Collision check says safe, but we are in proper response.
@@ -1372,8 +1433,8 @@ class BehaviorAgent(object):
             # (a) Ego has stopped
             if self._ego_speed < 2.0:
                 safe = True
-                logger.debug("[RSS] Exit: ego stopped (%.1f km/h)",
-                             self._ego_speed)
+                logger.warning("[RSS] Exit: ego stopped (%.1f km/h)",
+                               self._ego_speed)
 
             # (b) Obstacle lateral distance growing (cleared the path)
             if not safe and ego_loc is not None:
@@ -1387,7 +1448,7 @@ class BehaviorAgent(object):
                     self._rss_last_lateral_dist = threat_dist
                     if self._rss_lateral_growing_ticks >= 3:
                         safe = True
-                        logger.debug(
+                        logger.warning(
                             "[RSS] Exit: obstacle clearing (dist=%.1f, "
                             "growing %d ticks)", threat_dist,
                             self._rss_lateral_growing_ticks)
@@ -1396,7 +1457,7 @@ class BehaviorAgent(object):
             self._committed_brake_ttl -= 1
             if self._committed_brake_ttl <= 0:
                 safe = True
-                logger.debug("[RSS] Exit: TTL expired")
+                logger.warning("[RSS] Exit: TTL expired")
 
             if not safe:
                 is_hazard = True
