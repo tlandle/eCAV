@@ -70,6 +70,10 @@ class PlanningMetrics(object):
 
         self.count = 0
 
+        # Exposure metrics (after spawn buffer)
+        self.distance_traveled_m = 0.0
+        self.time_alive_s = 0.0
+
         # Braking attribution — populated by BehaviorAgent.collision_manager
         self.brake_attributions = []
 
@@ -90,7 +94,11 @@ class PlanningMetrics(object):
         # at the very beginning, the vehicle is in a spawn state, so we should
         # filter out the first 100 data points.
         if self.count > 100:
-            self.speed_list[0].append(ego_speed / 3.6)
+            speed_mps = ego_speed / 3.6
+            self.speed_list[0].append(speed_mps)
+            # Accumulate exposure metrics
+            self.distance_traveled_m += speed_mps * 0.05
+            self.time_alive_s += 0.05
             if len(self.speed_list[0]) <= 1:
                 self.acc_list[0].append(0)
                 self.jerk_list[0].append(0)
@@ -190,7 +198,20 @@ class PlanningMetrics(object):
         # Braking attribution
         total_brakes = len(self.brake_attributions)
         ghost_brakes = sum(1 for a in self.brake_attributions if a.get('is_ego_ghost'))
+        ghost_by_id = sum(1 for a in self.brake_attributions if a.get('ghost_reason') == 'id_match')
+        ghost_by_proximity = sum(1 for a in self.brake_attributions if a.get('ghost_reason') == 'proximity')
         false_brake_rate = ghost_brakes / max(1, total_brakes)
+
+        # GT-labeled brake classification (set by edge manager post-hoc)
+        gt_labeled = [a for a in self.brake_attributions
+                      if a.get('gt_brake_class') is not None]
+        gt_labeled_count = len(gt_labeled)
+        ghost_brake_gt_count = sum(1 for a in gt_labeled
+                                   if a.get('gt_brake_class') == 'self_ghost')
+        other_fp_gt_count = sum(1 for a in gt_labeled
+                                if a.get('gt_brake_class') == 'other_fp')
+        true_positive_gt_count = sum(1 for a in gt_labeled
+                                     if a.get('gt_brake_class') == 'true_positive')
 
         return {
             "actor_id": self.actor_id,
@@ -208,7 +229,15 @@ class PlanningMetrics(object):
             "max_lateral_deviation_m": float(lat_dev_max),
             "total_brake_events": total_brakes,
             "ghost_brake_events": ghost_brakes,
+            "ghost_brake_by_id": ghost_by_id,
+            "ghost_brake_by_proximity": ghost_by_proximity,
             "false_brake_rate": float(false_brake_rate),
+            "ghost_brake_gt": ghost_brake_gt_count,
+            "other_fp_gt": other_fp_gt_count,
+            "true_positive_gt": true_positive_gt_count,
+            "gt_labeled_count": gt_labeled_count,
+            "distance_traveled_m": float(self.distance_traveled_m),
+            "time_alive_s": float(self.time_alive_s),
         }
 
     def evaluate(self):
