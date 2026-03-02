@@ -136,6 +136,24 @@ class EvaluationManager(object):
 
             veh_dict.update(metrics)
 
+            # Save per-brake attribution details for debugging
+            if planning_metrics.brake_attributions:
+                # Only keep fields that are JSON-serializable and useful
+                _keep = ['trigger_track_id', 'trigger_carla_id',
+                         'is_ego_ghost', 'ghost_reason', 'ego_dist_m',
+                         'obstacle_speed', 'ttc',
+                         'source_tick', 'publish_tick', 'trigger_tick',
+                         'prediction_horizon_s',
+                         'obs_x', 'obs_y', 'ego_x', 'ego_y',
+                         'gt_matched_actor_id', 'gt_match_dist_m',
+                         'gt_brake_class', 'gt_actor_speed',
+                         'gt_dca_m', 'gt_t_ca_s',
+                         'gt_provenance']
+                veh_dict['brake_attributions'] = [
+                    {k: a.get(k) for k in _keep}
+                    for a in planning_metrics.brake_attributions
+                ]
+
             # save plotting
             figure_save_path = os.path.join(
                 self.eval_save_path,
@@ -316,6 +334,14 @@ class EvaluationManager(object):
             if metrics:
                 self.global_metrics["edges"][pmid].update(metrics)
 
+            # Ego-consistency gate violation metrics
+            if hasattr(pm, 'get_ego_gate_metrics'):
+                self.global_metrics["edges"][pmid]['ego_gate'] = pm.get_ego_gate_metrics()
+
+            # Competing-risk time-to-event metrics
+            if hasattr(pm, 'get_competing_risk_metrics'):
+                self.global_metrics["edges"][pmid]['competing_risk_events'] = pm.get_competing_risk_metrics()
+
             # save plotting
             if figure is not None:
                 figure_save_path = os.path.join(
@@ -370,6 +396,11 @@ class EvaluationManager(object):
             # store in global metrics structure
             veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(str(vm.vehicle.id), {})
             veh_dict.update(per_vehicle[v_id])
+
+            # Per-camera disagreement metrics (inter-source position disagreement)
+            if hasattr(vm, 'perception_manager') and hasattr(vm.perception_manager, 'get_camera_disagreement_metrics'):
+                disagree = vm.perception_manager.get_camera_disagreement_metrics()
+                veh_dict.update(disagree)
 
         # -------- scenario-level averages -----------------------------------
         if per_vehicle:
@@ -604,10 +635,54 @@ class EvaluationManager(object):
 
 
 
-        # === SUCCESS definition ===
+        # === SUCCESS definition (4-tier S_op) ===
         coll = self.global_metrics["collision_count"]
-        #dead = self.global_metrics["deadlock_detected"]
         self.global_metrics["success_rate"] = 1.0 if (coll == 0) else 0.0
+
+        # S_coll: no collisions (safety)
+        s_coll = 1 if (coll == 0) else 0
+
+        # Aggregate GT brake classifications across all managed vehicles
+        total_ghost_gt = 0
+        total_other_fp_gt = 0
+        total_tp_gt = 0
+        total_brake_events = 0
+        for vid, vdata in self.global_metrics.get("vehicles", {}).items():
+            total_ghost_gt += vdata.get("ghost_brake_gt", 0)
+            total_other_fp_gt += vdata.get("other_fp_gt", 0)
+            total_tp_gt += vdata.get("true_positive_gt", 0)
+            total_brake_events += vdata.get("total_brake_events", 0)
+
+        # S_ghost: no self-ghost emergency brakes (targeted failure class)
+        s_ghost = 1 if (total_ghost_gt == 0) else 0
+
+        # S_fp: no other false-positive emergency brakes (stack hygiene)
+        s_fp = 1 if (total_other_fp_gt == 0) else 0
+
+        # S_prog: adequate forward progress (avg speed >= 60% of target)
+        target_speed_kmh = self.global_metrics.get("target_speed_kmh", 50)
+        target_speed_mps = target_speed_kmh / 3.6
+        avg_speeds = []
+        for vid, vdata in self.global_metrics.get("vehicles", {}).items():
+            spd = vdata.get("avg_speed_mps", 0)
+            if spd is not None:
+                avg_speeds.append(spd)
+        overall_avg_speed = np.mean(avg_speeds) if avg_speeds else 0.0
+        s_prog = 1 if (overall_avg_speed >= 0.6 * target_speed_mps) else 0
+
+        # S_op: operational success = all four AND'd
+        s_op = s_coll & s_ghost & s_fp & s_prog
+
+        self.global_metrics["s_coll"] = s_coll
+        self.global_metrics["s_ghost"] = s_ghost
+        self.global_metrics["s_fp"] = s_fp
+        self.global_metrics["s_prog"] = s_prog
+        self.global_metrics["s_op"] = s_op
+        self.global_metrics["total_ghost_brake_gt"] = total_ghost_gt
+        self.global_metrics["total_other_fp_gt"] = total_other_fp_gt
+        self.global_metrics["total_tp_gt"] = total_tp_gt
+        self.global_metrics["total_brake_events"] = total_brake_events
+        self.global_metrics["overall_avg_speed_mps"] = float(overall_avg_speed)
 
 
         # 4) write JSON
@@ -650,8 +725,17 @@ class EvaluationManager(object):
             f.write("SCENARIO CONFIGURATION\n")
             f.write("-" * 40 + "\n")
             f.write(f"Target Speed: {self.global_metrics.get('target_speed_kmh', 'N/A')} km/h\n")
-            f.write(f"Success Rate: {self.global_metrics.get('success_rate', 0.0):.1%}\n")
+            f.write(f"Success Rate (legacy): {self.global_metrics.get('success_rate', 0.0):.1%}\n")
+            f.write(f"S_coll (no collision): {self.global_metrics.get('s_coll', 'N/A')}\n")
+            f.write(f"S_ghost (no self-ghost brakes): {self.global_metrics.get('s_ghost', 'N/A')}\n")
+            f.write(f"S_fp (no other false brakes): {self.global_metrics.get('s_fp', 'N/A')}\n")
+            f.write(f"S_prog (adequate progress): {self.global_metrics.get('s_prog', 'N/A')}\n")
+            f.write(f"S_op (operational success): {self.global_metrics.get('s_op', 'N/A')}\n")
             f.write(f"Total Collisions: {self.global_metrics.get('collision_count', 0)}\n")
+            f.write(f"Brake Events — Ghost: {self.global_metrics.get('total_ghost_brake_gt', 0)}, "
+                    f"Other FP: {self.global_metrics.get('total_other_fp_gt', 0)}, "
+                    f"TP: {self.global_metrics.get('total_tp_gt', 0)}\n")
+            f.write(f"Overall Avg Speed: {self.global_metrics.get('overall_avg_speed_mps', 0):.2f} m/s\n")
 
             if 'edge_config' in self.global_metrics:
                 ec = self.global_metrics['edge_config']
@@ -681,10 +765,11 @@ class EvaluationManager(object):
 
                 # Braking Attribution
                 if vdata.get('total_brake_events', 0) > 0:
-                    f.write(f"  Braking Attribution:\n")
+                    f.write(f"  Braking Attribution (GT-labeled):\n")
                     f.write(f"    Total Brake Events: {vdata.get('total_brake_events', 0)}\n")
-                    f.write(f"    Ghost Brake Events: {vdata.get('ghost_brake_events', 0)}\n")
-                    f.write(f"    False Brake Rate: {vdata.get('false_brake_rate', 0):.3f}\n")
+                    f.write(f"    Self-Ghost FP: {vdata.get('ghost_brake_gt', 0)}\n")
+                    f.write(f"    Other FP: {vdata.get('other_fp_gt', 0)}\n")
+                    f.write(f"    True Positive: {vdata.get('true_positive_gt', 0)}\n")
 
                 f.write(f"  Safety:\n")
                 f.write(f"    Collisions: {vdata.get('collisions', 0)}\n")
@@ -814,8 +899,15 @@ class EvaluationManager(object):
             f.write("|----------------|---------------------|----------------|--------|\n")
 
             # Overall
-            f.write(f"| Overall        | Success Rate        | {self.global_metrics.get('success_rate', 0):.1%}           |         |\n")
+            f.write(f"| Overall        | S_op                | {self.global_metrics.get('s_op', 0)}              |         |\n")
+            f.write(f"| Overall        | S_coll              | {self.global_metrics.get('s_coll', 0)}              |         |\n")
+            f.write(f"| Overall        | S_ghost             | {self.global_metrics.get('s_ghost', 0)}              |         |\n")
+            f.write(f"| Overall        | S_fp                | {self.global_metrics.get('s_fp', 0)}              |         |\n")
+            f.write(f"| Overall        | S_prog              | {self.global_metrics.get('s_prog', 0)}              |         |\n")
             f.write(f"| Overall        | Collisions          | {self.global_metrics.get('collision_count', 0)}              |         |\n")
+            f.write(f"| Overall        | Ghost Brakes (GT)   | {self.global_metrics.get('total_ghost_brake_gt', 0)}              |         |\n")
+            f.write(f"| Overall        | Other FP (GT)       | {self.global_metrics.get('total_other_fp_gt', 0)}              |         |\n")
+            f.write(f"| Overall        | True Positive (GT)  | {self.global_metrics.get('total_tp_gt', 0)}              |         |\n")
 
             # Detection (from first edge)
             if edges:

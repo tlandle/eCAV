@@ -33,7 +33,7 @@ from opencda.core.prediction.linear_predictor_manager import LinearPredictorMana
 from opencda.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
 from opencda.core.application.edge.edge_profiler import EdgeProfiler
-from .edge_manager_base import _BaseEdgeManager, logger
+from opencda.core.application.edge.edge_manager.edge_manager_base import _BaseEdgeManager, logger
 
 
 def _track_to_corners_and_bbx(track: np.ndarray):
