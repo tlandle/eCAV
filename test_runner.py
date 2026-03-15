@@ -166,47 +166,13 @@ CARLA_SH   = Path.home() / "carla-0.9.15/CarlaUE4.sh"
 CARLA_PORT = 2000
 
 def oncoming_speed_for(ego_kmh: int) -> float:
-    """Compute Lincoln *target* speed (km/h) so both vehicles arrive at
-    the intersection simultaneously, **both accelerating from rest**.
+    """Return Lincoln target speed in m/s (WaypointFollower uses m/s).
 
-    Geometry (scenario_3):
-        ego runway  = 48.0 m  (Y=80 → Y=127.9)
-        Lincoln run = 48.5 m  (X=-35 → X=-83.55)
-        accel       ~ 3 m/s²  (typical CARLA PID)
-
-    Model: vehicle accelerates at *a* until reaching target speed, then
-    cruises.  Arrival time = v/(2a) + d/v  (accel phase + cruise phase).
-    Solve for Lincoln's target speed v_lin such that t_lin == t_ego.
-
-    Quadratic: v_lin² - 2a·t_ego·v_lin + 2a·d_lin = 0
-    Take the smaller root (reachable speed).  When the discriminant is
-    negative both vehicles are still accelerating at arrival — distances
-    are nearly equal so timing matches with any target ≥ ego's.
+    The Lincoln spawns at X=-35 and drives west to X=-84.8 (ego lane
+    center, 49.8 m).  With WaypointFollower accel ~5 m/s² the Lincoln
+    needs ~18 m to reach 13.4 m/s (48 km/h).
     """
-    import math
-    a = 3.0        # m/s²
-    d_ego = 48.0   # m
-    d_lin = 48.5   # m
-
-    v_ego = ego_kmh / 3.6  # m/s
-    d_to_max = 0.5 * v_ego**2 / a
-
-    if d_ego <= d_to_max:
-        t_ego = math.sqrt(2 * d_ego / a)
-    else:
-        t_accel = v_ego / a
-        t_cruise = (d_ego - d_to_max) / v_ego
-        t_ego = t_accel + t_cruise
-
-    # Solve quadratic for Lincoln's target speed
-    disc = a**2 * t_ego**2 - 2 * a * d_lin
-    if disc < 0:
-        # Both vehicles still accelerating the entire distance — nearly
-        # simultaneous arrival regardless of target speed.  Match ego.
-        return float(ego_kmh)
-
-    v_lin = a * t_ego - math.sqrt(disc)  # smaller root (m/s)
-    return v_lin * 3.6  # km/h
+    return 13.4
 
 def carla_running() -> bool:
     """True if server proc exists AND port answers."""
@@ -433,7 +399,7 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         oc_speed = oncoming_speed_for(speed_kmh)
         d.setdefault("scenario_runner", {})["openscenarioparams"] = [
             f"ego_vehicle_max_speed={int(speed_kmh)}",
-            f"oncoming_vehicle_speed={int(oc_speed)}"
+            f"oncoming_vehicle_speed={oc_speed}"
         ]
 
 # ───────────────────── single run helper ─────────────────────────────────

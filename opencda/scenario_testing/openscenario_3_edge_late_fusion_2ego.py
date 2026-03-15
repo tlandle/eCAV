@@ -24,7 +24,7 @@ from opencda.scenario_testing.utils.yaml_utils import add_current_time
 
 import ecloud_pb2 as ecloud
 
-MAX_STEP = 600
+MAX_STEP = 300
 SCENARIO_NAME = 'openscenario_3_edge_late_fusion_2ego'
 scenario_runner = None
 

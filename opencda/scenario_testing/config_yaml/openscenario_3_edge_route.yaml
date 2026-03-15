@@ -196,7 +196,7 @@ rsu_base: &rsu_base
         points_per_second: 1000000
         rotation_frequency: 20
         upper_fov: 10.0
-        lower_fov: -30.0
+        lower_fov: -70.0
         dropoff_general_rate: 0.0
         dropoff_intensity_limit: 1.0
         dropoff_zero_intensity: 0.0
@@ -252,7 +252,7 @@ scenario:
       rsus:
         - <<: *rsu_base
           name: rsu1
-          spawn_position: [-78.0, 128.0, 1.5]
+          spawn_position: [-82.0, 126.0, 7.0]
           sensing:
             <<: *base_sensing
             perception:
@@ -268,7 +268,7 @@ scenario:
               points_per_second: 1000000
               rotation_frequency: 20
               upper_fov: 10.0
-              lower_fov: -30.0
+              lower_fov: -70.0
               dropoff_general_rate: 0.0
               dropoff_intensity_limit: 1.0
               dropoff_zero_intensity: 0.0

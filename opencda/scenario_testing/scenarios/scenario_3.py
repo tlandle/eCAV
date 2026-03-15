@@ -264,7 +264,7 @@ class Scenario_3(BasicScenario):
         kv = dict(p.split("=", 1) for p in (scenario_params or []))
 
         self.ego_max_speed_kmh = float(kv.get("ego_vehicle_max_speed", 70))
-        self.oncoming_speed_kmh = float(kv.get("oncoming_vehicle_speed", 25))
+        self.oncoming_speed_mps = float(kv.get("oncoming_vehicle_speed", 13.4))
         print(f"Ego vehicle max speed: {self.ego_max_speed_kmh} km/h")
 
 
@@ -334,14 +334,14 @@ class Scenario_3(BasicScenario):
                 # scenario becomes non-physical).  The speed is set once by
                 # test_runner's oncoming_speed_for() and never adapts to ego.
                 waypoint = [
-                    carla.Location(x=-83.55, y=127.9, z=0.5),   # intersection
+                    carla.Location(x=-84.8, y=127.9, z=0.5),    # ego lane center
                     carla.Location(x=-108.6, y=129.5, z=0.5),
                     carla.Location(x=-120.6, y=129.5, z=0.5),
                     carla.Location(x=-140.6, y=115.2, z=0.5),
                     carla.Location(x=-142.0, y=87.6, z=0.5),
                 ]
-                velocity = self.oncoming_speed_kmh  # km h⁻¹ (fixed)
-                print(f"Vehicle 01 velocity: {velocity} km/h (fixed, no SyncArrival)")
+                velocity = self.oncoming_speed_mps  # m/s (WaypointFollower units)
+                print(f"Vehicle 01 velocity: {velocity} m/s ({velocity*3.6:.1f} km/h, fixed)")
                 drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
             else:
                 drive_behavior = WaypointFollower(actor, velocity)

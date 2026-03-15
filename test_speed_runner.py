@@ -103,6 +103,23 @@ try:
                            "error": f"evaluation missing: {e}"}
 
             metrics["target_speed_kmh"] = int(spd)
+            metrics["config_speed_kmh"] = int(spd)
+
+            # Recompute s_prog with the correct target speed
+            # (evaluate_manager may have used wrong target from config merge)
+            target_mps = int(spd) / 3.6
+            veh_speeds = [v.get("avg_speed_mps", 0)
+                          for v in metrics.get("vehicles", {}).values()
+                          if v.get("avg_speed_mps") is not None]
+            if veh_speeds:
+                avg_speed = sum(veh_speeds) / len(veh_speeds)
+                metrics["s_prog"] = 1 if avg_speed >= 0.6 * target_mps else 0
+                metrics["overall_avg_speed_mps"] = avg_speed
+                # Recompute s_op with corrected s_prog
+                metrics["s_op"] = int(all(
+                    metrics.get(k, 0) == 1
+                    for k in ("s_coll", "s_ghost", "s_fp", "s_prog")))
+
             (run_dir / "simulation_metrics.json").write_text(
                 json.dumps(metrics, indent=2))
 

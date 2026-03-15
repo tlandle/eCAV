@@ -216,8 +216,8 @@ rsu_base: &rsu_base
         range: 120
         points_per_second: 1000000
         rotation_frequency: 20 # the simulation is 20 fps
-        upper_fov: 10.0  # Match vehicle FOV
-        lower_fov: -30.0
+        upper_fov: 10.0
+        lower_fov: -70.0
         dropoff_general_rate: 0.0
         dropoff_intensity_limit: 1.0
         dropoff_zero_intensity: 0.0
@@ -284,8 +284,8 @@ scenario:
           # This is where the edge "owns" the intersection for prediction
           # - Ego at (−84.8, 100): 28m away, within ±40m ✓
           # - Lincoln at (−60.0, 128): 18m away, within ±40m ✓
-          # Height set to 1.5m to match V2X-Sim 2.0 RSU sensor height
-          spawn_position: [-78.0, 128.0, 1.5]
+          # Height set to 7.0m — pole-mounted RSU for line-of-sight over firetrucks
+          spawn_position: [-82.0, 126.0, 7.0]
           sensing:
             <<: *base_sensing
             perception:
@@ -301,8 +301,8 @@ scenario:
               range: 120
               points_per_second: 1000000  # Higher point density for better coverage
               rotation_frequency: 20
-              upper_fov: 10.0  # Match vehicle FOV for 1.5m height
-              lower_fov: -30.0
+              upper_fov: 10.0
+              lower_fov: -70.0
               dropoff_general_rate: 0.0
               dropoff_intensity_limit: 1.0
               dropoff_zero_intensity: 0.0
