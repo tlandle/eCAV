@@ -56,9 +56,9 @@ class EvaluationManager(object):
         
         current_path = os.path.dirname(os.path.realpath(__file__))
         if scenario_params['scenario']['single_cav_list']:
-            ego_cav_config = OmegaConf.merge(scenario_params["scenario"]["single_cav_list"][0], scenario_params["vehicle_base"])
+            ego_cav_config = OmegaConf.merge(scenario_params["vehicle_base"], scenario_params["scenario"]["single_cav_list"][0])
         elif scenario_params['scenario']['edge_list'][0]['vehicles']:
-            ego_cav_config = OmegaConf.merge(scenario_params["scenario"]["edge_list"][0]['vehicles'][0], scenario_params["vehicle_base"])
+            ego_cav_config = OmegaConf.merge(scenario_params["vehicle_base"], scenario_params["scenario"]["edge_list"][0]['vehicles'][0])
 
         if output_dir:                       # override from CLI / runner
             self.eval_save_path = output_dir
@@ -143,8 +143,10 @@ class EvaluationManager(object):
                          'is_ego_ghost', 'ghost_reason', 'ego_dist_m',
                          'obstacle_speed', 'ttc',
                          'source_tick', 'publish_tick', 'trigger_tick',
+                         'delta_use_ticks', 'hazard_source',
                          'prediction_horizon_s',
                          'obs_x', 'obs_y', 'ego_x', 'ego_y',
+                         'ego_speed_mps',
                          'gt_matched_actor_id', 'gt_match_dist_m',
                          'gt_brake_class', 'gt_actor_speed',
                          'gt_dca_m', 'gt_t_ca_s',
@@ -153,6 +155,10 @@ class EvaluationManager(object):
                     {k: a.get(k) for k in _keep}
                     for a in planning_metrics.brake_attributions
                 ]
+
+            # RSS episode log (stored on behavior_agent, not planning_metrics)
+            if hasattr(vm.agent, 'rss_episodes') and vm.agent.rss_episodes:
+                veh_dict['rss_episodes'] = vm.agent.rss_episodes
 
             # save plotting
             figure_save_path = os.path.join(
@@ -191,9 +197,19 @@ class EvaluationManager(object):
 
             # Store per-vehicle safety data
             veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(str(actor_id), {})
+            # Collision history may have 2-tuple (old) or 4-tuple (new) entries
+            col_hist = []
+            for entry in safety_metrics['collision_history']:
+                if len(entry) == 4:
+                    col_hist.append({'frame': entry[0], 'intensity': entry[1],
+                                     'other_actor_id': entry[2], 'other_type_id': entry[3]})
+                else:
+                    col_hist.append({'frame': entry[0], 'intensity': entry[1]})
             veh_dict.setdefault("safety", {}).update({
                 'collision_count': safety_metrics['collision_count'],
-                'collision_history': [(f, i) for f, i in safety_metrics['collision_history']],
+                'collision_history': col_hist,
+                'collision_other_actor_id': safety_metrics.get('collision_other_actor_id'),
+                'collision_other_type_id': safety_metrics.get('collision_other_type_id'),
                 'stuck': safety_metrics['stuck'],
                 'offroad': safety_metrics['offroad'],
                 'red_light_violations': safety_metrics['red_light_violations'],
@@ -635,40 +651,41 @@ class EvaluationManager(object):
 
 
 
-        # === SUCCESS definition (4-tier S_op) ===
-        coll = self.global_metrics["collision_count"]
-        self.global_metrics["success_rate"] = 1.0 if (coll == 0) else 0.0
+        # === SUCCESS definition (4-tier S_op, focal ego only) ===
+        # Focal ego = lowest actor ID (first spawned = hero vehicle)
+        vehicles = self.global_metrics.get("vehicles", {})
+        if vehicles:
+            focal_vid = min(vehicles.keys(), key=lambda k: int(k))
+            fv = vehicles[focal_vid]
+        else:
+            focal_vid = None
+            fv = {}
 
-        # S_coll: no collisions (safety)
-        s_coll = 1 if (coll == 0) else 0
+        self.global_metrics["focal_vehicle_id"] = focal_vid
 
-        # Aggregate GT brake classifications across all managed vehicles
-        total_ghost_gt = 0
-        total_other_fp_gt = 0
-        total_tp_gt = 0
-        total_brake_events = 0
-        for vid, vdata in self.global_metrics.get("vehicles", {}).items():
-            total_ghost_gt += vdata.get("ghost_brake_gt", 0)
-            total_other_fp_gt += vdata.get("other_fp_gt", 0)
-            total_tp_gt += vdata.get("true_positive_gt", 0)
-            total_brake_events += vdata.get("total_brake_events", 0)
+        # S_coll: focal ego had no collisions
+        focal_safety = fv.get("safety", {})
+        focal_coll = focal_safety.get("collision_count", fv.get("collisions", 0))
+        s_coll = 1 if (focal_coll == 0) else 0
+        self.global_metrics["success_rate"] = 1.0 if (focal_coll == 0) else 0.0
 
-        # S_ghost: no self-ghost emergency brakes (targeted failure class)
+        # GT brake classifications (focal ego only)
+        total_ghost_gt = fv.get("ghost_brake_gt", 0)
+        total_other_fp_gt = fv.get("other_fp_gt", 0)
+        total_tp_gt = fv.get("true_positive_gt", 0)
+        total_brake_events = fv.get("total_brake_events", 0)
+
+        # S_ghost: focal ego had no self-ghost emergency brakes
         s_ghost = 1 if (total_ghost_gt == 0) else 0
 
-        # S_fp: no other false-positive emergency brakes (stack hygiene)
+        # S_fp: focal ego had no other false-positive emergency brakes
         s_fp = 1 if (total_other_fp_gt == 0) else 0
 
-        # S_prog: adequate forward progress (avg speed >= 60% of target)
+        # S_prog: focal ego adequate forward progress (avg speed >= 60% of target)
         target_speed_kmh = self.global_metrics.get("target_speed_kmh", 50)
         target_speed_mps = target_speed_kmh / 3.6
-        avg_speeds = []
-        for vid, vdata in self.global_metrics.get("vehicles", {}).items():
-            spd = vdata.get("avg_speed_mps", 0)
-            if spd is not None:
-                avg_speeds.append(spd)
-        overall_avg_speed = np.mean(avg_speeds) if avg_speeds else 0.0
-        s_prog = 1 if (overall_avg_speed >= 0.6 * target_speed_mps) else 0
+        focal_avg_speed = fv.get("avg_speed_mps", 0) or 0.0
+        s_prog = 1 if (focal_avg_speed >= 0.6 * target_speed_mps) else 0
 
         # S_op: operational success = all four AND'd
         s_op = s_coll & s_ghost & s_fp & s_prog
@@ -682,7 +699,8 @@ class EvaluationManager(object):
         self.global_metrics["total_other_fp_gt"] = total_other_fp_gt
         self.global_metrics["total_tp_gt"] = total_tp_gt
         self.global_metrics["total_brake_events"] = total_brake_events
-        self.global_metrics["overall_avg_speed_mps"] = float(overall_avg_speed)
+        self.global_metrics["focal_avg_speed_mps"] = float(focal_avg_speed)
+        self.global_metrics["focal_collisions"] = focal_coll
 
 
         # 4) write JSON
@@ -735,7 +753,7 @@ class EvaluationManager(object):
             f.write(f"Brake Events — Ghost: {self.global_metrics.get('total_ghost_brake_gt', 0)}, "
                     f"Other FP: {self.global_metrics.get('total_other_fp_gt', 0)}, "
                     f"TP: {self.global_metrics.get('total_tp_gt', 0)}\n")
-            f.write(f"Overall Avg Speed: {self.global_metrics.get('overall_avg_speed_mps', 0):.2f} m/s\n")
+            f.write(f"Focal Ego Avg Speed: {self.global_metrics.get('focal_avg_speed_mps', 0):.2f} m/s\n")
 
             if 'edge_config' in self.global_metrics:
                 ec = self.global_metrics['edge_config']
