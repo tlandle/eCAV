@@ -80,6 +80,8 @@ class SafetyManager:
                 # CollisionSensor
                 metrics['collision_count'] = 1 if sensor.collided else 0
                 metrics['collision_history'] = list(sensor._history)
+                metrics['collision_other_actor_id'] = getattr(sensor, 'collision_other_actor_id', None)
+                metrics['collision_other_type_id'] = getattr(sensor, 'collision_other_type_id', None)
             elif hasattr(sensor, 'stuck'):
                 # StuckDetector
                 metrics['stuck'] = sensor.stuck

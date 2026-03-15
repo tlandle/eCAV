@@ -10,24 +10,30 @@ from opencda.opencda_carla import Location, Rotation, Transform
 
 logger = logging.getLogger(__name__)
 
-# Minimum track history required before generating a prediction.
-_MIN_HISTORY = 3
+# ── Track maturity gates ──
+# Anonymous tracks (carla_id == -1) need more frames for KF velocity to
+# converge past initialization artifacts.  At dt=50ms, ±1-3m position
+# jitter in the first 3 frames maps to 20-60 m/s phantom velocity.
+# 10 frames (500ms) is enough for the KF to converge to <1 m/s on a
+# truly stationary object.
+_MIN_HISTORY_ANONYMOUS = 10
+# Identity-bound tracks (carla_id != -1) have stable association and are
+# not fighting duplicate births, so a shorter maturity window is safe.
+_MIN_HISTORY_IDENTIFIED = 3
 
-# Minimum KF-estimated speed (m/s) to generate a prediction.
-# Objects below this are considered stationary by the tracker's own
-# Kalman filter velocity estimate.
+# Minimum KF-estimated speed (m/s) to generate a moving prediction.
+# Objects below this get a stationary prediction (all points at current
+# location) so the collision check can still detect stopped vehicles in
+# the path, but TTC=1000 from spatial-overlap means no braking trigger.
 _MIN_KF_SPEED_MPS = 1.0
 
-# Displacement consistency check parameters.
-# P[7:]*=10000 in the KF causes aggressive velocity convergence from the
-# first position delta, and R*=10 + Q*=0.01 prevent correction.  Even a
-# 0.1m LiDAR noise blip at birth gets locked in as ~1.7 m/s phantom
-# velocity.  We verify the KF velocity against actual observed displacement:
-# if the object hasn't actually moved at least this fraction of what the KF
-# predicts, the velocity estimate is an initialization artifact.
-_DISPLACEMENT_CHECK_MIN_FRAMES = 5   # need enough history for reliable measurement
-_DISPLACEMENT_CONSISTENCY_RATIO = 0.5  # actual / expected displacement
-_DT = 0.05  # simulation timestep (seconds)
+# ── Displacement consistency check ──
+# Distinguishes real motion from pose jitter.  For true motion
+# (consistency ≈ 1) net displacement tracks path length.  For jitter
+# (consistency ≈ 0) the object oscillates in place.
+_CONSISTENCY_MIN_FRAMES = 5
+_CONSISTENCY_RATIO = 0.6     # net_disp / path_disp threshold
+_MIN_NET_DISPLACEMENT = 2.0  # metres — large actual movement always passes
 
 
 class LinearPredictorManager():
@@ -71,7 +77,14 @@ class LinearPredictorManager():
 
             trajectory = obstacle_trajectory.trajectory
             num_steps = len(trajectory)
-            if num_steps < _MIN_HISTORY:
+
+            # ── Track maturity gate ──
+            # Anonymous tracks need longer history for KF velocity to
+            # converge past initialization artifacts from position jitter.
+            cid = getattr(obstacle_trajectory.obstacle, 'carla_id', -1)
+            min_hist = (_MIN_HISTORY_IDENTIFIED if cid != -1
+                        else _MIN_HISTORY_ANONYMOUS)
+            if num_steps < min_hist:
                 continue
 
             # Use latest position and orientation (trajectory[0] is newest)
@@ -81,10 +94,36 @@ class LinearPredictorManager():
             cur_y = latest_transform.location.y
             cur_z = latest_transform.location.z
 
-            # Stationary gate: objects below _MIN_KF_SPEED_MPS get a
-            # stationary prediction (all points at current location) so the
-            # collision check can still detect stopped vehicles in the path.
-            if kf_speed is not None and kf_speed < _MIN_KF_SPEED_MPS:
+            # ── Displacement consistency check ──
+            # Catch tracks where pose jitter masquerades as motion.
+            # net_disp / path_disp ≈ 1 for real motion, ≈ 0 for jitter.
+            force_stationary = False
+            if (num_steps >= _CONSISTENCY_MIN_FRAMES
+                    and kf_speed is not None
+                    and kf_speed >= _MIN_KF_SPEED_MPS):
+                first = trajectory[-1].location   # oldest
+                last  = trajectory[0].location     # newest
+                net_disp = ((last.x - first.x)**2 +
+                            (last.y - first.y)**2)**0.5
+                path_disp = sum(
+                    ((trajectory[j].location.x - trajectory[j+1].location.x)**2 +
+                     (trajectory[j].location.y - trajectory[j+1].location.y)**2)**0.5
+                    for j in range(num_steps - 1))
+                consistency = net_disp / max(path_disp, 1e-6)
+
+                if (consistency < _CONSISTENCY_RATIO
+                        and net_disp < _MIN_NET_DISPLACEMENT):
+                    logger.debug(
+                        "[PRED JITTER] track_id=%s cid=%s kf_speed=%.1f m/s "
+                        "consistency=%.2f net_disp=%.2fm — forcing stationary",
+                        obstacle_trajectory.obstacle.track_id, cid,
+                        kf_speed, consistency, net_disp)
+                    force_stationary = True
+
+            # Stationary gate: objects below _MIN_KF_SPEED_MPS or flagged
+            # as jitter get a stationary prediction (all points at current
+            # location).  TTC=1000 from spatial-overlap means no braking.
+            if force_stationary or (kf_speed is not None and kf_speed < _MIN_KF_SPEED_MPS):
                 logger.debug("[PRED STATIONARY] track_id=%s kf_speed=%.2f m/s",
                              obstacle_trajectory.obstacle.track_id, kf_speed)
                 static_tf = Transform(

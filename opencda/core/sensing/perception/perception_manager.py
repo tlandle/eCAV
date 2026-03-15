@@ -80,19 +80,26 @@ class CameraSensor:
 
     """
 
-    def __init__(self, vehicle, world, relative_position, global_position, fov=70):
+    def __init__(self, vehicle, world, relative_position, global_position,
+                 fov=70, image_width=800, image_height=600):
         """
         Parameters
         ----------
         fov : int
             Camera field of view in degrees. Default 70 to match V2XSim training data.
             V2XSim uses 1600x900 @ 70° FOV. Using 100° FOV causes 3.4x focal length mismatch.
+        image_width : int
+            Horizontal resolution in pixels. Default 800 (CARLA default).
+        image_height : int
+            Vertical resolution in pixels. Default 600 (CARLA default).
         """
         if world is None and vehicle is not None:
             world = vehicle.get_world()
 
         blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
         blueprint.set_attribute('fov', str(fov))
+        blueprint.set_attribute('image_size_x', str(image_width))
+        blueprint.set_attribute('image_size_y', str(image_height))
 
         spawn_point = self.spawn_point_estimation(relative_position,
                                                   global_position)
@@ -123,16 +130,23 @@ class CameraSensor:
 
         pitch = 0
         carla_location = carla.Location(x=0, y=0, z=0)
-        x, y, z, yaw = relative_position
 
-        # this is for rsu. It utilizes global position instead of relative
-        # position to the vehicle
+        # Support optional 5th element for pitch: [x, y, z, yaw, pitch]
+        if len(relative_position) >= 5:
+            x, y, z, yaw, pitch = relative_position[:5]
+        else:
+            x, y, z, yaw = relative_position
+
+        # For RSU (global_position provided), use global coords as base.
+        # Default pitch for RSU is -15 (looking slightly down from pole)
+        # unless explicitly specified in the position array.
         if global_position is not None:
             carla_location = carla.Location(
                 x=global_position[0],
                 y=global_position[1],
                 z=global_position[2])
-            pitch = -35
+            if len(relative_position) < 5:
+                pitch = -15
 
         carla_location = carla.Location(x=carla_location.x + x,
                                         y=carla_location.y + y,
@@ -446,6 +460,8 @@ class PerceptionManager:
             mount_position = config_yaml['camera']['positions']
             # FOV default 70 to match V2XSim training data for WorldFusion/BM2CP
             camera_fov = config_yaml['camera'].get('fov', 70)
+            camera_width = config_yaml['camera'].get('image_width', 800)
+            camera_height = config_yaml['camera'].get('image_height', 600)
             assert len(mount_position) == self.camera_num, \
                 "The camera number has to be the same as the length of the" \
                 "relative positions list"
@@ -454,7 +470,9 @@ class PerceptionManager:
                 self.rgb_camera.append(
                     CameraSensor(
                         vehicle, self.carla_world, mount_position[i],
-                        self.global_position, fov=camera_fov))
+                        self.global_position, fov=camera_fov,
+                        image_width=camera_width,
+                        image_height=camera_height))
 
         else:
             self.rgb_camera = None

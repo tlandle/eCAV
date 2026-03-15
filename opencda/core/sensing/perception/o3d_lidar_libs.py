@@ -373,7 +373,6 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
 
         #logger.debug("select points shape: ", select_points.shape)
 
-
         if select_points.shape[0] == 0:
             continue
 

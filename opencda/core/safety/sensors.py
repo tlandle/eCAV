@@ -44,6 +44,8 @@ class CollisionSensor(object):
 
         self.collided = False
         self.collided_frame = -1
+        self.collision_other_actor_id = None
+        self.collision_other_type_id = None
         self._history = deque(maxlen=params['history_size'])
         self._threshold = params['col_thresh']
 
@@ -54,10 +56,15 @@ class CollisionSensor(object):
             return
         impulse = event.normal_impulse
         intensity = math.sqrt(impulse.x ** 2 + impulse.y ** 2 + impulse.z ** 2)
-        self._history.append((event.frame, intensity))
+        other = getattr(event, 'other_actor', None)
+        other_id = other.id if other else -1
+        other_type = other.type_id if other else 'unknown'
+        self._history.append((event.frame, intensity, other_id, other_type))
         if intensity > self._threshold:
             self.collided = True
             self.collided_frame = event.frame
+            self.collision_other_actor_id = other_id
+            self.collision_other_type_id = other_type
 
     def return_status(self):
         return {'collision': self.collided}

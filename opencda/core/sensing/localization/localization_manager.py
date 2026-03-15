@@ -52,6 +52,7 @@ class GnssSensor(object):
         blueprint.set_attribute(
             'noise_lon_stddev', str(
                 config['noise_lon_stddev']))
+        # Do not seed GNSS noise — let CARLA randomize each run.
         # spawn the sensor
         self.sensor = world.spawn_actor(
             blueprint,
