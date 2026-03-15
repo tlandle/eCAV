@@ -49,6 +49,25 @@ class AB3DMOT(object):
 		if hasattr(cfg, 'min_hits'):
 			self.min_hits = cfg.min_hits
 
+		# Identity exclusion zone: anisotropic heading-aligned gate
+		# prevents birth of anonymous tracks that are depth-error
+		# duplicates of beacon-identified participants.
+		#   x_max: along-track (longitudinal) — covers 5-8m depth error
+		#   y_max: cross-track (lateral)      — tight to spare adjacent lanes
+		self._dup_x_max = getattr(cfg, 'dup_x_max', 8.0)
+		self._dup_y_max = getattr(cfg, 'dup_y_max', 2.0)
+		self._dup_size_ratio = getattr(cfg, 'dup_size_ratio', 2.5)
+
+		# Instrumentation counters
+		self.birth_attempts_anon = 0
+		self.birth_suppressed_by_gate = 0
+		self.births_anon_after_gate = 0
+		self.anon_cull_count = 0
+
+		# Post-birth cull: consecutive ticks an anon track is near
+		# a beacon-identified track before deletion
+		self._cull_consec_ticks = getattr(cfg, 'cull_consec_ticks', 3)
+
 		# debug
 		# self.debug_id = 2
 		self.debug_id = None
@@ -233,10 +252,18 @@ class AB3DMOT(object):
 
 			trk_box = Box3D.array2bbox(trk_tmp)
 
-			# attach meta so compute_affinity can read it
+			# attach meta so compute_affinity / data_association can read it
 			trk_box.carla_id     = getattr(kf_tmp, "carla_id", -1)
 			trk_box.guid         = getattr(kf_tmp, "guid",     -1)
 			trk_box.anchoring_age = kf_tmp.anchoring_age
+			trk_box.hits         = kf_tmp.hits
+
+			# Ground-plane speed for kinematic gating in matching.
+			# KF state: [x, y, z, theta, l, w, h, dx, dy, dz]
+			# KITTI x,z = ground plane (CARLA x,y).  Skip dy (height).
+			trk_vel = kf_tmp.kf.x.reshape((-1))[7:10]
+			trk_box.kf_speed_ground = float(
+				(trk_vel[0]**2 + trk_vel[2]**2)**0.5)
 
 			trks.append(trk_box)
 			#trks.append(Box3D.array2bbox(trk_tmp))
@@ -299,22 +326,135 @@ class AB3DMOT(object):
 			# else:
 				# print('track ID %d is not matched' % trk.id)
 
+	def _in_exclusion_zone(self, det_box):
+		"""Check if a CID=-1 detection falls in the anisotropic heading-
+		aligned exclusion zone of any beacon-identified track.
+
+		The zone is an oriented rectangle in the identified track's heading
+		frame: wide along-track (covers depth error) and tight cross-track
+		(spares adjacent-lane vehicles).
+
+		Returns True if the detection should be suppressed.
+		"""
+		if self._dup_x_max <= 0:
+			return False
+		det_l = getattr(det_box, 'l', 4.0)
+		det_w = getattr(det_box, 'w', 2.0)
+		for trk in self.trackers:
+			if trk.carla_id == -1:
+				continue
+			if trk.anchoring_age >= self.anchoring_epoch:
+				continue
+			# Size guard: skip if detection is a very different size
+			# (avoids merging a pedestrian into a vehicle track)
+			trk_l = float(trk.kf.x[4])  # KF state: [x,y,z,theta,l,w,h,...]
+			trk_w = float(trk.kf.x[5])
+			if trk_l > 0 and det_l > 0:
+				lr = max(det_l, trk_l) / max(min(det_l, trk_l), 0.1)
+				if lr > self._dup_size_ratio:
+					continue
+			if trk_w > 0 and det_w > 0:
+				wr = max(det_w, trk_w) / max(min(det_w, trk_w), 0.1)
+				if wr > self._dup_size_ratio:
+					continue
+			# Displacement on ground plane (KITTI x,z = CARLA x,y)
+			dx_world = det_box.x - float(trk.kf.x[0])
+			dz_world = det_box.z - float(trk.kf.x[2])
+			# Rotate into track heading frame
+			theta = float(trk.kf.x[3])
+			cos_t, sin_t = math.cos(theta), math.sin(theta)
+			dx_along =  dx_world * cos_t + dz_world * sin_t
+			dy_cross = -dx_world * sin_t + dz_world * cos_t
+			if abs(dx_along) <= self._dup_x_max and abs(dy_cross) <= self._dup_y_max:
+				return True
+		return False
+
 	def birth(self, dets, info, unmatched_dets):
 		# create and initialise new trackers for unmatched detections
 
-		# dets = copy.copy(dets)
-		new_id_list = list()					# new ID generated for unmatched detections
-		for i in unmatched_dets:        			# a scalar of index
+		new_id_list = list()
+		for i in unmatched_dets:
+			cid = int(info[i, CID])
+
+			# Identity exclusion zone: suppress anonymous detections
+			# that are depth-error duplicates of beacon-identified tracks.
+			if cid == -1:
+				self.birth_attempts_anon += 1
+				if self._in_exclusion_zone(dets[i]):
+					self.birth_suppressed_by_gate += 1
+					continue
+
 			trk = KF(Box3D.bbox2array(dets[i])[:7], info[i, :], self.ID_count[0])
-			trk.carla_id = int(info[i, CID])                # NEW
-			trk.guid     = int(info[i, GUID])               # NEW
+			trk.carla_id = cid
+			trk.guid     = int(info[i, GUID])
+			trk.near_identified_ticks = 0  # for post-birth cull
 			self.trackers.append(trk)
 			new_id_list.append(trk.id)
-			# print('track ID %s has been initialized due to new detection' % trk.id)
+
+			if cid == -1:
+				self.births_anon_after_gate += 1
 
 			self.ID_count[0] += 1
 
 		return new_id_list
+
+	def _cull_anon_near_identified(self):
+		"""Delete anonymous tracks that persist near beacon-identified
+		tracks for too many consecutive ticks.
+
+		Uses the same anisotropic heading-aligned gate as the birth
+		exclusion zone. This catches ghosts that were born during a
+		beacon loss burst and survived past the birth gate.
+		"""
+		if self._dup_x_max <= 0:
+			return
+
+		identified = [t for t in self.trackers if t.carla_id != -1
+		              and t.anchoring_age < self.anchoring_epoch]
+		if not identified:
+			return
+
+		to_remove = []
+		for trk in self.trackers:
+			if trk.carla_id != -1:
+				continue
+			near = False
+			trk_x = float(trk.kf.x[0])
+			trk_z = float(trk.kf.x[2])
+			trk_l = float(trk.kf.x[4])
+			trk_w = float(trk.kf.x[5])
+			for it in identified:
+				# Size guard
+				it_l = float(it.kf.x[4])
+				it_w = float(it.kf.x[5])
+				if it_l > 0 and trk_l > 0:
+					lr = max(trk_l, it_l) / max(min(trk_l, it_l), 0.1)
+					if lr > self._dup_size_ratio:
+						continue
+				if it_w > 0 and trk_w > 0:
+					wr = max(trk_w, it_w) / max(min(trk_w, it_w), 0.1)
+					if wr > self._dup_size_ratio:
+						continue
+				dx_w = trk_x - float(it.kf.x[0])
+				dz_w = trk_z - float(it.kf.x[2])
+				theta = float(it.kf.x[3])
+				cos_t, sin_t = math.cos(theta), math.sin(theta)
+				dx_along =  dx_w * cos_t + dz_w * sin_t
+				dy_cross = -dx_w * sin_t + dz_w * cos_t
+				if abs(dx_along) <= self._dup_x_max and abs(dy_cross) <= self._dup_y_max:
+					near = True
+					break
+
+			if near:
+				trk.near_identified_ticks = getattr(trk, 'near_identified_ticks', 0) + 1
+				if trk.near_identified_ticks >= self._cull_consec_ticks:
+					to_remove.append(trk)
+			else:
+				trk.near_identified_ticks = 0
+
+		for trk in to_remove:
+			self.trackers.remove(trk)
+			self.anon_cull_count += 1
 
 	def output(self):
 		# output exiting tracks that have been stably associated, i.e., >= min_hits
@@ -492,6 +632,12 @@ class AB3DMOT(object):
 
 		# create and initialise new trackers for unmatched detections
 		new_id_list = self.birth(dets, info, unmatched_dets)
+
+		# Post-birth cull: delete anonymous tracks that have persisted
+		# near a beacon-identified track for too many consecutive ticks.
+		# Handles ghosts born during beacon loss bursts.
+		if self._cull_consec_ticks > 0:
+			self._cull_anon_near_identified()
 
 		# output existing valid tracks
 		results = self.output()

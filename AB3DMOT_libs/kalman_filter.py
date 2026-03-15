@@ -13,6 +13,7 @@ class Filter(object):
 		#self.class_id = int(info[3])   # class id, 0 for vehicle, 1 for pedestrian, 2 for cyclist
 		self.info = info        		# other information associated
 		self.anchoring_age = 0  		# ticks since last beacon-matched update
+		self.near_identified_ticks = 0  # consecutive ticks near a beacon-identified track
 
 class KF(Filter):
 	def __init__(self, bbox3D, info, ID):
