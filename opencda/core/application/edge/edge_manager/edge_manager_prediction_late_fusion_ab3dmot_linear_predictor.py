@@ -108,6 +108,57 @@ def _collect_ab3d_detections(edge,
             'info': np.asarray(info_rows,np.int64)}
 
 
+def _cross_source_nms(dets_dict, cdist_thresh=3.0):
+    """Deduplicate anonymous sensor detections from multiple sources.
+
+    Beacons (info CID > 0) are kept unconditionally.
+    Among anonymous detections (CID == -1), if two detections are within
+    *cdist_thresh* meters (CARLA x,y center distance), keep the one with
+    higher confidence (det column 7).
+
+    This prevents the tracker from receiving N copies of the same
+    real-world object when N egos all observe it, keeping association
+    cost O(objects²) instead of O((N*objects)²).
+    """
+    dets = dets_dict['dets']
+    info = dets_dict['info']
+    if len(dets) == 0:
+        return dets_dict
+
+    # Split into beacons (identified) and anonymous sensor detections
+    cids = info[:, 2] if info.ndim == 2 and info.shape[1] > 2 else np.full(len(info), -1)
+    beacon_mask = cids > 0
+    anon_mask = ~beacon_mask
+
+    if anon_mask.sum() <= 1:
+        return dets_dict
+
+    anon_dets = dets[anon_mask]
+    anon_info = info[anon_mask]
+
+    # CARLA x = det col 3, CARLA y = det col 5 (KITTI z = CARLA y)
+    centers = anon_dets[:, [3, 5]]
+
+    # Greedy NMS by center distance: keep highest-confidence first
+    scores = anon_dets[:, 7] if anon_dets.shape[1] > 7 else np.ones(len(anon_dets))
+    order = np.argsort(-scores)
+    keep = []
+    suppressed = np.zeros(len(anon_dets), dtype=bool)
+
+    for i in order:
+        if suppressed[i]:
+            continue
+        keep.append(i)
+        dists = np.linalg.norm(centers[i] - centers, axis=1)
+        suppressed |= dists < cdist_thresh
+
+    anon_keep = np.array(keep)
+    kept_dets = np.concatenate([dets[beacon_mask], anon_dets[anon_keep]], axis=0)
+    kept_info = np.concatenate([info[beacon_mask], anon_info[anon_keep]], axis=0)
+
+    return {'dets': kept_dets, 'info': kept_info}
+
+
 # ──────────────────────────────────────────────────────────────────────
 #  Main edge-manager subclass
 # ──────────────────────────────────────────────────────────────────────
@@ -316,7 +367,16 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                         dets_all = _collect_ab3d_detections(
                             self, objects, beacons, frame_idx=source_tick,
                             beacon_id_mgr=self.beacon_id_mgr)
-                        num_dets = max(num_dets, len(dets_all['dets']))
+                        # Cross-source NMS: deduplicate detections from
+                        # multiple egos observing the same objects.
+                        n_before = len(dets_all['dets'])
+                        dets_all = _cross_source_nms(dets_all, cdist_thresh=3.0)
+                        n_after = len(dets_all['dets'])
+                        if n_before != n_after:
+                            logger.debug(
+                                "cross-source NMS: %d -> %d dets (-%d)",
+                                n_before, n_after, n_before - n_after)
+                        num_dets = max(num_dets, n_after)
 
                     _t0 = time.perf_counter()
                     tracks, _ = self.tracker.track(dets_all, source_tick)
@@ -514,9 +574,19 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                         obs = pred.obstacle_trajectory.obstacle
                         cid = getattr(obs, 'carla_id', -1)
                         if cid in managed_ids_supp:
-                            # Check for beacon identity swap: track
-                            # carries another ego's ID but is physically
-                            # closer to *us* than to the claimed ego.
+                            if cid == vm.vehicle.id:
+                                # Track carries THIS ego's own beacon
+                                # id: suppress unconditionally.
+                                suppress_idx.add(i)
+                                logger.debug(
+                                    "[OWN-BEACON] tick=%d ego=%d "
+                                    "pred_idx=%d cid=%d suppressed",
+                                    tick, vm.vehicle.id, i, cid)
+                                continue
+                            # Track carries ANOTHER ego's ID — check
+                            # for beacon identity swap: track is
+                            # physically closer to us than to the
+                            # claimed ego.
                             ploc = obs.location
                             d_to_us = ((ploc.x - ego_loc.x)**2 +
                                        (ploc.y - ego_loc.y)**2)**0.5
@@ -769,69 +839,9 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             if tid not in updated:
                 del self.tracked_trajectories[tid]
 
-        # --- Spatial self-identification (anchoring OFF only) --------
-        # Uses Hungarian (min-cost) assignment across all egos and
-        # tracks to prevent one ego from stealing another's track.
-        # Time-aligned: compare track state at source_tick vs ego
-        # GT pose at source_tick.
-        if not self.anchoring:
-            self._tick_count += 1
-            src_tick = getattr(self, '_latest_source_tick', None)
-            gt_snap = self._gt_snapshots.get(src_tick) if src_tick else None
-
-            egos = []  # [(vm, ego_x, ego_y)]
-            for vm in self.vehicle_manager_list:
-                ego_loc_now = vm.vehicle.get_location()
-                if gt_snap and vm.vehicle.id in gt_snap:
-                    ex = gt_snap[vm.vehicle.id]['x']
-                    ey = gt_snap[vm.vehicle.id]['y']
-                else:
-                    ex = ego_loc_now.x
-                    ey = ego_loc_now.y
-                egos.append((vm, ex, ey))
-
-            tids = list(self.tracked_trajectories.keys())
-            n_egos = len(egos)
-            n_tracks = len(tids)
-
-            if n_egos > 0 and n_tracks > 0:
-                # Build cost matrix: D[ego_i, track_j] = aligned distance
-                # Gate entries beyond self_id_radius with INF
-                INF = 1e9
-                cost = np.full((n_egos, n_tracks), INF, dtype=np.float64)
-                for i, (vm, ex, ey) in enumerate(egos):
-                    for j, tid in enumerate(tids):
-                        loc = self.tracked_trajectories[tid].obstacle.location
-                        d = np.sqrt((loc.x - ex)**2 + (loc.y - ey)**2)
-                        if d < self._self_id_radius:
-                            cost[i, j] = d
-
-                # Solve assignment (handles n_egos != n_tracks)
-                row_ind, col_ind = linear_sum_assignment(cost)
-
-                assigned_egos = set()
-                for ri, ci in zip(row_ind, col_ind):
-                    if cost[ri, ci] >= INF:
-                        continue  # no valid match
-                    vm, ex, ey = egos[ri]
-                    tid = tids[ci]
-                    self.tracked_trajectories[tid].obstacle.carla_id = \
-                        vm.vehicle.id
-                    self.track_to_carla[tid] = vm.vehicle.id
-                    assigned_egos.add(ri)
-                    logger.debug(
-                        "Self-ID: vm %d -> track %d "
-                        "(dist=%.2fm, src_tick=%s)",
-                        vm.vehicle.id, tid, cost[ri, ci], src_tick)
-
-                for i, (vm, ex, ey) in enumerate(egos):
-                    if i not in assigned_egos:
-                        self._self_id_failures += 1
-                        logger.warning(
-                            "[SELF-ID FAIL] vm %d: no track within "
-                            "radius=%.1fm (src_tick=%s, n_tracks=%d)",
-                            vm.vehicle.id, self._self_id_radius,
-                            src_tick, n_tracks)
+        # Anchoring OFF: no edge-side self-identification.
+        # The edge sends all predictions unsuppressed.  The vehicle
+        # does its own proximity-based self-suppression on receive.
 
     # ------------------------------------------------------------------
     #  Metrics computation

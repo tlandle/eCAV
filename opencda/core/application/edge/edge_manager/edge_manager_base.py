@@ -291,6 +291,10 @@ class _BaseEdgeManager:
     #   plus prediction noise margin.  8m captures real near-misses.
     _GT_HAZARD_TIME_HORIZON = 5.0      # s  — look-ahead for closest approach
 
+    # Self-duplicate reclassification thresholds (heading-aligned near-ego box)
+    _SELFDUP_LONG_M  = 8.0   # longitudinal (along ego heading)
+    _SELFDUP_LAT_M   = 3.0   # lateral (perpendicular to heading)
+
     def _label_brake_attributions_gt(self, vm) -> None:
         """
         GT-label any new brake attributions from the behavior agent.
@@ -341,18 +345,46 @@ class _BaseEdgeManager:
 
         gt_xy  = np.array([[a['x'], a['y']] for a in gt_actors])
 
+        # Build a lookup for GT actors by CARLA ID
+        gt_by_id = {a['id']: a for a in gt_actors}
+
         for attr in unlabeled:
             obs_xy = np.array([attr['obs_x'], attr['obs_y']])
             ego_xy = np.array([attr['ego_x'], attr['ego_y']])
-            dists = np.linalg.norm(gt_xy - obs_xy, axis=1)
-            best_idx = int(np.argmin(dists))
-            matched = gt_actors[best_idx]
-            matched_id = matched['id']
+
+            trigger_cid = attr.get('trigger_carla_id')
+
+            # If the tracker identified this track as a specific non-ego
+            # actor, trust the ID rather than position proximity.  At high
+            # latency the prediction position is stale and the ego may
+            # have drifted closer to it than the original actor, causing
+            # false self_ghost labels.
+            if (trigger_cid is not None
+                    and trigger_cid != ego_id
+                    and trigger_cid > 0
+                    and trigger_cid in gt_by_id):
+                matched = gt_by_id[trigger_cid]
+                matched_id = trigger_cid
+                match_dist = float(np.linalg.norm(
+                    np.array([matched['x'], matched['y']]) - obs_xy))
+            else:
+                # Anonymous track or ego — fall back to position matching
+                dists = np.linalg.norm(gt_xy - obs_xy, axis=1)
+                best_idx = int(np.argmin(dists))
+                matched = gt_actors[best_idx]
+                matched_id = matched['id']
+                match_dist = float(dists[best_idx])
 
             attr['gt_matched_actor_id'] = matched_id
-            attr['gt_match_dist_m'] = float(dists[best_idx])
+            attr['gt_match_dist_m'] = match_dist
 
             # Category 1: self-ghost (matched actor is the ego itself)
+            # If the nearest GT actor is the ego, the observation is a
+            # self-ghost regardless of distance.  At high latency the
+            # stale prediction drifts far from the ego's current GT
+            # position, but it is still an ego-ghost.  Identified
+            # non-ego tracks are already handled above by carla_id
+            # matching, so position-matched ego hits are genuine.
             if matched_id == ego_id:
                 attr['ghost_brake_gt'] = True
                 attr['false_positive_gt'] = False
@@ -414,6 +446,17 @@ class _BaseEdgeManager:
                     attr['obs_x'], attr['obs_y'],
                     attr['ego_x'], attr['ego_y'])
 
+            # ── Self-duplicate reclassification ──
+            # If behavior agent flagged this as ego-ghost (cid=-1, near ego)
+            # but GT matched a parked car, check if the obstacle is inside a
+            # heading-aligned near-ego box.  If so, it's a phantom self-
+            # duplicate, not a real parked-car detection.
+            if (attr['gt_brake_class'] == 'other_fp'
+                    and attr.get('is_ego_ghost', False)
+                    and attr.get('trigger_carla_id', 0) == -1):
+                self._reclassify_self_duplicate(
+                    attr, ego_xy, ego_vx, ego_vy, ego_id)
+
     @classmethod
     def _is_gt_hazard(cls, actor: dict, ego_xy: np.ndarray,
                       ego_vx: float = 0.0, ego_vy: float = 0.0):
@@ -462,6 +505,49 @@ class _BaseEdgeManager:
         dca = ((actor_x_ca - ego_x_ca)**2 + (actor_y_ca - ego_y_ca)**2)**0.5
 
         return dca < cls._GT_HAZARD_DCA_THRESH, float(dca), float(t_ca)
+
+    def _reclassify_self_duplicate(self, attr, ego_xy, ego_vx, ego_vy,
+                                     ego_id):
+        """Reclassify an other_fp as self_ghost if the obstacle is inside a
+        heading-aligned near-ego exclusion box.
+
+        Called when behavior_agent flagged is_ego_ghost=True (cid=-1, near ego)
+        but GT nearest-match landed on a parked car or non-hazard NPC.
+        """
+        obs_xy = np.array([attr['obs_x'], attr['obs_y']])
+        d = obs_xy - ego_xy
+
+        # Ego heading from velocity; fall back to ego→obs vector if stopped
+        ego_speed = (ego_vx**2 + ego_vy**2)**0.5
+        if ego_speed > 0.5:
+            fwd = np.array([ego_vx, ego_vy]) / ego_speed
+        else:
+            dist = np.linalg.norm(d)
+            if dist < 0.1:
+                # obs on top of ego — definitely self-duplicate
+                fwd = np.array([1.0, 0.0])
+            else:
+                fwd = d / dist
+
+        lat_vec = np.array([-fwd[1], fwd[0]])
+        along = float(np.dot(d, fwd))
+        across = float(abs(np.dot(d, lat_vec)))
+
+        if abs(along) < self._SELFDUP_LONG_M and across < self._SELFDUP_LAT_M:
+            attr['ghost_brake_gt'] = True
+            attr['false_positive_gt'] = False
+            attr['gt_brake_class'] = 'self_ghost'
+            attr['gt_provenance'] = 'self_duplicate'
+            logger.warning(
+                "[GT SELF-DUP] ego %d: track=%s cid=%s reclassified from "
+                "other_fp (was prov=%s, matched GT actor %d dist=%.2fm). "
+                "Obs in ego box: along=%.1fm, across=%.1fm",
+                ego_id, attr.get('trigger_track_id'),
+                attr.get('trigger_carla_id'),
+                attr.get('_orig_provenance', attr.get('gt_provenance', '?')),
+                attr.get('gt_matched_actor_id', -1),
+                attr.get('gt_match_dist_m', -1),
+                along, across)
 
     @staticmethod
     def _dict_extend(dest: Dict[str, list], src: Dict[str, list]) -> None:

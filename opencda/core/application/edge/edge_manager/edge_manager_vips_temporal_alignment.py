@@ -9,12 +9,11 @@ Implements the core idea from VIPS (MobiCom'22): compensate for
 communication latency by extrapolating stale detections forward in time
 using their last-known velocity.  Key differences from late fusion:
 
-1. **No anchoring** — ``anchoring: false`` in AB3DMOT config.
-   No ``BeaconIdManager``.
-2. **Beacons are anonymous** — vehicle beacons carry ``carla_id = -1``
-   (same as sensor detections).  The tracker must associate by spatial
-   proximity / IoU only.
-3. **Time-rectification** — when draining the jitter buffer, stale
+1. **Anchoring is configurable** — when ``anchoring: false`` (default),
+   beacons are anonymous and the tracker associates by spatial proximity.
+   When ``anchoring: true``, BeaconIdManager stamps beacons with
+   temp_ids and the tracker uses identity-based association.
+2. **Time-rectification** — when draining the jitter buffer, stale
    detections are extrapolated forward:
        corrected_pos = pos + kf_velocity * (current_tick - source_tick) * dt
    This is the core VIPS compensation mechanism.
@@ -58,6 +57,8 @@ from opencda.core.application.edge.edge_metrics import EdgeMetrics
 from opencda.core.application.edge.edge_profiler import EdgeProfiler
 from opencda.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 
+from opencda.core.application.edge.beacon_id_manager import BeaconIdManager
+
 from .edge_manager_base import _BaseEdgeManager, logger
 
 
@@ -84,19 +85,23 @@ def _box_to_transform(box):
 def _collect_anonymous_detections(edge,
                                   objects: Dict[str, List],
                                   beacons: Dict[int, tuple],
-                                  frame_idx: int):
+                                  frame_idx: int,
+                                  beacon_id_mgr: BeaconIdManager = None):
     """
     Build the dict that AB3DMOT.track() expects.
 
     VIPS-temporal difference from late fusion:
-    - Beacons carry ``carla_id = -1`` (anonymous) instead of the real
-      vehicle ID.  The tracker associates purely by spatial proximity.
-    - No BeaconIdManager — no anchoring protocol at all.
+    - When *beacon_id_mgr* is None (anchoring off): beacons carry
+      ``carla_id = -1`` (anonymous).  The tracker associates purely
+      by spatial proximity.
+    - When *beacon_id_mgr* is provided (anchoring on): beacons carry
+      a temporary ID from the BeaconIdManager, enabling the tracker's
+      anchoring protocol to associate beacon tracks by identity.
     """
     global _GUID
     det_rows, info_rows = [], []
 
-    # a) beacons — treated as anonymous sensor detections ----------------
+    # a) beacons -----------------------------------------------------------
     #    KITTI camera convention: KITTI_x=CARLA_x, KITTI_y=CARLA_z, KITTI_z=CARLA_y
     for vm in edge.vehicle_manager_list:
         if vm.vehicle.id not in beacons:
@@ -105,7 +110,12 @@ def _collect_anonymous_detections(edge,
         h, w, l = ext.z * 2, ext.y * 2, ext.x * 2
         det_rows.append([h, w, l, loc.x, loc.z, loc.y, 0.0, 1.0])
         _GUID += 1
-        info_rows.append([frame_idx, _GUID, -1])  # anonymous
+        if beacon_id_mgr is not None:
+            identity = beacon_id_mgr.get_temp_id(
+                vm.vehicle.id, loc, frame_idx)
+        else:
+            identity = -1  # anonymous
+        info_rows.append([frame_idx, _GUID, identity])
 
     # b) sensor detections -----------------------------------------------
     for obj in objects.get("vehicles", []):
@@ -208,18 +218,17 @@ class VIPSTemporalEdge(_BaseEdgeManager):
     """
     VIPS-style temporal alignment baseline.
 
-    Late-fusion detections + anonymous beacons + time-rectification.
+    Late-fusion detections + time-rectification.
     Two modes controlled by ``anchoring`` config:
 
     * ``anchoring: false`` — faithful MobiCom'22 VIPS baseline.
-      No identity protocol, no ego-consistency suppression.
+      All beacons anonymous (carla_id=-1), no identity protocol,
+      spatial self-ID via Hungarian assignment at trajectory
+      conversion.
     * ``anchoring: true`` — VIPS + our ego-uniqueness invariant.
-      Per-ego ego-consistency suppression at publish boundary using
-      gate G(e): distance + speed similarity.  Shows added value of
-      the identity invariant on top of temporal alignment.
-
-    In both modes the AB3DMOT tracker operates without beacon
-    anchoring (all beacons are anonymous).
+      BeaconIdManager stamps beacons with temp_ids, tracker uses
+      anchoring protocol, per-ego suppression uses beacon identity
+      (carla_id matching against managed vehicle IDs).
     """
 
     # ------------------------------------------------------------------
@@ -233,18 +242,33 @@ class VIPSTemporalEdge(_BaseEdgeManager):
         # managers
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
 
-        # AB3DMOT tracker — NO beacon anchoring in the tracker itself.
-        # When anchoring=True, we add per-ego ego-consistency suppression
-        # at publish boundary (VIPS + our invariant).  When False, this is
-        # the faithful MobiCom'22 VIPS baseline with no identity protocol.
+        # AB3DMOT tracker config.
+        # When anchoring=True (VIPS + our ego-uniqueness invariant):
+        #   - BeaconIdManager stamps beacons with temp_ids
+        #   - Tracker anchoring=True so it associates beacon tracks by ID
+        #   - Per-ego suppression uses beacon identity, not spatial heuristics
+        # When anchoring=False (faithful MobiCom'22 VIPS baseline):
+        #   - All beacons anonymous (carla_id=-1), no identity protocol
         self.anchoring = cfg.get("anchoring", False)
         self.mot_cfg = edict({
             'vis': False, 'save_path': None, 'use_3d_iou': True, 'thres': 2.0,
             'output_dir': None, 'min_hits': 3, 'max_age': 6, 'ego_com': None,
             'affi_pro': False, 'dataset': 'KITTI', 'det_name': 'pvrcnn',
-            'anchoring': False})
+            'anchoring': self.anchoring})
         self.mot_category = 'Car'
         self.tracker = AB3DMOT(self.mot_cfg, self.mot_category)
+
+        # BSM J2945-inspired temporary ID rotation manager (anchoring only)
+        if self.anchoring:
+            self.beacon_id_mgr = BeaconIdManager(
+                rotation_interval_ticks=cfg.get(
+                    "beacon_id_rotation_interval", 200),
+                rotation_distance_m=cfg.get(
+                    "beacon_id_rotation_distance", 100.0),
+                world_dt=world_dt,
+            )
+        else:
+            self.beacon_id_mgr = None
 
         # Jitter buffer
         from opencda.core.application.edge.latency import JitterBuffer
@@ -406,15 +430,20 @@ class VIPSTemporalEdge(_BaseEdgeManager):
                 latest_source_tick = None
                 num_dets = 0
 
+                from opencda.core.application.edge.edge_manager.\
+                    edge_manager_prediction_late_fusion_ab3dmot_linear_predictor \
+                    import _cross_source_nms
+
                 for source_tick, (objects, beacons) in new_frames:
                     if not beacons:
                         dets_all = {'dets': np.empty((0, 7)),
                                     'info': np.empty((0, 3))}
                     else:
-                        # Collect as anonymous (no anchoring IDs)
                         dets_all = _collect_anonymous_detections(
                             self, objects, beacons,
-                            frame_idx=source_tick)
+                            frame_idx=source_tick,
+                            beacon_id_mgr=self.beacon_id_mgr)
+                        dets_all = _cross_source_nms(dets_all, cdist_thresh=3.0)
 
                         num_dets = max(num_dets, len(dets_all['dets']))
 
@@ -429,6 +458,28 @@ class VIPSTemporalEdge(_BaseEdgeManager):
                         self._track_history.append(tracks[0])
                     latest_dets = dets_all
                     latest_source_tick = source_tick
+
+                # BSM rotation reconciliation (anchoring only)
+                if self.beacon_id_mgr is not None:
+                    for evt in self.beacon_id_mgr.pop_pending_rotations():
+                        rec = self.beacon_id_mgr.get_record(evt.carla_id)
+                        old_pos = evt.position
+                        new_pos = (rec.last_position if rec is not None
+                                   else evt.position)
+                        old_vel = (evt.velocity if evt.velocity is not None
+                                   else np.zeros(3, dtype=np.float32))
+                        elapsed = max(tick - evt.tick, 1)
+                        if self.beacon_id_mgr.reconcile_id_change(
+                                evt.old_temp_id, evt.new_temp_id,
+                                old_pos, new_pos, old_vel, elapsed):
+                            BeaconIdManager.remap_tracker_identity(
+                                self.tracker, evt.old_temp_id,
+                                evt.new_temp_id)
+                        else:
+                            logger.warning(
+                                "BSM rotation reconcile FAILED carla=%d "
+                                "%d->%d", evt.carla_id,
+                                evt.old_temp_id, evt.new_temp_id)
 
                 tracker_ms = (self.tracker.total_time
                               if hasattr(self.tracker, 'total_time') else 0.0)
@@ -461,10 +512,21 @@ class VIPSTemporalEdge(_BaseEdgeManager):
                 false_negatives=det_metrics['fn']
             )
 
-            # Ego-Uniqueness analysis (no temp_id translation needed —
-            # VIPS temporal uses carla_id=-1 for all, tracker assigns its own)
+            # Ego-Uniqueness analysis
+            # With anchoring, tracks carry temp_ids from BeaconIdManager;
+            # translate back so the monitor can match managed vehicles.
             latest_tracks = (self._track_history[-1]
                              if self._track_history else None)
+            if self.anchoring and self.beacon_id_mgr is not None \
+                    and latest_tracks is not None and len(latest_tracks) > 0:
+                latest_tracks = latest_tracks.copy()
+                for i_trk in range(len(latest_tracks)):
+                    if len(latest_tracks[i_trk]) > 8:
+                        raw = int(latest_tracks[i_trk][8])
+                        real = self.beacon_id_mgr.get_carla_id_for_temp(raw)
+                        if real is not None:
+                            latest_tracks[i_trk] = latest_tracks[i_trk].copy()
+                            latest_tracks[i_trk][8] = real
             managed_ids = {vm.vehicle.id for vm in self.vehicle_manager_list}
             ego_poses = {}
             for vm in self.vehicle_manager_list:
@@ -568,6 +630,15 @@ class VIPSTemporalEdge(_BaseEdgeManager):
                         obs = pred.obstacle_trajectory.obstacle
                         cid = getattr(obs, 'carla_id', -1)
                         if cid in managed_ids_supp:
+                            if cid == vm.vehicle.id:
+                                # Track carries THIS ego's own beacon
+                                # id: suppress unconditionally.
+                                suppress_idx.add(i)
+                                logger.debug(
+                                    "[OWN-BEACON] tick=%d ego=%d "
+                                    "pred_idx=%d cid=%d suppressed",
+                                    tick, vm.vehicle.id, i, cid)
+                                continue
                             # Swap detection: track carries another ego's
                             # ID but is closer to *us* than the claimed ego.
                             ploc = obs.location
@@ -759,7 +830,17 @@ class VIPSTemporalEdge(_BaseEdgeManager):
                 continue
             for trk in frame:
                 tid = int(trk[7])
-                cid = int(trk[8])  # will be -1 (anonymous) for all
+                cid_raw = int(trk[8])
+
+                if self.anchoring and self.beacon_id_mgr is not None:
+                    # With beacon anchoring: reverse-map temp_id to
+                    # real carla_id so suppression can identify ego
+                    # tracks by managed vehicle ID.
+                    real_cid = self.beacon_id_mgr.get_carla_id_for_temp(
+                        cid_raw)
+                    cid = real_cid if real_cid is not None else cid_raw
+                else:
+                    cid = cid_raw  # anonymous (-1 for all)
 
                 tf = _box_to_transform(trk[:7])
                 updated.add(tid)
@@ -790,60 +871,57 @@ class VIPSTemporalEdge(_BaseEdgeManager):
         # VIPS spatial self-identification — Hungarian assignment.
         # Uses min-cost matching across all egos and tracks to prevent
         # one ego from stealing another's track in multi-ego scenarios.
-        self._tick_count += 1
-        src_tick = getattr(self, '_latest_source_tick', None)
-        gt_snap = self._gt_snapshots.get(src_tick) if src_tick else None
+        # Only used when anchoring=off (no beacon identity protocol).
+        if not self.anchoring:
+            self._tick_count += 1
+            src_tick = getattr(self, '_latest_source_tick', None)
 
-        egos = []  # [(vm, ego_x, ego_y)]
-        for vm in self.vehicle_manager_list:
-            ego_loc_now = vm.vehicle.get_location()
-            if gt_snap and vm.vehicle.id in gt_snap:
-                ex = gt_snap[vm.vehicle.id]['x']
-                ey = gt_snap[vm.vehicle.id]['y']
-            else:
+            egos = []  # [(vm, ego_x, ego_y)]
+            for vm in self.vehicle_manager_list:
+                ego_loc_now = vm.vehicle.get_location()
                 ex = ego_loc_now.x
                 ey = ego_loc_now.y
-            egos.append((vm, ex, ey))
+                egos.append((vm, ex, ey))
 
-        tids = list(self.tracked_trajectories.keys())
-        n_egos = len(egos)
-        n_tracks = len(tids)
+            tids = list(self.tracked_trajectories.keys())
+            n_egos = len(egos)
+            n_tracks = len(tids)
 
-        if n_egos > 0 and n_tracks > 0:
-            INF = 1e9
-            cost = np.full((n_egos, n_tracks), INF, dtype=np.float64)
-            for i, (vm, ex, ey) in enumerate(egos):
-                for j, tid in enumerate(tids):
-                    loc = self.tracked_trajectories[tid].obstacle.location
-                    d = np.sqrt((loc.x - ex)**2 + (loc.y - ey)**2)
-                    if d < self._self_id_radius:
-                        cost[i, j] = d
+            if n_egos > 0 and n_tracks > 0:
+                INF = 1e9
+                cost = np.full((n_egos, n_tracks), INF, dtype=np.float64)
+                for i, (vm, ex, ey) in enumerate(egos):
+                    for j, tid in enumerate(tids):
+                        loc = self.tracked_trajectories[tid].obstacle.location
+                        d = np.sqrt((loc.x - ex)**2 + (loc.y - ey)**2)
+                        if d < self._self_id_radius:
+                            cost[i, j] = d
 
-            row_ind, col_ind = linear_sum_assignment(cost)
+                row_ind, col_ind = linear_sum_assignment(cost)
 
-            assigned_egos = set()
-            for ri, ci in zip(row_ind, col_ind):
-                if cost[ri, ci] >= INF:
-                    continue
-                vm, ex, ey = egos[ri]
-                tid = tids[ci]
-                self.tracked_trajectories[tid].obstacle.carla_id = \
-                    vm.vehicle.id
-                self.track_to_carla[tid] = vm.vehicle.id
-                assigned_egos.add(ri)
-                logger.debug(
-                    "VIPS self-id: vm %d -> track %d "
-                    "(dist=%.2fm, src_tick=%s)",
-                    vm.vehicle.id, tid, cost[ri, ci], src_tick)
+                assigned_egos = set()
+                for ri, ci in zip(row_ind, col_ind):
+                    if cost[ri, ci] >= INF:
+                        continue
+                    vm, ex, ey = egos[ri]
+                    tid = tids[ci]
+                    self.tracked_trajectories[tid].obstacle.carla_id = \
+                        vm.vehicle.id
+                    self.track_to_carla[tid] = vm.vehicle.id
+                    assigned_egos.add(ri)
+                    logger.debug(
+                        "VIPS self-id: vm %d -> track %d "
+                        "(dist=%.2fm, src_tick=%s)",
+                        vm.vehicle.id, tid, cost[ri, ci], src_tick)
 
-            for i, (vm, ex, ey) in enumerate(egos):
-                if i not in assigned_egos:
-                    self._self_id_failures += 1
-                    logger.warning(
-                        "[SELF-ID FAIL] vm %d: no track within "
-                        "radius=%.1fm (src_tick=%s, n_tracks=%d)",
-                        vm.vehicle.id, self._self_id_radius,
-                        src_tick, n_tracks)
+                for i, (vm, ex, ey) in enumerate(egos):
+                    if i not in assigned_egos:
+                        self._self_id_failures += 1
+                        logger.warning(
+                            "[SELF-ID FAIL] vm %d: no track within "
+                            "radius=%.1fm (src_tick=%s, n_tracks=%d)",
+                            vm.vehicle.id, self._self_id_radius,
+                            src_tick, n_tracks)
 
     # ------------------------------------------------------------------
     #  Metrics  (identical to late fusion)

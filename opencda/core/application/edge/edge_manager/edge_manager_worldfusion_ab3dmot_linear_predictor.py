@@ -122,13 +122,18 @@ class WorldFusionEdge(_BaseEdgeManager):
             'affi_pro': False,
             'dataset': "KITTI",
             'det_name': "deprecated",
-            'anchoring': cfg.get("anchoring", True)
+            'anchoring': cfg.get("anchoring", True),
+            'dup_x_max': cfg.get("dup_x_max", 8.0),
+            'dup_y_max': cfg.get("dup_y_max", 2.0),
+            'dup_size_ratio': cfg.get("dup_size_ratio", 2.5),
+            'cull_consec_ticks': cfg.get("cull_consec_ticks", 3)
         })
         self.anchoring = cfg.get("anchoring", True)
         self.ab3dmot_category = 'Car'
 
         # Create persistent tracker instance (reused across frames)
         self.tracker = AB3DMOT(self.ab3dmot_config, self.ab3dmot_category)
+        self.mot_tracker = self.tracker  # alias for evaluate()
 
         # Linear predictor for trajectory prediction
         self.lin_pred = LinearPredictorManager(num_future_steps=25)
@@ -1276,17 +1281,12 @@ class WorldFusionEdge(_BaseEdgeManager):
         # Time-aligned (used) + naive (logged). See oracle for docstring.
         if not self.anchoring:
             src_tick = getattr(self, '_latest_source_tick', None)
-            gt_snap = self._gt_snapshots.get(src_tick) if src_tick else None
 
             for vm in self.vehicle_manager_list:
                 ego_loc_now = vm.vehicle.get_location()
 
-                if gt_snap and vm.vehicle.id in gt_snap:
-                    ego_x_aligned = gt_snap[vm.vehicle.id]['x']
-                    ego_y_aligned = gt_snap[vm.vehicle.id]['y']
-                else:
-                    ego_x_aligned = ego_loc_now.x
-                    ego_y_aligned = ego_loc_now.y
+                ego_x_aligned = ego_loc_now.x
+                ego_y_aligned = ego_loc_now.y
 
                 best_tid, best_dist = None, float('inf')
                 naive_best_dist = float('inf')
@@ -1706,4 +1706,11 @@ class WorldFusionEdge(_BaseEdgeManager):
         metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
         metrics.update(self._get_latency_component_stats())
         metrics.update(self._get_contract_metrics())
+        if hasattr(self, 'mot_tracker') and self.mot_tracker is not None:
+            metrics['birth_gate'] = {
+                'birth_attempts_anon': self.mot_tracker.birth_attempts_anon,
+                'birth_suppressed_by_gate': self.mot_tracker.birth_suppressed_by_gate,
+                'births_anon_after_gate': self.mot_tracker.births_anon_after_gate,
+                'anon_cull_count': self.mot_tracker.anon_cull_count,
+            }
         return fig, txt, metrics

@@ -928,6 +928,9 @@ class EdgeProfiler:
             'aoi_p95_ticks': summary.aoi_p95_ticks,
             'aoi_p99_ticks': summary.aoi_p99_ticks,
             'aoi_max_ticks': summary.aoi_max_ticks,
+            # AoI histogram (per-tick distribution for CDF plots)
+            'aoi_hist_counts': [],
+            'aoi_hist_bin_edges_ticks': [],
 
             # Compute-contention metrics
             'contention_total_vehicles_affected': summary.total_contention_vehicles_affected,
@@ -935,6 +938,14 @@ class EdgeProfiler:
             'contention_tick_fraction': summary.contention_tick_fraction,
             'contention_avg_budget_exceeded_ms': summary.avg_contention_budget_exceeded_ms,
         }
+
+        # AoI histogram (per-tick distribution for CDF reconstruction)
+        aoi_vals = [f.aoi_ticks for f in frames if f.aoi_ticks > 0]
+        if aoi_vals:
+            n_bins = min(50, max(int(np.max(aoi_vals)) + 1, 10))
+            counts, edges = np.histogram(aoi_vals, bins=n_bins)
+            metrics['aoi_hist_counts'] = counts.tolist()
+            metrics['aoi_hist_bin_edges_ticks'] = edges.tolist()
 
         # Build text summary
         perform_txt = f"""

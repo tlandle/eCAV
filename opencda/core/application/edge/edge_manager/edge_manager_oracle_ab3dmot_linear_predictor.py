@@ -111,7 +111,10 @@ def _collect_oracle_detections(edge,
         # KITTI: x=CARLA_x, y=CARLA_z, z=CARLA_y
         det_rows.append([h, w, l, x, z, y, yaw, 1.0])
         _GUID += 1
-        info_rows.append([frame_idx, _GUID, -1])
+        # Oracle carries true CARLA actor IDs for all detections, so
+        # oracle failures are purely physics-limited (latency), not
+        # identity-pipeline artifacts.
+        info_rows.append([frame_idx, _GUID, actor_info['carla_id']])
 
     return {'dets': np.asarray(det_rows, np.float32) if det_rows else np.empty((0, 8), np.float32),
             'info': np.asarray(info_rows, np.int64) if info_rows else np.empty((0, 3), np.int64)}
@@ -143,9 +146,14 @@ class OracleEdge(_BaseEdgeManager):
             'vis': False, 'save_path': None, 'use_3d_iou': True, 'thres': 2.0,
             'output_dir': None, 'min_hits': 3, 'max_age': 6, 'ego_com': None,
             'affi_pro': False, 'dataset': 'KITTI', 'det_name': 'pvrcnn',
-            'anchoring': self.anchoring})
+            'anchoring': self.anchoring,
+            'dup_x_max': cfg.get("dup_x_max", 8.0),
+            'dup_y_max': cfg.get("dup_y_max", 2.0),
+            'dup_size_ratio': cfg.get("dup_size_ratio", 2.5),
+            'cull_consec_ticks': cfg.get("cull_consec_ticks", 3)})
         self.mot_category = 'Car'
         self.tracker = AB3DMOT(self.mot_cfg, self.mot_category)
+        self.mot_tracker = self.tracker  # alias for evaluate()
 
         # Jitter buffer
         from opencda.core.application.edge.latency import JitterBuffer
@@ -372,10 +380,20 @@ class OracleEdge(_BaseEdgeManager):
                 tracker_ms = (self.tracker.total_time
                               if hasattr(self.tracker, 'total_time') else 0.0)
 
-            # No new data arrived this tick — return empty
+            # No new data arrived this tick — skip prediction but still
+            # advance vehicles so _step_count stays in sync with edge tick
+            # and vehicle control is applied every tick.
             if not new_frames:
                 frame.set_counts(num_agents=num_agents, num_detections=0,
                                  num_tracks=0, num_predictions=0)
+                if not self.run_distributed:
+                    for vm in self.vehicle_manager_list:
+                        vm.update_info(tick)
+                        vm.vehicle.apply_control(vm.run_step())
+                        self._label_brake_attributions_gt(vm)
+                        self._record_time_to_events(tick, vm)
+                    for rsu in self.rsu_manager_list:
+                        rsu.update_info(); rsu.run_step()
                 return ecloud.EdgeObjects()
 
             # ===== 2. convert to trajectories & predict ===================
@@ -404,7 +422,9 @@ class OracleEdge(_BaseEdgeManager):
             # Ego-Uniqueness analysis
             latest_tracks = (self._track_history[-1]
                              if self._track_history else None)
-            if self.anchoring and latest_tracks is not None and len(latest_tracks) > 0:
+            # Oracle: always translate temp_ids for uniqueness monitor
+            # (single-source — ego identity is never ambiguous)
+            if latest_tracks is not None and len(latest_tracks) > 0:
                 latest_tracks = latest_tracks.copy()
                 for i_trk in range(len(latest_tracks)):
                     if len(latest_tracks[i_trk]) > 8:
@@ -493,6 +513,18 @@ class OracleEdge(_BaseEdgeManager):
                     if is_contended:
                         contended_ids.append(vm.vehicle.id)
 
+                    # Oracle knows every track's identity: always
+                    # suppress the ego's own track before publishing.
+                    ego_preds = [
+                        p for p in preds
+                        if getattr(p.obstacle_trajectory.obstacle,
+                                   'carla_id', -1) != vm.vehicle.id
+                    ]
+                    try:
+                        ego_pickled = pickle.dumps(ego_preds)
+                    except Exception:
+                        ego_pickled = pickled_fresh
+
                     if random.random() * 100 < self.downlink_pl:
                         vm.agent.edge_predictions.clear()
                     elif is_contended:
@@ -506,18 +538,18 @@ class OracleEdge(_BaseEdgeManager):
                         else:
                             object_buffer = ecloud.ObjectBuffer(
                                 vehicle_id=index,
-                                pickled_edge_predictions=pickled_fresh)
+                                pickled_edge_predictions=ego_pickled)
                         serialized_preds.all_object_buffers.append(
                             object_buffer)
                     else:
                         object_buffer = ecloud.ObjectBuffer(
                             vehicle_id=index,
-                            pickled_edge_predictions=pickled_fresh)
+                            pickled_edge_predictions=ego_pickled)
                         serialized_preds.all_object_buffers.append(
                             object_buffer)
-                        vm.agent.edge_predictions = preds.copy()
+                        vm.agent.edge_predictions = ego_preds.copy()
 
-                    self._prev_per_vehicle_preds[index] = preds.copy()
+                    self._prev_per_vehicle_preds[index] = ego_preds.copy()
 
                 self._prev_pickled_preds = pickled_fresh
 
@@ -572,11 +604,11 @@ class OracleEdge(_BaseEdgeManager):
                 tid = int(trk[7])
                 cid_raw = int(trk[8])
 
-                if self.anchoring:
-                    real_cid = self.beacon_id_mgr.get_carla_id_for_temp(cid_raw)
-                    cid = real_cid if real_cid is not None else cid_raw
-                else:
-                    cid = cid_raw
+                # Oracle is single-source: ego identity is unambiguous.
+                # Always resolve beacon temp_ids regardless of anchoring
+                # flag so the ego track is never mistaken for an obstacle.
+                real_cid = self.beacon_id_mgr.get_carla_id_for_temp(cid_raw)
+                cid = real_cid if real_cid is not None else cid_raw
 
                 tf = _box_to_transform(trk[:7])
                 updated.add(tid)
@@ -604,65 +636,9 @@ class OracleEdge(_BaseEdgeManager):
             if tid not in updated:
                 del self.tracked_trajectories[tid]
 
-        # Spatial self-identification (anchoring OFF only)
-        #
-        # Two baselines computed every tick:
-        #   1. Time-aligned: track state is at source_tick (AB3DMOT output
-        #      after predict+update with source_tick detections).  Compare
-        #      to ego GT pose at the SAME source_tick.  This is the fair
-        #      "best-effort proximity" baseline for the paper.
-        #   2. Naive: compare track state to ego's CURRENT pose (decision
-        #      time).  Fails when v*dt > r_selfID.  "Don't do this" baseline.
-        #
-        # The time-aligned baseline is used for the actual carla_id
-        # assignment.  Both distances are logged for paper figures.
-        if not self.anchoring:
-            src_tick = getattr(self, '_latest_source_tick', None)
-            gt_snap = self._gt_snapshots.get(src_tick) if src_tick else None
-
-            for vm in self.vehicle_manager_list:
-                ego_loc_now = vm.vehicle.get_location()
-
-                # Time-aligned ego position (ego pose at source_tick)
-                if gt_snap and vm.vehicle.id in gt_snap:
-                    ego_x_aligned = gt_snap[vm.vehicle.id]['x']
-                    ego_y_aligned = gt_snap[vm.vehicle.id]['y']
-                else:
-                    ego_x_aligned = ego_loc_now.x
-                    ego_y_aligned = ego_loc_now.y
-
-                # Compute both distances for every track
-                best_tid, best_dist = None, float('inf')
-                naive_best_dist = float('inf')
-                for tid, traj in self.tracked_trajectories.items():
-                    loc = traj.obstacle.location
-                    # Time-aligned distance
-                    d_aligned = np.sqrt((loc.x - ego_x_aligned)**2 +
-                                        (loc.y - ego_y_aligned)**2)
-                    # Naive distance (current pose)
-                    d_naive = np.sqrt((loc.x - ego_loc_now.x)**2 +
-                                      (loc.y - ego_loc_now.y)**2)
-                    if d_naive < naive_best_dist:
-                        naive_best_dist = d_naive
-                    if d_aligned < best_dist and d_aligned < self._self_id_radius:
-                        best_dist = d_aligned
-                        best_tid = tid
-
-                if best_tid is not None:
-                    self.tracked_trajectories[best_tid].obstacle.carla_id = \
-                        vm.vehicle.id
-                    self.track_to_carla[best_tid] = vm.vehicle.id
-                    logger.debug(
-                        "Self-ID: vm %d -> track %d "
-                        "(aligned=%.2fm, naive=%.2fm, src_tick=%s)",
-                        vm.vehicle.id, best_tid, best_dist,
-                        naive_best_dist, src_tick)
-                else:
-                    logger.warning(
-                        "[SELF-ID FAIL] vm %d: aligned best=%.2fm, "
-                        "naive best=%.2fm (radius=%.1fm, src_tick=%s)",
-                        vm.vehicle.id, best_dist, naive_best_dist,
-                        self._self_id_radius, src_tick)
+        # NOTE: Spatial self-identification removed from no-anchoring
+        # baseline.  Without SBA the vehicle has no identity protocol
+        # and cannot distinguish its own track from others.
 
     # ------------------------------------------------------------------
     #  Metrics  (identical to late fusion)
@@ -874,4 +850,11 @@ class OracleEdge(_BaseEdgeManager):
         metrics.update(self._get_contract_metrics())
         self.mac_model.metrics.finalize()
         metrics['mac'] = self.mac_model.metrics.get_summary()
+        if hasattr(self, 'mot_tracker') and self.mot_tracker is not None:
+            metrics['birth_gate'] = {
+                'birth_attempts_anon': self.mot_tracker.birth_attempts_anon,
+                'birth_suppressed_by_gate': self.mot_tracker.birth_suppressed_by_gate,
+                'births_anon_after_gate': self.mot_tracker.births_anon_after_gate,
+                'anon_cull_count': self.mot_tracker.anon_cull_count,
+            }
         return fig, txt, metrics
