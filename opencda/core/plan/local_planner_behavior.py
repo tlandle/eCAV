@@ -436,9 +436,13 @@ class LocalPlanner(object):
         # use mean curvature to constrain the speed
 
         mean_k = 0.0001 if len(rk) < 2 else abs(statistics.mean(rk))
-        # v^2 <= a_lat_max / curvature, we assume 3.6 is the maximum lateral
-        # acceleration
-        target_speed = min(target_speed, np.sqrt(5.0 / (mean_k + 10e-6)) * 3.6)
+        # v^2 <= a_lat_max / curvature
+        curv_limit_kmh = np.sqrt(8.0 / (mean_k + 10e-6)) * 3.6
+        old_target = target_speed
+        target_speed = min(target_speed, curv_limit_kmh)
+        logger.info(f"[TRAJ] mean_k={mean_k:.6f}  curv_limit={curv_limit_kmh:.1f} km/h  "
+                    f"target_before={old_target:.1f}  target_after={target_speed:.1f}  "
+                    f"ego_speed={self._ego_speed:.1f} km/h  n_rk={len(rk)}")
 
         max_acc = 3.5
         # todo: hard-coded, need to be tuned
@@ -473,8 +477,16 @@ class LocalPlanner(object):
 
     def buffer_filter(self):
         """
-        Remove the waypoints in the global route plan which has dramatic
-        change of yaw angle. Such waypoint can cause bad vehicle dynnamics.
+        Remove waypoints that would cause bad vehicle dynamics:
+        neighbour-lane waypoints that are too close together.
+
+        Note: the original code also deleted waypoints "behind" the ego
+        (angle > 90°), but that is already handled by pop_buffer() which
+        removes close waypoints by distance and preserves them in the
+        history buffer.  The angle-based deletion permanently destroyed
+        waypoints, and with any position noise the 90° threshold would
+        randomly delete turn waypoints — cascading into a completely
+        different speed/trajectory profile.
         """
         prev_wpt = None
 
@@ -488,22 +500,6 @@ class LocalPlanner(object):
             # we need to find the right index for origin buffer, since
             # it may remove several elements already
             j = i - (len(tmp) - len(self._waypoint_buffer))
-
-            logger.debug("LOCAL_PLANNER: buffer_filter() waypoint transform for Vehicle: %s", waypoint.transform)
-            logger.debug("LOCAL_PLANNER: buffer_filter() ego pos for Vehicle: %s", self._ego_pos)
-
-            # check if the current waypoint is behind the vehicle.
-            # if so, remove such waypoint.
-            _, angle = cal_distance_angle(
-                waypoint.transform.location,
-                self._ego_pos.location, self._ego_pos.rotation.yaw)
-
-            logger.debug("LOCAL_PLANNER: buffer_filter() angle: %s", angle)
-
-            if angle > 90:
-                logger.error('delete waypoint!')
-                del self._waypoint_buffer[j]
-                continue
 
             if prev_wpt is None:
                 prev_wpt = waypoint

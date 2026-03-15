@@ -632,6 +632,7 @@ class CollisionChecker:
 
             # check for intersection point
             dists = spatial.distance.cdist(ego_path, obs_path)
+            min_spatial_dist = float(np.min(dists))
             intersection = np.any(dists < 3)
             if intersection:
                 # time reparameterize
@@ -648,6 +649,17 @@ class CollisionChecker:
                 obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
                 proximity_check = 2.0  # vehicle width + safety margin
                 is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=proximity_check, dt=time_step)
+                if obstacle_speed > 3.0:
+                    time_dists = np.linalg.norm(ego_path - obs_path, axis=1)
+                    min_time_dist = float(np.min(time_dists))
+                    min_time_idx = int(np.argmin(time_dists))
+                    logger.warning("[TRAJ_COLL] spatial_min=%.1fm intersection=True "
+                                   "ego_spd=%.1f obs_spd=%.1f time_sync_min=%.1fm@t=%.2fs "
+                                   "collision=%s ttc=%s len=%d ego_tp_max=%.2f obs_tp_max=%.2f",
+                                   min_spatial_dist, ego_speed, obstacle_speed,
+                                   min_time_dist, min_time_idx * time_step,
+                                   is_collision, f"{ttc:.2f}" if ttc is not None else "None",
+                                   length, ego_tp[-1], obs_tp[-1])
             else:
                 obs_x_points = obs_path[:, 0]
                 obs_y_points = obs_path[:, 1]

@@ -680,9 +680,36 @@ class BehaviorAgent(object):
                                    obs.carla_id, obs.track_id, dist_to_ego,
                                    start_loc.x, start_loc.y, ego_loc.x, ego_loc.y)
 
+        # Proximity self-suppression (anchoring OFF only):
+        # Without cooperative identity, the vehicle suppresses the single
+        # nearest prediction to its GPS fix.  With anchoring ON, the edge
+        # already removed ego tracks at the publish boundary.
+        _SELF_SUPPRESS_RADIUS_M = 5.0
+        _proximity_suppress_id = None
+        if not self._anchoring and self.generated_predictions:
+            best_dist = float('inf')
+            best_tid = None
+            for pred in self.generated_predictions:
+                traj = pred.predicted_trajectory
+                if not traj:
+                    continue
+                ploc = traj[0].location
+                d = ((ploc.x - ego_loc.x)**2 + (ploc.y - ego_loc.y)**2)**0.5
+                tid = pred.obstacle_trajectory.obstacle.track_id
+                if d < best_dist:
+                    best_dist = d
+                    best_tid = tid
+            if best_tid is not None and best_dist < _SELF_SUPPRESS_RADIUS_M:
+                _proximity_suppress_id = best_tid
+                logger.debug(
+                    "[VEHICLE SELF-SUPPRESS] nearest pred track=%d "
+                    "dist=%.2fm (radius=%.1f)",
+                    best_tid, best_dist, _SELF_SUPPRESS_RADIUS_M)
+
         for pred in self.generated_predictions:
-            # Identity filter via anchoring protocol
-            if pred.obstacle_trajectory.obstacle.carla_id == self.vehicle.id:
+            # Proximity self-suppression: skip the nearest prediction
+            if _proximity_suppress_id is not None and \
+                    pred.obstacle_trajectory.obstacle.track_id == _proximity_suppress_id:
                 continue
 
             # Derive obstacle speed from predicted trajectory

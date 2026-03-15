@@ -77,6 +77,14 @@ class PlanningMetrics(object):
         # Braking attribution — populated by BehaviorAgent.collision_manager
         self.brake_attributions = []
 
+        # Per-tick edge prediction acceptance counters (Confound A diagnostic)
+        self.edge_ticks_total = 0          # total ticks through collision_manager Pass 2
+        self.edge_ticks_with_preds = 0     # ticks with >= 1 prediction
+        self.edge_ticks_with_collision = 0 # ticks where collision was detected
+        self.edge_preds_received_total = 0 # sum of predictions received
+        self.edge_preds_ego_filtered = 0   # sum of predictions filtered by ego identity
+        self.edge_collisions_total = 0     # sum of collision triggers
+
     def get_agent_step_list(self):
         return self.agent_step_list
 
@@ -238,6 +246,13 @@ class PlanningMetrics(object):
             "gt_labeled_count": gt_labeled_count,
             "distance_traveled_m": float(self.distance_traveled_m),
             "time_alive_s": float(self.time_alive_s),
+            # Edge prediction acceptance (Confound A)
+            "edge_ticks_total": self.edge_ticks_total,
+            "edge_ticks_with_preds": self.edge_ticks_with_preds,
+            "edge_ticks_with_collision": self.edge_ticks_with_collision,
+            "edge_preds_received_total": self.edge_preds_received_total,
+            "edge_preds_ego_filtered": self.edge_preds_ego_filtered,
+            "edge_collisions_total": self.edge_collisions_total,
         }
 
     def evaluate(self):
