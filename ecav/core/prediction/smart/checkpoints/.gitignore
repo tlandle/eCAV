@@ -1,0 +1,7 @@
+# SMART checkpoints are trained on Waymo Open Dataset and cannot be
+# redistributed per the Waymo license. Obtain the checkpoint via:
+#   1. Train SMART on Waymo using the smart/ package in this repo
+#   2. Copy from the shared Azure blob or team file share
+#
+# Expected file: epoch=105.ckpt (~82MB)
+*.ckpt
