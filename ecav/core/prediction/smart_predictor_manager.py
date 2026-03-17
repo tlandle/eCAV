@@ -78,7 +78,7 @@ class SMARTPredictorManager3D:
     """
 
     def __init__(self, cfg_or_checkpoint=None, **kwargs):
-        # Accept either a config dict (from registry) or direct kwargs (legacy)
+        # Accept config dict (registry), positional checkpoint path, or keyword args (legacy)
         if isinstance(cfg_or_checkpoint, dict):
             cfg = cfg_or_checkpoint
             checkpoint_path = cfg['checkpoint']
@@ -86,8 +86,10 @@ class SMARTPredictorManager3D:
             device = cfg.get('device', 'cuda')
             num_output_steps = cfg.get('num_output_steps', 25)
         else:
-            checkpoint_path = cfg_or_checkpoint
-            map_cache_path = kwargs.get('map_cache_path')
+            checkpoint_path = (cfg_or_checkpoint
+                               or kwargs.get('checkpoint_path')
+                               or kwargs.get('checkpoint'))
+            map_cache_path = kwargs.get('map_cache_path') or kwargs.get('map_cache')
             device = kwargs.get('device', 'cuda')
             num_output_steps = kwargs.get('num_output_steps', 25)
 
