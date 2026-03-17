@@ -22,13 +22,13 @@ import numpy as np
 import coloredlogs
 import pickle
 
-from opencda.version import __version__
-from opencda.core.common.cav_world import CavWorld
-from opencda.core.common.vehicle_manager import VehicleManager
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
-from opencda.core.application.edge.networking import NetworkEmulator
-from opencda.core.common.ecloud_config import EcloudConfig, eDoneBehavior
-from opencda.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
+from ecav.version import __version__
+from ecav.core.common.cav_world import CavWorld
+from ecav.core.common.vehicle_manager import VehicleManager
+from ecav.scenario_testing.utils.yaml_utils import load_yaml
+from ecav.core.application.edge.networking import NetworkEmulator
+from ecav.core.common.ecloud_config import EcloudConfig, eDoneBehavior
+from ecav.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
 
 import grpc
 from google.protobuf.json_format import MessageToJson
@@ -92,7 +92,7 @@ async def send_registration_to_ecloud_server(stub_, push_port) -> ecloud.Simulat
     return sim_info
 
 #TODO: move to eCloudClient
-async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid) -> ecloud.SimulationInfo:
+async def send_carla_data_to_ecav(stub_, vehicle_index, actor_id, vid) -> ecloud.SimulationInfo:
     message = {"vehicle_index": vehicle_index, "actor_id": actor_id, "vid": vid}
     logger.info("Vehicle: Sending Carla rpc %s", message)
 
@@ -105,7 +105,7 @@ async def send_carla_data_to_opencda(stub_, vehicle_index, actor_id, vid) -> ecl
 
     sim_info = await stub_.Client_RegisterVehicle(update)
 
-    logger.info("send_carla_data_to_opencda: response received")
+    logger.info("send_carla_data_to_ecav: response received")
 
     return sim_info
 
@@ -117,7 +117,7 @@ async def send_vehicle_update(stub_, vehicle_update_):
     return empty
 
 def arg_parse():
-    parser = argparse.ArgumentParser(description="OpenCDA Vehicle Simulation.")
+    parser = argparse.ArgumentParser(description="eCAV Vehicle Simulation.")
     parser.add_argument("--apply_ml",
                         action='store_true',
                         help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
@@ -152,7 +152,7 @@ async def main():
         logger.setLevel(logging.DEBUG)
     elif opt.quiet:
         logger.setLevel(logging.WARNING)
-    logger.info("OpenCDA Version: %s", version)
+    logger.info("eCAV Version: %s", version)
 
     logging.basicConfig()
 
@@ -237,7 +237,7 @@ async def main():
     actor_id = vehicle_manager.vehicle.id
     vid = vehicle_manager.vid
 
-    await send_carla_data_to_opencda(ecloud_server, vehicle_index, actor_id, vid)
+    await send_carla_data_to_ecav(ecloud_server, vehicle_index, actor_id, vid)
 
     assert push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", push_q.get_nowait())
     pong = await push_q.get()

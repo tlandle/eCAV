@@ -38,4 +38,4 @@ EXPOSE 50101-50512/tcp
 # Carla
 EXPOSE 2000/tcp
 
-RUN python3.10 -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/ecloud.proto
+RUN python3.10 -m grpc_tools.protoc -I./ecav/protos --python_out=. --grpc_python_out=. ./ecav//protos/ecloud.proto

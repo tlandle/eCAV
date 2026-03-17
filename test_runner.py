@@ -143,11 +143,11 @@ TOTAL_RUNS = (len(BASE_LIST) * len(MGR_TYPE_LIST) * len(ANCHOR_LIST) * len(LAT_L
 
 # ───────────────────────── paths ──────────────────────────────────────────
 ROOT        = Path(__file__).resolve().parent
-CFG_DIR     = ROOT / "opencda/scenario_testing/config_yaml"
+CFG_DIR     = ROOT / "ecav/scenario_testing/config_yaml"
 
 STAMP       = datetime.now().strftime("%Y%m%d_%H%M%S")
 EXP_ROOT    = ROOT / "experiment_results" / args.scenario / STAMP
-OUT_BASE    = ROOT / "opencda/scenario_testing/evaluation_outputs"
+OUT_BASE    = ROOT / "ecav/scenario_testing/evaluation_outputs"
 LOG_DIR     = ROOT / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 LIVE_LOG    = LOG_DIR / f"run_{STAMP}.log"
@@ -445,7 +445,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     scenario_name = f"{args.scenario}_{baseline}" if baseline is not None else args.scenario
     if ego_count is not None and ego_count > 1:
         scenario_name = f"{scenario_name}_{ego_count}ego"
-    cmd = [sys.executable, "opencda.py", "-t", scenario_name, "--apply_ml", "--output_dir", str(eval_dir)]
+    cmd = [sys.executable, "ecav.py", "-t", scenario_name, "--apply_ml", "--output_dir", str(eval_dir)]
 
     run_log = run_dir / "runner_stdout.txt"
     with run_log.open("w") as log_f:

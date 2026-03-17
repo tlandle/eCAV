@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('./../'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'OpenCDA'
+project = 'eCAV'
 copyright = '2021, UCLA Mobility Lab'
 author = 'R.S. Xu, X. Han, X. Hao'
 

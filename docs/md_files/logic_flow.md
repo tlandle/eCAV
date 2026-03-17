@@ -1,12 +1,12 @@
 ## Logic Flow
 In this section,  we will introduce the logic flow of conducting a 
-scenario test in OpenCDA.
+scenario test in eCAV.
 
 ### Codebase Structure
-Check the [codebase structure](codebase_structure.md) to see how the codes distributed in OpenCDA.
+Check the [codebase structure](codebase_structure.md) to see how the codes distributed in eCAV.
 
 ### Overview
-As the figure below depicts, to run simulation testings in OpenCDA, there are five general steps:
+As the figure below depicts, to run simulation testings in eCAV, there are five general steps:
 
 1. The user has to first write a yaml file to configure the settings of simulation server (e.g. sync mode vs async mode), 
 the specifications of the traffic flow (e.g. the number of human drive vehicles, spawn positions), and the parameters of 
@@ -25,12 +25,12 @@ Check the [Yaml Define Rule](yaml_define.md) to see how to write a yaml file to 
 
 ### Step2: Construct scenario (CARLA only)
 If the simulation only requires CARLA simulator, then after the yaml file is given, the <strong>Scenario Manager</strong> will load the file
-and construct the scenario through `opencda.sim_api`. 
+and construct the scenario through `ecav.sim_api`. 
 
 The users need to first load the yaml file into a dictionary, and initialize the `ScenarioManager`.
 
 ```python
-import opencda.scenario_testing.utils.sim_api as sim_api
+import ecav.scenario_testing.utils.sim_api as sim_api
 
 # Aad yaml file into a dictionary
 scenario_params = load_yaml(config_yaml)
@@ -67,7 +67,7 @@ traffic_manager, bg_veh_list = scenario_manager.create_traffic_carla()
 
 Finally, create the `EvaluationManager`
 ```python
-from opencda.scenario_testing.evaluations.evaluate_manager import EvaluationManager
+from ecav.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 eval_manager = \
     EvaluationManager(scenario_manager.cav_world,
                       script_name='platoon_joining_town06_carla',
@@ -81,7 +81,7 @@ Instead of using `ScenarioManager`, `CoScenarioManager` is used to control the t
 [Traffic Generation under Sumo](traffic_generation.html#sumo-traffic-management-co-simulation) section to see more details.
 
 ```python
-import opencda.scenario_testing.utils.cosim_api as sim_api
+import ecav.scenario_testing.utils.cosim_api as sim_api
 
 # there should be a Town06.sumocfg, a Town06.net.xml, and a Town06.rou.xml in
 # Town06 folder
@@ -99,7 +99,7 @@ scenario_manager = \
 
 ### Step3: Execute a single step
 A simplified class diagram design is shown below.
-The core class in OpenCDA is `VehicleManager`, which is the base class for any cooperative driving applications (e.g. `PlatoonManager` is built upon `VehicleManager` ). It contains the necessary modules such as `PerceptionManager` and
+The core class in eCAV is `VehicleManager`, which is the base class for any cooperative driving applications (e.g. `PlatoonManager` is built upon `VehicleManager` ). It contains the necessary modules such as `PerceptionManager` and
 `LocalizationManager`.
 
 ![](images/class_diagram.png )
@@ -157,7 +157,7 @@ while True:
 
 ### Step5: Evaluation
 When the simulation is over, the `EvaluationManager` will evaluate the performance,
-and save the results in `~/OpenCDA/evluation_outputs`
+and save the results in `~/eCAV/evluation_outputs`
 
 ```python
 # create evaluation manager

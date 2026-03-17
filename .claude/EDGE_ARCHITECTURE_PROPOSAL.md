@@ -99,14 +99,14 @@ This phase cleans up the naming confusion and removes the `distributed` field fr
 
 #### 0.1 Add `--litserve` Command-Line Argument
 
-**File: `/home/jordan/eCAV/opencda.py`**
+**File: `/home/jordan/eCAV/ecav.py`**
 
 ```python
 parser.add_argument('-l', "--litserve", action='store_true',
                     help='Use LitServe for distributed ML inference (requires LitServe server on port 18000)')
 ```
 
-**File: `/home/jordan/eCAV/opencda/ecav2/ecloud_actor_client.py`**
+**File: `/home/jordan/eCAV/ecav/ecav2/ecloud_actor_client.py`**
 
 ```python
 # In arg_parse():
@@ -119,7 +119,7 @@ parser.add_argument('-l', "--litserve", action='store_true',
 
 #### 0.2 Wire `--litserve` Through to MLManager
 
-**File: `/home/jordan/eCAV/opencda/core/common/cav_world.py`**
+**File: `/home/jordan/eCAV/ecav/core/common/cav_world.py`**
 
 ```python
 def __init__(self, apply_ml=False, litserve=False):
@@ -128,7 +128,7 @@ def __init__(self, apply_ml=False, litserve=False):
         self.ml_manager = MLManager(apply_ml=apply_ml, run_distributed=litserve)
 ```
 
-**File: `/home/jordan/eCAV/opencda/scenario_testing/utils/sim_api.py`**
+**File: `/home/jordan/eCAV/ecav/scenario_testing/utils/sim_api.py`**
 
 ```python
 # In ScenarioManager.__init__:
@@ -144,18 +144,18 @@ Remove the `distributed: true/false` line from all YAML files:
 
 ```bash
 # These files contain 'distributed:' that should be removed:
-opencda/scenario_testing/config_yaml/ecloud_edge_scenario.yaml
-opencda/scenario_testing/config_yaml/ecloud_edge_4_car.yaml
-opencda/scenario_testing/config_yaml/ecloud_edge_8_car.yaml
-opencda/scenario_testing/config_yaml/ecloud_edge_16_car.yaml
-opencda/scenario_testing/config_yaml/ecloud_4lane_*.yaml
-opencda/scenario_testing/config_yaml/openscenario_*.yaml
+ecav/scenario_testing/config_yaml/ecloud_edge_scenario.yaml
+ecav/scenario_testing/config_yaml/ecloud_edge_4_car.yaml
+ecav/scenario_testing/config_yaml/ecloud_edge_8_car.yaml
+ecav/scenario_testing/config_yaml/ecloud_edge_16_car.yaml
+ecav/scenario_testing/config_yaml/ecloud_4lane_*.yaml
+ecav/scenario_testing/config_yaml/openscenario_*.yaml
 # ... and others
 ```
 
 #### 0.4 Update Scenario Scripts to Use `opt.distributed`
 
-**Files: `/home/jordan/eCAV/opencda/scenario_testing/*.py`**
+**Files: `/home/jordan/eCAV/ecav/scenario_testing/*.py`**
 
 Change from:
 ```python
@@ -173,7 +173,7 @@ This affects ~30 scenario test files.
 
 ### Phase 1: Protocol Buffer Updates (`ecloud.proto`)
 
-**File: `/home/jordan/eCAV/opencda/protos/ecloud.proto`**
+**File: `/home/jordan/eCAV/ecav/protos/ecloud.proto`**
 
 #### 1.1 New Message Types
 
@@ -301,7 +301,7 @@ vehicles:
 
 ### Phase 3: C++ Orchestrator Updates (`ecloud_server.cc`)
 
-**File: `/home/jordan/eCAV/opencda/ecloud_server/ecloud_server.cc`**
+**File: `/home/jordan/eCAV/ecav/ecloud_server/ecloud_server.cc`**
 
 #### 3.1 New State Variables
 
@@ -382,7 +382,7 @@ bool hasEdges() { return numEdges_.load() > 0; }
 
 ### Phase 4: Edge Standalone Process
 
-**New File: `/home/jordan/eCAV/opencda/ecav2/edge_process.py`**
+**New File: `/home/jordan/eCAV/ecav/ecav2/edge_process.py`**
 
 #### 4.1 Edge Process Main Components
 
@@ -495,7 +495,7 @@ class EdgeActorService(ecloud_rpc.EcloudServicer):
 
 ### Phase 5: Actor Client Updates (`ecloud_actor_client.py`)
 
-**File: `/home/jordan/eCAV/opencda/ecav2/ecloud_actor_client.py`**
+**File: `/home/jordan/eCAV/ecav/ecav2/ecloud_actor_client.py`**
 
 #### 5.1 Connection Discovery
 
@@ -551,7 +551,7 @@ async def tick(self):
 
 ### Phase 6: Scenario Configuration Parsing
 
-**File: `/home/jordan/eCAV/opencda/scenario_testing/utils/sim_api.py`**
+**File: `/home/jordan/eCAV/ecav/scenario_testing/utils/sim_api.py`**
 
 #### 6.1 Compute Edge-Vehicle Mappings
 
@@ -625,7 +625,7 @@ for ((e=0; e<$num_edges; e++)); do
         -e EDGE_INDEX=$e \
         -e EDGE_PORT=$edge_port \
         ecav-python310:latest \
-        python3.10 opencda/ecav2/edge_process.py \
+        python3.10 ecav/ecav2/edge_process.py \
             --edge_index $e \
             --edge_port $edge_port \
             -d  # Distributed mode
@@ -649,7 +649,7 @@ docker run $gpu_flag -d \
     --name="$container_name" \
     -e IS_DOCKER=1 \
     ecav-python310:latest \
-    python3.10 opencda.py $ml_flag -v 0.9.15 -d -i $i
+    python3.10 ecav.py $ml_flag -v 0.9.15 -d -i $i
     # No change needed - actor discovers edge at runtime
 ```
 
@@ -664,13 +664,13 @@ This phase validates the new edge architecture by building all components and ru
 ```bash
 # Regenerate Python protobuf files
 cd /home/jordan/eCAV
-python -m grpc_tools.protoc -I./opencda/protos \
+python -m grpc_tools.protoc -I./ecav/protos \
     --python_out=. \
     --grpc_python_out=. \
-    ./opencda/protos/ecloud.proto
+    ./ecav/protos/ecloud.proto
 
 # Regenerate C++ protobuf files
-cd /home/jordan/eCAV/opencda/ecloud_server/build
+cd /home/jordan/eCAV/ecav/ecloud_server/build
 cmake ..
 make -j$(nproc)
 
@@ -681,7 +681,7 @@ cp ecloud.pb.h ecloud.pb.cc ecloud.grpc.pb.h ecloud.grpc.pb.cc ../
 #### 8.2 Recompile C++ Server
 
 ```bash
-cd /home/jordan/eCAV/opencda/ecloud_server/build
+cd /home/jordan/eCAV/ecav/ecloud_server/build
 cmake ..
 make -j$(nproc)
 ```
@@ -717,7 +717,7 @@ Use `start_actors.sh` to run a scenario with edges:
 
 For any failures:
 1. Check container logs: `docker logs edge_0`, `docker logs ego_vehicle_0`
-2. Check orchestrator logs in `/tmp/opencda_base.*.log`
+2. Check orchestrator logs in `/tmp/ecav_base.*.log`
 3. Fix issues and repeat from 8.1 or 8.2 as needed
 
 ---
@@ -813,7 +813,7 @@ Before implementing the edge architecture, we should clean up the YAML files:
 
 ```bash
 # Files to update (remove 'distributed: true/false' line):
-opencda/scenario_testing/config_yaml/*.yaml
+ecav/scenario_testing/config_yaml/*.yaml
 ```
 
 The distributed mode is determined by:
@@ -828,7 +828,7 @@ The system must support four combinations based on **command-line flags** and **
 
 | `-d` flag | `edge_list` in YAML | Behavior |
 |-----------|---------------------|----------|
-| No | No | Traditional OpenCDA - everything in one process |
+| No | No | Traditional eCAV - everything in one process |
 | No | Yes | Edge co-located with orchestrator (current behavior) |
 | Yes | No | Distributed vehicles, no edge - vehicles talk to orchestrator directly |
 | Yes | Yes | **NEW: Distributed edge** - edge as standalone process, vehicles talk to edge |
@@ -851,7 +851,7 @@ elif is_distributed and not has_edges:
 elif not is_distributed and has_edges:
     # Existing: Edge co-located with orchestrator (sim_api.py)
 else:
-    # Existing: Traditional single-process OpenCDA
+    # Existing: Traditional single-process eCAV
 ```
 
 ---
@@ -862,23 +862,23 @@ else:
 
 | File | Action | Description |
 |------|--------|-------------|
-| `opencda.py` | MODIFY | Add `-l`/`--litserve` argument |
-| `opencda/ecav2/ecloud_actor_client.py` | MODIFY | Add `-l`/`--litserve` argument, pass to MLManager |
-| `opencda/ml_manager/ml_manager.py` | MODIFY | Accept litserve flag from caller (already supports `run_distributed`) |
-| `opencda/core/common/cav_world.py` | MODIFY | Pass litserve flag to MLManager |
-| `opencda/scenario_testing/config_yaml/*.yaml` | MODIFY | Remove `distributed: true/false` lines |
-| `opencda/scenario_testing/*.py` | MODIFY | Remove `scenario_params['distributed']` checks, use `opt.distributed` |
+| `ecav.py` | MODIFY | Add `-l`/`--litserve` argument |
+| `ecav/ecav2/ecloud_actor_client.py` | MODIFY | Add `-l`/`--litserve` argument, pass to MLManager |
+| `ecav/ml_manager/ml_manager.py` | MODIFY | Accept litserve flag from caller (already supports `run_distributed`) |
+| `ecav/core/common/cav_world.py` | MODIFY | Pass litserve flag to MLManager |
+| `ecav/scenario_testing/config_yaml/*.yaml` | MODIFY | Remove `distributed: true/false` lines |
+| `ecav/scenario_testing/*.py` | MODIFY | Remove `scenario_params['distributed']` checks, use `opt.distributed` |
 
 ### Phase 1-8: Edge Architecture
 
 | File | Action | Description |
 |------|--------|-------------|
-| `opencda/protos/ecloud.proto` | MODIFY | Add edge messages and RPCs |
-| `opencda/ecloud_server/ecloud_server.cc` | MODIFY | Add edge registration, routing, tick logic |
-| `opencda/ecav2/edge_process.py` | CREATE | Standalone edge process |
-| `opencda/ecav2/ecloud_actor_client.py` | MODIFY | Connection discovery, edge communication |
-| `opencda/scenario_testing/utils/sim_api.py` | MODIFY | Edge mapping computation, remove YAML distributed checks |
+| `ecav/protos/ecloud.proto` | MODIFY | Add edge messages and RPCs |
+| `ecav/ecloud_server/ecloud_server.cc` | MODIFY | Add edge registration, routing, tick logic |
+| `ecav/ecav2/edge_process.py` | CREATE | Standalone edge process |
+| `ecav/ecav2/ecloud_actor_client.py` | MODIFY | Connection discovery, edge communication |
+| `ecav/scenario_testing/utils/sim_api.py` | MODIFY | Edge mapping computation, remove YAML distributed checks |
 | `start_actors.sh` | MODIFY | Edge container launching |
 | `stop_actors.sh` | MODIFY | Edge container cleanup |
 | Scenario YAML files | MODIFY | Add edge_index, edge_port fields |
-| `opencda/ecloud_server/ecloud_comms.py` | MODIFY | Add edge client/server classes |
+| `ecav/ecloud_server/ecloud_comms.py` | MODIFY | Add edge client/server classes |

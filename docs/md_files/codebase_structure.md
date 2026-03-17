@@ -1,11 +1,11 @@
-## OpenCDA Codebase Structure
+## eCAV Codebase Structure
 
-The `OpenCDA` codebase directory is structured as follows:
+The `eCAV` codebase directory is structured as follows:
 
 ```sh
-OpenCDA
-├── docs  # documents of opencda, no need to pay attention.
-├── opencda
+eCAV
+├── docs  # documents of ecav, no need to pay attention.
+├── ecav
 │   ├── assests  # customized map and sumo xml package.
 │   ├── co_simulation  # source codes for sumo background traffic generation.
 │   ├── core  # the core part of the code

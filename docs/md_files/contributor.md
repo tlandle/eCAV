@@ -1,5 +1,5 @@
 ## About Us
-OpenCDA is brought to you by [UCLA Mobility Lab](https://mobility-lab.seas.ucla.edu/).
+eCAV is brought to you by [UCLA Mobility Lab](https://mobility-lab.seas.ucla.edu/).
 
 ### Supervisor
 Dr. Jiaqi Ma (Associate Professor @ UCLA)
@@ -10,7 +10,7 @@ Dr. Jiaqi Ma (Associate Professor @ UCLA)
 
 ### Core Developer
 Runsheng Xu (Ph.D. Student @ UCLA):
-- Project Lead and OpenCDA System Architect
+- Project Lead and eCAV System Architect
 - [Homepage](https://derrickxunu.github.io/)
 - [Linkedin](https://www.linkedin.com/in/runsheng-xu/)
 

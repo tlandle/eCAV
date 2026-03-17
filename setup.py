@@ -1,6 +1,6 @@
 from os.path import dirname, realpath
 from setuptools import setup, find_packages, Distribution
-from opencda.version import __version__
+from ecav.version import __version__
 
 
 def _read_requirements_file():
@@ -11,10 +11,10 @@ def _read_requirements_file():
 
 
 setup(
-    name='OpenCDA',
+    name='eCAV',
     version=__version__,
     packages=find_packages(),
-    url='https://github.com/ucla-mobility/OpenCDA.git',
+    url='https://github.com/ucla-mobility/eCAV.git',
     license='MIT',
     author='Runsheng Xu, Xu Han',
     author_email='rxx3386@ucla.edu',
