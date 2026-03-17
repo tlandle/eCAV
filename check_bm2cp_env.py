@@ -7,7 +7,7 @@ import pathlib, sys, yaml, torch
 
 # ── make BM2CP importable ──────────────────────────────────────────
 root = pathlib.Path(__file__).resolve().parent
-bm2cp = root / "opencda" / "BM2CP"
+bm2cp = root / "ecav" / "BM2CP"
 sys.path.insert(0, str(bm2cp))
 
 from opencood.tools import train_utils          # BM2CP’s helper (already works)

@@ -7,6 +7,6 @@
 [submodule "waymo-open-dataset"]
 	path = waymo-open-dataset
 	url = https://github.com/waymo-research/waymo-open-dataset
-[submodule "opencda/BM2CP"]
-	path = opencda/BM2CP
+[submodule "ecav/worldfusion"]
+	path = ecav/worldfusion
 	url = https://github.com/tlandle/BM2CP.git

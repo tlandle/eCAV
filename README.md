@@ -1,156 +1,166 @@
-# eCAV
+# eCAV: Distributed Simulation for Edge-Assisted Autonomy
 
-This software is an extension of the [OpenCDA simulation tool](https://github.com/ucla-mobility/OpenCDA). The following features are added as an extension of OpenCDA:
+eCAV is a distributed simulation platform for characterizing the operational safety envelope of edge-assisted autonomous vehicles. Derived from OpenCDA, the platform explicitly models network latency, jitter, and multi-source state inconsistency to evaluate their impact on closed-loop safety.
 
-- Distrbuted/Asynchronous communication between OpenCDA(Edge)/Carla and Vehicle clients using gRPC
-- Containerization of vehicle clients using Nvidia Docker 2 (supports local vehicle planning/perception)
-- Plugable Algorithm for vehicle autonomous driving
-- Support for Propagation Models
-- Automation scripts for Cloud deployment of simulation using Ansible
-- Metric/Evaluation gathering for simulation performance
+## Research Features
 
+- Self-Beacon Anchoring (SBA): A protocol enforcing an ego-uniqueness invariant at the edge publish boundary to eliminate self-ghosting failures.
+- Distributed gRPC Architecture: Decouples the orchestrator, edge servers, and vehicle clients to support asynchronous execution.
+- Latency-Aware Tracking: Support for multiple edge architectures, including late fusion with AB3DMOT, VIPS (velocity-based temporal alignment), and oracle ground-truth baselines.
+- Collaborative Perception: Integration for intermediate feature fusion (BM2CP) and world-model reconciliation (WorldFusion).
+- Network Modeling: Trace-driven models for radio (C-V2X PC5) and backhaul latency using SEE-V2X and 5G-MOBIX datasets.
+- MAC-Layer Modeling: Implementation of C-V2X PC5 Mode 4 Sensing-Based Semi-Persistent Scheduling (3GPP TS 36.321).
+- Scenario Library: Evaluation in high-risk occlusion scenarios derived from NHTSA Pre-Crash Typologies.
+
+## System Architecture
+
+![System Overview](docs/md_files/images/system_architecture.png)
+
+The platform consists of three primary components:
+1. Vehicles: Run local perception (YOLOv5/SORT) and planning logic in Docker containers.
+2. Edge Server: Performs multi-vehicle tracking, temporal reconciliation, and SBA-enforced state publishing.
+3. Orchestrator: Manages simulation clock synchronization and global ground-truth state.
+
+The distributed design allows for horizontal scaling by load-balancing vehicle traffic across multiple edge server instances. It supports heterogeneous stacks where different vehicles execute distinct algorithms asynchronously.
 
 ## Installation
 
-Install Carla and OpenCDA:
-https://opencda-documentation.readthedocs.io/en/latest/md_files/installation.html
+### Requirements
+- Ubuntu 20.04/22.04
+- CARLA Simulator 0.9.12+
+- NVIDIA GPU (RTX 3080+ recommended)
+- Docker and NVIDIA Container Toolkit
 
-
-Install Ortools
-
-```bash
-pip install --user ortools==9.3.10497 
-```
-
-Install k-means-constrained
+### Setup
+Manage dependencies using Conda:
 
 ```bash
-pip install k-means-constrained==0.7.0
-python -c "from k_means_constrained import KMeansConstrained"
+conda env create -f environment.yml
+conda activate ecav
+pip install -r requirements_3_10.txt
 ```
 
-Create gRPC stubs
-
+Generate gRPC stubs:
 ```bash
-python -m grpc_tools.protoc -I./opencda/protos --python_out=. --grpc_python_out=. ./opencda//protos/ecloud.proto
+python -m grpc_tools.protoc -I./ecav/protos --python_out=. --grpc_python_out=. ./ecav/protos/ecloud.proto
 ```
-
-For perception, install [Nvidia Docker 2](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker)
 
 ## Usage
 
-Activate the conda enviroment
-
+### Sequential Mode
+Run all components in a single process for algorithm debugging:
 ```bash
-conda activate opencda
+python ecav.py -t openscenario_3_edge_late_fusion --apply_ml
 ```
 
-Start the Carla server
+### Distributed Mode
+1. Start the Orchestrator:
+   ```bash
+   python ecav.py -t openscenario_3_edge_late_fusion -d
+   ```
+2. Start Vehicle Clients:
+   ```bash
+   python ecav.py -d -i 0  # Focal vehicle
+   python ecav.py -d -i 1  # Additional vehicle
+   ```
 
-```bash
-./CarlaUE4.sh
-./CarlaUE4.sh -RenderOffScreen # to run headless
-```
-
-Run opencda vehicle test
-
-```bash
-python opencda.py -t single_2lanefree_carla -v 0.9.12
-python opencda.py -t multi_2lanefree_carla -v 0.9.12
-python opencda.py -t ecloud_edge_scenario -v 0.9.12
-```
-
-Build Docker image for vehicle clients
+### Containerized Mode
 ```bash
 sudo docker build -t vehicle-sim .
-```
-
-Run vehicle containers
-```bash
 sudo bash start_vehicles.sh
 ```
 
-Stop and remove vehicle containers
+## Experiments
+
+The `test_runner.py` script automates parameter sweeps for latency, ego count, and protocol configurations.
+
+Example multi-ego latency sweep:
 ```bash
-sudo bash stop_vehicles.sh
+python test_runner.py -t openscenario_3_edge_late_fusion \
+  --manager-types late_fusion \
+  --latencies 0 100 200 400 \
+  --ego-counts 1 4 8 16 \
+  --anchoring both \
+  --repetitions 3
 ```
 
-Docs to run Simulation in the cloud using Ansible: [README](ansible/README.md)
+## Attributions
 
-Scratchpad
+eCAV integrates research from the following projects:
+- [OpenCDA](https://github.com/ucla-mobility/OpenCDA): Baseline coordination and planning logic.
+- [OpenCOOD](https://github.com/ucla-mobility/OpenCOOD): Collaborative perception (BM2CP).
+- [AB3DMOT](https://github.com/xinshuoweng/AB3DMOT): 3D multi-object tracking.
+- [SMART](https://github.com/rainmaker22/SMART): Trajectory prediction.
+- [Waymo Open Dataset](https://waymo.com/open/): Perception model training.
+- [CARLA](https://github.com/carla-simulator/carla): Physics and sensor simulation.
 
-```bash
-# number of running Docker containers (+1)
-docker ps -a | wc -l
+## Citation
 
-# dump *all* logs
-docker ps -q | xargs -L 1 docker logs
-
-# create symlink to file
-ln -s <source> <destination>
+```bibtex
+@misc{landle2025ecav,
+      title={eCAV: An Edge-Assisted Evaluation Platform for Connected Autonomous Vehicles}, 
+      author={Tyler Landle and others},
+      year={2025},
+      eprint={2506.16535},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2506.16535}, 
+}
 ```
 
-## ToDo List
+arXiv: <https://arxiv.org/abs/2506.16535>
 
-- gRPC server should reject old packets
+```bibtex
+@misc{xu2021opencdaanopencooperativedriving,
+      title={OpenCDA: An Open Cooperative Driving Automation Framework Integrated with Co-Simulation}, 
+      author={Runsheng Xu and Yi Guo and Xu Han and Xin Xia and Hao Xiang and Jiaqi Ma},
+      year={2021},
+      eprint={2107.06260},
+      archivePrefix={arXiv},
+      primaryClass={cs.RO},
+      url={https://arxiv.org/abs/2107.06260}, 
+}
 
-- use `CHECK` in logs more to simplify and optimize logging logic for perf
+@inproceedings{xu2022opencood,
+  author    = {Runsheng Xu and Hao Xiang and Xin Xia and Xu Han and Jinlong Li and Jiaqi Ma},
+  title     = {OPV2V: An Open Benchmark Dataset and Fusion Pipeline for Perception with Vehicle-to-Vehicle Communication},
+  booktitle = {2022 IEEE International Conference on Robotics and Automation (ICRA)},
+  year      = {2022}
+}
 
-- move to completion queue & threadpool with servers on client & sim API
+@inproceedings{Weng2020_AB3DMOT,
+  author    = {Xinshuo Weng and Jianren Wang and David Held and Kris Kitani},
+  title     = {AB3DMOT: A Baseline for 3D Multi-Object Tracking and New Evaluation Metrics},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Workshops},
+  year      = {2020}
+}
 
-- is maphelper required for 2 Lane Free?
+@inproceedings{xie2024smart,
+  title={SMART: Scalable Multi-agent Real-time Motion Generation via Next-token Prediction},
+  author={Xie, Kerui and Huang, Zhiyu and Zhou, Zewei and Ma, Jiaqi},
+  booktitle={Advances in Neural Information Processing Systems (NeurIPS)},
+  volume={37},
+  year={2024}
+}
 
-Top Level
+@InProceedings{Sun_2020_CVPR,
+  author    = {Sun, Pei and Kretzschmar, Henrik and Dotiwalla, Xerxes and Chouard, Aurelien and Patnaik, Vijaysai and Tsui, Paul and Guo, James and Zhou, Yin and Chai, Yuning and Caine, Benjamin and Vasudevan, Vijay and Han, Wei and Ngiam, Jiquan and Zhao, Hang and Timofeev, Aleksei and Ettinger, Scott and Krivokon, Maxim and Gao, Amy and Joshi, Aditya and Sheng, Zhao and Cheng, Shuyang and Zhang, Yu and Shlens, Jonathon and Chen, Zhifeng and Anguelov, Dragomir},
+  title     = {Scalability in Perception for Autonomous Driving: Waymo Open Dataset},
+  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+  month     = {June},
+  year      = {2020},
+  pages     = {2446-2454}
+}
 
-```yaml
-# eCloud perception
-define: &perception_is_active false
-...
-# eCloud
-ecloud:
-  num_servers: 2 # % num_cars to choose which port to connect to. 2nd - nth server port: p = 50053 + ( n - 1 )
-  server_ping_time_s: 0.005 # 5ms
-  client_world_time_factor: 0.9 # what percentage of last world time to wait initially
-  client_ping_spawn_s: 0.05 # sleep to wait between pings after spawn
-  client_ping_tick_s: 0.01 # minimum sleep to wait between pings after spawn
-```
-
-Scenario
-
-```yaml
-# define scenario.
-scenario:
-  ecloud: 
-    num_cars: 128
-    location_type: random # random || explicit - applies to Spawn & 
-    done_behavior: destroy # destroy || control
-  single_cav_list: 
-    - <<: *vehicle_base
-      destination: [606.87, 145.39, 0]
-      behavior: # overrides
-        <<: *base_behavior
-        max_speed: 100 # maximum speed, km/h
-        tailgate_speed: 111
-        overtake_allowed: false
-        local_planner:
-          <<: *base_local_planner
-          debug_trajectory: true
-          debug: true
-```
-
-```yaml
- #define the platoon basic characteristics
-edge_base: &edge_base
-  max_capacity: 10
-  inter_gap: 0.6 # desired time gap
-  open_gap: 1.2 # open gap
-  warm_up_speed: 55 # required speed before cooperative merging
-  change_leader_speed: true # whether to assign leader multiple speed to follow
-  leader_speeds_profile: [ 85, 95 ] # different speed for leader to follow
-  stage_duration: 10 # how long should the leader keeps in the current velocity stag
-  target_speed: 55 # kph
-  num_lanes: 4
-  edge_dt: 0.200 # use this and base dt to figure out how often to request updates of WP
-  search_dt: 2.00
-  edge_sets_destination: true # otherwise, edge sets WP
+@InProceedings{pmlr-v78-dosovitskiy17a,
+  title     = {{CARLA}: {An} Open Urban Driving Simulator},
+  author    = {Dosovitskiy, Alexey and Ros, German and Codevilla, Felipe and Lopez, Antonio and Koltun, Vladlen},
+  booktitle = {Proceedings of the 1st Annual Conference on Robot Learning},
+  pages     = {1--16},
+  year      = {2017},
+  editor    = {Levine, Sergey and Vanhoucke, Vincent and Goldberg, Ken},
+  volume    = {78},
+  series    = {Proceedings of Machine Learning Research},
+  publisher = {PMLR}
+}
 ```

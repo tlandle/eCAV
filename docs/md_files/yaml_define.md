@@ -1,10 +1,10 @@
 ## Yaml Rule
 
-To create a scenario test in OpenCDA, you need to start by writing a yml file to define the simulation parameters. This can be a bit tricky, so we've provided a helpful starting point in the form of a yaml file called default.yaml.
+To create a scenario test in eCAV, you need to start by writing a yml file to define the simulation parameters. This can be a bit tricky, so we've provided a helpful starting point in the form of a yaml file called default.yaml.
 
 The default.yaml file provides default parameters for a scenario, which you can modify as needed to create your own scenario. Instead of starting from scratch, you can use this file as a template and only change the parts that are different from the default parameters.
 
-If you're not sure where to start, we've included example yaml files for various scenarios in the opencda/scenario_testing/config_yaml directory. You can use these as a guide or a starting point for your own scenario.
+If you're not sure where to start, we've included example yaml files for various scenarios in the ecav/scenario_testing/config_yaml directory. You can use these as a guide or a starting point for your own scenario.
 
 Below show an concrete example:
 ```yaml

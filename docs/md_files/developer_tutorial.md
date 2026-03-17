@@ -1,12 +1,12 @@
 ## Class Design
 
-In this section, we will take a deeper look at the implementation details of several important classes in our OpenCDA framework. For beginners, we encourage you to go through our [OpenCDA Logic Flow](tutorial.md) first to understand the general simulation process. This tutorial will emphasize the detailed design logic behind each class and try to give clear descriptions of the core algorithms in each module. We will go through a test example `platoon_joining_2lanefree_carla.py` and for easy understanding, we have removed some non-core codes to simplify the code flow. To read the complete source code, please refer to our [repo](https://github.com/ucla-mobility/OpenCDA). For details about our cooperative architecture, please refer to our [paper](https://arxiv.org/abs/2107.06260). 
+In this section, we will take a deeper look at the implementation details of several important classes in our eCAV framework. For beginners, we encourage you to go through our [eCAV Logic Flow](tutorial.md) first to understand the general simulation process. This tutorial will emphasize the detailed design logic behind each class and try to give clear descriptions of the core algorithms in each module. We will go through a test example `platoon_joining_2lanefree_carla.py` and for easy understanding, we have removed some non-core codes to simplify the code flow. To read the complete source code, please refer to our [repo](https://github.com/ucla-mobility/eCAV). For details about our cooperative architecture, please refer to our [paper](https://arxiv.org/abs/2107.06260). 
 
 <strong>Note: this tutorial assume you are using CARLA only instead of Co-simulation.</strong>
 
 ### Workflow
 
-The workflow of opencda can be summarized as follows. 
+The workflow of ecav can be summarized as follows. 
 
 * Write yaml file to define various configurations of the simulation.
 *  Load those configurations into a dictionary `scenario_params`. For your convenience, we have provided `load_yaml` for loading the configurations. 
@@ -20,7 +20,7 @@ step, ` scenario_manager.tick()` will be called to tick the server. Then all the
 
 
 ```python
-from opencda.scenario_testing.utils.customized_map_api import customized_map_helper
+from ecav.scenario_testing.utils.customized_map_api import customized_map_helper
 def run_scenario(opt, config_yaml):
     scenario_params = load_yaml(config_yaml)
     xodr_path = "path/to/customized_map.xodr"
@@ -472,7 +472,7 @@ class BehaviorAgent(object):
 
     * <strong>Red traffic light</strong>
 
-        If the vehicle is in the junction and the traffic light is red, then return a target speed of 0.  Here we also consider the case when the car has moved to the center of the junction and the traffic light turns green at the current timestamp. In this case, it is very dangerous for the car to stop at the center of the junction. Thus we will use `light_id_to_ignore` to ignore this red light so that the car will continue moving. See [code](https://github.com/ucla-mobility/OpenCDA/blob/555aeab2bac7471d9400c51aea9c76741954b54b/opencda/core/plan/behavior_agent.py#L352) for details
+        If the vehicle is in the junction and the traffic light is red, then return a target speed of 0.  Here we also consider the case when the car has moved to the center of the junction and the traffic light turns green at the current timestamp. In this case, it is very dangerous for the car to stop at the center of the junction. Thus we will use `light_id_to_ignore` to ignore this red light so that the car will continue moving. See [code](https://github.com/ucla-mobility/eCAV/blob/555aeab2bac7471d9400c51aea9c76741954b54b/ecav/core/plan/behavior_agent.py#L352) for details
 
     * <strong>Lane change behaviors</strong>
 
