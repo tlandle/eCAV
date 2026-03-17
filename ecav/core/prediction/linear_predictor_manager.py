@@ -51,9 +51,11 @@ class LinearPredictorManager():
     trajectories.  The KF velocity reflects the filter's current best
     estimate and is not biased by old positions.
     """
-    def __init__(self, cfg_or_steps=60):
-        # Accept either a config dict (from registry) or raw int (legacy)
-        if isinstance(cfg_or_steps, dict):
+    def __init__(self, cfg_or_steps=60, num_future_steps=None):
+        # Accept config dict (registry), raw int (positional), or keyword (legacy)
+        if num_future_steps is not None:
+            self.num_predicted_steps = num_future_steps
+        elif isinstance(cfg_or_steps, dict):
             self.num_predicted_steps = cfg_or_steps.get('num_future_steps', 25)
         else:
             self.num_predicted_steps = cfg_or_steps
