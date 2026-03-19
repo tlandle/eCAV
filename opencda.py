@@ -21,9 +21,9 @@ Authors: Runsheng Xu <rxx3386@ucla.edu>
 License: MIT
 """
 
-import argparse
 import importlib
 import os
+from opencda.ecav2.arg_utils import build_arg_parser
 import sys
 import subprocess
 from omegaconf import OmegaConf
@@ -99,41 +99,7 @@ def fetch_scenario_from_server(vehicle_index: int = -1) -> str:
 
 
 def arg_parse():
-    # create an argument parser
-    parser = argparse.ArgumentParser(description="OpenCDA scenario runner.")
-    # add arguments to the parser
-    parser.add_argument('-t', "--test_scenario", required=False, type=str, default=None,
-                        help='Define the name of the scenario you want to test. The given name must '
-                             'match one of the testing scripts (e.g. single_2lanefree_carla) in '
-                             'opencda/scenario_testing/ folder '
-                             'as well as the corresponding yaml file in opencda/scenario_testing/config_yaml. '
-                             'If not provided and --distributed is set, the scenario will be fetched from the ecloud server.')
-    parser.add_argument('-d', "--distributed", action='store_true',
-                        help='Enable distributed mode for multi-process vehicle/RSU simulation.')
-    parser.add_argument("--record", action='store_true',
-                        help='whether to record and save the simulation process to .log file')
-    parser.add_argument("--apply_ml", action='store_true',
-                        help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-                             'Set it to true only when you have installed the pytorch/sklearn package.')
-    parser.add_argument('-l', "--litserve", action='store_true',
-                        help='Use LitServe for distributed ML inference (requires LitServe server). '
-                             'This offloads ML model inference to a separate process to reduce GPU memory per container.')
-    parser.add_argument('-v', "--version", type=str, default='0.9.15',
-                        help='Specify the CARLA simulator version, default is 0.9.15')
-    parser.add_argument("--verbose", action="store_true",
-                        help="Enable verbose logging")
-    parser.add_argument('-q', "--quiet", action="store_true",
-                        help="Minimize logging output")
-    parser.add_argument('-b', "--build", action="store_true",
-                        help="Rebuild gRPC proto files")
-    parser.add_argument('-i', "--vehicle_index", type=int, default=-2,
-                        help='Specify the vehicle index for distributed mode. '
-                             '-2 (default) = run scenario server, '
-                             '-1 = run all non-ego vehicles, '
-                             '>=0 = run specific vehicle.')
-    parser.add_argument("--output_dir", default=None,
-                        help="Output directory for logs and evaluation results")
-    # parse the arguments and return the result
+    parser = build_arg_parser("OpenCDA scenario runner.")
     opt = parser.parse_args()
     return opt
 
@@ -183,6 +149,7 @@ def main():
         scene_dict = OmegaConf.load(config_yaml)
         # merge the dictionaries
         scene_dict = OmegaConf.merge(default_dict, scene_dict)
+        scene_dict['scenario_name'] = opt.test_scenario
 
     assert scene_dict is not None, "scene_dict is not initialized!"
     scene_dict.scenario_runner.distributed = opt.distributed
@@ -218,6 +185,8 @@ def main():
         assert opt.distributed, "Must run in distributed mode (-d) when specifying vehicle index"
         vehicle_runner = getattr(testing_scenario, 'run_vehicle')
         scene_dict.scenario_runner.vehicle_index = opt.vehicle_index
+        if opt.trafficManagerPort is not None:
+            scene_dict.scenario_runner.trafficManagerPort = str(opt.trafficManagerPort)
         vehicle_runner(opt, scene_dict)
 
 

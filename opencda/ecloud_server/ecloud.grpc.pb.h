@@ -187,37 +187,6 @@ class Ecloud final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>> PrepareAsyncEdge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>>(PrepareAsyncEdge_ActorSendUpdateRaw(context, request, cq));
     }
-    // ============================================
-    // Intermediate Fusion RPCs (BM2CP, WorldFusion)
-    // ============================================
-    //
-    // ACTOR -> EDGE (intermediate fusion)
-    // Actor sends intermediate features to edge for fusion
-    virtual ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::ecloud::Empty* response) = 0;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> AsyncEdge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(AsyncEdge_SendIntermediateFeaturesRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>> PrepareAsyncEdge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>>(PrepareAsyncEdge_SendIntermediateFeaturesRaw(context, request, cq));
-    }
-    // EDGE -> ACTOR (intermediate fusion)
-    // Actor requests fusion results from edge
-    virtual ::grpc::Status Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::ecloud::FusionResult* response) = 0;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>> AsyncEdge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>>(AsyncEdge_GetFusionResultRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>> PrepareAsyncEdge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>>(PrepareAsyncEdge_GetFusionResultRaw(context, request, cq));
-    }
-    // EDGE INTERNAL (batch fusion)
-    // Edge performs batch fusion on all received features
-    virtual ::grpc::Status Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::ecloud::FusionResult* response) = 0;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>> AsyncEdge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>>(AsyncEdge_PerformFusionRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>> PrepareAsyncEdge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>>(PrepareAsyncEdge_PerformFusionRaw(context, request, cq));
-    }
     class async_interface {
      public:
       virtual ~async_interface() {}
@@ -277,22 +246,6 @@ class Ecloud final {
       // Actor sends update to edge, receives previous tick's fused data
       virtual void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) = 0;
       virtual void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      // ============================================
-      // Intermediate Fusion RPCs (BM2CP, WorldFusion)
-      // ============================================
-      //
-      // ACTOR -> EDGE (intermediate fusion)
-      // Actor sends intermediate features to edge for fusion
-      virtual void Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      // EDGE -> ACTOR (intermediate fusion)
-      // Actor requests fusion results from edge
-      virtual void Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      // EDGE INTERNAL (batch fusion)
-      // Edge performs batch fusion on all received features
-      virtual void Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response, std::function<void(::grpc::Status)>) = 0;
-      virtual void Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
     typedef class async_interface experimental_async_interface;
     virtual class async_interface* async() { return nullptr; }
@@ -336,12 +289,6 @@ class Ecloud final {
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::SimulationInfo>* PrepareAsyncEdge_ActorRegisterRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>* AsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) = 0;
     virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::ObjectBuffer>* PrepareAsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* AsyncEdge_SendIntermediateFeaturesRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::Empty>* PrepareAsyncEdge_SendIntermediateFeaturesRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>* AsyncEdge_GetFusionResultRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>* PrepareAsyncEdge_GetFusionResultRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>* AsyncEdge_PerformFusionRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) = 0;
-    virtual ::grpc::ClientAsyncResponseReaderInterface< ::ecloud::FusionResult>* PrepareAsyncEdge_PerformFusionRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) = 0;
   };
   class Stub final : public StubInterface {
    public:
@@ -479,27 +426,6 @@ class Ecloud final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>> PrepareAsyncEdge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>>(PrepareAsyncEdge_ActorSendUpdateRaw(context, request, cq));
     }
-    ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::ecloud::Empty* response) override;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> AsyncEdge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(AsyncEdge_SendIntermediateFeaturesRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>> PrepareAsyncEdge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>>(PrepareAsyncEdge_SendIntermediateFeaturesRaw(context, request, cq));
-    }
-    ::grpc::Status Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::ecloud::FusionResult* response) override;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>> AsyncEdge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>>(AsyncEdge_GetFusionResultRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>> PrepareAsyncEdge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>>(PrepareAsyncEdge_GetFusionResultRaw(context, request, cq));
-    }
-    ::grpc::Status Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::ecloud::FusionResult* response) override;
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>> AsyncEdge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>>(AsyncEdge_PerformFusionRaw(context, request, cq));
-    }
-    std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>> PrepareAsyncEdge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) {
-      return std::unique_ptr< ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>>(PrepareAsyncEdge_PerformFusionRaw(context, request, cq));
-    }
     class async final :
       public StubInterface::async_interface {
      public:
@@ -541,12 +467,6 @@ class Ecloud final {
       void Edge_ActorRegister(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response, ::grpc::ClientUnaryReactor* reactor) override;
       void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, std::function<void(::grpc::Status)>) override;
       void Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response, ::grpc::ClientUnaryReactor* reactor) override;
-      void Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)>) override;
-      void Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) override;
-      void Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response, std::function<void(::grpc::Status)>) override;
-      void Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response, ::grpc::ClientUnaryReactor* reactor) override;
-      void Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response, std::function<void(::grpc::Status)>) override;
-      void Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response, ::grpc::ClientUnaryReactor* reactor) override;
      private:
       friend class Stub;
       explicit async(Stub* stub): stub_(stub) { }
@@ -596,12 +516,6 @@ class Ecloud final {
     ::grpc::ClientAsyncResponseReader< ::ecloud::SimulationInfo>* PrepareAsyncEdge_ActorRegisterRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* AsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) override;
     ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* PrepareAsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* AsyncEdge_SendIntermediateFeaturesRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* PrepareAsyncEdge_SendIntermediateFeaturesRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* AsyncEdge_GetFusionResultRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* PrepareAsyncEdge_GetFusionResultRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* AsyncEdge_PerformFusionRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) override;
-    ::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* PrepareAsyncEdge_PerformFusionRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) override;
     const ::grpc::internal::RpcMethod rpcmethod_PushTick_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_SendUpdate_;
     const ::grpc::internal::RpcMethod rpcmethod_Client_RegisterVehicle_;
@@ -621,9 +535,6 @@ class Ecloud final {
     const ::grpc::internal::RpcMethod rpcmethod_Edge_PushTick_;
     const ::grpc::internal::RpcMethod rpcmethod_Edge_ActorRegister_;
     const ::grpc::internal::RpcMethod rpcmethod_Edge_ActorSendUpdate_;
-    const ::grpc::internal::RpcMethod rpcmethod_Edge_SendIntermediateFeatures_;
-    const ::grpc::internal::RpcMethod rpcmethod_Edge_GetFusionResult_;
-    const ::grpc::internal::RpcMethod rpcmethod_Edge_PerformFusion_;
   };
   static std::unique_ptr<Stub> NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options = ::grpc::StubOptions());
 
@@ -668,19 +579,6 @@ class Ecloud final {
     virtual ::grpc::Status Edge_ActorRegister(::grpc::ServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::SimulationInfo* response);
     // Actor sends update to edge, receives previous tick's fused data
     virtual ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response);
-    // ============================================
-    // Intermediate Fusion RPCs (BM2CP, WorldFusion)
-    // ============================================
-    //
-    // ACTOR -> EDGE (intermediate fusion)
-    // Actor sends intermediate features to edge for fusion
-    virtual ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ServerContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response);
-    // EDGE -> ACTOR (intermediate fusion)
-    // Actor requests fusion results from edge
-    virtual ::grpc::Status Edge_GetFusionResult(::grpc::ServerContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response);
-    // EDGE INTERNAL (batch fusion)
-    // Edge performs batch fusion on all received features
-    virtual ::grpc::Status Edge_PerformFusion(::grpc::ServerContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response);
   };
   template <class BaseClass>
   class WithAsyncMethod_PushTick : public BaseClass {
@@ -1062,67 +960,7 @@ class Ecloud final {
       ::grpc::Service::RequestAsyncUnary(18, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
-  template <class BaseClass>
-  class WithAsyncMethod_Edge_SendIntermediateFeatures : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithAsyncMethod_Edge_SendIntermediateFeatures() {
-      ::grpc::Service::MarkMethodAsync(19);
-    }
-    ~WithAsyncMethod_Edge_SendIntermediateFeatures() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeatures* /*request*/, ::ecloud::Empty* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestEdge_SendIntermediateFeatures(::grpc::ServerContext* context, ::ecloud::IntermediateFeatures* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::Empty>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(19, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
-  class WithAsyncMethod_Edge_GetFusionResult : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithAsyncMethod_Edge_GetFusionResult() {
-      ::grpc::Service::MarkMethodAsync(20);
-    }
-    ~WithAsyncMethod_Edge_GetFusionResult() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_GetFusionResult(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesRequest* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestEdge_GetFusionResult(::grpc::ServerContext* context, ::ecloud::IntermediateFeaturesRequest* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::FusionResult>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(20, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
-  class WithAsyncMethod_Edge_PerformFusion : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithAsyncMethod_Edge_PerformFusion() {
-      ::grpc::Service::MarkMethodAsync(21);
-    }
-    ~WithAsyncMethod_Edge_PerformFusion() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_PerformFusion(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesBatch* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestEdge_PerformFusion(::grpc::ServerContext* context, ::ecloud::IntermediateFeaturesBatch* request, ::grpc::ServerAsyncResponseWriter< ::ecloud::FusionResult>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(21, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  typedef WithAsyncMethod_PushTick<WithAsyncMethod_Client_SendUpdate<WithAsyncMethod_Client_RegisterVehicle<WithAsyncMethod_Client_GetScenario<WithAsyncMethod_Client_GetWaypoints<WithAsyncMethod_Client_GetObjects<WithAsyncMethod_Client_GetConnectionInfo<WithAsyncMethod_Server_DoTick<WithAsyncMethod_Server_StartScenario<WithAsyncMethod_Server_EndScenario<WithAsyncMethod_Server_GetVehicleUpdates<WithAsyncMethod_Server_PushEdgeWaypoints<WithAsyncMethod_Server_PushEdgeObjects<WithAsyncMethod_Server_SetEdgeMappings<WithAsyncMethod_Edge_Register<WithAsyncMethod_Edge_TickComplete<WithAsyncMethod_Edge_PushTick<WithAsyncMethod_Edge_ActorRegister<WithAsyncMethod_Edge_ActorSendUpdate<WithAsyncMethod_Edge_SendIntermediateFeatures<WithAsyncMethod_Edge_GetFusionResult<WithAsyncMethod_Edge_PerformFusion<Service > > > > > > > > > > > > > > > > > > > > > > AsyncService;
+  typedef WithAsyncMethod_PushTick<WithAsyncMethod_Client_SendUpdate<WithAsyncMethod_Client_RegisterVehicle<WithAsyncMethod_Client_GetScenario<WithAsyncMethod_Client_GetWaypoints<WithAsyncMethod_Client_GetObjects<WithAsyncMethod_Client_GetConnectionInfo<WithAsyncMethod_Server_DoTick<WithAsyncMethod_Server_StartScenario<WithAsyncMethod_Server_EndScenario<WithAsyncMethod_Server_GetVehicleUpdates<WithAsyncMethod_Server_PushEdgeWaypoints<WithAsyncMethod_Server_PushEdgeObjects<WithAsyncMethod_Server_SetEdgeMappings<WithAsyncMethod_Edge_Register<WithAsyncMethod_Edge_TickComplete<WithAsyncMethod_Edge_PushTick<WithAsyncMethod_Edge_ActorRegister<WithAsyncMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > AsyncService;
   template <class BaseClass>
   class WithCallbackMethod_PushTick : public BaseClass {
    private:
@@ -1636,88 +1474,7 @@ class Ecloud final {
     virtual ::grpc::ServerUnaryReactor* Edge_ActorSendUpdate(
       ::grpc::CallbackServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/)  { return nullptr; }
   };
-  template <class BaseClass>
-  class WithCallbackMethod_Edge_SendIntermediateFeatures : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithCallbackMethod_Edge_SendIntermediateFeatures() {
-      ::grpc::Service::MarkMethodCallback(19,
-          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::IntermediateFeatures, ::ecloud::Empty>(
-            [this](
-                   ::grpc::CallbackServerContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response) { return this->Edge_SendIntermediateFeatures(context, request, response); }));}
-    void SetMessageAllocatorFor_Edge_SendIntermediateFeatures(
-        ::grpc::MessageAllocator< ::ecloud::IntermediateFeatures, ::ecloud::Empty>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(19);
-      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::IntermediateFeatures, ::ecloud::Empty>*>(handler)
-              ->SetMessageAllocator(allocator);
-    }
-    ~WithCallbackMethod_Edge_SendIntermediateFeatures() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeatures* /*request*/, ::ecloud::Empty* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    virtual ::grpc::ServerUnaryReactor* Edge_SendIntermediateFeatures(
-      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::IntermediateFeatures* /*request*/, ::ecloud::Empty* /*response*/)  { return nullptr; }
-  };
-  template <class BaseClass>
-  class WithCallbackMethod_Edge_GetFusionResult : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithCallbackMethod_Edge_GetFusionResult() {
-      ::grpc::Service::MarkMethodCallback(20,
-          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult>(
-            [this](
-                   ::grpc::CallbackServerContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response) { return this->Edge_GetFusionResult(context, request, response); }));}
-    void SetMessageAllocatorFor_Edge_GetFusionResult(
-        ::grpc::MessageAllocator< ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(20);
-      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult>*>(handler)
-              ->SetMessageAllocator(allocator);
-    }
-    ~WithCallbackMethod_Edge_GetFusionResult() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_GetFusionResult(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesRequest* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    virtual ::grpc::ServerUnaryReactor* Edge_GetFusionResult(
-      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::IntermediateFeaturesRequest* /*request*/, ::ecloud::FusionResult* /*response*/)  { return nullptr; }
-  };
-  template <class BaseClass>
-  class WithCallbackMethod_Edge_PerformFusion : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithCallbackMethod_Edge_PerformFusion() {
-      ::grpc::Service::MarkMethodCallback(21,
-          new ::grpc::internal::CallbackUnaryHandler< ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult>(
-            [this](
-                   ::grpc::CallbackServerContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response) { return this->Edge_PerformFusion(context, request, response); }));}
-    void SetMessageAllocatorFor_Edge_PerformFusion(
-        ::grpc::MessageAllocator< ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult>* allocator) {
-      ::grpc::internal::MethodHandler* const handler = ::grpc::Service::GetHandler(21);
-      static_cast<::grpc::internal::CallbackUnaryHandler< ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult>*>(handler)
-              ->SetMessageAllocator(allocator);
-    }
-    ~WithCallbackMethod_Edge_PerformFusion() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_PerformFusion(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesBatch* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    virtual ::grpc::ServerUnaryReactor* Edge_PerformFusion(
-      ::grpc::CallbackServerContext* /*context*/, const ::ecloud::IntermediateFeaturesBatch* /*request*/, ::ecloud::FusionResult* /*response*/)  { return nullptr; }
-  };
-  typedef WithCallbackMethod_PushTick<WithCallbackMethod_Client_SendUpdate<WithCallbackMethod_Client_RegisterVehicle<WithCallbackMethod_Client_GetScenario<WithCallbackMethod_Client_GetWaypoints<WithCallbackMethod_Client_GetObjects<WithCallbackMethod_Client_GetConnectionInfo<WithCallbackMethod_Server_DoTick<WithCallbackMethod_Server_StartScenario<WithCallbackMethod_Server_EndScenario<WithCallbackMethod_Server_GetVehicleUpdates<WithCallbackMethod_Server_PushEdgeWaypoints<WithCallbackMethod_Server_PushEdgeObjects<WithCallbackMethod_Server_SetEdgeMappings<WithCallbackMethod_Edge_Register<WithCallbackMethod_Edge_TickComplete<WithCallbackMethod_Edge_PushTick<WithCallbackMethod_Edge_ActorRegister<WithCallbackMethod_Edge_ActorSendUpdate<WithCallbackMethod_Edge_SendIntermediateFeatures<WithCallbackMethod_Edge_GetFusionResult<WithCallbackMethod_Edge_PerformFusion<Service > > > > > > > > > > > > > > > > > > > > > > CallbackService;
+  typedef WithCallbackMethod_PushTick<WithCallbackMethod_Client_SendUpdate<WithCallbackMethod_Client_RegisterVehicle<WithCallbackMethod_Client_GetScenario<WithCallbackMethod_Client_GetWaypoints<WithCallbackMethod_Client_GetObjects<WithCallbackMethod_Client_GetConnectionInfo<WithCallbackMethod_Server_DoTick<WithCallbackMethod_Server_StartScenario<WithCallbackMethod_Server_EndScenario<WithCallbackMethod_Server_GetVehicleUpdates<WithCallbackMethod_Server_PushEdgeWaypoints<WithCallbackMethod_Server_PushEdgeObjects<WithCallbackMethod_Server_SetEdgeMappings<WithCallbackMethod_Edge_Register<WithCallbackMethod_Edge_TickComplete<WithCallbackMethod_Edge_PushTick<WithCallbackMethod_Edge_ActorRegister<WithCallbackMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > CallbackService;
   typedef CallbackService ExperimentalCallbackService;
   template <class BaseClass>
   class WithGenericMethod_PushTick : public BaseClass {
@@ -2038,57 +1795,6 @@ class Ecloud final {
     }
     // disable synchronous version of this method
     ::grpc::Status Edge_ActorSendUpdate(::grpc::ServerContext* /*context*/, const ::ecloud::VehicleUpdate* /*request*/, ::ecloud::ObjectBuffer* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-  };
-  template <class BaseClass>
-  class WithGenericMethod_Edge_SendIntermediateFeatures : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithGenericMethod_Edge_SendIntermediateFeatures() {
-      ::grpc::Service::MarkMethodGeneric(19);
-    }
-    ~WithGenericMethod_Edge_SendIntermediateFeatures() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeatures* /*request*/, ::ecloud::Empty* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-  };
-  template <class BaseClass>
-  class WithGenericMethod_Edge_GetFusionResult : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithGenericMethod_Edge_GetFusionResult() {
-      ::grpc::Service::MarkMethodGeneric(20);
-    }
-    ~WithGenericMethod_Edge_GetFusionResult() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_GetFusionResult(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesRequest* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-  };
-  template <class BaseClass>
-  class WithGenericMethod_Edge_PerformFusion : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithGenericMethod_Edge_PerformFusion() {
-      ::grpc::Service::MarkMethodGeneric(21);
-    }
-    ~WithGenericMethod_Edge_PerformFusion() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_PerformFusion(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesBatch* /*request*/, ::ecloud::FusionResult* /*response*/) override {
       abort();
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
@@ -2471,66 +2177,6 @@ class Ecloud final {
     }
     void RequestEdge_ActorSendUpdate(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
       ::grpc::Service::RequestAsyncUnary(18, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
-  class WithRawMethod_Edge_SendIntermediateFeatures : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawMethod_Edge_SendIntermediateFeatures() {
-      ::grpc::Service::MarkMethodRaw(19);
-    }
-    ~WithRawMethod_Edge_SendIntermediateFeatures() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeatures* /*request*/, ::ecloud::Empty* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestEdge_SendIntermediateFeatures(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(19, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
-  class WithRawMethod_Edge_GetFusionResult : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawMethod_Edge_GetFusionResult() {
-      ::grpc::Service::MarkMethodRaw(20);
-    }
-    ~WithRawMethod_Edge_GetFusionResult() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_GetFusionResult(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesRequest* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestEdge_GetFusionResult(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(20, context, request, response, new_call_cq, notification_cq, tag);
-    }
-  };
-  template <class BaseClass>
-  class WithRawMethod_Edge_PerformFusion : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawMethod_Edge_PerformFusion() {
-      ::grpc::Service::MarkMethodRaw(21);
-    }
-    ~WithRawMethod_Edge_PerformFusion() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_PerformFusion(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesBatch* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    void RequestEdge_PerformFusion(::grpc::ServerContext* context, ::grpc::ByteBuffer* request, ::grpc::ServerAsyncResponseWriter< ::grpc::ByteBuffer>* response, ::grpc::CompletionQueue* new_call_cq, ::grpc::ServerCompletionQueue* notification_cq, void *tag) {
-      ::grpc::Service::RequestAsyncUnary(21, context, request, response, new_call_cq, notification_cq, tag);
     }
   };
   template <class BaseClass>
@@ -2949,72 +2595,6 @@ class Ecloud final {
       return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
     }
     virtual ::grpc::ServerUnaryReactor* Edge_ActorSendUpdate(
-      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
-  };
-  template <class BaseClass>
-  class WithRawCallbackMethod_Edge_SendIntermediateFeatures : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawCallbackMethod_Edge_SendIntermediateFeatures() {
-      ::grpc::Service::MarkMethodRawCallback(19,
-          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
-            [this](
-                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_SendIntermediateFeatures(context, request, response); }));
-    }
-    ~WithRawCallbackMethod_Edge_SendIntermediateFeatures() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeatures* /*request*/, ::ecloud::Empty* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    virtual ::grpc::ServerUnaryReactor* Edge_SendIntermediateFeatures(
-      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
-  };
-  template <class BaseClass>
-  class WithRawCallbackMethod_Edge_GetFusionResult : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawCallbackMethod_Edge_GetFusionResult() {
-      ::grpc::Service::MarkMethodRawCallback(20,
-          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
-            [this](
-                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_GetFusionResult(context, request, response); }));
-    }
-    ~WithRawCallbackMethod_Edge_GetFusionResult() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_GetFusionResult(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesRequest* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    virtual ::grpc::ServerUnaryReactor* Edge_GetFusionResult(
-      ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
-  };
-  template <class BaseClass>
-  class WithRawCallbackMethod_Edge_PerformFusion : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithRawCallbackMethod_Edge_PerformFusion() {
-      ::grpc::Service::MarkMethodRawCallback(21,
-          new ::grpc::internal::CallbackUnaryHandler< ::grpc::ByteBuffer, ::grpc::ByteBuffer>(
-            [this](
-                   ::grpc::CallbackServerContext* context, const ::grpc::ByteBuffer* request, ::grpc::ByteBuffer* response) { return this->Edge_PerformFusion(context, request, response); }));
-    }
-    ~WithRawCallbackMethod_Edge_PerformFusion() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable synchronous version of this method
-    ::grpc::Status Edge_PerformFusion(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesBatch* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    virtual ::grpc::ServerUnaryReactor* Edge_PerformFusion(
       ::grpc::CallbackServerContext* /*context*/, const ::grpc::ByteBuffer* /*request*/, ::grpc::ByteBuffer* /*response*/)  { return nullptr; }
   };
   template <class BaseClass>
@@ -3530,90 +3110,9 @@ class Ecloud final {
     // replace default version of method with streamed unary
     virtual ::grpc::Status StreamedEdge_ActorSendUpdate(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::VehicleUpdate,::ecloud::ObjectBuffer>* server_unary_streamer) = 0;
   };
-  template <class BaseClass>
-  class WithStreamedUnaryMethod_Edge_SendIntermediateFeatures : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithStreamedUnaryMethod_Edge_SendIntermediateFeatures() {
-      ::grpc::Service::MarkMethodStreamed(19,
-        new ::grpc::internal::StreamedUnaryHandler<
-          ::ecloud::IntermediateFeatures, ::ecloud::Empty>(
-            [this](::grpc::ServerContext* context,
-                   ::grpc::ServerUnaryStreamer<
-                     ::ecloud::IntermediateFeatures, ::ecloud::Empty>* streamer) {
-                       return this->StreamedEdge_SendIntermediateFeatures(context,
-                         streamer);
-                  }));
-    }
-    ~WithStreamedUnaryMethod_Edge_SendIntermediateFeatures() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable regular version of this method
-    ::grpc::Status Edge_SendIntermediateFeatures(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeatures* /*request*/, ::ecloud::Empty* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    // replace default version of method with streamed unary
-    virtual ::grpc::Status StreamedEdge_SendIntermediateFeatures(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::IntermediateFeatures,::ecloud::Empty>* server_unary_streamer) = 0;
-  };
-  template <class BaseClass>
-  class WithStreamedUnaryMethod_Edge_GetFusionResult : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithStreamedUnaryMethod_Edge_GetFusionResult() {
-      ::grpc::Service::MarkMethodStreamed(20,
-        new ::grpc::internal::StreamedUnaryHandler<
-          ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult>(
-            [this](::grpc::ServerContext* context,
-                   ::grpc::ServerUnaryStreamer<
-                     ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult>* streamer) {
-                       return this->StreamedEdge_GetFusionResult(context,
-                         streamer);
-                  }));
-    }
-    ~WithStreamedUnaryMethod_Edge_GetFusionResult() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable regular version of this method
-    ::grpc::Status Edge_GetFusionResult(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesRequest* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    // replace default version of method with streamed unary
-    virtual ::grpc::Status StreamedEdge_GetFusionResult(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::IntermediateFeaturesRequest,::ecloud::FusionResult>* server_unary_streamer) = 0;
-  };
-  template <class BaseClass>
-  class WithStreamedUnaryMethod_Edge_PerformFusion : public BaseClass {
-   private:
-    void BaseClassMustBeDerivedFromService(const Service* /*service*/) {}
-   public:
-    WithStreamedUnaryMethod_Edge_PerformFusion() {
-      ::grpc::Service::MarkMethodStreamed(21,
-        new ::grpc::internal::StreamedUnaryHandler<
-          ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult>(
-            [this](::grpc::ServerContext* context,
-                   ::grpc::ServerUnaryStreamer<
-                     ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult>* streamer) {
-                       return this->StreamedEdge_PerformFusion(context,
-                         streamer);
-                  }));
-    }
-    ~WithStreamedUnaryMethod_Edge_PerformFusion() override {
-      BaseClassMustBeDerivedFromService(this);
-    }
-    // disable regular version of this method
-    ::grpc::Status Edge_PerformFusion(::grpc::ServerContext* /*context*/, const ::ecloud::IntermediateFeaturesBatch* /*request*/, ::ecloud::FusionResult* /*response*/) override {
-      abort();
-      return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
-    }
-    // replace default version of method with streamed unary
-    virtual ::grpc::Status StreamedEdge_PerformFusion(::grpc::ServerContext* context, ::grpc::ServerUnaryStreamer< ::ecloud::IntermediateFeaturesBatch,::ecloud::FusionResult>* server_unary_streamer) = 0;
-  };
-  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Client_GetConnectionInfo<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<WithStreamedUnaryMethod_Server_SetEdgeMappings<WithStreamedUnaryMethod_Edge_Register<WithStreamedUnaryMethod_Edge_TickComplete<WithStreamedUnaryMethod_Edge_PushTick<WithStreamedUnaryMethod_Edge_ActorRegister<WithStreamedUnaryMethod_Edge_ActorSendUpdate<WithStreamedUnaryMethod_Edge_SendIntermediateFeatures<WithStreamedUnaryMethod_Edge_GetFusionResult<WithStreamedUnaryMethod_Edge_PerformFusion<Service > > > > > > > > > > > > > > > > > > > > > > StreamedUnaryService;
+  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Client_GetConnectionInfo<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<WithStreamedUnaryMethod_Server_SetEdgeMappings<WithStreamedUnaryMethod_Edge_Register<WithStreamedUnaryMethod_Edge_TickComplete<WithStreamedUnaryMethod_Edge_PushTick<WithStreamedUnaryMethod_Edge_ActorRegister<WithStreamedUnaryMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > StreamedUnaryService;
   typedef Service SplitStreamedService;
-  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Client_GetConnectionInfo<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<WithStreamedUnaryMethod_Server_SetEdgeMappings<WithStreamedUnaryMethod_Edge_Register<WithStreamedUnaryMethod_Edge_TickComplete<WithStreamedUnaryMethod_Edge_PushTick<WithStreamedUnaryMethod_Edge_ActorRegister<WithStreamedUnaryMethod_Edge_ActorSendUpdate<WithStreamedUnaryMethod_Edge_SendIntermediateFeatures<WithStreamedUnaryMethod_Edge_GetFusionResult<WithStreamedUnaryMethod_Edge_PerformFusion<Service > > > > > > > > > > > > > > > > > > > > > > StreamedService;
+  typedef WithStreamedUnaryMethod_PushTick<WithStreamedUnaryMethod_Client_SendUpdate<WithStreamedUnaryMethod_Client_RegisterVehicle<WithStreamedUnaryMethod_Client_GetScenario<WithStreamedUnaryMethod_Client_GetWaypoints<WithStreamedUnaryMethod_Client_GetObjects<WithStreamedUnaryMethod_Client_GetConnectionInfo<WithStreamedUnaryMethod_Server_DoTick<WithStreamedUnaryMethod_Server_StartScenario<WithStreamedUnaryMethod_Server_EndScenario<WithStreamedUnaryMethod_Server_GetVehicleUpdates<WithStreamedUnaryMethod_Server_PushEdgeWaypoints<WithStreamedUnaryMethod_Server_PushEdgeObjects<WithStreamedUnaryMethod_Server_SetEdgeMappings<WithStreamedUnaryMethod_Edge_Register<WithStreamedUnaryMethod_Edge_TickComplete<WithStreamedUnaryMethod_Edge_PushTick<WithStreamedUnaryMethod_Edge_ActorRegister<WithStreamedUnaryMethod_Edge_ActorSendUpdate<Service > > > > > > > > > > > > > > > > > > > StreamedService;
 };
 
 }  // namespace ecloud

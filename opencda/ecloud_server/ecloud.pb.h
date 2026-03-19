@@ -74,10 +74,6 @@ class AgentDebugHelper;
 struct AgentDebugHelperDefaultTypeInternal;
 extern AgentDebugHelperDefaultTypeInternal _AgentDebugHelper_default_instance_;
 extern const ::google::protobuf::internal::ClassDataFull AgentDebugHelper_class_data_;
-class AgentPose;
-struct AgentPoseDefaultTypeInternal;
-extern AgentPoseDefaultTypeInternal _AgentPose_default_instance_;
-extern const ::google::protobuf::internal::ClassDataFull AgentPose_class_data_;
 class ClientDebugHelper;
 struct ClientDebugHelperDefaultTypeInternal;
 extern ClientDebugHelperDefaultTypeInternal _ClientDebugHelper_default_instance_;
@@ -86,10 +82,6 @@ class CollisionEvent;
 struct CollisionEventDefaultTypeInternal;
 extern CollisionEventDefaultTypeInternal _CollisionEvent_default_instance_;
 extern const ::google::protobuf::internal::ClassDataFull CollisionEvent_class_data_;
-class CompressedTensor;
-struct CompressedTensorDefaultTypeInternal;
-extern CompressedTensorDefaultTypeInternal _CompressedTensor_default_instance_;
-extern const ::google::protobuf::internal::ClassDataFull CompressedTensor_class_data_;
 class EcloudResponse;
 struct EcloudResponseDefaultTypeInternal;
 extern EcloudResponseDefaultTypeInternal _EcloudResponse_default_instance_;
@@ -138,26 +130,10 @@ class Empty;
 struct EmptyDefaultTypeInternal;
 extern EmptyDefaultTypeInternal _Empty_default_instance_;
 extern const ::google::protobuf::internal::ClassDataFull Empty_class_data_;
-class FusionResult;
-struct FusionResultDefaultTypeInternal;
-extern FusionResultDefaultTypeInternal _FusionResult_default_instance_;
-extern const ::google::protobuf::internal::ClassDataFull FusionResult_class_data_;
 class GeneratedTrajectory;
 struct GeneratedTrajectoryDefaultTypeInternal;
 extern GeneratedTrajectoryDefaultTypeInternal _GeneratedTrajectory_default_instance_;
 extern const ::google::protobuf::internal::ClassDataFull GeneratedTrajectory_class_data_;
-class IntermediateFeatures;
-struct IntermediateFeaturesDefaultTypeInternal;
-extern IntermediateFeaturesDefaultTypeInternal _IntermediateFeatures_default_instance_;
-extern const ::google::protobuf::internal::ClassDataFull IntermediateFeatures_class_data_;
-class IntermediateFeaturesBatch;
-struct IntermediateFeaturesBatchDefaultTypeInternal;
-extern IntermediateFeaturesBatchDefaultTypeInternal _IntermediateFeaturesBatch_default_instance_;
-extern const ::google::protobuf::internal::ClassDataFull IntermediateFeaturesBatch_class_data_;
-class IntermediateFeaturesRequest;
-struct IntermediateFeaturesRequestDefaultTypeInternal;
-extern IntermediateFeaturesRequestDefaultTypeInternal _IntermediateFeaturesRequest_default_instance_;
-extern const ::google::protobuf::internal::ClassDataFull IntermediateFeaturesRequest_class_data_;
 class LaneInvasionEvent;
 struct LaneInvasionEventDefaultTypeInternal;
 extern LaneInvasionEventDefaultTypeInternal _LaneInvasionEvent_default_instance_;
@@ -3440,209 +3416,6 @@ class LocDebugHelper final : public ::google::protobuf::Message
 extern const ::google::protobuf::internal::ClassDataFull LocDebugHelper_class_data_;
 // -------------------------------------------------------------------
 
-class IntermediateFeaturesRequest final : public ::google::protobuf::Message
-/* @@protoc_insertion_point(class_definition:ecloud.IntermediateFeaturesRequest) */ {
- public:
-  inline IntermediateFeaturesRequest() : IntermediateFeaturesRequest(nullptr) {}
-  ~IntermediateFeaturesRequest() PROTOBUF_FINAL;
-
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-  void operator delete(IntermediateFeaturesRequest* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
-    SharedDtor(*msg);
-    ::google::protobuf::internal::SizedDelete(msg, sizeof(IntermediateFeaturesRequest));
-  }
-#endif
-
-  template <typename = void>
-  explicit PROTOBUF_CONSTEXPR IntermediateFeaturesRequest(::google::protobuf::internal::ConstantInitialized);
-
-  inline IntermediateFeaturesRequest(const IntermediateFeaturesRequest& from) : IntermediateFeaturesRequest(nullptr, from) {}
-  inline IntermediateFeaturesRequest(IntermediateFeaturesRequest&& from) noexcept
-      : IntermediateFeaturesRequest(nullptr, ::std::move(from)) {}
-  inline IntermediateFeaturesRequest& operator=(const IntermediateFeaturesRequest& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline IntermediateFeaturesRequest& operator=(IntermediateFeaturesRequest&& from) noexcept {
-    if (this == &from) return *this;
-    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
-  }
-  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
-  }
-
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
-    return GetDescriptor();
-  }
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const IntermediateFeaturesRequest& default_instance() {
-    return *reinterpret_cast<const IntermediateFeaturesRequest*>(
-        &_IntermediateFeaturesRequest_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages = 32;
-  friend void swap(IntermediateFeaturesRequest& a, IntermediateFeaturesRequest& b) { a.Swap(&b); }
-  inline void Swap(IntermediateFeaturesRequest* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
-      InternalSwap(other);
-    } else {
-      ::google::protobuf::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(IntermediateFeaturesRequest* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  IntermediateFeaturesRequest* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
-    return ::google::protobuf::Message::DefaultConstruct<IntermediateFeaturesRequest>(arena);
-  }
-  using ::google::protobuf::Message::CopyFrom;
-  void CopyFrom(const IntermediateFeaturesRequest& from);
-  using ::google::protobuf::Message::MergeFrom;
-  void MergeFrom(const IntermediateFeaturesRequest& from) { IntermediateFeaturesRequest::MergeImpl(*this, from); }
-
-  private:
-  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
-                        const ::google::protobuf::MessageLite& from_msg);
-
-  public:
-  bool IsInitialized() const {
-    return true;
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
-  #if defined(PROTOBUF_CUSTOM_VTABLE)
-  private:
-  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
-  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
-
-  public:
-  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
-    return _InternalSerialize(*this, target, stream);
-  }
-  #else   // PROTOBUF_CUSTOM_VTABLE
-  ::size_t ByteSizeLong() const final;
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
-  #endif  // PROTOBUF_CUSTOM_VTABLE
-  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static void SharedDtor(MessageLite& self);
-  void InternalSwap(IntermediateFeaturesRequest* PROTOBUF_NONNULL other);
- private:
-  template <typename T>
-  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
-  static ::absl::string_view FullMessageName() { return "ecloud.IntermediateFeaturesRequest"; }
-
- protected:
-  explicit IntermediateFeaturesRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  IntermediateFeaturesRequest(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const IntermediateFeaturesRequest& from);
-  IntermediateFeaturesRequest(
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, IntermediateFeaturesRequest&& from) noexcept
-      : IntermediateFeaturesRequest(arena) {
-    *this = ::std::move(from);
-  }
-  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
-  static void* PROTOBUF_NONNULL PlacementNew_(
-      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static constexpr auto InternalNewImpl_();
-
- public:
-  static constexpr auto InternalGenerateClassData_();
-
-  ::google::protobuf::Metadata GetMetadata() const;
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-  enum : int {
-    kVehicleIndexFieldNumber = 1,
-    kTickIdFieldNumber = 2,
-  };
-  // int32 vehicle_index = 1;
-  void clear_vehicle_index() ;
-  ::int32_t vehicle_index() const;
-  void set_vehicle_index(::int32_t value);
-
-  private:
-  ::int32_t _internal_vehicle_index() const;
-  void _internal_set_vehicle_index(::int32_t value);
-
-  public:
-  // int32 tick_id = 2;
-  void clear_tick_id() ;
-  ::int32_t tick_id() const;
-  void set_tick_id(::int32_t value);
-
-  private:
-  ::int32_t _internal_tick_id() const;
-  void _internal_set_tick_id(::int32_t value);
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.IntermediateFeaturesRequest)
- private:
-  class _Internal;
-  friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<1, 2,
-                                   0, 0,
-                                   2>
-      _table_;
-
-  friend class ::google::protobuf::MessageLite;
-  friend class ::google::protobuf::Arena;
-  template <typename T>
-  friend class ::google::protobuf::Arena::InternalHelper;
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
-  struct Impl_ {
-    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
-        const IntermediateFeaturesRequest& from_msg);
-    ::google::protobuf::internal::HasBits<1> _has_bits_;
-    ::google::protobuf::internal::CachedSize _cached_size_;
-    ::int32_t vehicle_index_;
-    ::int32_t tick_id_;
-    PROTOBUF_TSAN_DECLARE_MEMBER
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};
-
-extern const ::google::protobuf::internal::ClassDataFull IntermediateFeaturesRequest_class_data_;
-// -------------------------------------------------------------------
-
 class Empty final : public ::google::protobuf::internal::ZeroFieldsBase
 /* @@protoc_insertion_point(class_definition:ecloud.Empty) */ {
  public:
@@ -3844,7 +3617,7 @@ class EdgeTickComplete final : public ::google::protobuf::Message
     return *reinterpret_cast<const EdgeTickComplete*>(
         &_EdgeTickComplete_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 37;
+  static constexpr int kIndexInFileMessages = 31;
   friend void swap(EdgeTickComplete& a, EdgeTickComplete& b) { a.Swap(&b); }
   inline void Swap(EdgeTickComplete* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -4059,7 +3832,7 @@ class EdgeTick final : public ::google::protobuf::Message
     return *reinterpret_cast<const EdgeTick*>(
         &_EdgeTick_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 38;
+  static constexpr int kIndexInFileMessages = 32;
   friend void swap(EdgeTick& a, EdgeTick& b) { a.Swap(&b); }
   inline void Swap(EdgeTick* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -4262,7 +4035,7 @@ class EdgeScenarioConfig final : public ::google::protobuf::Message
     return *reinterpret_cast<const EdgeScenarioConfig*>(
         &_EdgeScenarioConfig_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 36;
+  static constexpr int kIndexInFileMessages = 30;
   friend void swap(EdgeScenarioConfig& a, EdgeScenarioConfig& b) { a.Swap(&b); }
   inline void Swap(EdgeScenarioConfig* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -4599,7 +4372,7 @@ class EdgeRegistrationInfo final : public ::google::protobuf::Message
     return *reinterpret_cast<const EdgeRegistrationInfo*>(
         &_EdgeRegistrationInfo_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 35;
+  static constexpr int kIndexInFileMessages = 29;
   friend void swap(EdgeRegistrationInfo& a, EdgeRegistrationInfo& b) { a.Swap(&b); }
   inline void Swap(EdgeRegistrationInfo* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -4860,7 +4633,7 @@ class EdgeMapping final : public ::google::protobuf::Message
     return *reinterpret_cast<const EdgeMapping*>(
         &_EdgeMapping_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 42;
+  static constexpr int kIndexInFileMessages = 36;
   friend void swap(EdgeMapping& a, EdgeMapping& b) { a.Swap(&b); }
   inline void Swap(EdgeMapping* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -5093,7 +4866,7 @@ class EdgeIndex final : public ::google::protobuf::Message
     return *reinterpret_cast<const EdgeIndex*>(
         &_EdgeIndex_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 39;
+  static constexpr int kIndexInFileMessages = 33;
   friend void swap(EdgeIndex& a, EdgeIndex& b) { a.Swap(&b); }
   inline void Swap(EdgeIndex* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -5227,500 +5000,6 @@ class EdgeIndex final : public ::google::protobuf::Message
 };
 
 extern const ::google::protobuf::internal::ClassDataFull EdgeIndex_class_data_;
-// -------------------------------------------------------------------
-
-class CompressedTensor final : public ::google::protobuf::Message
-/* @@protoc_insertion_point(class_definition:ecloud.CompressedTensor) */ {
- public:
-  inline CompressedTensor() : CompressedTensor(nullptr) {}
-  ~CompressedTensor() PROTOBUF_FINAL;
-
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-  void operator delete(CompressedTensor* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
-    SharedDtor(*msg);
-    ::google::protobuf::internal::SizedDelete(msg, sizeof(CompressedTensor));
-  }
-#endif
-
-  template <typename = void>
-  explicit PROTOBUF_CONSTEXPR CompressedTensor(::google::protobuf::internal::ConstantInitialized);
-
-  inline CompressedTensor(const CompressedTensor& from) : CompressedTensor(nullptr, from) {}
-  inline CompressedTensor(CompressedTensor&& from) noexcept
-      : CompressedTensor(nullptr, ::std::move(from)) {}
-  inline CompressedTensor& operator=(const CompressedTensor& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline CompressedTensor& operator=(CompressedTensor&& from) noexcept {
-    if (this == &from) return *this;
-    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
-  }
-  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
-  }
-
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
-    return GetDescriptor();
-  }
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const CompressedTensor& default_instance() {
-    return *reinterpret_cast<const CompressedTensor*>(
-        &_CompressedTensor_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages = 29;
-  friend void swap(CompressedTensor& a, CompressedTensor& b) { a.Swap(&b); }
-  inline void Swap(CompressedTensor* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
-      InternalSwap(other);
-    } else {
-      ::google::protobuf::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(CompressedTensor* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  CompressedTensor* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
-    return ::google::protobuf::Message::DefaultConstruct<CompressedTensor>(arena);
-  }
-  using ::google::protobuf::Message::CopyFrom;
-  void CopyFrom(const CompressedTensor& from);
-  using ::google::protobuf::Message::MergeFrom;
-  void MergeFrom(const CompressedTensor& from) { CompressedTensor::MergeImpl(*this, from); }
-
-  private:
-  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
-                        const ::google::protobuf::MessageLite& from_msg);
-
-  public:
-  bool IsInitialized() const {
-    return true;
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
-  #if defined(PROTOBUF_CUSTOM_VTABLE)
-  private:
-  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
-  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
-
-  public:
-  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
-    return _InternalSerialize(*this, target, stream);
-  }
-  #else   // PROTOBUF_CUSTOM_VTABLE
-  ::size_t ByteSizeLong() const final;
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
-  #endif  // PROTOBUF_CUSTOM_VTABLE
-  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static void SharedDtor(MessageLite& self);
-  void InternalSwap(CompressedTensor* PROTOBUF_NONNULL other);
- private:
-  template <typename T>
-  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
-  static ::absl::string_view FullMessageName() { return "ecloud.CompressedTensor"; }
-
- protected:
-  explicit CompressedTensor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  CompressedTensor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const CompressedTensor& from);
-  CompressedTensor(
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, CompressedTensor&& from) noexcept
-      : CompressedTensor(arena) {
-    *this = ::std::move(from);
-  }
-  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
-  static void* PROTOBUF_NONNULL PlacementNew_(
-      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static constexpr auto InternalNewImpl_();
-
- public:
-  static constexpr auto InternalGenerateClassData_();
-
-  ::google::protobuf::Metadata GetMetadata() const;
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-  enum : int {
-    kShapeFieldNumber = 2,
-    kDataFieldNumber = 1,
-    kDtypeFieldNumber = 3,
-    kCompressionFieldNumber = 4,
-    kOriginalSizeFieldNumber = 5,
-  };
-  // repeated int32 shape = 2;
-  int shape_size() const;
-  private:
-  int _internal_shape_size() const;
-
-  public:
-  void clear_shape() ;
-  ::int32_t shape(int index) const;
-  void set_shape(int index, ::int32_t value);
-  void add_shape(::int32_t value);
-  const ::google::protobuf::RepeatedField<::int32_t>& shape() const;
-  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL mutable_shape();
-
-  private:
-  const ::google::protobuf::RepeatedField<::int32_t>& _internal_shape() const;
-  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL _internal_mutable_shape();
-
-  public:
-  // bytes data = 1;
-  void clear_data() ;
-  const ::std::string& data() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_data(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_data();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_data();
-  void set_allocated_data(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_data() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_data(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_data();
-
-  public:
-  // string dtype = 3;
-  void clear_dtype() ;
-  const ::std::string& dtype() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_dtype(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_dtype();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_dtype();
-  void set_allocated_dtype(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_dtype() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_dtype(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_dtype();
-
-  public:
-  // string compression = 4;
-  void clear_compression() ;
-  const ::std::string& compression() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_compression(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_compression();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_compression();
-  void set_allocated_compression(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_compression() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_compression(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_compression();
-
-  public:
-  // int32 original_size = 5;
-  void clear_original_size() ;
-  ::int32_t original_size() const;
-  void set_original_size(::int32_t value);
-
-  private:
-  ::int32_t _internal_original_size() const;
-  void _internal_set_original_size(::int32_t value);
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.CompressedTensor)
- private:
-  class _Internal;
-  friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<3, 5,
-                                   0, 48,
-                                   2>
-      _table_;
-
-  friend class ::google::protobuf::MessageLite;
-  friend class ::google::protobuf::Arena;
-  template <typename T>
-  friend class ::google::protobuf::Arena::InternalHelper;
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
-  struct Impl_ {
-    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
-        const CompressedTensor& from_msg);
-    ::google::protobuf::internal::HasBits<1> _has_bits_;
-    ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::RepeatedField<::int32_t> shape_;
-    ::google::protobuf::internal::CachedSize _shape_cached_byte_size_;
-    ::google::protobuf::internal::ArenaStringPtr data_;
-    ::google::protobuf::internal::ArenaStringPtr dtype_;
-    ::google::protobuf::internal::ArenaStringPtr compression_;
-    ::int32_t original_size_;
-    PROTOBUF_TSAN_DECLARE_MEMBER
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};
-
-extern const ::google::protobuf::internal::ClassDataFull CompressedTensor_class_data_;
-// -------------------------------------------------------------------
-
-class AgentPose final : public ::google::protobuf::Message
-/* @@protoc_insertion_point(class_definition:ecloud.AgentPose) */ {
- public:
-  inline AgentPose() : AgentPose(nullptr) {}
-  ~AgentPose() PROTOBUF_FINAL;
-
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-  void operator delete(AgentPose* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
-    SharedDtor(*msg);
-    ::google::protobuf::internal::SizedDelete(msg, sizeof(AgentPose));
-  }
-#endif
-
-  template <typename = void>
-  explicit PROTOBUF_CONSTEXPR AgentPose(::google::protobuf::internal::ConstantInitialized);
-
-  inline AgentPose(const AgentPose& from) : AgentPose(nullptr, from) {}
-  inline AgentPose(AgentPose&& from) noexcept
-      : AgentPose(nullptr, ::std::move(from)) {}
-  inline AgentPose& operator=(const AgentPose& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline AgentPose& operator=(AgentPose&& from) noexcept {
-    if (this == &from) return *this;
-    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
-  }
-  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
-  }
-
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
-    return GetDescriptor();
-  }
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const AgentPose& default_instance() {
-    return *reinterpret_cast<const AgentPose*>(
-        &_AgentPose_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages = 30;
-  friend void swap(AgentPose& a, AgentPose& b) { a.Swap(&b); }
-  inline void Swap(AgentPose* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
-      InternalSwap(other);
-    } else {
-      ::google::protobuf::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(AgentPose* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  AgentPose* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
-    return ::google::protobuf::Message::DefaultConstruct<AgentPose>(arena);
-  }
-  using ::google::protobuf::Message::CopyFrom;
-  void CopyFrom(const AgentPose& from);
-  using ::google::protobuf::Message::MergeFrom;
-  void MergeFrom(const AgentPose& from) { AgentPose::MergeImpl(*this, from); }
-
-  private:
-  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
-                        const ::google::protobuf::MessageLite& from_msg);
-
-  public:
-  bool IsInitialized() const {
-    return true;
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
-  #if defined(PROTOBUF_CUSTOM_VTABLE)
-  private:
-  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
-  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
-
-  public:
-  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
-    return _InternalSerialize(*this, target, stream);
-  }
-  #else   // PROTOBUF_CUSTOM_VTABLE
-  ::size_t ByteSizeLong() const final;
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
-  #endif  // PROTOBUF_CUSTOM_VTABLE
-  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static void SharedDtor(MessageLite& self);
-  void InternalSwap(AgentPose* PROTOBUF_NONNULL other);
- private:
-  template <typename T>
-  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
-  static ::absl::string_view FullMessageName() { return "ecloud.AgentPose"; }
-
- protected:
-  explicit AgentPose(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  AgentPose(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const AgentPose& from);
-  AgentPose(
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, AgentPose&& from) noexcept
-      : AgentPose(arena) {
-    *this = ::std::move(from);
-  }
-  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
-  static void* PROTOBUF_NONNULL PlacementNew_(
-      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static constexpr auto InternalNewImpl_();
-
- public:
-  static constexpr auto InternalGenerateClassData_();
-
-  ::google::protobuf::Metadata GetMetadata() const;
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-  enum : int {
-    kPoseFieldNumber = 2,
-    kLidarPoseFieldNumber = 3,
-    kAgentIdFieldNumber = 1,
-  };
-  // repeated float pose = 2;
-  int pose_size() const;
-  private:
-  int _internal_pose_size() const;
-
-  public:
-  void clear_pose() ;
-  float pose(int index) const;
-  void set_pose(int index, float value);
-  void add_pose(float value);
-  const ::google::protobuf::RepeatedField<float>& pose() const;
-  ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL mutable_pose();
-
-  private:
-  const ::google::protobuf::RepeatedField<float>& _internal_pose() const;
-  ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL _internal_mutable_pose();
-
-  public:
-  // repeated float lidar_pose = 3;
-  int lidar_pose_size() const;
-  private:
-  int _internal_lidar_pose_size() const;
-
-  public:
-  void clear_lidar_pose() ;
-  float lidar_pose(int index) const;
-  void set_lidar_pose(int index, float value);
-  void add_lidar_pose(float value);
-  const ::google::protobuf::RepeatedField<float>& lidar_pose() const;
-  ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL mutable_lidar_pose();
-
-  private:
-  const ::google::protobuf::RepeatedField<float>& _internal_lidar_pose() const;
-  ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL _internal_mutable_lidar_pose();
-
-  public:
-  // int32 agent_id = 1;
-  void clear_agent_id() ;
-  ::int32_t agent_id() const;
-  void set_agent_id(::int32_t value);
-
-  private:
-  ::int32_t _internal_agent_id() const;
-  void _internal_set_agent_id(::int32_t value);
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.AgentPose)
- private:
-  class _Internal;
-  friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 0,
-                                   2>
-      _table_;
-
-  friend class ::google::protobuf::MessageLite;
-  friend class ::google::protobuf::Arena;
-  template <typename T>
-  friend class ::google::protobuf::Arena::InternalHelper;
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
-  struct Impl_ {
-    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
-        const AgentPose& from_msg);
-    ::google::protobuf::internal::HasBits<1> _has_bits_;
-    ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::RepeatedField<float> pose_;
-    ::google::protobuf::RepeatedField<float> lidar_pose_;
-    ::int32_t agent_id_;
-    PROTOBUF_TSAN_DECLARE_MEMBER
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};
-
-extern const ::google::protobuf::internal::ClassDataFull AgentPose_class_data_;
 // -------------------------------------------------------------------
 
 class AgentDebugHelper final : public ::google::protobuf::Message
@@ -5976,7 +5255,7 @@ class ActorConnectionInfo final : public ::google::protobuf::Message
     return *reinterpret_cast<const ActorConnectionInfo*>(
         &_ActorConnectionInfo_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 40;
+  static constexpr int kIndexInFileMessages = 34;
   friend void swap(ActorConnectionInfo& a, ActorConnectionInfo& b) { a.Swap(&b); }
   inline void Swap(ActorConnectionInfo* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -7056,335 +6335,6 @@ class LaneInvasionEvent final : public ::google::protobuf::Message
 extern const ::google::protobuf::internal::ClassDataFull LaneInvasionEvent_class_data_;
 // -------------------------------------------------------------------
 
-class IntermediateFeatures final : public ::google::protobuf::Message
-/* @@protoc_insertion_point(class_definition:ecloud.IntermediateFeatures) */ {
- public:
-  inline IntermediateFeatures() : IntermediateFeatures(nullptr) {}
-  ~IntermediateFeatures() PROTOBUF_FINAL;
-
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-  void operator delete(IntermediateFeatures* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
-    SharedDtor(*msg);
-    ::google::protobuf::internal::SizedDelete(msg, sizeof(IntermediateFeatures));
-  }
-#endif
-
-  template <typename = void>
-  explicit PROTOBUF_CONSTEXPR IntermediateFeatures(::google::protobuf::internal::ConstantInitialized);
-
-  inline IntermediateFeatures(const IntermediateFeatures& from) : IntermediateFeatures(nullptr, from) {}
-  inline IntermediateFeatures(IntermediateFeatures&& from) noexcept
-      : IntermediateFeatures(nullptr, ::std::move(from)) {}
-  inline IntermediateFeatures& operator=(const IntermediateFeatures& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline IntermediateFeatures& operator=(IntermediateFeatures&& from) noexcept {
-    if (this == &from) return *this;
-    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
-  }
-  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
-  }
-
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
-    return GetDescriptor();
-  }
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const IntermediateFeatures& default_instance() {
-    return *reinterpret_cast<const IntermediateFeatures*>(
-        &_IntermediateFeatures_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages = 31;
-  friend void swap(IntermediateFeatures& a, IntermediateFeatures& b) { a.Swap(&b); }
-  inline void Swap(IntermediateFeatures* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
-      InternalSwap(other);
-    } else {
-      ::google::protobuf::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(IntermediateFeatures* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  IntermediateFeatures* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
-    return ::google::protobuf::Message::DefaultConstruct<IntermediateFeatures>(arena);
-  }
-  using ::google::protobuf::Message::CopyFrom;
-  void CopyFrom(const IntermediateFeatures& from);
-  using ::google::protobuf::Message::MergeFrom;
-  void MergeFrom(const IntermediateFeatures& from) { IntermediateFeatures::MergeImpl(*this, from); }
-
-  private:
-  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
-                        const ::google::protobuf::MessageLite& from_msg);
-
-  public:
-  bool IsInitialized() const {
-    return true;
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
-  #if defined(PROTOBUF_CUSTOM_VTABLE)
-  private:
-  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
-  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
-
-  public:
-  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
-    return _InternalSerialize(*this, target, stream);
-  }
-  #else   // PROTOBUF_CUSTOM_VTABLE
-  ::size_t ByteSizeLong() const final;
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
-  #endif  // PROTOBUF_CUSTOM_VTABLE
-  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static void SharedDtor(MessageLite& self);
-  void InternalSwap(IntermediateFeatures* PROTOBUF_NONNULL other);
- private:
-  template <typename T>
-  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
-  static ::absl::string_view FullMessageName() { return "ecloud.IntermediateFeatures"; }
-
- protected:
-  explicit IntermediateFeatures(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  IntermediateFeatures(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const IntermediateFeatures& from);
-  IntermediateFeatures(
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, IntermediateFeatures&& from) noexcept
-      : IntermediateFeatures(arena) {
-    *this = ::std::move(from);
-  }
-  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
-  static void* PROTOBUF_NONNULL PlacementNew_(
-      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static constexpr auto InternalNewImpl_();
-
- public:
-  static constexpr auto InternalGenerateClassData_();
-
-  ::google::protobuf::Metadata GetMetadata() const;
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-  enum : int {
-    kPoseFieldNumber = 3,
-    kSpatialFeaturesFieldNumber = 4,
-    kPsmFieldNumber = 5,
-    kRmFieldNumber = 6,
-    kThresMapFieldNumber = 7,
-    kCameraFeaturesFieldNumber = 8,
-    kAgentIdFieldNumber = 1,
-    kAgentTypeFieldNumber = 2,
-    kTimestampNsFieldNumber = 9,
-    kCommunicationRateFieldNumber = 10,
-  };
-  // .ecloud.AgentPose pose = 3;
-  bool has_pose() const;
-  void clear_pose() ;
-  const ::ecloud::AgentPose& pose() const;
-  [[nodiscard]] ::ecloud::AgentPose* PROTOBUF_NULLABLE release_pose();
-  ::ecloud::AgentPose* PROTOBUF_NONNULL mutable_pose();
-  void set_allocated_pose(::ecloud::AgentPose* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_pose(::ecloud::AgentPose* PROTOBUF_NULLABLE value);
-  ::ecloud::AgentPose* PROTOBUF_NULLABLE unsafe_arena_release_pose();
-
-  private:
-  const ::ecloud::AgentPose& _internal_pose() const;
-  ::ecloud::AgentPose* PROTOBUF_NONNULL _internal_mutable_pose();
-
-  public:
-  // .ecloud.CompressedTensor spatial_features = 4;
-  bool has_spatial_features() const;
-  void clear_spatial_features() ;
-  const ::ecloud::CompressedTensor& spatial_features() const;
-  [[nodiscard]] ::ecloud::CompressedTensor* PROTOBUF_NULLABLE release_spatial_features();
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL mutable_spatial_features();
-  void set_allocated_spatial_features(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_spatial_features(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  ::ecloud::CompressedTensor* PROTOBUF_NULLABLE unsafe_arena_release_spatial_features();
-
-  private:
-  const ::ecloud::CompressedTensor& _internal_spatial_features() const;
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL _internal_mutable_spatial_features();
-
-  public:
-  // .ecloud.CompressedTensor psm = 5;
-  bool has_psm() const;
-  void clear_psm() ;
-  const ::ecloud::CompressedTensor& psm() const;
-  [[nodiscard]] ::ecloud::CompressedTensor* PROTOBUF_NULLABLE release_psm();
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL mutable_psm();
-  void set_allocated_psm(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_psm(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  ::ecloud::CompressedTensor* PROTOBUF_NULLABLE unsafe_arena_release_psm();
-
-  private:
-  const ::ecloud::CompressedTensor& _internal_psm() const;
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL _internal_mutable_psm();
-
-  public:
-  // .ecloud.CompressedTensor rm = 6;
-  bool has_rm() const;
-  void clear_rm() ;
-  const ::ecloud::CompressedTensor& rm() const;
-  [[nodiscard]] ::ecloud::CompressedTensor* PROTOBUF_NULLABLE release_rm();
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL mutable_rm();
-  void set_allocated_rm(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_rm(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  ::ecloud::CompressedTensor* PROTOBUF_NULLABLE unsafe_arena_release_rm();
-
-  private:
-  const ::ecloud::CompressedTensor& _internal_rm() const;
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL _internal_mutable_rm();
-
-  public:
-  // .ecloud.CompressedTensor thres_map = 7;
-  bool has_thres_map() const;
-  void clear_thres_map() ;
-  const ::ecloud::CompressedTensor& thres_map() const;
-  [[nodiscard]] ::ecloud::CompressedTensor* PROTOBUF_NULLABLE release_thres_map();
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL mutable_thres_map();
-  void set_allocated_thres_map(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_thres_map(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  ::ecloud::CompressedTensor* PROTOBUF_NULLABLE unsafe_arena_release_thres_map();
-
-  private:
-  const ::ecloud::CompressedTensor& _internal_thres_map() const;
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL _internal_mutable_thres_map();
-
-  public:
-  // .ecloud.CompressedTensor camera_features = 8;
-  bool has_camera_features() const;
-  void clear_camera_features() ;
-  const ::ecloud::CompressedTensor& camera_features() const;
-  [[nodiscard]] ::ecloud::CompressedTensor* PROTOBUF_NULLABLE release_camera_features();
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL mutable_camera_features();
-  void set_allocated_camera_features(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  void unsafe_arena_set_allocated_camera_features(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value);
-  ::ecloud::CompressedTensor* PROTOBUF_NULLABLE unsafe_arena_release_camera_features();
-
-  private:
-  const ::ecloud::CompressedTensor& _internal_camera_features() const;
-  ::ecloud::CompressedTensor* PROTOBUF_NONNULL _internal_mutable_camera_features();
-
-  public:
-  // int32 agent_id = 1;
-  void clear_agent_id() ;
-  ::int32_t agent_id() const;
-  void set_agent_id(::int32_t value);
-
-  private:
-  ::int32_t _internal_agent_id() const;
-  void _internal_set_agent_id(::int32_t value);
-
-  public:
-  // .ecloud.ActorType agent_type = 2;
-  void clear_agent_type() ;
-  ::ecloud::ActorType agent_type() const;
-  void set_agent_type(::ecloud::ActorType value);
-
-  private:
-  ::ecloud::ActorType _internal_agent_type() const;
-  void _internal_set_agent_type(::ecloud::ActorType value);
-
-  public:
-  // int64 timestamp_ns = 9;
-  void clear_timestamp_ns() ;
-  ::int64_t timestamp_ns() const;
-  void set_timestamp_ns(::int64_t value);
-
-  private:
-  ::int64_t _internal_timestamp_ns() const;
-  void _internal_set_timestamp_ns(::int64_t value);
-
-  public:
-  // float communication_rate = 10;
-  void clear_communication_rate() ;
-  float communication_rate() const;
-  void set_communication_rate(float value);
-
-  private:
-  float _internal_communication_rate() const;
-  void _internal_set_communication_rate(float value);
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.IntermediateFeatures)
- private:
-  class _Internal;
-  friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 10,
-                                   6, 0,
-                                   2>
-      _table_;
-
-  friend class ::google::protobuf::MessageLite;
-  friend class ::google::protobuf::Arena;
-  template <typename T>
-  friend class ::google::protobuf::Arena::InternalHelper;
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
-  struct Impl_ {
-    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
-        const IntermediateFeatures& from_msg);
-    ::google::protobuf::internal::HasBits<1> _has_bits_;
-    ::google::protobuf::internal::CachedSize _cached_size_;
-    ::ecloud::AgentPose* PROTOBUF_NULLABLE pose_;
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE spatial_features_;
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE psm_;
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE rm_;
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE thres_map_;
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE camera_features_;
-    ::int32_t agent_id_;
-    int agent_type_;
-    ::int64_t timestamp_ns_;
-    float communication_rate_;
-    PROTOBUF_TSAN_DECLARE_MEMBER
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};
-
-extern const ::google::protobuf::internal::ClassDataFull IntermediateFeatures_class_data_;
-// -------------------------------------------------------------------
-
 class EdgeObstacleObject final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:ecloud.EdgeObstacleObject) */ {
  public:
@@ -7879,7 +6829,7 @@ class EdgeMappingSetup final : public ::google::protobuf::Message
     return *reinterpret_cast<const EdgeMappingSetup*>(
         &_EdgeMappingSetup_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 43;
+  static constexpr int kIndexInFileMessages = 37;
   friend void swap(EdgeMappingSetup& a, EdgeMappingSetup& b) { a.Swap(&b); }
   inline void Swap(EdgeMappingSetup* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -8592,269 +7542,6 @@ class Waypoint final : public ::google::protobuf::Message
 extern const ::google::protobuf::internal::ClassDataFull Waypoint_class_data_;
 // -------------------------------------------------------------------
 
-class IntermediateFeaturesBatch final : public ::google::protobuf::Message
-/* @@protoc_insertion_point(class_definition:ecloud.IntermediateFeaturesBatch) */ {
- public:
-  inline IntermediateFeaturesBatch() : IntermediateFeaturesBatch(nullptr) {}
-  ~IntermediateFeaturesBatch() PROTOBUF_FINAL;
-
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-  void operator delete(IntermediateFeaturesBatch* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
-    SharedDtor(*msg);
-    ::google::protobuf::internal::SizedDelete(msg, sizeof(IntermediateFeaturesBatch));
-  }
-#endif
-
-  template <typename = void>
-  explicit PROTOBUF_CONSTEXPR IntermediateFeaturesBatch(::google::protobuf::internal::ConstantInitialized);
-
-  inline IntermediateFeaturesBatch(const IntermediateFeaturesBatch& from) : IntermediateFeaturesBatch(nullptr, from) {}
-  inline IntermediateFeaturesBatch(IntermediateFeaturesBatch&& from) noexcept
-      : IntermediateFeaturesBatch(nullptr, ::std::move(from)) {}
-  inline IntermediateFeaturesBatch& operator=(const IntermediateFeaturesBatch& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline IntermediateFeaturesBatch& operator=(IntermediateFeaturesBatch&& from) noexcept {
-    if (this == &from) return *this;
-    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
-  }
-  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
-  }
-
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
-    return GetDescriptor();
-  }
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const IntermediateFeaturesBatch& default_instance() {
-    return *reinterpret_cast<const IntermediateFeaturesBatch*>(
-        &_IntermediateFeaturesBatch_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages = 34;
-  friend void swap(IntermediateFeaturesBatch& a, IntermediateFeaturesBatch& b) { a.Swap(&b); }
-  inline void Swap(IntermediateFeaturesBatch* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
-      InternalSwap(other);
-    } else {
-      ::google::protobuf::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(IntermediateFeaturesBatch* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  IntermediateFeaturesBatch* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
-    return ::google::protobuf::Message::DefaultConstruct<IntermediateFeaturesBatch>(arena);
-  }
-  using ::google::protobuf::Message::CopyFrom;
-  void CopyFrom(const IntermediateFeaturesBatch& from);
-  using ::google::protobuf::Message::MergeFrom;
-  void MergeFrom(const IntermediateFeaturesBatch& from) { IntermediateFeaturesBatch::MergeImpl(*this, from); }
-
-  private:
-  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
-                        const ::google::protobuf::MessageLite& from_msg);
-
-  public:
-  bool IsInitialized() const {
-    return true;
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
-  #if defined(PROTOBUF_CUSTOM_VTABLE)
-  private:
-  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
-  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
-
-  public:
-  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
-    return _InternalSerialize(*this, target, stream);
-  }
-  #else   // PROTOBUF_CUSTOM_VTABLE
-  ::size_t ByteSizeLong() const final;
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
-  #endif  // PROTOBUF_CUSTOM_VTABLE
-  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static void SharedDtor(MessageLite& self);
-  void InternalSwap(IntermediateFeaturesBatch* PROTOBUF_NONNULL other);
- private:
-  template <typename T>
-  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
-  static ::absl::string_view FullMessageName() { return "ecloud.IntermediateFeaturesBatch"; }
-
- protected:
-  explicit IntermediateFeaturesBatch(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  IntermediateFeaturesBatch(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const IntermediateFeaturesBatch& from);
-  IntermediateFeaturesBatch(
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, IntermediateFeaturesBatch&& from) noexcept
-      : IntermediateFeaturesBatch(arena) {
-    *this = ::std::move(from);
-  }
-  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
-  static void* PROTOBUF_NONNULL PlacementNew_(
-      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static constexpr auto InternalNewImpl_();
-
- public:
-  static constexpr auto InternalGenerateClassData_();
-
-  ::google::protobuf::Metadata GetMetadata() const;
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-  enum : int {
-    kFeaturesFieldNumber = 2,
-    kPairwiseTMatrixFieldNumber = 3,
-    kPairwiseTMatrixShapeFieldNumber = 4,
-    kTickIdFieldNumber = 1,
-    kRecordLenFieldNumber = 5,
-  };
-  // repeated .ecloud.IntermediateFeatures features = 2;
-  int features_size() const;
-  private:
-  int _internal_features_size() const;
-
-  public:
-  void clear_features() ;
-  ::ecloud::IntermediateFeatures* PROTOBUF_NONNULL mutable_features(int index);
-  ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>* PROTOBUF_NONNULL mutable_features();
-
-  private:
-  const ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>& _internal_features() const;
-  ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>* PROTOBUF_NONNULL _internal_mutable_features();
-  public:
-  const ::ecloud::IntermediateFeatures& features(int index) const;
-  ::ecloud::IntermediateFeatures* PROTOBUF_NONNULL add_features();
-  const ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>& features() const;
-  // repeated float pairwise_t_matrix = 3;
-  int pairwise_t_matrix_size() const;
-  private:
-  int _internal_pairwise_t_matrix_size() const;
-
-  public:
-  void clear_pairwise_t_matrix() ;
-  float pairwise_t_matrix(int index) const;
-  void set_pairwise_t_matrix(int index, float value);
-  void add_pairwise_t_matrix(float value);
-  const ::google::protobuf::RepeatedField<float>& pairwise_t_matrix() const;
-  ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL mutable_pairwise_t_matrix();
-
-  private:
-  const ::google::protobuf::RepeatedField<float>& _internal_pairwise_t_matrix() const;
-  ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL _internal_mutable_pairwise_t_matrix();
-
-  public:
-  // repeated int32 pairwise_t_matrix_shape = 4;
-  int pairwise_t_matrix_shape_size() const;
-  private:
-  int _internal_pairwise_t_matrix_shape_size() const;
-
-  public:
-  void clear_pairwise_t_matrix_shape() ;
-  ::int32_t pairwise_t_matrix_shape(int index) const;
-  void set_pairwise_t_matrix_shape(int index, ::int32_t value);
-  void add_pairwise_t_matrix_shape(::int32_t value);
-  const ::google::protobuf::RepeatedField<::int32_t>& pairwise_t_matrix_shape() const;
-  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL mutable_pairwise_t_matrix_shape();
-
-  private:
-  const ::google::protobuf::RepeatedField<::int32_t>& _internal_pairwise_t_matrix_shape() const;
-  ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL _internal_mutable_pairwise_t_matrix_shape();
-
-  public:
-  // int32 tick_id = 1;
-  void clear_tick_id() ;
-  ::int32_t tick_id() const;
-  void set_tick_id(::int32_t value);
-
-  private:
-  ::int32_t _internal_tick_id() const;
-  void _internal_set_tick_id(::int32_t value);
-
-  public:
-  // int32 record_len = 5;
-  void clear_record_len() ;
-  ::int32_t record_len() const;
-  void set_record_len(::int32_t value);
-
-  private:
-  ::int32_t _internal_record_len() const;
-  void _internal_set_record_len(::int32_t value);
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.IntermediateFeaturesBatch)
- private:
-  class _Internal;
-  friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<3, 5,
-                                   1, 0,
-                                   2>
-      _table_;
-
-  friend class ::google::protobuf::MessageLite;
-  friend class ::google::protobuf::Arena;
-  template <typename T>
-  friend class ::google::protobuf::Arena::InternalHelper;
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
-  struct Impl_ {
-    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
-        const IntermediateFeaturesBatch& from_msg);
-    ::google::protobuf::internal::HasBits<1> _has_bits_;
-    ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::RepeatedPtrField< ::ecloud::IntermediateFeatures > features_;
-    ::google::protobuf::RepeatedField<float> pairwise_t_matrix_;
-    ::google::protobuf::RepeatedField<::int32_t> pairwise_t_matrix_shape_;
-    ::google::protobuf::internal::CachedSize _pairwise_t_matrix_shape_cached_byte_size_;
-    ::int32_t tick_id_;
-    ::int32_t record_len_;
-    PROTOBUF_TSAN_DECLARE_MEMBER
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};
-
-extern const ::google::protobuf::internal::ClassDataFull IntermediateFeaturesBatch_class_data_;
-// -------------------------------------------------------------------
-
 class GeneratedTrajectory final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:ecloud.GeneratedTrajectory) */ {
  public:
@@ -9080,240 +7767,6 @@ class GeneratedTrajectory final : public ::google::protobuf::Message
 };
 
 extern const ::google::protobuf::internal::ClassDataFull GeneratedTrajectory_class_data_;
-// -------------------------------------------------------------------
-
-class FusionResult final : public ::google::protobuf::Message
-/* @@protoc_insertion_point(class_definition:ecloud.FusionResult) */ {
- public:
-  inline FusionResult() : FusionResult(nullptr) {}
-  ~FusionResult() PROTOBUF_FINAL;
-
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-  void operator delete(FusionResult* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
-    SharedDtor(*msg);
-    ::google::protobuf::internal::SizedDelete(msg, sizeof(FusionResult));
-  }
-#endif
-
-  template <typename = void>
-  explicit PROTOBUF_CONSTEXPR FusionResult(::google::protobuf::internal::ConstantInitialized);
-
-  inline FusionResult(const FusionResult& from) : FusionResult(nullptr, from) {}
-  inline FusionResult(FusionResult&& from) noexcept
-      : FusionResult(nullptr, ::std::move(from)) {}
-  inline FusionResult& operator=(const FusionResult& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline FusionResult& operator=(FusionResult&& from) noexcept {
-    if (this == &from) return *this;
-    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
-  }
-  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
-  }
-
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
-    return GetDescriptor();
-  }
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const FusionResult& default_instance() {
-    return *reinterpret_cast<const FusionResult*>(
-        &_FusionResult_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages = 33;
-  friend void swap(FusionResult& a, FusionResult& b) { a.Swap(&b); }
-  inline void Swap(FusionResult* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
-      InternalSwap(other);
-    } else {
-      ::google::protobuf::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(FusionResult* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  FusionResult* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
-    return ::google::protobuf::Message::DefaultConstruct<FusionResult>(arena);
-  }
-  using ::google::protobuf::Message::CopyFrom;
-  void CopyFrom(const FusionResult& from);
-  using ::google::protobuf::Message::MergeFrom;
-  void MergeFrom(const FusionResult& from) { FusionResult::MergeImpl(*this, from); }
-
-  private:
-  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
-                        const ::google::protobuf::MessageLite& from_msg);
-
-  public:
-  bool IsInitialized() const {
-    return true;
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
-  #if defined(PROTOBUF_CUSTOM_VTABLE)
-  private:
-  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
-  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
-
-  public:
-  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
-    return _InternalSerialize(*this, target, stream);
-  }
-  #else   // PROTOBUF_CUSTOM_VTABLE
-  ::size_t ByteSizeLong() const final;
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
-  #endif  // PROTOBUF_CUSTOM_VTABLE
-  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static void SharedDtor(MessageLite& self);
-  void InternalSwap(FusionResult* PROTOBUF_NONNULL other);
- private:
-  template <typename T>
-  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
-  static ::absl::string_view FullMessageName() { return "ecloud.FusionResult"; }
-
- protected:
-  explicit FusionResult(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  FusionResult(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const FusionResult& from);
-  FusionResult(
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, FusionResult&& from) noexcept
-      : FusionResult(arena) {
-    *this = ::std::move(from);
-  }
-  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
-  static void* PROTOBUF_NONNULL PlacementNew_(
-      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static constexpr auto InternalNewImpl_();
-
- public:
-  static constexpr auto InternalGenerateClassData_();
-
-  ::google::protobuf::Metadata GetMetadata() const;
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-  enum : int {
-    kDetectionsFieldNumber = 2,
-    kTickIdFieldNumber = 1,
-    kCommunicationRateFieldNumber = 3,
-    kFusionTimeNsFieldNumber = 4,
-  };
-  // repeated .ecloud.EdgeObstacleObject detections = 2;
-  int detections_size() const;
-  private:
-  int _internal_detections_size() const;
-
-  public:
-  void clear_detections() ;
-  ::ecloud::EdgeObstacleObject* PROTOBUF_NONNULL mutable_detections(int index);
-  ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>* PROTOBUF_NONNULL mutable_detections();
-
-  private:
-  const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>& _internal_detections() const;
-  ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>* PROTOBUF_NONNULL _internal_mutable_detections();
-  public:
-  const ::ecloud::EdgeObstacleObject& detections(int index) const;
-  ::ecloud::EdgeObstacleObject* PROTOBUF_NONNULL add_detections();
-  const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>& detections() const;
-  // int32 tick_id = 1;
-  void clear_tick_id() ;
-  ::int32_t tick_id() const;
-  void set_tick_id(::int32_t value);
-
-  private:
-  ::int32_t _internal_tick_id() const;
-  void _internal_set_tick_id(::int32_t value);
-
-  public:
-  // float communication_rate = 3;
-  void clear_communication_rate() ;
-  float communication_rate() const;
-  void set_communication_rate(float value);
-
-  private:
-  float _internal_communication_rate() const;
-  void _internal_set_communication_rate(float value);
-
-  public:
-  // int64 fusion_time_ns = 4;
-  void clear_fusion_time_ns() ;
-  ::int64_t fusion_time_ns() const;
-  void set_fusion_time_ns(::int64_t value);
-
-  private:
-  ::int64_t _internal_fusion_time_ns() const;
-  void _internal_set_fusion_time_ns(::int64_t value);
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.FusionResult)
- private:
-  class _Internal;
-  friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 4,
-                                   1, 0,
-                                   2>
-      _table_;
-
-  friend class ::google::protobuf::MessageLite;
-  friend class ::google::protobuf::Arena;
-  template <typename T>
-  friend class ::google::protobuf::Arena::InternalHelper;
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
-  struct Impl_ {
-    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
-        const FusionResult& from_msg);
-    ::google::protobuf::internal::HasBits<1> _has_bits_;
-    ::google::protobuf::internal::CachedSize _cached_size_;
-    ::google::protobuf::RepeatedPtrField< ::ecloud::EdgeObstacleObject > detections_;
-    ::int32_t tick_id_;
-    float communication_rate_;
-    ::int64_t fusion_time_ns_;
-    PROTOBUF_TSAN_DECLARE_MEMBER
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};
-
-extern const ::google::protobuf::internal::ClassDataFull FusionResult_class_data_;
 // -------------------------------------------------------------------
 
 class ClientDebugHelper final : public ::google::protobuf::Message
@@ -10085,7 +8538,6 @@ class VehicleUpdate final : public ::google::protobuf::Message
   // accessors -------------------------------------------------------
   enum : int {
     kPickledAgentObjectsFieldNumber = 10,
-    kPickledFeaturesFieldNumber = 12,
     kLocDebugHelperFieldNumber = 4,
     kPlanerDebugHelperFieldNumber = 5,
     kClientDebugHelperFieldNumber = 6,
@@ -10110,21 +8562,6 @@ class VehicleUpdate final : public ::google::protobuf::Message
   const ::std::string& _internal_pickled_agent_objects() const;
   PROTOBUF_ALWAYS_INLINE void _internal_set_pickled_agent_objects(const ::std::string& value);
   ::std::string* PROTOBUF_NONNULL _internal_mutable_pickled_agent_objects();
-
-  public:
-  // bytes pickled_features = 12;
-  void clear_pickled_features() ;
-  const ::std::string& pickled_features() const;
-  template <typename Arg_ = const ::std::string&, typename... Args_>
-  void set_pickled_features(Arg_&& arg, Args_... args);
-  ::std::string* PROTOBUF_NONNULL mutable_pickled_features();
-  [[nodiscard]] ::std::string* PROTOBUF_NULLABLE release_pickled_features();
-  void set_allocated_pickled_features(::std::string* PROTOBUF_NULLABLE value);
-
-  private:
-  const ::std::string& _internal_pickled_features() const;
-  PROTOBUF_ALWAYS_INLINE void _internal_set_pickled_features(const ::std::string& value);
-  ::std::string* PROTOBUF_NONNULL _internal_mutable_pickled_features();
 
   public:
   // .ecloud.LocDebugHelper loc_debug_helper = 4;
@@ -10256,7 +8693,7 @@ class VehicleUpdate final : public ::google::protobuf::Message
  private:
   class _Internal;
   friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<4, 12,
+  static const ::google::protobuf::internal::TcParseTable<4, 11,
                                    5, 0,
                                    2>
       _table_;
@@ -10279,7 +8716,6 @@ class VehicleUpdate final : public ::google::protobuf::Message
     ::google::protobuf::internal::HasBits<1> _has_bits_;
     ::google::protobuf::internal::CachedSize _cached_size_;
     ::google::protobuf::internal::ArenaStringPtr pickled_agent_objects_;
-    ::google::protobuf::internal::ArenaStringPtr pickled_features_;
     ::ecloud::LocDebugHelper* PROTOBUF_NULLABLE loc_debug_helper_;
     ::ecloud::PlanerDebugHelper* PROTOBUF_NULLABLE planer_debug_helper_;
     ::ecloud::ClientDebugHelper* PROTOBUF_NULLABLE client_debug_helper_;
@@ -10761,7 +9197,7 @@ class ActorUpdateWithResponse final : public ::google::protobuf::Message
     return *reinterpret_cast<const ActorUpdateWithResponse*>(
         &_ActorUpdateWithResponse_default_instance_);
   }
-  static constexpr int kIndexInFileMessages = 41;
+  static constexpr int kIndexInFileMessages = 35;
   friend void swap(ActorUpdateWithResponse& a, ActorUpdateWithResponse& b) { a.Swap(&b); }
   inline void Swap(ActorUpdateWithResponse* PROTOBUF_NONNULL other) {
     if (other == this) return;
@@ -14545,7 +12981,7 @@ inline void RegistrationInfo::_internal_set_actor_type(::ecloud::ActorType value
 inline void VehicleUpdate::clear_tick_id() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.tick_id_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000080u;
+  _impl_._has_bits_[0] &= ~0x00000040u;
 }
 inline ::int32_t VehicleUpdate::tick_id() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.tick_id)
@@ -14553,7 +12989,7 @@ inline ::int32_t VehicleUpdate::tick_id() const {
 }
 inline void VehicleUpdate::set_tick_id(::int32_t value) {
   _internal_set_tick_id(value);
-  _impl_._has_bits_[0] |= 0x00000080u;
+  _impl_._has_bits_[0] |= 0x00000040u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.tick_id)
 }
 inline ::int32_t VehicleUpdate::_internal_tick_id() const {
@@ -14569,7 +13005,7 @@ inline void VehicleUpdate::_internal_set_tick_id(::int32_t value) {
 inline void VehicleUpdate::clear_vehicle_index() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vehicle_index_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000100u;
+  _impl_._has_bits_[0] &= ~0x00000080u;
 }
 inline ::int32_t VehicleUpdate::vehicle_index() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.vehicle_index)
@@ -14577,7 +13013,7 @@ inline ::int32_t VehicleUpdate::vehicle_index() const {
 }
 inline void VehicleUpdate::set_vehicle_index(::int32_t value) {
   _internal_set_vehicle_index(value);
-  _impl_._has_bits_[0] |= 0x00000100u;
+  _impl_._has_bits_[0] |= 0x00000080u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.vehicle_index)
 }
 inline ::int32_t VehicleUpdate::_internal_vehicle_index() const {
@@ -14593,7 +13029,7 @@ inline void VehicleUpdate::_internal_set_vehicle_index(::int32_t value) {
 inline void VehicleUpdate::clear_vehicle_state() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.vehicle_state_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000200u;
+  _impl_._has_bits_[0] &= ~0x00000100u;
 }
 inline ::ecloud::VehicleState VehicleUpdate::vehicle_state() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.vehicle_state)
@@ -14601,7 +13037,7 @@ inline ::ecloud::VehicleState VehicleUpdate::vehicle_state() const {
 }
 inline void VehicleUpdate::set_vehicle_state(::ecloud::VehicleState value) {
   _internal_set_vehicle_state(value);
-  _impl_._has_bits_[0] |= 0x00000200u;
+  _impl_._has_bits_[0] |= 0x00000100u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.vehicle_state)
 }
 inline ::ecloud::VehicleState VehicleUpdate::_internal_vehicle_state() const {
@@ -14615,14 +13051,14 @@ inline void VehicleUpdate::_internal_set_vehicle_state(::ecloud::VehicleState va
 
 // .ecloud.LocDebugHelper loc_debug_helper = 4;
 inline bool VehicleUpdate::has_loc_debug_helper() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.loc_debug_helper_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_loc_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.loc_debug_helper_ != nullptr) _impl_.loc_debug_helper_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000004u;
+  _impl_._has_bits_[0] &= ~0x00000002u;
 }
 inline const ::ecloud::LocDebugHelper& VehicleUpdate::_internal_loc_debug_helper() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14641,16 +13077,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_loc_debug_helper(
   }
   _impl_.loc_debug_helper_ = reinterpret_cast<::ecloud::LocDebugHelper*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000004u;
+    _impl_._has_bits_[0] |= 0x00000002u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000004u;
+    _impl_._has_bits_[0] &= ~0x00000002u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.loc_debug_helper)
 }
 inline ::ecloud::LocDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::release_loc_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000004u;
+  _impl_._has_bits_[0] &= ~0x00000002u;
   ::ecloud::LocDebugHelper* released = _impl_.loc_debug_helper_;
   _impl_.loc_debug_helper_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14670,7 +13106,7 @@ inline ::ecloud::LocDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::unsafe_arena_r
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.loc_debug_helper)
 
-  _impl_._has_bits_[0] &= ~0x00000004u;
+  _impl_._has_bits_[0] &= ~0x00000002u;
   ::ecloud::LocDebugHelper* temp = _impl_.loc_debug_helper_;
   _impl_.loc_debug_helper_ = nullptr;
   return temp;
@@ -14685,7 +13121,7 @@ inline ::ecloud::LocDebugHelper* PROTOBUF_NONNULL VehicleUpdate::_internal_mutab
 }
 inline ::ecloud::LocDebugHelper* PROTOBUF_NONNULL VehicleUpdate::mutable_loc_debug_helper()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000004u;
+  _impl_._has_bits_[0] |= 0x00000002u;
   ::ecloud::LocDebugHelper* _msg = _internal_mutable_loc_debug_helper();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.loc_debug_helper)
   return _msg;
@@ -14702,9 +13138,9 @@ inline void VehicleUpdate::set_allocated_loc_debug_helper(::ecloud::LocDebugHelp
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000004u;
+    _impl_._has_bits_[0] |= 0x00000002u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000004u;
+    _impl_._has_bits_[0] &= ~0x00000002u;
   }
 
   _impl_.loc_debug_helper_ = reinterpret_cast<::ecloud::LocDebugHelper*>(value);
@@ -14713,14 +13149,14 @@ inline void VehicleUpdate::set_allocated_loc_debug_helper(::ecloud::LocDebugHelp
 
 // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
 inline bool VehicleUpdate::has_planer_debug_helper() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.planer_debug_helper_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_planer_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.planer_debug_helper_ != nullptr) _impl_.planer_debug_helper_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000008u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
 }
 inline const ::ecloud::PlanerDebugHelper& VehicleUpdate::_internal_planer_debug_helper() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14739,16 +13175,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_planer_debug_helper(
   }
   _impl_.planer_debug_helper_ = reinterpret_cast<::ecloud::PlanerDebugHelper*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000008u;
+    _impl_._has_bits_[0] |= 0x00000004u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000008u;
+    _impl_._has_bits_[0] &= ~0x00000004u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.planer_debug_helper)
 }
 inline ::ecloud::PlanerDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::release_planer_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000008u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
   ::ecloud::PlanerDebugHelper* released = _impl_.planer_debug_helper_;
   _impl_.planer_debug_helper_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14768,7 +13204,7 @@ inline ::ecloud::PlanerDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::unsafe_aren
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.planer_debug_helper)
 
-  _impl_._has_bits_[0] &= ~0x00000008u;
+  _impl_._has_bits_[0] &= ~0x00000004u;
   ::ecloud::PlanerDebugHelper* temp = _impl_.planer_debug_helper_;
   _impl_.planer_debug_helper_ = nullptr;
   return temp;
@@ -14783,7 +13219,7 @@ inline ::ecloud::PlanerDebugHelper* PROTOBUF_NONNULL VehicleUpdate::_internal_mu
 }
 inline ::ecloud::PlanerDebugHelper* PROTOBUF_NONNULL VehicleUpdate::mutable_planer_debug_helper()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000008u;
+  _impl_._has_bits_[0] |= 0x00000004u;
   ::ecloud::PlanerDebugHelper* _msg = _internal_mutable_planer_debug_helper();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.planer_debug_helper)
   return _msg;
@@ -14800,9 +13236,9 @@ inline void VehicleUpdate::set_allocated_planer_debug_helper(::ecloud::PlanerDeb
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000008u;
+    _impl_._has_bits_[0] |= 0x00000004u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000008u;
+    _impl_._has_bits_[0] &= ~0x00000004u;
   }
 
   _impl_.planer_debug_helper_ = reinterpret_cast<::ecloud::PlanerDebugHelper*>(value);
@@ -14811,14 +13247,14 @@ inline void VehicleUpdate::set_allocated_planer_debug_helper(::ecloud::PlanerDeb
 
 // .ecloud.ClientDebugHelper client_debug_helper = 6;
 inline bool VehicleUpdate::has_client_debug_helper() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000010u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.client_debug_helper_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_client_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.client_debug_helper_ != nullptr) _impl_.client_debug_helper_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000010u;
+  _impl_._has_bits_[0] &= ~0x00000008u;
 }
 inline const ::ecloud::ClientDebugHelper& VehicleUpdate::_internal_client_debug_helper() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14837,16 +13273,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_client_debug_helper(
   }
   _impl_.client_debug_helper_ = reinterpret_cast<::ecloud::ClientDebugHelper*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000010u;
+    _impl_._has_bits_[0] |= 0x00000008u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000010u;
+    _impl_._has_bits_[0] &= ~0x00000008u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.client_debug_helper)
 }
 inline ::ecloud::ClientDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::release_client_debug_helper() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000010u;
+  _impl_._has_bits_[0] &= ~0x00000008u;
   ::ecloud::ClientDebugHelper* released = _impl_.client_debug_helper_;
   _impl_.client_debug_helper_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14866,7 +13302,7 @@ inline ::ecloud::ClientDebugHelper* PROTOBUF_NULLABLE VehicleUpdate::unsafe_aren
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.client_debug_helper)
 
-  _impl_._has_bits_[0] &= ~0x00000010u;
+  _impl_._has_bits_[0] &= ~0x00000008u;
   ::ecloud::ClientDebugHelper* temp = _impl_.client_debug_helper_;
   _impl_.client_debug_helper_ = nullptr;
   return temp;
@@ -14881,7 +13317,7 @@ inline ::ecloud::ClientDebugHelper* PROTOBUF_NONNULL VehicleUpdate::_internal_mu
 }
 inline ::ecloud::ClientDebugHelper* PROTOBUF_NONNULL VehicleUpdate::mutable_client_debug_helper()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000010u;
+  _impl_._has_bits_[0] |= 0x00000008u;
   ::ecloud::ClientDebugHelper* _msg = _internal_mutable_client_debug_helper();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.client_debug_helper)
   return _msg;
@@ -14898,9 +13334,9 @@ inline void VehicleUpdate::set_allocated_client_debug_helper(::ecloud::ClientDeb
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000010u;
+    _impl_._has_bits_[0] |= 0x00000008u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000010u;
+    _impl_._has_bits_[0] &= ~0x00000008u;
   }
 
   _impl_.client_debug_helper_ = reinterpret_cast<::ecloud::ClientDebugHelper*>(value);
@@ -14909,14 +13345,14 @@ inline void VehicleUpdate::set_allocated_client_debug_helper(::ecloud::ClientDeb
 
 // .ecloud.Transform transform = 7;
 inline bool VehicleUpdate::has_transform() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000020u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000010u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.transform_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_transform() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.transform_ != nullptr) _impl_.transform_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000020u;
+  _impl_._has_bits_[0] &= ~0x00000010u;
 }
 inline const ::ecloud::Transform& VehicleUpdate::_internal_transform() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -14935,16 +13371,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_transform(
   }
   _impl_.transform_ = reinterpret_cast<::ecloud::Transform*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000020u;
+    _impl_._has_bits_[0] |= 0x00000010u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
+    _impl_._has_bits_[0] &= ~0x00000010u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.transform)
 }
 inline ::ecloud::Transform* PROTOBUF_NULLABLE VehicleUpdate::release_transform() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000020u;
+  _impl_._has_bits_[0] &= ~0x00000010u;
   ::ecloud::Transform* released = _impl_.transform_;
   _impl_.transform_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -14964,7 +13400,7 @@ inline ::ecloud::Transform* PROTOBUF_NULLABLE VehicleUpdate::unsafe_arena_releas
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.transform)
 
-  _impl_._has_bits_[0] &= ~0x00000020u;
+  _impl_._has_bits_[0] &= ~0x00000010u;
   ::ecloud::Transform* temp = _impl_.transform_;
   _impl_.transform_ = nullptr;
   return temp;
@@ -14979,7 +13415,7 @@ inline ::ecloud::Transform* PROTOBUF_NONNULL VehicleUpdate::_internal_mutable_tr
 }
 inline ::ecloud::Transform* PROTOBUF_NONNULL VehicleUpdate::mutable_transform()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000020u;
+  _impl_._has_bits_[0] |= 0x00000010u;
   ::ecloud::Transform* _msg = _internal_mutable_transform();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.transform)
   return _msg;
@@ -14996,9 +13432,9 @@ inline void VehicleUpdate::set_allocated_transform(::ecloud::Transform* PROTOBUF
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000020u;
+    _impl_._has_bits_[0] |= 0x00000010u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
+    _impl_._has_bits_[0] &= ~0x00000010u;
   }
 
   _impl_.transform_ = reinterpret_cast<::ecloud::Transform*>(value);
@@ -15007,14 +13443,14 @@ inline void VehicleUpdate::set_allocated_transform(::ecloud::Transform* PROTOBUF
 
 // .ecloud.Velocity velocity = 8;
 inline bool VehicleUpdate::has_velocity() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000040u) != 0;
+  bool value = (_impl_._has_bits_[0] & 0x00000020u) != 0;
   PROTOBUF_ASSUME(!value || _impl_.velocity_ != nullptr);
   return value;
 }
 inline void VehicleUpdate::clear_velocity() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   if (_impl_.velocity_ != nullptr) _impl_.velocity_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000040u;
+  _impl_._has_bits_[0] &= ~0x00000020u;
 }
 inline const ::ecloud::Velocity& VehicleUpdate::_internal_velocity() const {
   ::google::protobuf::internal::TSanRead(&_impl_);
@@ -15033,16 +13469,16 @@ inline void VehicleUpdate::unsafe_arena_set_allocated_velocity(
   }
   _impl_.velocity_ = reinterpret_cast<::ecloud::Velocity*>(value);
   if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000040u;
+    _impl_._has_bits_[0] |= 0x00000020u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000040u;
+    _impl_._has_bits_[0] &= ~0x00000020u;
   }
   // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.VehicleUpdate.velocity)
 }
 inline ::ecloud::Velocity* PROTOBUF_NULLABLE VehicleUpdate::release_velocity() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
 
-  _impl_._has_bits_[0] &= ~0x00000040u;
+  _impl_._has_bits_[0] &= ~0x00000020u;
   ::ecloud::Velocity* released = _impl_.velocity_;
   _impl_.velocity_ = nullptr;
   if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
@@ -15062,7 +13498,7 @@ inline ::ecloud::Velocity* PROTOBUF_NULLABLE VehicleUpdate::unsafe_arena_release
   ::google::protobuf::internal::TSanWrite(&_impl_);
   // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.velocity)
 
-  _impl_._has_bits_[0] &= ~0x00000040u;
+  _impl_._has_bits_[0] &= ~0x00000020u;
   ::ecloud::Velocity* temp = _impl_.velocity_;
   _impl_.velocity_ = nullptr;
   return temp;
@@ -15077,7 +13513,7 @@ inline ::ecloud::Velocity* PROTOBUF_NONNULL VehicleUpdate::_internal_mutable_vel
 }
 inline ::ecloud::Velocity* PROTOBUF_NONNULL VehicleUpdate::mutable_velocity()
     ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000040u;
+  _impl_._has_bits_[0] |= 0x00000020u;
   ::ecloud::Velocity* _msg = _internal_mutable_velocity();
   // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.velocity)
   return _msg;
@@ -15094,9 +13530,9 @@ inline void VehicleUpdate::set_allocated_velocity(::ecloud::Velocity* PROTOBUF_N
     if (message_arena != submessage_arena) {
       value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
     }
-    _impl_._has_bits_[0] |= 0x00000040u;
+    _impl_._has_bits_[0] |= 0x00000020u;
   } else {
-    _impl_._has_bits_[0] &= ~0x00000040u;
+    _impl_._has_bits_[0] &= ~0x00000020u;
   }
 
   _impl_.velocity_ = reinterpret_cast<::ecloud::Velocity*>(value);
@@ -15107,7 +13543,7 @@ inline void VehicleUpdate::set_allocated_velocity(::ecloud::Velocity* PROTOBUF_N
 inline void VehicleUpdate::clear_duration_ns() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.duration_ns_ = ::int64_t{0};
-  _impl_._has_bits_[0] &= ~0x00000800u;
+  _impl_._has_bits_[0] &= ~0x00000400u;
 }
 inline ::int64_t VehicleUpdate::duration_ns() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.duration_ns)
@@ -15115,7 +13551,7 @@ inline ::int64_t VehicleUpdate::duration_ns() const {
 }
 inline void VehicleUpdate::set_duration_ns(::int64_t value) {
   _internal_set_duration_ns(value);
-  _impl_._has_bits_[0] |= 0x00000800u;
+  _impl_._has_bits_[0] |= 0x00000400u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.duration_ns)
 }
 inline ::int64_t VehicleUpdate::_internal_duration_ns() const {
@@ -15196,7 +13632,7 @@ inline void VehicleUpdate::set_allocated_pickled_agent_objects(::std::string* PR
 inline void VehicleUpdate::clear_actor_type() {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.actor_type_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000400u;
+  _impl_._has_bits_[0] &= ~0x00000200u;
 }
 inline ::ecloud::ActorType VehicleUpdate::actor_type() const {
   // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.actor_type)
@@ -15204,7 +13640,7 @@ inline ::ecloud::ActorType VehicleUpdate::actor_type() const {
 }
 inline void VehicleUpdate::set_actor_type(::ecloud::ActorType value) {
   _internal_set_actor_type(value);
-  _impl_._has_bits_[0] |= 0x00000400u;
+  _impl_._has_bits_[0] |= 0x00000200u;
   // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.actor_type)
 }
 inline ::ecloud::ActorType VehicleUpdate::_internal_actor_type() const {
@@ -15214,71 +13650,6 @@ inline ::ecloud::ActorType VehicleUpdate::_internal_actor_type() const {
 inline void VehicleUpdate::_internal_set_actor_type(::ecloud::ActorType value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.actor_type_ = value;
-}
-
-// bytes pickled_features = 12;
-inline void VehicleUpdate::clear_pickled_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.pickled_features_.ClearToEmpty();
-  _impl_._has_bits_[0] &= ~0x00000002u;
-}
-inline const ::std::string& VehicleUpdate::pickled_features() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.VehicleUpdate.pickled_features)
-  return _internal_pickled_features();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void VehicleUpdate::set_pickled_features(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  _impl_.pickled_features_.SetBytes(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:ecloud.VehicleUpdate.pickled_features)
-}
-inline ::std::string* PROTOBUF_NONNULL VehicleUpdate::mutable_pickled_features()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  ::std::string* _s = _internal_mutable_pickled_features();
-  // @@protoc_insertion_point(field_mutable:ecloud.VehicleUpdate.pickled_features)
-  return _s;
-}
-inline const ::std::string& VehicleUpdate::_internal_pickled_features() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.pickled_features_.Get();
-}
-inline void VehicleUpdate::_internal_set_pickled_features(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  _impl_.pickled_features_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL VehicleUpdate::_internal_mutable_pickled_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  return _impl_.pickled_features_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE VehicleUpdate::release_pickled_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.VehicleUpdate.pickled_features)
-  if ((_impl_._has_bits_[0] & 0x00000002u) == 0) {
-    return nullptr;
-  }
-  _impl_._has_bits_[0] &= ~0x00000002u;
-  auto* released = _impl_.pickled_features_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.pickled_features_.Set("", GetArena());
-  }
-  return released;
-}
-inline void VehicleUpdate::set_allocated_pickled_features(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000002u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000002u;
-  }
-  _impl_.pickled_features_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.pickled_features_.IsDefault()) {
-    _impl_.pickled_features_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:ecloud.VehicleUpdate.pickled_features)
 }
 
 // -------------------------------------------------------------------
@@ -16206,1455 +14577,6 @@ inline ::google::protobuf::RepeatedPtrField<::ecloud::ObjectBuffer>* PROTOBUF_NO
 EdgeObjects::_internal_mutable_all_object_buffers() {
   ::google::protobuf::internal::TSanRead(&_impl_);
   return &_impl_.all_object_buffers_;
-}
-
-// -------------------------------------------------------------------
-
-// CompressedTensor
-
-// bytes data = 1;
-inline void CompressedTensor::clear_data() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.data_.ClearToEmpty();
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline const ::std::string& CompressedTensor::data() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.CompressedTensor.data)
-  return _internal_data();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void CompressedTensor::set_data(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000001u;
-  _impl_.data_.SetBytes(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:ecloud.CompressedTensor.data)
-}
-inline ::std::string* PROTOBUF_NONNULL CompressedTensor::mutable_data()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  ::std::string* _s = _internal_mutable_data();
-  // @@protoc_insertion_point(field_mutable:ecloud.CompressedTensor.data)
-  return _s;
-}
-inline const ::std::string& CompressedTensor::_internal_data() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.data_.Get();
-}
-inline void CompressedTensor::_internal_set_data(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000001u;
-  _impl_.data_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL CompressedTensor::_internal_mutable_data() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000001u;
-  return _impl_.data_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE CompressedTensor::release_data() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.CompressedTensor.data)
-  if ((_impl_._has_bits_[0] & 0x00000001u) == 0) {
-    return nullptr;
-  }
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  auto* released = _impl_.data_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.data_.Set("", GetArena());
-  }
-  return released;
-}
-inline void CompressedTensor::set_allocated_data(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000001u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
-  }
-  _impl_.data_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.data_.IsDefault()) {
-    _impl_.data_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:ecloud.CompressedTensor.data)
-}
-
-// repeated int32 shape = 2;
-inline int CompressedTensor::_internal_shape_size() const {
-  return _internal_shape().size();
-}
-inline int CompressedTensor::shape_size() const {
-  return _internal_shape_size();
-}
-inline void CompressedTensor::clear_shape() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.shape_.Clear();
-}
-inline ::int32_t CompressedTensor::shape(int index) const {
-  // @@protoc_insertion_point(field_get:ecloud.CompressedTensor.shape)
-  return _internal_shape().Get(index);
-}
-inline void CompressedTensor::set_shape(int index, ::int32_t value) {
-  _internal_mutable_shape()->Set(index, value);
-  // @@protoc_insertion_point(field_set:ecloud.CompressedTensor.shape)
-}
-inline void CompressedTensor::add_shape(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _internal_mutable_shape()->Add(value);
-  // @@protoc_insertion_point(field_add:ecloud.CompressedTensor.shape)
-}
-inline const ::google::protobuf::RepeatedField<::int32_t>& CompressedTensor::shape() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:ecloud.CompressedTensor.shape)
-  return _internal_shape();
-}
-inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL CompressedTensor::mutable_shape()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:ecloud.CompressedTensor.shape)
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _internal_mutable_shape();
-}
-inline const ::google::protobuf::RepeatedField<::int32_t>&
-CompressedTensor::_internal_shape() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.shape_;
-}
-inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL
-CompressedTensor::_internal_mutable_shape() {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return &_impl_.shape_;
-}
-
-// string dtype = 3;
-inline void CompressedTensor::clear_dtype() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.dtype_.ClearToEmpty();
-  _impl_._has_bits_[0] &= ~0x00000002u;
-}
-inline const ::std::string& CompressedTensor::dtype() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.CompressedTensor.dtype)
-  return _internal_dtype();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void CompressedTensor::set_dtype(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  _impl_.dtype_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:ecloud.CompressedTensor.dtype)
-}
-inline ::std::string* PROTOBUF_NONNULL CompressedTensor::mutable_dtype()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  ::std::string* _s = _internal_mutable_dtype();
-  // @@protoc_insertion_point(field_mutable:ecloud.CompressedTensor.dtype)
-  return _s;
-}
-inline const ::std::string& CompressedTensor::_internal_dtype() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.dtype_.Get();
-}
-inline void CompressedTensor::_internal_set_dtype(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  _impl_.dtype_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL CompressedTensor::_internal_mutable_dtype() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  return _impl_.dtype_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE CompressedTensor::release_dtype() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.CompressedTensor.dtype)
-  if ((_impl_._has_bits_[0] & 0x00000002u) == 0) {
-    return nullptr;
-  }
-  _impl_._has_bits_[0] &= ~0x00000002u;
-  auto* released = _impl_.dtype_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.dtype_.Set("", GetArena());
-  }
-  return released;
-}
-inline void CompressedTensor::set_allocated_dtype(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000002u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000002u;
-  }
-  _impl_.dtype_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.dtype_.IsDefault()) {
-    _impl_.dtype_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:ecloud.CompressedTensor.dtype)
-}
-
-// string compression = 4;
-inline void CompressedTensor::clear_compression() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.compression_.ClearToEmpty();
-  _impl_._has_bits_[0] &= ~0x00000004u;
-}
-inline const ::std::string& CompressedTensor::compression() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.CompressedTensor.compression)
-  return _internal_compression();
-}
-template <typename Arg_, typename... Args_>
-PROTOBUF_ALWAYS_INLINE void CompressedTensor::set_compression(Arg_&& arg, Args_... args) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000004u;
-  _impl_.compression_.Set(static_cast<Arg_&&>(arg), args..., GetArena());
-  // @@protoc_insertion_point(field_set:ecloud.CompressedTensor.compression)
-}
-inline ::std::string* PROTOBUF_NONNULL CompressedTensor::mutable_compression()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  ::std::string* _s = _internal_mutable_compression();
-  // @@protoc_insertion_point(field_mutable:ecloud.CompressedTensor.compression)
-  return _s;
-}
-inline const ::std::string& CompressedTensor::_internal_compression() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.compression_.Get();
-}
-inline void CompressedTensor::_internal_set_compression(const ::std::string& value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000004u;
-  _impl_.compression_.Set(value, GetArena());
-}
-inline ::std::string* PROTOBUF_NONNULL CompressedTensor::_internal_mutable_compression() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_._has_bits_[0] |= 0x00000004u;
-  return _impl_.compression_.Mutable( GetArena());
-}
-inline ::std::string* PROTOBUF_NULLABLE CompressedTensor::release_compression() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.CompressedTensor.compression)
-  if ((_impl_._has_bits_[0] & 0x00000004u) == 0) {
-    return nullptr;
-  }
-  _impl_._has_bits_[0] &= ~0x00000004u;
-  auto* released = _impl_.compression_.Release();
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString()) {
-    _impl_.compression_.Set("", GetArena());
-  }
-  return released;
-}
-inline void CompressedTensor::set_allocated_compression(::std::string* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000004u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000004u;
-  }
-  _impl_.compression_.SetAllocated(value, GetArena());
-  if (::google::protobuf::internal::DebugHardenForceCopyDefaultString() && _impl_.compression_.IsDefault()) {
-    _impl_.compression_.Set("", GetArena());
-  }
-  // @@protoc_insertion_point(field_set_allocated:ecloud.CompressedTensor.compression)
-}
-
-// int32 original_size = 5;
-inline void CompressedTensor::clear_original_size() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.original_size_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000008u;
-}
-inline ::int32_t CompressedTensor::original_size() const {
-  // @@protoc_insertion_point(field_get:ecloud.CompressedTensor.original_size)
-  return _internal_original_size();
-}
-inline void CompressedTensor::set_original_size(::int32_t value) {
-  _internal_set_original_size(value);
-  _impl_._has_bits_[0] |= 0x00000008u;
-  // @@protoc_insertion_point(field_set:ecloud.CompressedTensor.original_size)
-}
-inline ::int32_t CompressedTensor::_internal_original_size() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.original_size_;
-}
-inline void CompressedTensor::_internal_set_original_size(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.original_size_ = value;
-}
-
-// -------------------------------------------------------------------
-
-// AgentPose
-
-// int32 agent_id = 1;
-inline void AgentPose::clear_agent_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.agent_id_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline ::int32_t AgentPose::agent_id() const {
-  // @@protoc_insertion_point(field_get:ecloud.AgentPose.agent_id)
-  return _internal_agent_id();
-}
-inline void AgentPose::set_agent_id(::int32_t value) {
-  _internal_set_agent_id(value);
-  _impl_._has_bits_[0] |= 0x00000001u;
-  // @@protoc_insertion_point(field_set:ecloud.AgentPose.agent_id)
-}
-inline ::int32_t AgentPose::_internal_agent_id() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.agent_id_;
-}
-inline void AgentPose::_internal_set_agent_id(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.agent_id_ = value;
-}
-
-// repeated float pose = 2;
-inline int AgentPose::_internal_pose_size() const {
-  return _internal_pose().size();
-}
-inline int AgentPose::pose_size() const {
-  return _internal_pose_size();
-}
-inline void AgentPose::clear_pose() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.pose_.Clear();
-}
-inline float AgentPose::pose(int index) const {
-  // @@protoc_insertion_point(field_get:ecloud.AgentPose.pose)
-  return _internal_pose().Get(index);
-}
-inline void AgentPose::set_pose(int index, float value) {
-  _internal_mutable_pose()->Set(index, value);
-  // @@protoc_insertion_point(field_set:ecloud.AgentPose.pose)
-}
-inline void AgentPose::add_pose(float value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _internal_mutable_pose()->Add(value);
-  // @@protoc_insertion_point(field_add:ecloud.AgentPose.pose)
-}
-inline const ::google::protobuf::RepeatedField<float>& AgentPose::pose() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:ecloud.AgentPose.pose)
-  return _internal_pose();
-}
-inline ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL AgentPose::mutable_pose()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:ecloud.AgentPose.pose)
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _internal_mutable_pose();
-}
-inline const ::google::protobuf::RepeatedField<float>&
-AgentPose::_internal_pose() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.pose_;
-}
-inline ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL
-AgentPose::_internal_mutable_pose() {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return &_impl_.pose_;
-}
-
-// repeated float lidar_pose = 3;
-inline int AgentPose::_internal_lidar_pose_size() const {
-  return _internal_lidar_pose().size();
-}
-inline int AgentPose::lidar_pose_size() const {
-  return _internal_lidar_pose_size();
-}
-inline void AgentPose::clear_lidar_pose() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.lidar_pose_.Clear();
-}
-inline float AgentPose::lidar_pose(int index) const {
-  // @@protoc_insertion_point(field_get:ecloud.AgentPose.lidar_pose)
-  return _internal_lidar_pose().Get(index);
-}
-inline void AgentPose::set_lidar_pose(int index, float value) {
-  _internal_mutable_lidar_pose()->Set(index, value);
-  // @@protoc_insertion_point(field_set:ecloud.AgentPose.lidar_pose)
-}
-inline void AgentPose::add_lidar_pose(float value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _internal_mutable_lidar_pose()->Add(value);
-  // @@protoc_insertion_point(field_add:ecloud.AgentPose.lidar_pose)
-}
-inline const ::google::protobuf::RepeatedField<float>& AgentPose::lidar_pose() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:ecloud.AgentPose.lidar_pose)
-  return _internal_lidar_pose();
-}
-inline ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL AgentPose::mutable_lidar_pose()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:ecloud.AgentPose.lidar_pose)
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _internal_mutable_lidar_pose();
-}
-inline const ::google::protobuf::RepeatedField<float>&
-AgentPose::_internal_lidar_pose() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.lidar_pose_;
-}
-inline ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL
-AgentPose::_internal_mutable_lidar_pose() {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return &_impl_.lidar_pose_;
-}
-
-// -------------------------------------------------------------------
-
-// IntermediateFeatures
-
-// int32 agent_id = 1;
-inline void IntermediateFeatures::clear_agent_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.agent_id_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000040u;
-}
-inline ::int32_t IntermediateFeatures::agent_id() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.agent_id)
-  return _internal_agent_id();
-}
-inline void IntermediateFeatures::set_agent_id(::int32_t value) {
-  _internal_set_agent_id(value);
-  _impl_._has_bits_[0] |= 0x00000040u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeatures.agent_id)
-}
-inline ::int32_t IntermediateFeatures::_internal_agent_id() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.agent_id_;
-}
-inline void IntermediateFeatures::_internal_set_agent_id(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.agent_id_ = value;
-}
-
-// .ecloud.ActorType agent_type = 2;
-inline void IntermediateFeatures::clear_agent_type() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.agent_type_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000080u;
-}
-inline ::ecloud::ActorType IntermediateFeatures::agent_type() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.agent_type)
-  return _internal_agent_type();
-}
-inline void IntermediateFeatures::set_agent_type(::ecloud::ActorType value) {
-  _internal_set_agent_type(value);
-  _impl_._has_bits_[0] |= 0x00000080u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeatures.agent_type)
-}
-inline ::ecloud::ActorType IntermediateFeatures::_internal_agent_type() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return static_cast<::ecloud::ActorType>(_impl_.agent_type_);
-}
-inline void IntermediateFeatures::_internal_set_agent_type(::ecloud::ActorType value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.agent_type_ = value;
-}
-
-// .ecloud.AgentPose pose = 3;
-inline bool IntermediateFeatures::has_pose() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000001u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.pose_ != nullptr);
-  return value;
-}
-inline void IntermediateFeatures::clear_pose() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.pose_ != nullptr) _impl_.pose_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline const ::ecloud::AgentPose& IntermediateFeatures::_internal_pose() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::ecloud::AgentPose* p = _impl_.pose_;
-  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::AgentPose&>(::ecloud::_AgentPose_default_instance_);
-}
-inline const ::ecloud::AgentPose& IntermediateFeatures::pose() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.pose)
-  return _internal_pose();
-}
-inline void IntermediateFeatures::unsafe_arena_set_allocated_pose(
-    ::ecloud::AgentPose* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.pose_);
-  }
-  _impl_.pose_ = reinterpret_cast<::ecloud::AgentPose*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000001u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.IntermediateFeatures.pose)
-}
-inline ::ecloud::AgentPose* PROTOBUF_NULLABLE IntermediateFeatures::release_pose() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  ::ecloud::AgentPose* released = _impl_.pose_;
-  _impl_.pose_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::ecloud::AgentPose* PROTOBUF_NULLABLE IntermediateFeatures::unsafe_arena_release_pose() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.IntermediateFeatures.pose)
-
-  _impl_._has_bits_[0] &= ~0x00000001u;
-  ::ecloud::AgentPose* temp = _impl_.pose_;
-  _impl_.pose_ = nullptr;
-  return temp;
-}
-inline ::ecloud::AgentPose* PROTOBUF_NONNULL IntermediateFeatures::_internal_mutable_pose() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.pose_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::AgentPose>(GetArena());
-    _impl_.pose_ = reinterpret_cast<::ecloud::AgentPose*>(p);
-  }
-  return _impl_.pose_;
-}
-inline ::ecloud::AgentPose* PROTOBUF_NONNULL IntermediateFeatures::mutable_pose()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000001u;
-  ::ecloud::AgentPose* _msg = _internal_mutable_pose();
-  // @@protoc_insertion_point(field_mutable:ecloud.IntermediateFeatures.pose)
-  return _msg;
-}
-inline void IntermediateFeatures::set_allocated_pose(::ecloud::AgentPose* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.pose_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = value->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000001u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000001u;
-  }
-
-  _impl_.pose_ = reinterpret_cast<::ecloud::AgentPose*>(value);
-  // @@protoc_insertion_point(field_set_allocated:ecloud.IntermediateFeatures.pose)
-}
-
-// .ecloud.CompressedTensor spatial_features = 4;
-inline bool IntermediateFeatures::has_spatial_features() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000002u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.spatial_features_ != nullptr);
-  return value;
-}
-inline void IntermediateFeatures::clear_spatial_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.spatial_features_ != nullptr) _impl_.spatial_features_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000002u;
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::_internal_spatial_features() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::ecloud::CompressedTensor* p = _impl_.spatial_features_;
-  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::CompressedTensor&>(::ecloud::_CompressedTensor_default_instance_);
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::spatial_features() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.spatial_features)
-  return _internal_spatial_features();
-}
-inline void IntermediateFeatures::unsafe_arena_set_allocated_spatial_features(
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.spatial_features_);
-  }
-  _impl_.spatial_features_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000002u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000002u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.IntermediateFeatures.spatial_features)
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::release_spatial_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000002u;
-  ::ecloud::CompressedTensor* released = _impl_.spatial_features_;
-  _impl_.spatial_features_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::unsafe_arena_release_spatial_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.IntermediateFeatures.spatial_features)
-
-  _impl_._has_bits_[0] &= ~0x00000002u;
-  ::ecloud::CompressedTensor* temp = _impl_.spatial_features_;
-  _impl_.spatial_features_ = nullptr;
-  return temp;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::_internal_mutable_spatial_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.spatial_features_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::CompressedTensor>(GetArena());
-    _impl_.spatial_features_ = reinterpret_cast<::ecloud::CompressedTensor*>(p);
-  }
-  return _impl_.spatial_features_;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::mutable_spatial_features()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000002u;
-  ::ecloud::CompressedTensor* _msg = _internal_mutable_spatial_features();
-  // @@protoc_insertion_point(field_mutable:ecloud.IntermediateFeatures.spatial_features)
-  return _msg;
-}
-inline void IntermediateFeatures::set_allocated_spatial_features(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.spatial_features_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = value->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000002u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000002u;
-  }
-
-  _impl_.spatial_features_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  // @@protoc_insertion_point(field_set_allocated:ecloud.IntermediateFeatures.spatial_features)
-}
-
-// .ecloud.CompressedTensor psm = 5;
-inline bool IntermediateFeatures::has_psm() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000004u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.psm_ != nullptr);
-  return value;
-}
-inline void IntermediateFeatures::clear_psm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.psm_ != nullptr) _impl_.psm_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000004u;
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::_internal_psm() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::ecloud::CompressedTensor* p = _impl_.psm_;
-  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::CompressedTensor&>(::ecloud::_CompressedTensor_default_instance_);
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::psm() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.psm)
-  return _internal_psm();
-}
-inline void IntermediateFeatures::unsafe_arena_set_allocated_psm(
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.psm_);
-  }
-  _impl_.psm_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000004u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000004u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.IntermediateFeatures.psm)
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::release_psm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000004u;
-  ::ecloud::CompressedTensor* released = _impl_.psm_;
-  _impl_.psm_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::unsafe_arena_release_psm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.IntermediateFeatures.psm)
-
-  _impl_._has_bits_[0] &= ~0x00000004u;
-  ::ecloud::CompressedTensor* temp = _impl_.psm_;
-  _impl_.psm_ = nullptr;
-  return temp;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::_internal_mutable_psm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.psm_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::CompressedTensor>(GetArena());
-    _impl_.psm_ = reinterpret_cast<::ecloud::CompressedTensor*>(p);
-  }
-  return _impl_.psm_;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::mutable_psm()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000004u;
-  ::ecloud::CompressedTensor* _msg = _internal_mutable_psm();
-  // @@protoc_insertion_point(field_mutable:ecloud.IntermediateFeatures.psm)
-  return _msg;
-}
-inline void IntermediateFeatures::set_allocated_psm(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.psm_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = value->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000004u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000004u;
-  }
-
-  _impl_.psm_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  // @@protoc_insertion_point(field_set_allocated:ecloud.IntermediateFeatures.psm)
-}
-
-// .ecloud.CompressedTensor rm = 6;
-inline bool IntermediateFeatures::has_rm() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000008u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.rm_ != nullptr);
-  return value;
-}
-inline void IntermediateFeatures::clear_rm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.rm_ != nullptr) _impl_.rm_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000008u;
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::_internal_rm() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::ecloud::CompressedTensor* p = _impl_.rm_;
-  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::CompressedTensor&>(::ecloud::_CompressedTensor_default_instance_);
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::rm() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.rm)
-  return _internal_rm();
-}
-inline void IntermediateFeatures::unsafe_arena_set_allocated_rm(
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.rm_);
-  }
-  _impl_.rm_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000008u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000008u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.IntermediateFeatures.rm)
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::release_rm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000008u;
-  ::ecloud::CompressedTensor* released = _impl_.rm_;
-  _impl_.rm_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::unsafe_arena_release_rm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.IntermediateFeatures.rm)
-
-  _impl_._has_bits_[0] &= ~0x00000008u;
-  ::ecloud::CompressedTensor* temp = _impl_.rm_;
-  _impl_.rm_ = nullptr;
-  return temp;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::_internal_mutable_rm() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.rm_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::CompressedTensor>(GetArena());
-    _impl_.rm_ = reinterpret_cast<::ecloud::CompressedTensor*>(p);
-  }
-  return _impl_.rm_;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::mutable_rm()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000008u;
-  ::ecloud::CompressedTensor* _msg = _internal_mutable_rm();
-  // @@protoc_insertion_point(field_mutable:ecloud.IntermediateFeatures.rm)
-  return _msg;
-}
-inline void IntermediateFeatures::set_allocated_rm(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.rm_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = value->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000008u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000008u;
-  }
-
-  _impl_.rm_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  // @@protoc_insertion_point(field_set_allocated:ecloud.IntermediateFeatures.rm)
-}
-
-// .ecloud.CompressedTensor thres_map = 7;
-inline bool IntermediateFeatures::has_thres_map() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000010u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.thres_map_ != nullptr);
-  return value;
-}
-inline void IntermediateFeatures::clear_thres_map() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.thres_map_ != nullptr) _impl_.thres_map_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000010u;
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::_internal_thres_map() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::ecloud::CompressedTensor* p = _impl_.thres_map_;
-  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::CompressedTensor&>(::ecloud::_CompressedTensor_default_instance_);
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::thres_map() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.thres_map)
-  return _internal_thres_map();
-}
-inline void IntermediateFeatures::unsafe_arena_set_allocated_thres_map(
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.thres_map_);
-  }
-  _impl_.thres_map_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000010u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000010u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.IntermediateFeatures.thres_map)
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::release_thres_map() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000010u;
-  ::ecloud::CompressedTensor* released = _impl_.thres_map_;
-  _impl_.thres_map_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::unsafe_arena_release_thres_map() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.IntermediateFeatures.thres_map)
-
-  _impl_._has_bits_[0] &= ~0x00000010u;
-  ::ecloud::CompressedTensor* temp = _impl_.thres_map_;
-  _impl_.thres_map_ = nullptr;
-  return temp;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::_internal_mutable_thres_map() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.thres_map_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::CompressedTensor>(GetArena());
-    _impl_.thres_map_ = reinterpret_cast<::ecloud::CompressedTensor*>(p);
-  }
-  return _impl_.thres_map_;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::mutable_thres_map()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000010u;
-  ::ecloud::CompressedTensor* _msg = _internal_mutable_thres_map();
-  // @@protoc_insertion_point(field_mutable:ecloud.IntermediateFeatures.thres_map)
-  return _msg;
-}
-inline void IntermediateFeatures::set_allocated_thres_map(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.thres_map_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = value->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000010u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000010u;
-  }
-
-  _impl_.thres_map_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  // @@protoc_insertion_point(field_set_allocated:ecloud.IntermediateFeatures.thres_map)
-}
-
-// .ecloud.CompressedTensor camera_features = 8;
-inline bool IntermediateFeatures::has_camera_features() const {
-  bool value = (_impl_._has_bits_[0] & 0x00000020u) != 0;
-  PROTOBUF_ASSUME(!value || _impl_.camera_features_ != nullptr);
-  return value;
-}
-inline void IntermediateFeatures::clear_camera_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.camera_features_ != nullptr) _impl_.camera_features_->Clear();
-  _impl_._has_bits_[0] &= ~0x00000020u;
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::_internal_camera_features() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  const ::ecloud::CompressedTensor* p = _impl_.camera_features_;
-  return p != nullptr ? *p : reinterpret_cast<const ::ecloud::CompressedTensor&>(::ecloud::_CompressedTensor_default_instance_);
-}
-inline const ::ecloud::CompressedTensor& IntermediateFeatures::camera_features() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.camera_features)
-  return _internal_camera_features();
-}
-inline void IntermediateFeatures::unsafe_arena_set_allocated_camera_features(
-    ::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (GetArena() == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.camera_features_);
-  }
-  _impl_.camera_features_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  if (value != nullptr) {
-    _impl_._has_bits_[0] |= 0x00000020u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
-  }
-  // @@protoc_insertion_point(field_unsafe_arena_set_allocated:ecloud.IntermediateFeatures.camera_features)
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::release_camera_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-
-  _impl_._has_bits_[0] &= ~0x00000020u;
-  ::ecloud::CompressedTensor* released = _impl_.camera_features_;
-  _impl_.camera_features_ = nullptr;
-  if (::google::protobuf::internal::DebugHardenForceCopyInRelease()) {
-    auto* old = reinterpret_cast<::google::protobuf::MessageLite*>(released);
-    released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    if (GetArena() == nullptr) {
-      delete old;
-    }
-  } else {
-    if (GetArena() != nullptr) {
-      released = ::google::protobuf::internal::DuplicateIfNonNull(released);
-    }
-  }
-  return released;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NULLABLE IntermediateFeatures::unsafe_arena_release_camera_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  // @@protoc_insertion_point(field_release:ecloud.IntermediateFeatures.camera_features)
-
-  _impl_._has_bits_[0] &= ~0x00000020u;
-  ::ecloud::CompressedTensor* temp = _impl_.camera_features_;
-  _impl_.camera_features_ = nullptr;
-  return temp;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::_internal_mutable_camera_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (_impl_.camera_features_ == nullptr) {
-    auto* p = ::google::protobuf::Message::DefaultConstruct<::ecloud::CompressedTensor>(GetArena());
-    _impl_.camera_features_ = reinterpret_cast<::ecloud::CompressedTensor*>(p);
-  }
-  return _impl_.camera_features_;
-}
-inline ::ecloud::CompressedTensor* PROTOBUF_NONNULL IntermediateFeatures::mutable_camera_features()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  _impl_._has_bits_[0] |= 0x00000020u;
-  ::ecloud::CompressedTensor* _msg = _internal_mutable_camera_features();
-  // @@protoc_insertion_point(field_mutable:ecloud.IntermediateFeatures.camera_features)
-  return _msg;
-}
-inline void IntermediateFeatures::set_allocated_camera_features(::ecloud::CompressedTensor* PROTOBUF_NULLABLE value) {
-  ::google::protobuf::Arena* message_arena = GetArena();
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  if (message_arena == nullptr) {
-    delete reinterpret_cast<::google::protobuf::MessageLite*>(_impl_.camera_features_);
-  }
-
-  if (value != nullptr) {
-    ::google::protobuf::Arena* submessage_arena = value->GetArena();
-    if (message_arena != submessage_arena) {
-      value = ::google::protobuf::internal::GetOwnedMessage(message_arena, value, submessage_arena);
-    }
-    _impl_._has_bits_[0] |= 0x00000020u;
-  } else {
-    _impl_._has_bits_[0] &= ~0x00000020u;
-  }
-
-  _impl_.camera_features_ = reinterpret_cast<::ecloud::CompressedTensor*>(value);
-  // @@protoc_insertion_point(field_set_allocated:ecloud.IntermediateFeatures.camera_features)
-}
-
-// int64 timestamp_ns = 9;
-inline void IntermediateFeatures::clear_timestamp_ns() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.timestamp_ns_ = ::int64_t{0};
-  _impl_._has_bits_[0] &= ~0x00000100u;
-}
-inline ::int64_t IntermediateFeatures::timestamp_ns() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.timestamp_ns)
-  return _internal_timestamp_ns();
-}
-inline void IntermediateFeatures::set_timestamp_ns(::int64_t value) {
-  _internal_set_timestamp_ns(value);
-  _impl_._has_bits_[0] |= 0x00000100u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeatures.timestamp_ns)
-}
-inline ::int64_t IntermediateFeatures::_internal_timestamp_ns() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.timestamp_ns_;
-}
-inline void IntermediateFeatures::_internal_set_timestamp_ns(::int64_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.timestamp_ns_ = value;
-}
-
-// float communication_rate = 10;
-inline void IntermediateFeatures::clear_communication_rate() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.communication_rate_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000200u;
-}
-inline float IntermediateFeatures::communication_rate() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeatures.communication_rate)
-  return _internal_communication_rate();
-}
-inline void IntermediateFeatures::set_communication_rate(float value) {
-  _internal_set_communication_rate(value);
-  _impl_._has_bits_[0] |= 0x00000200u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeatures.communication_rate)
-}
-inline float IntermediateFeatures::_internal_communication_rate() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.communication_rate_;
-}
-inline void IntermediateFeatures::_internal_set_communication_rate(float value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.communication_rate_ = value;
-}
-
-// -------------------------------------------------------------------
-
-// IntermediateFeaturesRequest
-
-// int32 vehicle_index = 1;
-inline void IntermediateFeaturesRequest::clear_vehicle_index() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.vehicle_index_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline ::int32_t IntermediateFeaturesRequest::vehicle_index() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeaturesRequest.vehicle_index)
-  return _internal_vehicle_index();
-}
-inline void IntermediateFeaturesRequest::set_vehicle_index(::int32_t value) {
-  _internal_set_vehicle_index(value);
-  _impl_._has_bits_[0] |= 0x00000001u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeaturesRequest.vehicle_index)
-}
-inline ::int32_t IntermediateFeaturesRequest::_internal_vehicle_index() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.vehicle_index_;
-}
-inline void IntermediateFeaturesRequest::_internal_set_vehicle_index(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.vehicle_index_ = value;
-}
-
-// int32 tick_id = 2;
-inline void IntermediateFeaturesRequest::clear_tick_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tick_id_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000002u;
-}
-inline ::int32_t IntermediateFeaturesRequest::tick_id() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeaturesRequest.tick_id)
-  return _internal_tick_id();
-}
-inline void IntermediateFeaturesRequest::set_tick_id(::int32_t value) {
-  _internal_set_tick_id(value);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeaturesRequest.tick_id)
-}
-inline ::int32_t IntermediateFeaturesRequest::_internal_tick_id() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.tick_id_;
-}
-inline void IntermediateFeaturesRequest::_internal_set_tick_id(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tick_id_ = value;
-}
-
-// -------------------------------------------------------------------
-
-// FusionResult
-
-// int32 tick_id = 1;
-inline void FusionResult::clear_tick_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tick_id_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline ::int32_t FusionResult::tick_id() const {
-  // @@protoc_insertion_point(field_get:ecloud.FusionResult.tick_id)
-  return _internal_tick_id();
-}
-inline void FusionResult::set_tick_id(::int32_t value) {
-  _internal_set_tick_id(value);
-  _impl_._has_bits_[0] |= 0x00000001u;
-  // @@protoc_insertion_point(field_set:ecloud.FusionResult.tick_id)
-}
-inline ::int32_t FusionResult::_internal_tick_id() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.tick_id_;
-}
-inline void FusionResult::_internal_set_tick_id(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tick_id_ = value;
-}
-
-// repeated .ecloud.EdgeObstacleObject detections = 2;
-inline int FusionResult::_internal_detections_size() const {
-  return _internal_detections().size();
-}
-inline int FusionResult::detections_size() const {
-  return _internal_detections_size();
-}
-inline void FusionResult::clear_detections() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.detections_.Clear();
-}
-inline ::ecloud::EdgeObstacleObject* PROTOBUF_NONNULL FusionResult::mutable_detections(int index)
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable:ecloud.FusionResult.detections)
-  return _internal_mutable_detections()->Mutable(index);
-}
-inline ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>* PROTOBUF_NONNULL FusionResult::mutable_detections()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:ecloud.FusionResult.detections)
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _internal_mutable_detections();
-}
-inline const ::ecloud::EdgeObstacleObject& FusionResult::detections(int index) const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.FusionResult.detections)
-  return _internal_detections().Get(index);
-}
-inline ::ecloud::EdgeObstacleObject* PROTOBUF_NONNULL FusionResult::add_detections()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  ::ecloud::EdgeObstacleObject* _add = _internal_mutable_detections()->Add();
-  // @@protoc_insertion_point(field_add:ecloud.FusionResult.detections)
-  return _add;
-}
-inline const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>& FusionResult::detections() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:ecloud.FusionResult.detections)
-  return _internal_detections();
-}
-inline const ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>&
-FusionResult::_internal_detections() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.detections_;
-}
-inline ::google::protobuf::RepeatedPtrField<::ecloud::EdgeObstacleObject>* PROTOBUF_NONNULL
-FusionResult::_internal_mutable_detections() {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return &_impl_.detections_;
-}
-
-// float communication_rate = 3;
-inline void FusionResult::clear_communication_rate() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.communication_rate_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000002u;
-}
-inline float FusionResult::communication_rate() const {
-  // @@protoc_insertion_point(field_get:ecloud.FusionResult.communication_rate)
-  return _internal_communication_rate();
-}
-inline void FusionResult::set_communication_rate(float value) {
-  _internal_set_communication_rate(value);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  // @@protoc_insertion_point(field_set:ecloud.FusionResult.communication_rate)
-}
-inline float FusionResult::_internal_communication_rate() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.communication_rate_;
-}
-inline void FusionResult::_internal_set_communication_rate(float value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.communication_rate_ = value;
-}
-
-// int64 fusion_time_ns = 4;
-inline void FusionResult::clear_fusion_time_ns() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.fusion_time_ns_ = ::int64_t{0};
-  _impl_._has_bits_[0] &= ~0x00000004u;
-}
-inline ::int64_t FusionResult::fusion_time_ns() const {
-  // @@protoc_insertion_point(field_get:ecloud.FusionResult.fusion_time_ns)
-  return _internal_fusion_time_ns();
-}
-inline void FusionResult::set_fusion_time_ns(::int64_t value) {
-  _internal_set_fusion_time_ns(value);
-  _impl_._has_bits_[0] |= 0x00000004u;
-  // @@protoc_insertion_point(field_set:ecloud.FusionResult.fusion_time_ns)
-}
-inline ::int64_t FusionResult::_internal_fusion_time_ns() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.fusion_time_ns_;
-}
-inline void FusionResult::_internal_set_fusion_time_ns(::int64_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.fusion_time_ns_ = value;
-}
-
-// -------------------------------------------------------------------
-
-// IntermediateFeaturesBatch
-
-// int32 tick_id = 1;
-inline void IntermediateFeaturesBatch::clear_tick_id() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tick_id_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000001u;
-}
-inline ::int32_t IntermediateFeaturesBatch::tick_id() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeaturesBatch.tick_id)
-  return _internal_tick_id();
-}
-inline void IntermediateFeaturesBatch::set_tick_id(::int32_t value) {
-  _internal_set_tick_id(value);
-  _impl_._has_bits_[0] |= 0x00000001u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeaturesBatch.tick_id)
-}
-inline ::int32_t IntermediateFeaturesBatch::_internal_tick_id() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.tick_id_;
-}
-inline void IntermediateFeaturesBatch::_internal_set_tick_id(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.tick_id_ = value;
-}
-
-// repeated .ecloud.IntermediateFeatures features = 2;
-inline int IntermediateFeaturesBatch::_internal_features_size() const {
-  return _internal_features().size();
-}
-inline int IntermediateFeaturesBatch::features_size() const {
-  return _internal_features_size();
-}
-inline void IntermediateFeaturesBatch::clear_features() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.features_.Clear();
-}
-inline ::ecloud::IntermediateFeatures* PROTOBUF_NONNULL IntermediateFeaturesBatch::mutable_features(int index)
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable:ecloud.IntermediateFeaturesBatch.features)
-  return _internal_mutable_features()->Mutable(index);
-}
-inline ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>* PROTOBUF_NONNULL IntermediateFeaturesBatch::mutable_features()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:ecloud.IntermediateFeaturesBatch.features)
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _internal_mutable_features();
-}
-inline const ::ecloud::IntermediateFeatures& IntermediateFeaturesBatch::features(int index) const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeaturesBatch.features)
-  return _internal_features().Get(index);
-}
-inline ::ecloud::IntermediateFeatures* PROTOBUF_NONNULL IntermediateFeaturesBatch::add_features()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  ::ecloud::IntermediateFeatures* _add = _internal_mutable_features()->Add();
-  // @@protoc_insertion_point(field_add:ecloud.IntermediateFeaturesBatch.features)
-  return _add;
-}
-inline const ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>& IntermediateFeaturesBatch::features() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:ecloud.IntermediateFeaturesBatch.features)
-  return _internal_features();
-}
-inline const ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>&
-IntermediateFeaturesBatch::_internal_features() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.features_;
-}
-inline ::google::protobuf::RepeatedPtrField<::ecloud::IntermediateFeatures>* PROTOBUF_NONNULL
-IntermediateFeaturesBatch::_internal_mutable_features() {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return &_impl_.features_;
-}
-
-// repeated float pairwise_t_matrix = 3;
-inline int IntermediateFeaturesBatch::_internal_pairwise_t_matrix_size() const {
-  return _internal_pairwise_t_matrix().size();
-}
-inline int IntermediateFeaturesBatch::pairwise_t_matrix_size() const {
-  return _internal_pairwise_t_matrix_size();
-}
-inline void IntermediateFeaturesBatch::clear_pairwise_t_matrix() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.pairwise_t_matrix_.Clear();
-}
-inline float IntermediateFeaturesBatch::pairwise_t_matrix(int index) const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix)
-  return _internal_pairwise_t_matrix().Get(index);
-}
-inline void IntermediateFeaturesBatch::set_pairwise_t_matrix(int index, float value) {
-  _internal_mutable_pairwise_t_matrix()->Set(index, value);
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix)
-}
-inline void IntermediateFeaturesBatch::add_pairwise_t_matrix(float value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _internal_mutable_pairwise_t_matrix()->Add(value);
-  // @@protoc_insertion_point(field_add:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix)
-}
-inline const ::google::protobuf::RepeatedField<float>& IntermediateFeaturesBatch::pairwise_t_matrix() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix)
-  return _internal_pairwise_t_matrix();
-}
-inline ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL IntermediateFeaturesBatch::mutable_pairwise_t_matrix()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix)
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _internal_mutable_pairwise_t_matrix();
-}
-inline const ::google::protobuf::RepeatedField<float>&
-IntermediateFeaturesBatch::_internal_pairwise_t_matrix() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.pairwise_t_matrix_;
-}
-inline ::google::protobuf::RepeatedField<float>* PROTOBUF_NONNULL
-IntermediateFeaturesBatch::_internal_mutable_pairwise_t_matrix() {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return &_impl_.pairwise_t_matrix_;
-}
-
-// repeated int32 pairwise_t_matrix_shape = 4;
-inline int IntermediateFeaturesBatch::_internal_pairwise_t_matrix_shape_size() const {
-  return _internal_pairwise_t_matrix_shape().size();
-}
-inline int IntermediateFeaturesBatch::pairwise_t_matrix_shape_size() const {
-  return _internal_pairwise_t_matrix_shape_size();
-}
-inline void IntermediateFeaturesBatch::clear_pairwise_t_matrix_shape() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.pairwise_t_matrix_shape_.Clear();
-}
-inline ::int32_t IntermediateFeaturesBatch::pairwise_t_matrix_shape(int index) const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix_shape)
-  return _internal_pairwise_t_matrix_shape().Get(index);
-}
-inline void IntermediateFeaturesBatch::set_pairwise_t_matrix_shape(int index, ::int32_t value) {
-  _internal_mutable_pairwise_t_matrix_shape()->Set(index, value);
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix_shape)
-}
-inline void IntermediateFeaturesBatch::add_pairwise_t_matrix_shape(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _internal_mutable_pairwise_t_matrix_shape()->Add(value);
-  // @@protoc_insertion_point(field_add:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix_shape)
-}
-inline const ::google::protobuf::RepeatedField<::int32_t>& IntermediateFeaturesBatch::pairwise_t_matrix_shape() const
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_list:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix_shape)
-  return _internal_pairwise_t_matrix_shape();
-}
-inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL IntermediateFeaturesBatch::mutable_pairwise_t_matrix_shape()
-    ABSL_ATTRIBUTE_LIFETIME_BOUND {
-  // @@protoc_insertion_point(field_mutable_list:ecloud.IntermediateFeaturesBatch.pairwise_t_matrix_shape)
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  return _internal_mutable_pairwise_t_matrix_shape();
-}
-inline const ::google::protobuf::RepeatedField<::int32_t>&
-IntermediateFeaturesBatch::_internal_pairwise_t_matrix_shape() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.pairwise_t_matrix_shape_;
-}
-inline ::google::protobuf::RepeatedField<::int32_t>* PROTOBUF_NONNULL
-IntermediateFeaturesBatch::_internal_mutable_pairwise_t_matrix_shape() {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return &_impl_.pairwise_t_matrix_shape_;
-}
-
-// int32 record_len = 5;
-inline void IntermediateFeaturesBatch::clear_record_len() {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.record_len_ = 0;
-  _impl_._has_bits_[0] &= ~0x00000002u;
-}
-inline ::int32_t IntermediateFeaturesBatch::record_len() const {
-  // @@protoc_insertion_point(field_get:ecloud.IntermediateFeaturesBatch.record_len)
-  return _internal_record_len();
-}
-inline void IntermediateFeaturesBatch::set_record_len(::int32_t value) {
-  _internal_set_record_len(value);
-  _impl_._has_bits_[0] |= 0x00000002u;
-  // @@protoc_insertion_point(field_set:ecloud.IntermediateFeaturesBatch.record_len)
-}
-inline ::int32_t IntermediateFeaturesBatch::_internal_record_len() const {
-  ::google::protobuf::internal::TSanRead(&_impl_);
-  return _impl_.record_len_;
-}
-inline void IntermediateFeaturesBatch::_internal_set_record_len(::int32_t value) {
-  ::google::protobuf::internal::TSanWrite(&_impl_);
-  _impl_.record_len_ = value;
 }
 
 // -------------------------------------------------------------------

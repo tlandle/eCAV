@@ -6,6 +6,7 @@ read -p "Enter number of ego vehicles: " num_ego
 read -p "Enter number of RSUs: " num_rsu
 read -p "Enter number of edges (0 if edge-less scenario): " num_edges
 read -p "Use ML (Y/n)? " use_ml
+read -p "Use LitServe for distributed ML inference (Y/n)? " use_litserve
 read -p "Rebuild containers (Y/n)? " rebuild
 
 # Validate inputs
@@ -91,6 +92,43 @@ else
 fi
 echo ""
 
+# Start LitServe server if requested
+LITSERVE_PID=""
+if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
+    if [[ "$use_ml" != "Y" && "$use_ml" != "y" ]]; then
+        echo "ERROR: LitServe requires ML to be enabled. Please answer 'Y' to 'Use ML'."
+        exit 1
+    fi
+    echo "Starting LitServe inference server..."
+    _CONDA_ROOT="/home/jordan/anaconda3"
+    LITSERVE_LOG=$(mktemp /tmp/litserve.XXXXXX.log)
+    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python opencda/ml_manager/litserve_models.py > '$LITSERVE_LOG' 2>&1" &
+    LITSERVE_PID=$!
+    echo "  LitServe PID: $LITSERVE_PID"
+    echo "  Log file: $LITSERVE_LOG"
+    echo "  Waiting for LitServe to be ready on port 18000..."
+
+    timeout=60
+    elapsed=0
+    while [[ $elapsed -lt $timeout ]]; do
+        if curl -s --max-time 1 http://localhost:18000 > /dev/null 2>&1 || \
+           curl -s --max-time 1 http://localhost:18000/docs > /dev/null 2>&1; then
+            echo "  ✓ LitServe is ready"
+            break
+        fi
+        sleep 2
+        ((elapsed+=2))
+        echo -n "."
+    done
+    echo ""
+
+    if [[ $elapsed -ge $timeout ]]; then
+        echo "ERROR: LitServe did not become ready within ${timeout}s."
+        echo "Check logs: tail -f $LITSERVE_LOG"
+        exit 1
+    fi
+fi
+
 # Determine GPU settings
 gpu_flag=""
 if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
@@ -132,6 +170,11 @@ if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
     ml_flag="--apply_ml"
 fi
 
+litserve_flag=""
+if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
+    litserve_flag="-l"
+fi
+
 echo ""
 echo "=========================================="
 echo "Starting eCAV Distributed Scenario"
@@ -141,6 +184,7 @@ echo "Ego vehicles: $num_ego"
 echo "RSUs: $num_rsu"
 echo "Edges: $num_edges"
 echo "ML enabled: $use_ml"
+echo "LitServe: $use_litserve"
 echo "=========================================="
 echo ""
 
@@ -156,7 +200,7 @@ echo "  Log file: $OPENCDA_LOG"
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
 _CONDA_ROOT="/home/jordan/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python opencda.py -t '$scenario_name' -v 0.9.15 -d > '$OPENCDA_LOG' 2>&1" &
+bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u opencda.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag > '$OPENCDA_LOG' 2>&1" &
 OPENCDA_PID=$!
 
 echo "  ✓ Base process started (PID: $OPENCDA_PID)"
@@ -260,7 +304,7 @@ do
         -e TERM \
         -e QT_X11_NO_MITSHM=1 \
         ecav-python310:latest \
-        python3.10 opencda.py $ml_flag -v 0.9.15 -d -i $i
+        python3.10 opencda.py $ml_flag $litserve_flag -v 0.9.15 -d -i $i -T $((8000 + i))
 
     echo "  ✓ $container_name started"
     echo "  Waiting 5 seconds before starting next container..."
@@ -285,7 +329,7 @@ if [[ $num_rsu -gt 0 ]]; then
             -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
-            python3.10 opencda/ecav2/ecloud_actor_client.py $ml_flag -v 0.9.15 -i $i
+            python3.10 opencda/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
 
         echo "  ✓ $container_name started"
         echo "  Waiting 5 seconds before starting next container..."
@@ -309,7 +353,7 @@ docker run $gpu_flag -d \
     -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
     -e DISPLAY=$DISPLAY \
     ecav-python310:latest \
-    python3.10 opencda.py $ml_flag -v 0.9.15 -d -i -1
+    python3.10 opencda.py $ml_flag $litserve_flag -v 0.9.15 -d -i -1 -T 8100
 
 echo "  ✓ $container_name started"
 
@@ -461,6 +505,28 @@ echo ""
 
 # Clean up temporary error tracking file
 rm -f "$REPORTED_ERRORS_FILE" /tmp/opencda_errors_all.txt
+
+# Stop LitServe server if it was started
+if [[ -n "$LITSERVE_PID" ]]; then
+    echo ""
+    echo "=========================================="
+    echo "Stopping LitServe Server"
+    echo "=========================================="
+    if kill -0 "$LITSERVE_PID" 2>/dev/null; then
+        echo "Stopping LitServe (PID: $LITSERVE_PID)..."
+        kill "$LITSERVE_PID"
+        sleep 2
+        if kill -0 "$LITSERVE_PID" 2>/dev/null; then
+            kill -9 "$LITSERVE_PID"
+            sleep 1
+        fi
+        echo "✓ LitServe stopped"
+    else
+        echo "LitServe process already exited."
+    fi
+    # Clean up any child processes (uvicorn workers)
+    pkill -f "litserve_models" 2>/dev/null || true
+fi
 
 if [[ "$scenario_completed" == false ]]; then
     echo "⚠ Monitoring timeout reached (5 minutes) or scenario still running."

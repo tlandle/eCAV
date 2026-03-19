@@ -168,3 +168,12 @@ ready*
 
 # VSCode
 .vscode/settings.json
+
+# LitServe auto-generated client
+client.py
+
+# ecloud_server CMake build artifacts
+opencda/ecloud_server/CMakeFiles/
+opencda/ecloud_server/CMakeCache.txt
+opencda/ecloud_server/cmake_install.cmake
+opencda/ecloud_server/Makefile

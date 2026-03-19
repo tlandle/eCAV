@@ -7,7 +7,6 @@ Script to run a simulated vehicle
 """
 
 
-import argparse
 import json
 import asyncio
 import os
@@ -24,6 +23,7 @@ sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
 sys.path.insert(0, os.getcwd())
 
 from opencda.version import __version__
+from opencda.ecav2.arg_utils import build_arg_parser
 from opencda.core.common.cav_world import CavWorld
 from opencda.core.common.vehicle_manager import VehicleManager
 from opencda.core.common.rsu_manager import RSUManager
@@ -391,39 +391,11 @@ class Ecav2ActorClient:
             return empty
 
     def arg_parse(self):
-        parser = argparse.ArgumentParser(description="eCAV Vehicle Simulation.")
-        parser.add_argument("--apply_ml",
-                            action='store_true',
-                            help='whether ml/dl framework such as sklearn/pytorch is needed in the testing. '
-                                'Set it to true only when you have installed the pytorch/sklearn package.')
-        parser.add_argument('-l', "--litserve", action='store_true',
-                            help='Use LitServe for distributed ML inference (requires LitServe server on port 18000). '
-                                'This offloads ML model inference to a separate process to reduce GPU memory per container.')
+        parser = build_arg_parser("eCAV Vehicle Simulation.")
         parser.add_argument('-a', "--ipaddress", type=str, default=CARLA_IP,
-                            help="Specifies the ip address of the server to connect to. [Default: localhost]")
+                            help="IP address of the CARLA server. [Default: localhost]")
         parser.add_argument('-p', "--port", type=int, default=50051,
-                            help="Specifies the port to connect to. [Default: 50051]")
-        parser.add_argument("--verbose", action="store_true",
-                            help="Make more noise")
-        parser.add_argument('-q', "--quiet", action="store_true",
-                            help="Make no noise")
-        parser.add_argument('-t', "--test_scenario", required=False, type=str,
-                            help='Define the name of the scenario you want to test. The given name must'
-                             'match one of the testing scripts(e.g. single_2lanefree_carla) in '
-                             'opencda/scenario_testing/ folder'
-                             ' as well as the corresponding yaml file in opencda/scenario_testing/config_yaml.')
-        parser.add_argument("--record", action='store_true',
-                            help='whether to record and save the simulation process to .log file')
-        parser.add_argument('-v', "--version", type=str, default='0.9.15',
-                            help='Specify the CARLA simulator version, default'
-                                'is 0.9.15')
-        parser.add_argument("--build", action="store_true",
-                            help="Rebuild gRPC proto files")
-        parser.add_argument('-i', "--vehicle_index", type=int, default=-1,
-                            help='Specify the vehicle index, default is -1')
-        parser.add_argument("--output_dir", default=None)
-        parser.add_argument('-d', "--distributed", action="store_true", default=True,
-                            help="Enable distributed mode")
+                            help="gRPC port to connect to. [Default: 50051]")
 
         opt = parser.parse_args()
         return opt

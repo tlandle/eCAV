@@ -39,7 +39,7 @@ When running a distributed (compute) scenario, communication runs through a cent
 
 All individual ego vehicles and RSUs come online, they register with the comms server using gRPC calls. Distributed actors register their connection info - port and IP and actor type - and then receive the scenario file (JSON dictionary) as part of the initial payload. These process then create the actual distinct vehicle_manager class objects - `opencda/core/common/vehicle_manager.py` (and the first process creates the associated CARLA actors) along with their associated perception stacks. It is possible to run vehicles without perception - in this case, they just receive localization data (actual XYZ and roll/pitch/yaw coordinates of all other actors in the simulation), but this is not generally something we use for research purposes.
 
-Typically each process will spawn its own perception stack. The perception stack is a mix of LiDAR and cameras - defined in the YAML for a given scenario. Perception stack modules are located in `opencda/core/sensing`.
+When running without distributed perception - the default case, which does not use a litserve process - each process will spawn its own perception stack. The perception stack is a mix of LiDAR and cameras - defined in the YAML for a given scenario. Perception stack modules are located in `opencda/core/sensing`.
 
 ### 2.1 Root Orchestrator (`opencda.py`)
 <!-- Role, responsibilities, what it owns across the simulation lifetime -->
@@ -57,7 +57,7 @@ Typically each process will spawn its own perception stack. The perception stack
 <!-- How the edge node differs from vehicle actors, its role in perception fusion -->
 
 ### 2.6 LitServe Perception Server
-<!-- Python 3.12 process, model served (YOLOv5), how actors communicate with it -->
+<!-- Standalone process, model served (YOLOv5), how actors communicate with it -->
 
 ## 3. Communication & IPC
 <!-- All inter-process communication mechanisms -->
@@ -123,8 +123,15 @@ Typically each process will spawn its own perception stack. The perception stack
 ### 8.2 Docker-Based Actors
 <!-- Building the image, start_vehicles.sh / stop_vehicles.sh -->
 
-### 8.3 Cloud Deployment (Ansible)
+### 8.3 Cloud Deployment
 <!-- Pointer to ansible/README.md, high-level description -->
+Ansible is unused currently. 
+
+For Cloud deployment, we just run the same shell scripts in cloud - Azure - environment(s). 
+
+Litserve server needs a GPU if running shared perception. 
+
+If individual actors have perception, actor node(s) need GPU.
 
 ## 9. Metrics & Evaluation
 <!-- What is measured, where data is collected, output format -->

@@ -11,7 +11,7 @@ RUN	add-apt-repository ppa:deadsnakes/ppa && \
 	apt-get install -y python3-pip && \
 	apt-get install -y python3-apt
 
-RUN python3.10 -m pip install --upgrade pip && python3.10 -m pip install --upgrade setuptools
+RUN python3.10 -m pip install --upgrade pip && python3.10 -m pip install "setuptools<81"
 
 COPY requirements_3_10.txt .
 
@@ -24,6 +24,17 @@ RUN apt-get install -y libxcb-*
 RUN export DISPLAY=:0.0
 
 COPY . .
+
+# Install opencood from local BM2CP submodule
+RUN python3.10 -m pip install -e opencda/BM2CP
+
+# Build Cython extension (box_overlaps)
+RUN cd opencda/BM2CP && python3.10 opencood/utils/setup.py build_ext --inplace
+
+# NOTE: pcdet_utils CUDA extensions (iou3d_nms, roiaware_pool3d, pointnet2) are NOT built here.
+# Container actors run in distributed mode with carla_world=None, so they use the base
+# PerceptionManager which does not require these extensions. CUDA extensions are only needed
+# for non-distributed BM2CP/WorldFusion perception paths on the host.
 
 EXPOSE 5555/tcp
 

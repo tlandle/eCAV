@@ -59,6 +59,29 @@ fi
 
 echo ""
 echo "=========================================="
+echo "Stopping LitServe Server"
+echo "=========================================="
+echo ""
+
+if pgrep -f "litserve_models" > /dev/null; then
+    echo "Stopping LitServe inference server..."
+    pkill -f "litserve_models"
+    sleep 2
+    if pgrep -f "litserve_models" > /dev/null; then
+        pkill -9 -f "litserve_models"
+        sleep 1
+    fi
+    if ! pgrep -f "litserve_models" > /dev/null; then
+        echo "✓ LitServe stopped"
+    else
+        echo "⚠ Warning: LitServe processes may still be running"
+    fi
+else
+    echo "LitServe is not running."
+fi
+
+echo ""
+echo "=========================================="
 echo "Stopping Carla"
 echo "=========================================="
 echo ""
@@ -105,5 +128,12 @@ if pgrep -f "CarlaUE4" > /dev/null; then
     pgrep -af "CarlaUE4"
 else
     echo "  No Carla processes running"
+fi
+echo ""
+echo "LitServe processes:"
+if pgrep -f "litserve_models" > /dev/null; then
+    pgrep -af "litserve_models"
+else
+    echo "  No LitServe processes running"
 fi
 echo ""
