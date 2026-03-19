@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DEBUG version: captures stdout/stderr of each opencda.py run,
+DEBUG version: captures stdout/stderr of each ecav.py run,
 keeps going on every error, and logs everything into
 experiment_results/<scenario>/<timestamp>/latency_<v>/run_<rep>/.
 """
@@ -17,13 +17,13 @@ args = cli.parse_args()
 
 # ---------------- paths ---------------- #
 ROOT       = Path(__file__).resolve().parent
-CFG_DIR    = ROOT / "opencda/scenario_testing/config_yaml"
+CFG_DIR    = ROOT / "ecav/scenario_testing/config_yaml"
 CFG_FILE   = CFG_DIR / f"{args.scenario}.yaml"
 CFG_BAK    = CFG_DIR / f"{args.scenario}.yaml.bak"
 
 STAMP      = datetime.now().strftime("%Y%m%d_%H%M%S")
 EXP_ROOT   = ROOT / "experiment_results" / args.scenario / STAMP
-OUT_BASE   = ROOT / "opencda/scenario_testing/evaluation_outputs"
+OUT_BASE   = ROOT / "ecav/scenario_testing/evaluation_outputs"
 
 print(f"⇒ Writing all runs beneath {EXP_ROOT}", flush=True)
 
@@ -49,9 +49,9 @@ try:
             run_dir = EXP_ROOT / f"latency_{latency}" / f"run_{rep}"
             run_dir.mkdir(parents=True, exist_ok=True)
 
-            # ---- launch opencda ---- #
+            # ---- launch ecav ---- #
             cmd = [
-                sys.executable, "opencda.py",
+                sys.executable, "ecav.py",
                 "-t", args.scenario,
                 "--apply_ml"
             ]

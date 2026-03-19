@@ -1,21 +1,21 @@
 ## Traffic Generation
 
-OpenCDA supports two different ways to generate the background traffic flow: CARLA traffic manager and SUMO traffic simulation. The traffic and other scenario generation function are currently being enhanced and will be released in the future.
+eCAV supports two different ways to generate the background traffic flow: CARLA traffic manager and SUMO traffic simulation. The traffic and other scenario generation function are currently being enhanced and will be released in the future.
 
 ---
 ### CARLA Traffic Manager
-OpenCDA support researchers with the CARLA built-in traffic manager to control
+eCAV support researchers with the CARLA built-in traffic manager to control
 the traffic flow. All the test scripts that utilize CARLA traffic manager should
 have names ending with 'carla', e.g. single_2lanefree_carla.py, single_town06_carla.py.
 
 To generate the CARLA traffic flow, users need to <strong>define the corresponding parameters
-in yaml file </strong> and call the APIs in `opencda.scenario_testing.utils.sim_api.ScenarioManager`:
+in yaml file </strong> and call the APIs in `ecav.scenario_testing.utils.sim_api.ScenarioManager`:
 * Check the carla_traffic_manager section in [yaml rule](yaml_define.html#carla_traffic_manager) to
 see how to define parameters related to carla traffic in the yaml file.
 * Utilizing `ScenarioManager` to generate CARLA traffic flow is easy. It just takes 3 lines of codes. `scenario_manager.tick()`
 will keep the traffic manager keep running during the simulation loop.
 ```python
-import opencda.scenario_testing.utils.sim_api as sim_api
+import ecav.scenario_testing.utils.sim_api as sim_api
 # scenario_params are defined in the yaml file
 scenario_manager = sim_api.ScenarioManager(scenario_params,
                                            opt.apply_ml,
@@ -30,7 +30,7 @@ while True:
 ```
 ---
 ### Sumo Traffic Management (Co-Simulation)
-OpenCDA provides the interface to enable users <strong>control the CAVs in CARLA </strong>
+eCAV provides the interface to enable users <strong>control the CAVs in CARLA </strong>
 and <strong>manage the traffic flow in Sumo</strong>. All the test scripts that utilize Sumo traffic manager should
 have names ending with 'cosim', e.g. single_2lanefree_cosim.py, single_town06_cosim.py.
 
@@ -45,7 +45,7 @@ To generate the Sumo traffic flow, three things are needed:
     * `.net.xml` : defines the road graph. Check [Sumo Road Networks](https://sumo.dlr.de/docs/Networks/SUMO_Road_Networks.html)
       to see more details. This xml file can be converted from your xodr file:
   ```bash
-  cd root/of/OpenCDA
+  cd root/of/eCAV
   python scripts/netconvert_carla.py your_map.xodr -o your_map.net.xml
   ```
    * `rou.xml` : defines the traffic flow. As the example presents below, `vType` is used to define
@@ -67,7 +67,7 @@ To generate the Sumo traffic flow, three things are needed:
   will keep spawning Sumo vechiles as traffic flow.
   
     ```python
-  import opencda.scenario_testing.utils.cosim_api as sim_api
+  import ecav.scenario_testing.utils.cosim_api as sim_api
   
   # there should be a Town06.sumocfg, a Town06.net.xml, and a Town06.rou.xml in
   # Town06 folder

@@ -80,10 +80,10 @@
             group: docker
       become: True
 
-    - name: Clone OpenCDA repo
+    - name: Clone eCAV repo
       ansible.builtin.git:
-        repo: https://github.com/tlandle/OpenCDA.git
-        dest: /home/azureuser/OpenCDA
+        repo: https://github.com/tlandle/eCAV.git
+        dest: /home/azureuser/eCAV
         version: ecloud
         force: True
       become: True
@@ -92,7 +92,7 @@
       docker_image:
         name: vehicle-sim
         build:
-          path: /home/azureuser/OpenCDA
+          path: /home/azureuser/eCAV
         source: build
       become: True
 

@@ -6,11 +6,11 @@ import importlib.util
 
 # --- Configuration ---
 # This must be the path to the model's YAML config file.
-HYPES_PATH = "opencda/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/config.yaml"
+HYPES_PATH = "ecav/BM2CP/opencood/logs/opv2v_bm2cp_det_2025_07_03_23_44_53/config.yaml"
 
 # This must be the absolute path to the model's Python file you have been editing.
 # We confirmed this path in the previous step.
-MODEL_FILE_PATH = "/home/atlas/TrafficSimulator_eCloud/ecloudsim/opencda/BM2CP/opencood/models/point_pillar_bm2cp.py"
+MODEL_FILE_PATH = "/home/atlas/TrafficSimulator_eCloud/ecloudsim/ecav/BM2CP/opencood/models/point_pillar_bm2cp.py"
 
 # --- Main Test Logic ---
 print("=" * 80)

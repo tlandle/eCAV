@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir \
 # 3. Copy your local BM2CP implementation from the repository into /opt/BM2CP
 #    The source path is relative to the build context (your project root).
 #    Here we assume you run docker build from the ecloudsim directory.
-COPY opencda/BM2CP /opt/BM2CP
+COPY ecav/BM2CP /opt/BM2CP
 # 4. Install it in editable mode so that `import bm2cp` works
 RUN pip install -e /opt/BM2CP
 
@@ -23,7 +23,7 @@ RUN pip install -e /opt/BM2CP
 #COPY weights/ /opt/weights/
 
 # 6. Copy your LitServe server script (ml_manager.py) into the container
-COPY opencda/ml_manager/ml_manager.py /opt/ml_manager.py
+COPY ecav/ml_manager/ml_manager.py /opt/ml_manager.py
 
 # Expose LitServe’s default port
 EXPOSE 8000

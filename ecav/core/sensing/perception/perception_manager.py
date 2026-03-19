@@ -1,0 +1,1206 @@
+# -*- coding: utf-8 -*-
+"""
+Perception module base.
+"""
+
+# Author: Runsheng Xu <rxx3386@ucla.edu>, tyler.landle <tlandle3@gatech.edu>`
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
+import weakref
+import sys
+import time
+
+import carla
+import cv2
+import numpy as np
+import open3d as o3d
+
+import ecav.core.sensing.perception.sensor_transformation as st
+from ecav.core.common.misc import \
+    cal_distance_angle, get_speed, get_speed_sumo
+from ecav.core.sensing.perception.obstacle_vehicle import \
+    ObstacleVehicle
+from ecav.core.sensing.perception.static_obstacle import TrafficLight
+from ecav.core.sensing.perception.o3d_lidar_libs import \
+    o3d_visualizer_init, o3d_pointcloud_encode, o3d_visualizer_show, \
+    o3d_camera_lidar_fusion, o3d_camera_lidar_fusion_from_tracker
+from ecav.client_metrics import ClientMetrics
+
+
+import logging
+logger = logging.getLogger(__name__)
+
+# Vehicle types that should be tracked (excludes firetrucks, ambulances, police, etc.)
+VALID_VEHICLE_TYPES = {
+    'vehicle.audi',
+    'vehicle.bmw',
+    'vehicle.chevrolet',
+    'vehicle.citroen',
+    'vehicle.dodge',
+    'vehicle.ford',
+    'vehicle.jeep',
+    'vehicle.lincoln',
+    'vehicle.mercedes',
+    'vehicle.mini',
+    'vehicle.mustang',
+    'vehicle.nissan',
+    'vehicle.seat',
+    'vehicle.tesla',
+    'vehicle.toyota',
+    'vehicle.volkswagen',
+    'vehicle.micro',
+    'vehicle.carlamotors',
+}
+
+class CameraSensor:
+    """
+    Camera manager for vehicle or infrastructure.
+
+    Parameters
+    ----------
+    vehicle : carla.Vehicle
+        The carla.Vehicle, this is for cav.
+
+    world : carla.World
+        The carla world object, this is for rsu.
+
+    global_position : list
+        Global position of the infrastructure, [x, y, z]
+
+    relative_position : str
+        Indicates the sensor is a front or rear camera. option:
+        front, left, right.
+
+    Attributes
+    ----------
+    image : np.ndarray
+        Current received rgb image.
+    sensor : carla.sensor
+        The carla sensor that mounts at the vehicle.
+
+    """
+
+    def __init__(self, vehicle, world, relative_position, global_position,
+                 fov=70, image_width=800, image_height=600):
+        """
+        Parameters
+        ----------
+        fov : int
+            Camera field of view in degrees. Default 70 to match V2XSim training data.
+            V2XSim uses 1600x900 @ 70° FOV. Using 100° FOV causes 3.4x focal length mismatch.
+        image_width : int
+            Horizontal resolution in pixels. Default 800 (CARLA default).
+        image_height : int
+            Vertical resolution in pixels. Default 600 (CARLA default).
+        """
+        if world is None and vehicle is not None:
+            world = vehicle.get_world()
+
+        blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
+        blueprint.set_attribute('fov', str(fov))
+        blueprint.set_attribute('image_size_x', str(image_width))
+        blueprint.set_attribute('image_size_y', str(image_height))
+
+        spawn_point = self.spawn_point_estimation(relative_position,
+                                                  global_position)
+        logger.debug("Vehicle: %s"%vehicle)
+
+        if vehicle is not None:
+            self.sensor = world.spawn_actor(
+                blueprint, spawn_point, attach_to=vehicle)
+        else:
+            self.sensor = world.spawn_actor(blueprint, spawn_point)
+
+        self.image = None
+        self.timstamp = None
+        self.frame = 0
+        weak_self = weakref.ref(self)
+        self.sensor.listen(
+            lambda event: CameraSensor._on_rgb_image_event(
+                weak_self, event))
+
+        # camera attributes
+        self.image_width = int(self.sensor.attributes['image_size_x'])
+        self.image_height = int(self.sensor.attributes['image_size_y'])
+        self.client_metrics = ClientMetrics(0)
+
+
+    @staticmethod
+    def spawn_point_estimation(relative_position, global_position):
+
+        pitch = 0
+        carla_location = carla.Location(x=0, y=0, z=0)
+
+        # Support optional 5th element for pitch: [x, y, z, yaw, pitch]
+        if len(relative_position) >= 5:
+            x, y, z, yaw, pitch = relative_position[:5]
+        else:
+            x, y, z, yaw = relative_position
+
+        # For RSU (global_position provided), use global coords as base.
+        # Default pitch for RSU is -15 (looking slightly down from pole)
+        # unless explicitly specified in the position array.
+        if global_position is not None:
+            carla_location = carla.Location(
+                x=global_position[0],
+                y=global_position[1],
+                z=global_position[2])
+            if len(relative_position) < 5:
+                pitch = -15
+
+        carla_location = carla.Location(x=carla_location.x + x,
+                                        y=carla_location.y + y,
+                                        z=carla_location.z + z)
+
+        carla_rotation = carla.Rotation(roll=0, yaw=yaw, pitch=pitch)
+        spawn_point = carla.Transform(carla_location, carla_rotation)
+
+        return spawn_point
+
+    @staticmethod
+    def _on_rgb_image_event(weak_self, event):
+        """CAMERA  method"""
+        self = weak_self()
+        if not self:
+            return
+        image = np.array(event.raw_data)
+        image = image.reshape((self.image_height, self.image_width, 4))
+        # we need to remove the alpha channel
+        image = image[:, :, :3]
+
+        self.image = image
+        self.frame = event.frame
+        self.timestamp = event.timestamp
+
+
+class LidarSensor:
+    """
+    Lidar sensor manager.
+
+    Parameters
+    ----------
+    vehicle : carla.Vehicle
+        The carla.Vehicle, this is for cav.
+
+    world : carla.World
+        The carla world object, this is for rsu.
+
+    config_yaml : dict
+        Configuration dictionary for lidar.
+
+    global_position : list
+        Global position of the infrastructure, [x, y, z]
+
+    Attributes
+    ----------
+    o3d_pointcloud : 03d object
+        Received point cloud, saved in o3d.Pointcloud format.
+
+    sensor : carla.sensor
+        Lidar sensor that will be attached to the vehicle.
+
+    """
+
+       
+    def __init__(self, vehicle, world, config_yaml, global_position):
+        if vehicle is not None:
+            world = vehicle.get_world()
+        blueprint = world.get_blueprint_library().find('sensor.lidar.ray_cast')
+
+        # set attribute based on the configuration
+        blueprint.set_attribute('upper_fov', str(config_yaml['upper_fov']))
+        blueprint.set_attribute('lower_fov', str(config_yaml['lower_fov']))
+        blueprint.set_attribute('channels', str(config_yaml['channels']))
+        blueprint.set_attribute('range', str(config_yaml['range']))
+        blueprint.set_attribute(
+            'points_per_second', str(
+                config_yaml['points_per_second']))
+        blueprint.set_attribute(
+            'rotation_frequency', str(
+                config_yaml['rotation_frequency']))
+        blueprint.set_attribute(
+            'dropoff_general_rate', str(
+                config_yaml['dropoff_general_rate']))
+        blueprint.set_attribute(
+            'dropoff_intensity_limit', str(
+                config_yaml['dropoff_intensity_limit']))
+        blueprint.set_attribute(
+            'dropoff_zero_intensity', str(
+                config_yaml['dropoff_zero_intensity']))
+        blueprint.set_attribute(
+            'noise_stddev', str(
+                config_yaml['noise_stddev']))
+
+        # spawn sensor
+        if global_position is None:
+            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
+        else:
+            spawn_point = carla.Transform(carla.Location(x=global_position[0],
+                                                         y=global_position[1],
+                                                         z=global_position[2]))
+        if vehicle is not None:
+            self.sensor = world.spawn_actor(
+                blueprint, spawn_point, attach_to=vehicle)
+        else:
+            self.sensor = world.spawn_actor(blueprint, spawn_point)
+
+        # lidar data
+        self.data = None
+        self.timestamp = None
+        self.frame = 0
+        # open3d point cloud object
+        self.o3d_pointcloud = o3d.geometry.PointCloud()
+
+        weak_self = weakref.ref(self)
+        self.sensor.listen(
+            lambda event: LidarSensor._on_data_event(
+                weak_self, event))
+        self.client_metrics = ClientMetrics(0)
+
+
+    @staticmethod
+    def _on_data_event(weak_self, event):
+        """Lidar  method"""
+        self = weak_self()
+        if not self:
+            return
+
+        # retrieve the raw lidar data and reshape to (N, 4)
+        data = np.copy(np.frombuffer(event.raw_data, dtype=np.dtype('f4')))
+        # (x, y, z, intensity)
+        data = np.reshape(data, (int(data.shape[0] / 4), 4))
+
+        self.data = data
+        self.frame = event.frame
+        self.timestamp = event.timestamp
+
+
+class SemanticLidarSensor:
+    """
+    Semantic lidar sensor manager. This class is used when data dumping
+    is needed.
+
+    Parameters
+    ----------
+    vehicle : carla.Vehicle
+        The carla.Vehicle, this is for cav.
+
+    world : carla.World
+        The carla world object, this is for rsu.
+
+    config_yaml : dict
+        Configuration dictionary for lidar.
+
+    global_position : list
+        Global position of the infrastructure, [x, y, z]
+
+    Attributes
+    ----------
+    o3d_pointcloud : 03d object
+        Received point cloud, saved in o3d.Pointcloud format.
+
+    sensor : carla.sensor
+        Lidar sensor that will be attached to the vehicle.
+
+
+    """
+    def __init__(self, vehicle, world, config_yaml, global_position):
+        if vehicle is not None:
+            world = vehicle.get_world()
+
+        blueprint = \
+            world.get_blueprint_library(). \
+                find('sensor.lidar.ray_cast_semantic')
+
+        # set attribute based on the configuration
+        blueprint.set_attribute('upper_fov', str(config_yaml['upper_fov']))
+        blueprint.set_attribute('lower_fov', str(config_yaml['lower_fov']))
+        blueprint.set_attribute('channels', str(config_yaml['channels']))
+        blueprint.set_attribute('range', str(config_yaml['range']))
+        blueprint.set_attribute(
+            'points_per_second', str(
+                config_yaml['points_per_second']))
+        blueprint.set_attribute(
+            'rotation_frequency', str(
+                config_yaml['rotation_frequency']))
+
+        # spawn sensor
+        if global_position is None:
+            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
+        else:
+            spawn_point = carla.Transform(carla.Location(x=global_position[0],
+                                                         y=global_position[1],
+                                                         z=global_position[2]))
+
+        if vehicle is not None:
+            self.sensor = world.spawn_actor(
+                blueprint, spawn_point, attach_to=vehicle)
+        else:
+            self.sensor = world.spawn_actor(blueprint, spawn_point)
+
+        # lidar data
+        self.points = None
+        self.obj_idx = None
+        self.obj_tag = None
+
+        self.timestamp = None
+        self.frame = 0
+        # open3d point cloud object
+        self.o3d_pointcloud = o3d.geometry.PointCloud()
+
+        weak_self = weakref.ref(self)
+        self.sensor.listen(
+            lambda event: SemanticLidarSensor._on_data_event(
+                weak_self, event))
+        
+        self.client_metrics = ClientMetrics(0)
+
+    @staticmethod
+    def _on_data_event(weak_self, event):
+        """Semantic Lidar  method"""
+        self = weak_self()
+        if not self:
+            return
+
+        # shape:(n, 6)
+        data = np.frombuffer(event.raw_data, dtype=np.dtype([
+            ('x', np.float32), ('y', np.float32), ('z', np.float32),
+            ('CosAngle', np.float32), ('ObjIdx', np.uint32),
+            ('ObjTag', np.uint32)]))
+
+        # (x, y, z, intensity)
+        self.points = np.array([data['x'], data['y'], data['z']]).T
+        self.obj_tag = np.array(data['ObjTag'])
+        self.obj_idx = np.array(data['ObjIdx'])
+
+        self.data = data
+        self.frame = event.frame
+        self.timestamp = event.timestamp
+
+
+class PerceptionManager:
+    """
+    Default perception module. Currenly only used to detect vehicles.
+
+    Parameters
+    ----------
+    vehicle : carla.Vehicle
+        carla Vehicle, we need this to spawn sensors.
+
+    config_yaml : dict
+        Configuration dictionary for perception.
+
+    cav_world : ecav object
+        CAV World object that saves all cav information, shared ML model,
+         and sumo2carla id mapping dictionary.
+
+    data_dump : bool
+        Whether dumping data, if true, semantic lidar will be spawned.
+
+    carla_world : carla.world
+        CARLA world, used for rsu.
+
+    tracking_manager : ecav object
+        The tracking manager that is used to track the detected vehicles.
+
+    Attributes
+    ----------
+    lidar : ecav object
+        Lidar sensor manager.
+
+    rgb_camera : ecav object
+        RGB camera manager.
+
+    o3d_vis : o3d object
+        Open3d point cloud visualizer.
+    """
+
+    def __init__(self, vehicle, config_yaml, cav_world,
+                 data_dump=False, carla_world=None, infra_id=None, tracking_manager=None, debug_helper=None, cooperative_perception_path=None):
+        self.vehicle = vehicle
+ 
+        if hasattr(vehicle, 'get_world'): 
+          self.carla_world = carla_world if carla_world is not None \
+            else self.vehicle.get_world()
+        else:
+          self.carla_world = carla_world
+
+        self._map = self.carla_world.get_map()
+        self.id = infra_id if infra_id is not None else vehicle.id
+        #print(carla_world)
+
+        #print(config_yaml)
+        self.activate = config_yaml['activate']
+        self.camera_visualize = config_yaml['camera']['visualize']
+        self.camera_num = config_yaml['camera']['num']
+        self.lidar_visualize = config_yaml['lidar']['visualize']
+        self._nms_distance_threshold = config_yaml.get(
+            'cross_camera_nms_threshold', 5.0)
+        self.global_position = config_yaml['global_position'] \
+            if 'global_position' in config_yaml else None
+
+        self.cav_world = weakref.ref(cav_world)()
+        ml_manager = cav_world.ml_manager
+
+        if self.activate and data_dump:
+            sys.exit("When you dump data, please deactivate the "
+                    "detection function for precise label.")
+
+        if self.activate and not ml_manager:
+            sys.exit(
+                'If you activate the perception module, '
+                'then apply_ml must be set to true in'
+                'the argument parser to load the detection DL model.')
+        self.ml_manager = ml_manager
+
+        # we only spawn the camera when perception module is activated or
+        # camera visualization is needed
+        if self.activate or self.camera_visualize:
+            self.rgb_camera = []
+            mount_position = config_yaml['camera']['positions']
+            # FOV default 70 to match V2XSim training data for WorldFusion/BM2CP
+            camera_fov = config_yaml['camera'].get('fov', 70)
+            camera_width = config_yaml['camera'].get('image_width', 800)
+            camera_height = config_yaml['camera'].get('image_height', 600)
+            assert len(mount_position) == self.camera_num, \
+                "The camera number has to be the same as the length of the" \
+                "relative positions list"
+
+            for i in range(self.camera_num):
+                self.rgb_camera.append(
+                    CameraSensor(
+                        vehicle, self.carla_world, mount_position[i],
+                        self.global_position, fov=camera_fov,
+                        image_width=camera_width,
+                        image_height=camera_height))
+
+        else:
+            self.rgb_camera = None
+
+        # tracking manager
+        self.tracking_manager = tracking_manager
+
+        # we only spawn the LiDAR when perception module is activated or lidar
+        # visualization is needed
+        if self.activate or self.lidar_visualize:
+            self.lidar = LidarSensor(vehicle,
+                                     self.carla_world,
+                                     config_yaml['lidar'],
+                                     self.global_position)
+            if self.lidar_visualize:
+                self.o3d_vis = o3d_visualizer_init(self.id) 
+        else:
+            self.lidar = None
+            self.o3d_vis = None
+
+        # if data dump is true, semantic lidar is also spawned
+        self.data_dump = data_dump
+        if data_dump:
+            self.semantic_lidar = SemanticLidarSensor(vehicle,
+                                                      self.carla_world,
+                                                      config_yaml['lidar'],
+                                                      self.global_position)
+
+        # count how many steps have been passed
+        self.count = 0
+        # ego position
+        self.ego_pos = None
+
+        # intermediate features for WorldFusion/BM2CP (populated from distributed client)
+        self.feature_dict = None
+
+        # the dictionary contains all objects
+        self.objects = {}
+        # traffic light detection related
+        self.traffic_thresh = config_yaml['traffic_light_thresh'] \
+            if 'traffic_light_thresh' in config_yaml else 50
+
+        if debug_helper is None:
+            self.client_metrics = ClientMetrics(self.id)
+        else:
+            self.client_metrics = debug_helper
+
+        # Per-camera disagreement tracking: measures inter-source position
+        # disagreement before cross-camera NMS suppresses duplicates.
+        self._camera_disagreement_dists = []   # max pairwise dist per cluster
+        self._camera_disagreement_counts = []  # detections per cluster
+        self._camera_disagreement_nms_leaks = 0  # clusters > 4.5m (survive AB3DMOT NMS)
+
+    def get_camera_disagreement_metrics(self):
+        """Return inter-source disagreement summary for simulation metrics."""
+        import numpy as np
+        dists = self._camera_disagreement_dists
+        counts = self._camera_disagreement_counts
+        if not dists:
+            return {
+                "camera_disagreement_total_clusters": 0,
+                "camera_disagreement_mean_dist_m": 0.0,
+                "camera_disagreement_max_dist_m": 0.0,
+                "camera_disagreement_p95_dist_m": 0.0,
+                "camera_disagreement_frac_gt_4_5m": 0.0,
+                "camera_disagreement_nms_leaks": 0,
+                "camera_disagreement_avg_cluster_size": 0.0,
+            }
+        arr = np.array(dists)
+        return {
+            "camera_disagreement_total_clusters": len(dists),
+            "camera_disagreement_mean_dist_m": float(np.mean(arr)),
+            "camera_disagreement_max_dist_m": float(np.max(arr)),
+            "camera_disagreement_p95_dist_m": float(np.percentile(arr, 95)),
+            "camera_disagreement_frac_gt_4_5m": float(np.mean(arr > 4.5)),
+            "camera_disagreement_nms_leaks": self._camera_disagreement_nms_leaks,
+            "camera_disagreement_avg_cluster_size": float(np.mean(counts)),
+        }
+
+    def dist(self, a):
+        """
+        A fast method to retrieve the obstacle distance the ego
+        vehicle from the server directly.
+
+        Parameters
+        ----------
+        a : carla.actor
+            The obstacle vehicle.
+
+        Returns
+        -------
+        distance : float
+            The distance between ego and the target actor.
+        """
+        return a.get_location().distance(self.ego_pos.location)
+
+    def detect(self, ego_pos, call_id=None):
+        """
+        Detect surrounding objects. Currently only vehicle detection supported.
+
+        Parameters
+        ----------
+        ego_pos : carla.Transform
+            Ego vehicle pose.
+
+        Returns
+        -------
+        objects : list
+            A list that contains all detected obstacle vehicles.
+
+        """
+        self.ego_pos = ego_pos
+
+        objects = {'vehicles': [],
+                   'traffic_lights': []}
+
+        if not self.activate:
+            objects = self.deactivate_mode(objects, call_id)
+
+        else:
+            objects = self.activate_mode(objects)
+
+        self.count += 1
+
+        return objects
+
+    def activate_mode(self, objects):
+        """
+        Use Yolov5 + Lidar fusion to detect objects.
+        Use tracking manager to track the detected objects.
+
+        Parameters
+        ----------
+        objects : dict
+            The dictionary that contains all category of detected objects.
+            The key is the object category name and value is its 3d coordinates
+            and confidence.
+
+        Returns
+        -------
+         objects: dict
+            Updated object dictionary.
+        """
+        # retrieve current cameras and lidar data
+        
+        rgb_images = []
+        for rgb_camera in self.rgb_camera:
+            while rgb_camera.image is None:
+                continue
+            rgb_images.append(
+                cv2.cvtColor(
+                    np.array(
+                        rgb_camera.image),
+                    cv2.COLOR_BGR2RGB))
+
+        # yolo detection (uses ml_manager.detect() which handles both local and distributed)
+
+        detection_start_time = time.time()
+        yolo_detection = self.ml_manager.detect(rgb_images)
+
+
+        
+
+        detection_end_time = time.time()
+        self.client_metrics.update_detections_time(
+            detection_end_time - detection_start_time * 1000)
+        if self.vehicle is None:
+            print("RSU Yolo Detection: %s" %yolo_detection)
+        logger.debug("Yolo Detection: %s" %yolo_detection)
+
+        # rgb_images for drawing
+        rgb_draw_images = []
+
+        lidar_data = self.lidar.data
+        logger.debug("Lidar Data: %s" %lidar_data)
+
+        total_tracking_time = 0
+        total_lidar_fusion_time = 0
+        for (i, rgb_camera) in enumerate(self.rgb_camera):
+            # lidar projection
+            #logger.debug("Lidar Input: %s" %len(lidar_data))
+            rgb_image, projected_lidar = st.project_lidar_to_camera(
+                self.lidar.sensor,
+                rgb_camera.sensor, lidar_data, np.array(
+                    rgb_camera.image))
+            rgb_draw_images.append(rgb_image)
+
+            #logger.debug("Lidar Input to Fusion: %s" %len(lidar_data))
+            #logger.debug("Projection Input to Fusion %s" %len(projected_lidar))
+            # camera lidar fusion
+
+            tracking_start_time = time.time()
+            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            if self.vehicle is None:
+                print("RSU Tracking Detection: %s" %tracking_detection)
+                print("Yolo Frame %d Detection: %s" %(i, yolo_detection.xyxy[i]))
+            tracking_end_time = time.time()
+            total_tracking_time += tracking_end_time - tracking_start_time
+
+            logger.debug("Tracking Detection: %s" %tracking_detection)
+
+            lidar_fusion_start_time = time.time()
+            objects = o3d_camera_lidar_fusion_from_tracker(
+                objects,
+                tracking_detection,
+                lidar_data,
+                projected_lidar,
+                self.lidar.sensor,
+                self.cav_world.tick_id)
+            lidar_fusion_end_time = time.time()
+            total_lidar_fusion_time += lidar_fusion_end_time - lidar_fusion_start_time
+            if self.vehicle is None:
+                print("RSU Objects after Fusion: %s" %objects)
+            logger.debug("Objects after lidar fusion: %s" %objects)
+
+            # calculate the speed. current we retrieve from the server
+            # directly.
+            self.speed_retrieve(objects)
+
+        self.client_metrics.update_tracking_time(
+            total_tracking_time * 1000)
+
+        self.client_metrics.update_lidar_fusion_time(
+            total_lidar_fusion_time * 1000)
+
+        # Cross-camera deduplication: each camera independently detects
+        # vehicles, producing 2-4 bounding boxes per physical vehicle at
+        # slightly different positions (3-5m offset).  Greedy NMS by center
+        # distance keeps one detection per physical vehicle.
+        objects = self._cross_camera_nms(objects, self._nms_distance_threshold)
+
+        if self.camera_visualize:
+            for (i, rgb_image) in enumerate(rgb_draw_images):
+                if i > self.camera_num - 1 or i > self.camera_visualize - 1:
+                    break
+                rgb_image = self.ml_manager.draw_2d_box(
+                    yolo_detection, rgb_image, i)
+                rgb_image = cv2.resize(rgb_image, (0, 0), fx=0.4, fy=0.4)
+                cv2.imshow(
+                    '%s-th camera of actor %d, perception activated' %
+                    (str(i), self.id), rgb_image)
+            cv2.waitKey(1)
+
+        if self.lidar_visualize:
+            while lidar_data is None:
+                continue
+            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
+            o3d_visualizer_show(
+                self.o3d_vis,
+                self.count,
+                self.lidar.o3d_pointcloud,
+                objects)
+        # Filter out detections near excluded vehicle types (firetrucks, etc.)
+        objects = self._filter_detections_near_excluded_vehicles(objects)
+
+        # add traffic light
+        objects = self.retrieve_traffic_lights(objects)
+        self.objects = objects
+
+        return objects
+
+    def _get_excluded_vehicle_positions(self):
+        """
+        Get positions of vehicles that should be excluded from tracking
+        (firetrucks, ambulances, police, etc.)
+
+        Returns
+        -------
+        list : List of (x, y) tuples for excluded vehicles
+        """
+        excluded_positions = []
+        world = self.carla_world
+        vehicle_list = world.get_actors().filter("*vehicle*")
+
+        for vehicle in vehicle_list:
+            type_id = vehicle.type_id
+            # Check if this is NOT a valid vehicle type (i.e., it's a firetruck, ambulance, etc.)
+            is_valid = any(valid_type in type_id for valid_type in VALID_VEHICLE_TYPES)
+            if not is_valid:
+                loc = vehicle.get_location()
+                excluded_positions.append((loc.x, loc.y))
+                logger.debug(f"Excluding vehicle {vehicle.id} ({type_id}) at ({loc.x:.1f}, {loc.y:.1f})")
+
+        return excluded_positions
+
+    def _cross_camera_nms(self, objects, distance_threshold=5.0):
+        """
+        Deduplicate detections from overlapping camera views.
+
+        Multiple cameras may detect the same vehicle from different angles,
+        producing bounding boxes at slightly different positions (3-5m
+        offset due to monocular depth estimation error).  Greedy NMS by
+        ground-plane center distance keeps the first detection per physical
+        vehicle, suppressing later duplicates.
+
+        Also records inter-source disagreement statistics for each cluster
+        of detections that were merged, enabling analysis of when
+        perception duplicates survive NMS and reach the tracker.
+
+        Parameters
+        ----------
+        objects : dict
+            Detection dict with ``objects["vehicles"]`` list.
+        distance_threshold : float
+            Max ground-plane distance (m) between two detection centers to
+            be considered the same physical vehicle.  Default 5 m ≈ one
+            car-length.
+
+        Returns
+        -------
+        objects : dict
+            Filtered detection dict.
+        """
+        vehicles = objects.get("vehicles", [])
+        if len(vehicles) <= 1:
+            return objects
+
+        # Build clusters: group detections within distance_threshold
+        n = len(vehicles)
+        cluster_id = list(range(n))  # union-find init
+
+        def find(x):
+            while cluster_id[x] != x:
+                cluster_id[x] = cluster_id[cluster_id[x]]
+                x = cluster_id[x]
+            return x
+
+        def union(a, b):
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                cluster_id[rb] = ra
+
+        for i in range(n):
+            loc_i = vehicles[i].location
+            if loc_i is None:
+                continue
+            for j in range(i + 1, n):
+                loc_j = vehicles[j].location
+                if loc_j is None:
+                    continue
+                dist = ((loc_i.x - loc_j.x)**2
+                        + (loc_i.y - loc_j.y)**2) ** 0.5
+                if dist < distance_threshold:
+                    union(i, j)
+
+        # Gather clusters
+        clusters = {}
+        for i in range(n):
+            root = find(i)
+            clusters.setdefault(root, []).append(i)
+
+        # Record disagreement stats for multi-detection clusters
+        for indices in clusters.values():
+            if len(indices) < 2:
+                continue
+            locs = []
+            for idx in indices:
+                loc = vehicles[idx].location
+                if loc is not None:
+                    locs.append((loc.x, loc.y))
+            if len(locs) < 2:
+                continue
+            # Compute max pairwise center distance in this cluster
+            max_dist = 0.0
+            for a in range(len(locs)):
+                for b in range(a + 1, len(locs)):
+                    d = ((locs[a][0] - locs[b][0])**2 +
+                         (locs[a][1] - locs[b][1])**2) ** 0.5
+                    max_dist = max(max_dist, d)
+            self._camera_disagreement_dists.append(max_dist)
+            self._camera_disagreement_counts.append(len(indices))
+            # Track whether this cluster has members that would survive
+            # the AB3DMOT NMS (center dist > max(l,w) ≈ 4.5m)
+            if max_dist > 4.5:
+                self._camera_disagreement_nms_leaks += 1
+
+        # Keep first detection per cluster (greedy NMS)
+        keep = set()
+        for root, indices in clusters.items():
+            keep.add(indices[0])
+
+        objects["vehicles"] = [v for i, v in enumerate(vehicles) if i in keep]
+        return objects
+
+    def _filter_detections_near_excluded_vehicles(self, objects, exclusion_radius=15.0):
+        """
+        Filter out detected vehicles that are near excluded vehicle types.
+        This prevents ghost tracks from firetrucks, ambulances, etc.
+
+        Parameters
+        ----------
+        objects : dict
+            The object dictionary containing detected vehicles.
+        exclusion_radius : float
+            Distance threshold (meters) to filter detections near excluded vehicles.
+
+        Returns
+        -------
+        objects : dict
+            Filtered object dictionary.
+        """
+        if 'vehicles' not in objects or len(objects['vehicles']) == 0:
+            return objects
+
+        excluded_positions = self._get_excluded_vehicle_positions()
+        if not excluded_positions:
+            return objects
+
+        filtered_vehicles = []
+        for vehicle in objects['vehicles']:
+            loc = vehicle.get_location()
+            if loc is None:
+                filtered_vehicles.append(vehicle)
+                continue
+
+            near_excluded = False
+            for ex, ey in excluded_positions:
+                dist = np.sqrt((loc.x - ex)**2 + (loc.y - ey)**2)
+                if dist < exclusion_radius:
+                    near_excluded = True
+                    logger.debug(f"Filtering detection at ({loc.x:.1f}, {loc.y:.1f}) - "
+                               f"near excluded vehicle at ({ex:.1f}, {ey:.1f}), dist={dist:.1f}m")
+                    break
+
+            if not near_excluded:
+                filtered_vehicles.append(vehicle)
+
+        num_filtered = len(objects['vehicles']) - len(filtered_vehicles)
+        if num_filtered > 0:
+            logger.debug(f"Filtered {num_filtered} detections near excluded vehicles")
+            print(f"[PerceptionManager] Filtered {num_filtered} detections near excluded vehicles (firetrucks, etc.)")
+
+        objects['vehicles'] = filtered_vehicles
+        return objects
+
+    def deactivate_mode(self, objects, call_id=None):
+        """
+        Object detection using server information directly.
+
+        Parameters
+        ----------
+        objects : dict
+            The dictionary that contains all category of detected objects.
+            The key is the object category name and value is its 3d coordinates
+            and confidence.
+
+        Returns
+        -------
+         objects: dict
+            Updated object dictionary.
+        """
+        perception_start_time = time.time()
+        world = self.carla_world
+
+        vehicle_list = world.get_actors().filter("*vehicle*")
+        # todo: hard coded
+        thresh = 100000 if not self.data_dump else 100000
+
+        vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and
+                        v.id != self.id and v.id != call_id]
+
+        # use semantic lidar to filter out vehicles out of the range
+        if self.data_dump:
+            vehicle_list = self.filter_vehicle_out_sensor(vehicle_list)
+
+        # convert carla.Vehicle to ecav.ObstacleVehicle if lidar
+        # visualization is required.
+        if self.lidar:
+            vehicle_list = [
+                ObstacleVehicle(
+                    None,
+                    None,
+                    v,
+                    self.lidar.sensor,
+                    self.cav_world.sumo2carla_ids) for v in vehicle_list]
+        else:
+            vehicle_list = [
+                ObstacleVehicle(
+                    None,
+                    None,
+                    v,
+                    None,
+                    self.cav_world.sumo2carla_ids) for v in vehicle_list]
+
+        objects.update({'vehicles': vehicle_list})
+
+        if self.camera_visualize:
+            
+            names = ['front', 'right', 'left', 'back']
+
+            for (i, rgb_camera) in enumerate(self.rgb_camera):
+                if i > self.camera_num - 1 or i > self.camera_visualize - 1:
+                    break
+                while self.rgb_camera[0].image is None:
+                  continue
+                # we only visualiz the frontal camera
+                rgb_image = np.array(rgb_camera.image)
+                # draw the ground truth bbx on the camera image
+                rgb_image = self.visualize_3d_bbx_front_camera(objects,
+                                                               rgb_image,
+                                                               i)
+                # resize to make it fittable to the screen
+                rgb_image = cv2.resize(rgb_image, (0, 0), fx=0.4, fy=0.4)
+
+                # show image using cv2
+                cv2.imshow(
+                    '%s camera of actor %d, perception deactivated' %
+                    (names[i], self.id), rgb_image)
+                cv2.waitKey(1)
+
+        if self.lidar_visualize:
+            while self.lidar.data is None:
+                continue
+            o3d_pointcloud_encode(self.lidar.data, self.lidar.o3d_pointcloud)
+            # render the raw lidar
+            o3d_visualizer_show(
+                self.o3d_vis,
+                self.count,
+                self.lidar.o3d_pointcloud,
+                objects)
+
+        # add traffic light
+        objects = self.retrieve_traffic_lights(objects)
+        self.objects = objects
+        perception_end_time = time.time()
+
+        return objects
+
+    def filter_vehicle_out_sensor(self, vehicle_list):
+        """
+        By utilizing semantic lidar, we can retrieve the objects that
+        are in the lidar detection range from the server.
+        This function is important for collect training data for object
+        detection as it can filter out the objects out of the senor range.
+
+        Parameters
+        ----------
+        vehicle_list : list
+            The list contains all vehicles information retrieves from the
+            server.
+
+        Returns
+        -------
+        new_vehicle_list : list
+            The list that filters out the out of scope vehicles.
+
+        """
+        semantic_idx = self.semantic_lidar.obj_idx
+        semantic_tag = self.semantic_lidar.obj_tag
+
+        if semantic_tag is None or semantic_idx is None:
+            logger.debug('none')
+            return vehicle_list
+
+        # label 10 is the vehicle
+        vehicle_idx = semantic_idx[semantic_tag == 10]
+        # each individual instance id
+        vehicle_unique_id = list(np.unique(vehicle_idx))
+
+        new_vehicle_list = []
+        for veh in vehicle_list:
+            if veh.id in vehicle_unique_id:
+                new_vehicle_list.append(veh)
+
+        return new_vehicle_list
+
+    def visualize_3d_bbx_front_camera(self, objects, rgb_image, camera_index):
+        """
+        Visualize the 3d bounding box on frontal camera image.
+
+        Parameters
+        ----------
+        objects : dict
+            The object dictionary.
+
+        rgb_image : np.ndarray
+            Received rgb image at current timestamp.
+
+        camera_index : int
+            Indicate the index of the current camera.
+
+        """
+        camera_transform = \
+            self.rgb_camera[camera_index].sensor.get_transform()
+        camera_location = \
+            camera_transform.location
+        camera_rotation = \
+            camera_transform.rotation
+
+        for v in objects['vehicles']:
+            # we only draw the bounding box in the fov of camera
+            _, angle = cal_distance_angle(
+                v.get_location(), camera_location,
+                camera_rotation.yaw)
+            if angle < 60:
+                bbx_camera = st.get_2d_bb(
+                    v,
+                    self.rgb_camera[camera_index].sensor,
+                    camera_transform)
+                cv2.rectangle(rgb_image,
+                              (int(bbx_camera[0, 0]), int(bbx_camera[0, 1])),
+                              (int(bbx_camera[1, 0]), int(bbx_camera[1, 1])),
+                              (255, 0, 0), 2)
+
+        return rgb_image
+
+    def speed_retrieve(self, objects):
+        """
+        We don't implement any obstacle speed calculation algorithm.
+        The speed will be retrieved from the server directly.
+
+        Parameters
+        ----------
+        objects : dict
+            The dictionary contains the objects.
+        """
+        if 'vehicles' not in objects:
+            return
+
+        world = self.carla_world
+        vehicle_list = world.get_actors().filter("*vehicle*")
+        vehicle_list = [v for v in vehicle_list if self.dist(v) < 50 and
+                        v.id != self.id]
+
+        # todo: consider the minimum distance to be safer in next version
+        for v in vehicle_list:
+            loc = v.get_location()
+            for obstacle_vehicle in objects['vehicles']:
+                obstacle_speed = get_speed(obstacle_vehicle)
+                # if speed > 0, it represents that the vehicle
+                # has been already matched.
+                if obstacle_speed > 0:
+                    continue
+                obstacle_loc = obstacle_vehicle.get_location()
+                if abs(loc.x - obstacle_loc.x) <= 3.0 and \
+                        abs(loc.y - obstacle_loc.y) <= 3.0:
+                    obstacle_vehicle.set_velocity(v.get_velocity())
+
+                    # the case where the obstacle vehicle is controled by
+                    # sumo
+                    if self.cav_world.sumo2carla_ids:
+                        sumo_speed = \
+                            get_speed_sumo(self.cav_world.sumo2carla_ids,
+                                           v.id)
+                        if sumo_speed > 0:
+                            # todo: consider the yaw angle in the future
+                            speed_vector = carla.Vector3D(sumo_speed, 0, 0)
+                            obstacle_vehicle.set_velocity(speed_vector)
+
+                    obstacle_vehicle.set_carla_id(v.id)
+
+    def retrieve_traffic_lights(self, objects):
+        """
+        Retrieve the traffic lights nearby from the server  directly.
+        Next version may consider add traffic light detection module.
+
+        Parameters
+        ----------
+        objects : dict
+            The dictionary that contains all objects.
+
+        Returns
+        -------
+        object : dict
+            The updated dictionary.
+        """
+        world = self.carla_world
+        tl_list = world.get_actors().filter('traffic.traffic_light*')
+
+        vehicle_location = self.ego_pos.location
+        vehicle_waypoint = self._map.get_waypoint(vehicle_location)
+
+        activate_tl, light_trigger_location = \
+            self._get_active_light(tl_list, vehicle_location, vehicle_waypoint)
+
+        objects.update({'traffic_lights': []})
+
+        if activate_tl is not None:
+            traffic_light = TrafficLight(activate_tl,
+                                         light_trigger_location,
+                                         activate_tl.get_state())
+            objects['traffic_lights'].append(traffic_light)
+        return objects
+
+    def _get_active_light(self, tl_list, vehicle_location, vehicle_waypoint):
+        for tl in tl_list:
+            object_location = \
+                TrafficLight.get_trafficlight_trigger_location(tl)
+            object_waypoint = self._map.get_waypoint(object_location)
+
+            if object_waypoint.road_id != vehicle_waypoint.road_id:
+                continue
+
+            ve_dir = vehicle_waypoint.transform.get_forward_vector()
+            wp_dir = object_waypoint.transform.get_forward_vector()
+            dot_ve_wp = ve_dir.x * wp_dir.x +\
+                        ve_dir.y * wp_dir.y + \
+                        ve_dir.z * wp_dir.z
+
+            if dot_ve_wp < 0:
+                continue
+            while not object_waypoint.is_intersection:
+                next_waypoint = object_waypoint.next(0.5)[0]
+                if next_waypoint and not next_waypoint.is_intersection:
+                    object_waypoint = next_waypoint
+                else:
+                    break
+
+            return tl, object_waypoint.transform.location
+
+        return None, None
+
+    def destroy(self):
+        """
+        Destroy sensors.
+        """
+        if self.rgb_camera:
+            for rgb_camera in self.rgb_camera:
+                rgb_camera.sensor.destroy()
+
+        if self.lidar:
+            self.lidar.sensor.destroy()
+
+        if self.camera_visualize:
+            cv2.destroyAllWindows()
+
+        if self.lidar_visualize:
+            self.o3d_vis.destroy_window()
+
+        if self.data_dump:
+            self.semantic_lidar.sensor.destroy()

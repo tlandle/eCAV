@@ -1,7 +1,7 @@
 ## Algorithm Customization
 
-Due to the high modularity of OpenCDA, you can conveniently replace any default module with your own
-algorithms. The best way for customization is to <strong>put your customized module under `opencda/customize/...` , </strong> and 
+Due to the high modularity of eCAV, you can conveniently replace any default module with your own
+algorithms. The best way for customization is to <strong>put your customized module under `ecav/customize/...` , </strong> and 
 <strong>use inheritance to overwrite the default algorithms</strong>. Afterwards, import your customized module in
 `VehicleManager` class. The only thing you need to pay attention is to make the input and output format the same
 as origin module if you only want to change a single module. Below we will show a detailed instruction 
@@ -18,7 +18,7 @@ The default algorithm to fuse the gps and imu data is the Kalman Filter. It take
 and return the corrected `x, y, z` coordinates.
 
 ```python
-from opencda.core.sensing.localization.kalman_filter import KalmanFilter
+from ecav.core.sensing.localization.kalman_filter import KalmanFilter
 
 class LocalizationManager(object):
      def __init__(self, vehicle, config_yaml, carla_map):
@@ -29,12 +29,12 @@ class LocalizationManager(object):
         corrected_cords = self.kf(x, y, z, speed, yaw, imu_yaw_rate)
 ```
 If a user wants to remain the whole structure of localization and just replace the filter (e.g. Extended Kalman Filter),
-then he/she just needs to create a `localization_manager.py` under `opencda/customize/core/sensing/localization`
+then he/she just needs to create a `localization_manager.py` under `ecav/customize/core/sensing/localization`
 folder and initializes the `CustomizedLocalizationManager` with Extended Kalman Filter:
 
 ```python
-from opencda.core.sensing.localization.localization_manager import LocalizationManager
-from opencda.customize.core.sensing.localization.extented_kalman_filter import ExtentedKalmanFilter
+from ecav.core.sensing.localization.localization_manager import LocalizationManager
+from ecav.customize.core.sensing.localization.extented_kalman_filter import ExtentedKalmanFilter
 
 class CustomizedLocalizationManager(LocalizationManager):
     def __init__(self, vehicle, config_yaml, carla_map):
@@ -44,8 +44,8 @@ class CustomizedLocalizationManager(LocalizationManager):
 
 Then go to `VehicleManager` class, import this customized module and set it as the localizer.
 ```python
-from opencda.core.sensing.localization.localization_manager import LocalizationManager
-from opencda.customize.core.sensing.localization.localization_manager import CustomizedLocalizationManager
+from ecav.core.sensing.localization.localization_manager import LocalizationManager
+from ecav.customize.core.sensing.localization.localization_manager import CustomizedLocalizationManager
 
 class VehicleManager(object):
     def __init__(self, vehicle, config_yaml, application, carla_map, cav_world):
@@ -61,13 +61,13 @@ for the downstream modules.
 The class `PerceptionManager` is responsible for perception related task. Right now it supports vehicle detection and traffic light detection. The core function `detect(ego_pos)` takes the ego position from localization module as the input, and return a dictionary `objects` whose keys are the object categories and the values are each object's attributes (e.g. 3d poses, static or dynamic) under world coordinate system in this category.
 
 To customize your own object detection algorithms, create a `perception_manager.py` under
-`opencda/customize/core/sensing/perception/` folder. 
+`ecav/customize/core/sensing/perception/` folder. 
 
 ```python
 import cv2
-from opencda.core.sensing.perception.perception_manager import PerceptionManager
-from opencda.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
-from opencda.core.sensing.perception.static_obstacle import TrafficLight
+from ecav.core.sensing.perception.perception_manager import PerceptionManager
+from ecav.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from ecav.core.sensing.perception.static_obstacle import TrafficLight
 
 class CustomziedPeceptionManager(PerceptionManager):
      def __init__(self, vehicle, config_yaml, cav_world, data_dump=False):
@@ -108,11 +108,11 @@ function `update_information`. Afterwards,  the `BehaviorAgent` will call functi
 `run_step()` to execute a single step and return the `target_speed` and `target_location`.
 
 To customize your own behavior planning algorithms, create a `behavior_agent.py` under
-`opencda/customize/core/plan/` folder.
+`ecav/customize/core/plan/` folder.
 
 ```python
 import carla.libcarla
-from opencda.core.plan.behavior_agent import BehaviorAgent
+from ecav.core.plan.behavior_agent import BehaviorAgent
 
 
 class CustomizedBehaviorAgent(BehaviorAgent):
@@ -152,7 +152,7 @@ class ControlManager(object):
         controller_type = control_config['type']
         controller = getattr(
             importlib.import_module(
-                "opencda.core.actuation.%s" %
+                "ecav.core.actuation.%s" %
                 controller_type), 'Controller')
         self.controller = controller(control_config['args'])
 
@@ -170,7 +170,7 @@ class ControlManager(object):
         return control_command
 ```
 
-Therefore, if you want to use a controller other than pid controller, you can just create your `customize_controller.py` under `opencda/core/acutation/` folder, and follow the same input and output data format:
+Therefore, if you want to use a controller other than pid controller, you can just create your `customize_controller.py` under `ecav/core/acutation/` folder, and follow the same input and output data format:
 ```python
 class CustomizeController:
     def update_info(self, ego_pos, ego_spd):
