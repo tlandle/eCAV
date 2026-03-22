@@ -2,19 +2,18 @@
 # Author: Tyler Landle <tlandle3@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import asyncio
 import time
 from multiprocessing import Process
-import asyncio
 
 import carla
+import ecloud_pb2 as ecloud
+
 import scenario_runner.scenario_runner as sr
 import ecav.scenario_testing.utils.sim_api as sim_api
 from ecav.core.common.cav_world import CavWorld
-from ecav.scenario_testing.evaluations.evaluate_manager import \
-    EvaluationManager
+from ecav.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from ecav.scenario_testing.utils.yaml_utils import add_current_time
-
-import ecloud_pb2 as ecloud
 
 MAX_STEP = 300
 SCENARIO_NAME = 'openscenario_3_edge_late_fusion'
@@ -233,6 +232,9 @@ def run_scenario(opt, scenario_params):
 
         if eval_manager is not None:
             eval_manager.evaluate()
+
+        if cav_world is not None:
+            cav_world.close()
 
         if scenario_manager is not None:
             scenario_manager.close()

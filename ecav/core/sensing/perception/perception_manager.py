@@ -638,7 +638,7 @@ class PerceptionManager:
 
         detection_end_time = time.time()
         self.client_metrics.update_detections_time(
-            detection_end_time - detection_start_time * 1000)
+            (detection_end_time - detection_start_time) * 1000)
         if self.vehicle is None:
             print("RSU Yolo Detection: %s" %yolo_detection)
         logger.debug("Yolo Detection: %s" %yolo_detection)

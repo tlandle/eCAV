@@ -6,6 +6,7 @@
 ML Manager supporting both local and distributed modes for model inference.
 """
 
+import csv
 import os
 import time
 import torch
@@ -63,6 +64,8 @@ class MLManager(object):
         self.run_distributed = run_distributed
         self.config = config or {}
         self.rank = rank
+        self._dist_timing_rows = []
+        self._tick = 0
 
         if not apply_ml:
             return
@@ -104,6 +107,8 @@ class MLManager(object):
 
         print(f"[ML Manager] YOLO endpoint: {self.yolo_endpoint}")
         print(f"[ML Manager] WorldFusion endpoint: {self.worldfusion_endpoint}")
+
+        self._session = requests.Session()
 
         # Set object_detector to None to indicate distributed mode
         self.object_detector = None
@@ -155,7 +160,23 @@ class MLManager(object):
         if self.run_distributed:
             return self._detect_yolo_distributed(rgb_images)
         else:
-            return self.object_detector(rgb_images)
+            t0 = time.time()
+            result = self.object_detector(rgb_images)
+            t1 = time.time()
+            self._dist_timing_rows.append({
+                'tick': self._tick,
+                'mode': 'local',
+                'serialize_ms': 0.0,
+                'http_ms': 0.0,
+                'server_decode_ms': 0.0,
+                'server_inference_ms': 0.0,
+                'server_encode_ms': 0.0,
+                'client_deserialize_ms': 0.0,
+                'parse_ms': 0.0,
+                'total_e2e_ms': (t1 - t0) * 1000,
+            })
+            self._tick += 1
+            return result
 
     # ============= YOLO Methods =============
 
@@ -174,12 +195,12 @@ class MLManager(object):
         request_data = {'images': rgb_images}
         packed = msgpack.packb(request_data, use_bin_type=True)
 
-        t1 = time.time()
-        print(f"[ML Manager] Packing time: {(t1-t0)*1000:.1f}ms, size: {len(packed)/1024:.1f}KB")
+        t_after_serialize = time.time()
+        serialize_ms = (t_after_serialize - t0) * 1000
+        print(f"[ML Manager] Packing time: {serialize_ms:.1f}ms, size: {len(packed)/1024:.1f}KB")
 
         try:
-            # Use the /predict_msgpack endpoint
-            response = requests.post(
+            response = self._session.post(
                 f"{self.yolo_endpoint}/predict_msgpack",
                 data=packed,
                 headers={'Content-Type': 'application/msgpack'},
@@ -189,23 +210,71 @@ class MLManager(object):
             if response.status_code != 200:
                 raise RuntimeError(f"YOLO service error: {response.text}")
 
-            t2 = time.time()
-            print(f"[ML Manager] Network time: {(t2-t1)*1000:.1f}ms")
+            t_after_http = time.time()
+            http_ms = (t_after_http - t_after_serialize) * 1000
+            print(f"[ML Manager] Network time: {http_ms:.1f}ms")
 
-            # Response is JSON
-            result = response.json()
+            server_decode_ms = float(response.headers.get('X-Server-Decode-Ms', 0.0))
+            server_inference_ms = float(response.headers.get('X-Server-Inference-Ms', 0.0))
+            server_encode_ms = float(response.headers.get('X-Server-Encode-Ms', 0.0))
 
-            t3 = time.time()
-            print(f"[ML Manager] Decode time: {(t3-t2)*1000:.1f}ms")
-            print(f"[ML Manager] TOTAL: {(t3-t0)*1000:.1f}ms")
+            result = msgpack.unpackb(response.content, raw=False)
 
-            return self._parse_yolo_response(result)
+            t_after_deserialize = time.time()
+            client_deserialize_ms = (t_after_deserialize - t_after_http) * 1000
+            print(f"[ML Manager] Decode time: {client_deserialize_ms:.1f}ms")
+
+            parsed = self._parse_yolo_response(result)
+
+            t_after_parse = time.time()
+            parse_ms = (t_after_parse - t_after_deserialize) * 1000
+            total_e2e_ms = (t_after_parse - t0) * 1000
+            print(f"[ML Manager] TOTAL: {total_e2e_ms:.1f}ms")
+
+            self._dist_timing_rows.append({
+                'tick': self._tick,
+                'mode': 'distributed',
+                'serialize_ms': serialize_ms,
+                'http_ms': http_ms,
+                'server_decode_ms': server_decode_ms,
+                'server_inference_ms': server_inference_ms,
+                'server_encode_ms': server_encode_ms,
+                'client_deserialize_ms': client_deserialize_ms,
+                'parse_ms': parse_ms,
+                'total_e2e_ms': total_e2e_ms,
+            })
+            self._tick += 1
+
+            return parsed
 
         except Exception as e:
             print(f"[ML Manager] YOLO distributed error: {e}")
             import traceback
             traceback.print_exc()
             return None
+
+    def dump_timing_csv(self, path):
+        """Write accumulated per-tick timing rows to a CSV file."""
+        if not self._dist_timing_rows:
+            return
+        fieldnames = ['tick', 'mode', 'serialize_ms', 'http_ms', 'server_decode_ms',
+                      'server_inference_ms', 'server_encode_ms', 'client_deserialize_ms',
+                      'parse_ms', 'total_e2e_ms']
+        with open(path, 'w', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(self._dist_timing_rows)
+
+    def close(self):
+        """Release resources and dump accumulated timing data."""
+        if self._dist_timing_rows:
+            import os
+            import datetime
+            ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+            os.makedirs('logs', exist_ok=True)
+            self.dump_timing_csv(os.path.join('logs', f'ml_timing_{ts}.csv'))
+        if hasattr(self, '_session'):
+            self._session.close()
 
     # ============= BM2CP Methods =============
 

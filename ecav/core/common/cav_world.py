@@ -177,6 +177,11 @@ class CavWorld(object):
         """
         return self._scenario_manager
 
+    def close(self):
+        """Release resources held by this CavWorld and its managed components."""
+        if self.ml_manager is not None:
+            self.ml_manager.close()
+
     def locate_vehicle_manager(self, loc):
         """
         Locate the vehicle manager based on the given location.

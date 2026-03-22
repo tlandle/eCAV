@@ -2,6 +2,8 @@
 
 **Goal**: Quantify, diagnose, and optimize the latency gap between local per-actor YOLO inference (`--apply_ml`) and distributed LitServe inference (`-l`).
 
+**Deployment assumption**: LitServe runs on a separate host from the simulation process. Co-located optimizations (shared memory, Unix domain sockets) are out of scope.
+
 ---
 
 ## Phase 0: Fix Pre-existing Measurement Bug
@@ -40,10 +42,10 @@ Insert timestamps around each sub-step:
 - **t1**: after `msgpack.packb` → `serialize_ms = (t1-t0)*1000`
 - **t2**: after `requests.post` returns → `http_round_trip_ms = (t2-t1)*1000`
 - Parse `X-Server-*` headers from response (see 1b)
-- **t3**: after `response.json()` → `client_deserialize_ms = (t3-t2)*1000`
+- **t3**: after `msgpack.unpackb` → `client_deserialize_ms = (t3-t2)*1000`
 - **t4**: after `_parse_yolo_response()` → `parse_ms = (t4-t3)*1000`
 
-Accumulate rows in a list on the `MLManager` instance; dump to CSV at scenario teardown.
+Accumulate rows in a list on the `MLManager` instance; dump to CSV via `MLManager.close()` at scenario teardown.
 
 ### 1b. Server-side instrumentation (`litserve_models.py`, `/predict_msgpack`)
 
@@ -55,11 +57,9 @@ Add `X-Server-*` response headers (same pattern already used by `/extract_featur
 - `X-Server-Encode-Ms`: `encode_response` time
 - `X-Server-Total-Ms`: total server-side wall time
 
-Break `_yolo_process` into finer steps to separate decode, inference, and encode.
-
 ### 1c. Local inference baseline (`ml_manager.py`, `detect()`)
 
-Wrap `self.object_detector(rgb_images)` with `time.time()` and record to the same CSV schema, with serialization/HTTP columns set to 0.
+Wrap `self.object_detector(rgb_images)` with `time.time()` and record to the same CSV schema, with serialization/HTTP/server columns set to 0.
 
 ### 1d. Image payload profiling
 
@@ -75,8 +75,7 @@ Log `len(packed)` plus per-image dimensions and dtype. A single 800×600×3 uint
 | H2 | **No connection reuse**: bare `requests.post()` creates a new TCP connection per call, paying handshake overhead every tick | Confirmed by code inspection. Switch to `requests.Session` and measure delta. |
 | H3 | **Double-copy on server**: `await request.body()` copies full payload into Python, then `msgpack.unpackb` copies again during decode | Measure `server_decode_ms`. If >15ms, confirmed. |
 | H4 | **JSON response overhead**: `encode_response` calls `.cpu().numpy().tolist()` then serializes to JSON; client calls `response.json()` to parse back | Measure `server_encode_ms + client_deserialize_ms`. If >10ms combined, switch to msgpack response. |
-| H5 | **`asyncio.to_thread` dispatch latency**: thread-pool dispatch overhead; CUDA work serializes through GIL regardless | Measure server total wall time vs. inference time. If overhead visible at single-client load, remove `to_thread`. |
-| H6 | **TCP loopback overhead**: even on localhost, TCP/IP stack processing (Nagle, segment ACK) adds fixed per-request latency | Compare against Unix domain socket transport (O4). |
+| H5 | **`asyncio.to_thread` dispatch latency**: thread-pool dispatch overhead; CUDA work serializes through GIL regardless | Measure server total wall time vs. inference time. |
 
 ---
 
@@ -89,7 +88,7 @@ Ranked by expected impact and implementation cost.
 
 **File**: `ecav/ml_manager/ml_manager.py`
 
-Create `self._session = requests.Session()` during `_init_distributed()`. Replace bare `requests.post(...)` with `self._session.post(...)` in `_detect_yolo_distributed()`. Eliminates per-request TCP handshake (~1–3ms on localhost, higher on remote hosts).
+Create `self._session = requests.Session()` during `_init_distributed()`. Replace bare `requests.post(...)` with `self._session.post(...)` in `_detect_yolo_distributed()`. Eliminates per-request TCP handshake — particularly significant for remote hosts where RTT is non-trivial.
 
 ### O2. JPEG-compress images before transmission
 **Effort**: 1 hr | **Impact**: High
@@ -100,35 +99,26 @@ Raw 800×600×3 uint8 = 1.44 MB per image. JPEG at quality 85 → ~50–100 KB (
 
 Alternative: PNG for lossless compression (~500 KB, ~3× reduction).
 
-Tradeoff: lossy compression may marginally affect detection confidence. Quantify via mAP comparison if accuracy is a research variable.
+Tradeoff: lossy compression may marginally affect detection confidence. Quantify via mAP comparison if detection accuracy is a research variable.
 
 ### O3. msgpack response instead of JSON
 **Effort**: 30 min | **Impact**: Medium
 
 **Files**: `ecav/ml_manager/litserve_models.py` (server), `ecav/ml_manager/ml_manager.py` (client)
 
-`/predict_msgpack` currently accepts msgpack but responds with JSON. Change `encode_response` to return msgpack-packed data; return `Response(content=packed, media_type="application/octet-stream")`. Client replaces `response.json()` with `msgpack.unpackb(response.content)`. The `/extract_features` endpoint already follows this pattern — replicate it.
+`/predict_msgpack` previously accepted msgpack but responded with JSON. Changed to return `msgpack.packb(result)` with `media_type=application/octet-stream`; client parses with `msgpack.unpackb(response.content)`. The `/extract_features` endpoint already used this pattern.
 
-### O4. Unix domain socket transport
-**Effort**: 1 hr | **Impact**: Medium
-
-**Files**: `ecav/ml_manager/litserve_models.py` (server startup), `ecav/ml_manager/ml_manager.py` (client endpoint config)
-
-When server and client are co-located, replace TCP `localhost:18000` with a UDS path (e.g., `/tmp/ecav_litserve.sock`). Eliminates TCP/IP stack overhead: no Nagle delay, no loopback interface, no port allocation. Use `requests_unixsocket` or `httpx` with UDS support.
-
-Degrades gracefully: if config specifies `host:port`, use TCP; if it specifies a socket path, use UDS. Remote deployments are unaffected.
-
-### O5. Remove `asyncio.to_thread` for single-client case
+### O4. Remove `asyncio.to_thread` for single-client case
 **Effort**: 15 min | **Impact**: Low–Medium
 
 **File**: `ecav/ml_manager/litserve_models.py`, `/predict_msgpack` handler
 
-In the sequential (non-distributed actor) scenario there is exactly one client. The `to_thread` dispatch adds ~0.1–0.5ms and does not improve CUDA throughput since the GIL serializes CPU-side preprocessing regardless. Gate behind `LITSERVE_SINGLE_CLIENT=1` environment variable; call `_yolo_process` directly when set.
+In the sequential (non-distributed actor) scenario there is exactly one client. The `to_thread` dispatch adds ~0.1–0.5ms and does not improve CUDA throughput since the GIL serializes CPU-side preprocessing regardless. Gate behind `LITSERVE_SINGLE_CLIENT=1` environment variable.
 
-### O6. gRPC transport (longer term)
+### O5. gRPC transport (longer term)
 **Effort**: Multi-day | **Impact**: High
 
-The project already uses gRPC extensively (`ecav/protos/ecloud.proto`). Adding a YOLO inference RPC eliminates HTTP overhead entirely, provides built-in flow control, and enables protobuf-based serialization. Combine with O2 (JPEG) for maximum gain.
+The project already uses gRPC extensively (`ecav/protos/ecloud.proto`). Adding a YOLO inference RPC eliminates HTTP framing overhead entirely, provides built-in flow control, and enables more efficient binary serialization. Combine with O2 (JPEG) for maximum gain.
 
 Candidate proto schema:
 ```protobuf
@@ -143,22 +133,25 @@ message YOLOResponse {
 }
 ```
 
-Pursue only if O1–O4 are insufficient.
-
-### O7. Shared-memory IPC (longer term)
-**Effort**: Multi-day | **Impact**: Highest (co-located only)
-
-Write image frames to a `multiprocessing.shared_memory` segment; pass only the segment name and metadata over the control channel. Server maps the segment and reads at zero copy. Degrades gracefully to serialized transport when client and server are on different hosts (gated by config flag).
+Pursue only if O1–O4 are insufficient to close the gap.
 
 ---
 
-## Recommended Execution Order
+## Status
 
-1. **Fix Phase 0 bug** — prerequisite for valid data (2 min)
-2. **Apply O1** (Session keep-alive) — cheap, do before first profiling run (15 min)
-3. **Apply O3** (msgpack response) — cheap, eliminates a known inefficiency (30 min)
-4. **Add Phase 1 instrumentation** — collect baseline numbers with O1+O3 already in place (1–2 hr)
-5. **Analyze data** — determine whether H1 (serialization) or H6 (TCP) dominates
-6. **Apply O2** (JPEG) if payload size dominates, **O4** (UDS) if transport overhead dominates
-7. **Apply O5** (remove `to_thread`) — low risk, minor gain
-8. **Evaluate** — if gap remains significant, proceed to O6 (gRPC)
+| Item | Status |
+|------|--------|
+| Phase 0 bug fix | ✅ Done |
+| Phase 1 instrumentation | ✅ Done |
+| O1 — Session keep-alive | ✅ Done |
+| O3 — msgpack response | ✅ Done |
+| O2 — JPEG compression | Pending data analysis |
+| O4 — Remove `to_thread` | Pending data analysis |
+| O5 — gRPC transport | Longer term |
+
+## Recommended Next Steps
+
+1. **Analyze Phase 1 CSV** — identify which sub-component (`serialize_ms`, `http_ms`, `server_inference_ms`) dominates
+2. **Apply O2** (JPEG) if payload serialization/transport dominates
+3. **Apply O4** (remove `to_thread`) — low risk, evaluate independently
+4. **Evaluate** — if gap remains significant, proceed to O5 (gRPC)

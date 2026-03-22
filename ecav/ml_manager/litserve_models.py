@@ -235,28 +235,49 @@ if __name__ == "__main__":
         import asyncio
         import time
         try:
-            t0 = time.time()
+            t_entry = time.time()
             model = load_global_model()
 
             body = await request.body()
-            t1 = time.time()
+            t_after_read = time.time()
 
             def _yolo_process(body_bytes):
                 data = msgpack.unpackb(body_bytes, raw=False)
                 images = data.get("images", [])
+                t_dec = time.time()
                 with torch.no_grad():
                     results = model(images)
-                return images, results
+                t_inf = time.time()
+                response_data = api_yolo.encode_response(results)
+                packed = msgpack.packb(response_data, use_bin_type=True)
+                t_enc = time.time()
+                return images, packed, t_dec, t_inf, t_enc
 
-            images, results = await asyncio.to_thread(_yolo_process, body)
-            t2 = time.time()
+            images, packed, t_after_decode, t_after_inference, t_after_encode = \
+                await asyncio.to_thread(_yolo_process, body)
 
-            response_data = api_yolo.encode_response(results)
-            t3 = time.time()
-            print(f"[YOLO] {len(images)} imgs, inference={((t2-t1)*1000):.0f}ms, "
-                  f"total={((t3-t0)*1000):.0f}ms")
+            read_ms = (t_after_read - t_entry) * 1000
+            decode_ms = (t_after_decode - t_after_read) * 1000
+            inference_ms = (t_after_inference - t_after_decode) * 1000
+            encode_ms = (t_after_encode - t_after_inference) * 1000
+            total_ms = (t_after_encode - t_entry) * 1000
 
-            return JSONResponse(content=response_data)
+            print(f"[YOLO] {len(images)} imgs, inference={inference_ms:.0f}ms, "
+                  f"total={total_ms:.0f}ms")
+
+            timing_headers = {
+                'X-Server-Read-Ms': str(read_ms),
+                'X-Server-Decode-Ms': str(decode_ms),
+                'X-Server-Inference-Ms': str(inference_ms),
+                'X-Server-Encode-Ms': str(encode_ms),
+                'X-Server-Total-Ms': str(total_ms),
+            }
+
+            return Response(
+                content=packed,
+                media_type="application/octet-stream",
+                headers=timing_headers,
+            )
 
         except Exception as e:
             import traceback
