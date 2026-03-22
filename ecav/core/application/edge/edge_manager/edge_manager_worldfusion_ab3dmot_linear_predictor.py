@@ -836,8 +836,10 @@ class WorldFusionEdge(_BaseEdgeManager):
             world_x, world_y, world_yaw = boxes_7dof[i, 0], boxes_7dof[i, 1], boxes_7dof[i, 6]
             print(f"[COORD DEBUG] Det {i} CARLA WORLD: x={world_x:.2f}, y={world_y:.2f}, yaw={np.degrees(world_yaw):.1f}deg (should match vehicle CARLA pos)")
 
-        # Reorder columns for AB3DMOT's required format (h,w,l,x,y,z,ry)
-        ab3d_boxes = boxes_7dof[:, [3, 4, 5, 0, 1, 2, 6]]
+        # Reorder columns for AB3DMOT's required format (h,w,l,x,y,z,ry,score)
+        # Score is appended as column 8 so Box3D.array2bbox_raw sets bbox.s correctly;
+        # without it, bbox.s stays None and np.argsort in nms() raises TypeError.
+        ab3d_boxes = np.column_stack([boxes_7dof[:, [3, 4, 5, 0, 1, 2, 6]], scores_np])
         info = np.array([[frame_id, i, -1] for i in range(len(scores_np))])
 
         return {

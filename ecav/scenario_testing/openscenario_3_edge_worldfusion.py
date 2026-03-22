@@ -2,6 +2,8 @@
 # Author: Tyler Landle <tlandle3@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import datetime
+import os
 import time
 from multiprocessing import Process
 import asyncio
@@ -242,6 +244,20 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" % (vehicle_manager.vehicle.id, vid, step_number))
+
+        # Flush per-agent WorldFusion timing CSVs and save EdgeProfiler JSON
+        os.makedirs('logs', exist_ok=True)
+        ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        for edge in edge_list:
+            for vm in edge.vehicle_manager_list:
+                pm = getattr(vm, 'perception_manager', None)
+                if pm is not None and hasattr(pm, 'close'):
+                    pm.close()
+            for rsu in edge.rsu_manager_list:
+                pm = getattr(rsu, 'perception_manager', None)
+                if pm is not None and hasattr(pm, 'close'):
+                    pm.close()
+            edge.profiler.save_report(os.path.join('logs', f'edge_profiler_{ts}.json'))
 
         if opt.distributed and scenario_manager is not None:
             scenario_manager.end()

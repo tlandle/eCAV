@@ -12,12 +12,8 @@ distributed: false
 define: &perception_is_active true
 perception_active: *perception_is_active
 
-# Optional: ML Manager configuration for distributed mode
-# Uncomment and configure if using distributed: true
-# ml_manager:
-#   yolo_endpoint: 'http://localhost:8000'
-#   worldfusion_vehicle_endpoint: 'http://localhost:8001'
-#   worldfusion_edge_endpoint: 'http://localhost:8002'
+ml_manager:
+  worldfusion_endpoint: 'http://localhost:18000'
 
 world:
   sync_mode: true
@@ -100,6 +96,8 @@ vehicle_base: &vehicle_base
         visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4
         fov: 70 # Must match V2XSim training (70°). Using 100° causes 3.4x focal length mismatch!
+        image_width: 480  # Match model final_dim [W=480] — avoids downscale in _build_batch()
+        image_height: 360  # Match model final_dim [H=360]
         positions:
           # existing three (front / left / right) …
           - [ 1.5,  0.0, 1.7,   0]     # front
@@ -204,6 +202,8 @@ rsu_base: &rsu_base
         visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
         fov: 70 # Must match V2XSim training (70°). Using 100° causes 3.4x focal length mismatch!
+        image_width: 480  # Match model final_dim [W=480]
+        image_height: 360  # Match model final_dim [H=360]
         # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
         positions:
           - [2.5, 0, 1.0, 0]
@@ -272,7 +272,7 @@ scenario:
       # Trajectory predictor: "linear" (KF velocity) or "smart" (SMART NeurIPS 2024)
       predictor_type: smart
       smart_predictor:
-        checkpoint: ecav/core/prediction/smart/checkpoints/epoch=105.ckpt
+        checkpoint: models/smart/epoch=105.ckpt
         map_cache: null
         device: cuda
 

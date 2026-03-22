@@ -9,6 +9,10 @@ import os
 import sys
 from concurrent import futures
 
+# Suppress YOLOv5's auto-install via system pip, which fails on this host
+# because the system pip is too old to parse `python_version > 3.8` markers.
+os.environ.setdefault('YOLOv5_AUTOINSTALL', 'false')
+
 # perception_pb2 stubs live in ecav/protos/; add to path when running standalone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'ecav', 'protos'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -29,7 +33,7 @@ from perception_servicer import PerceptionServicer
 m.patch()  # Patch msgpack to handle numpy arrays
 
 YOLO_PATH = './yolov5'  # Path to local YOLOv5 repo
-YOLO_FILE = 'yolov5m.pt'  # Local model file name
+YOLO_FILE = 'hubconf.py'  # Detect local yolov5 repo (weights may be elsewhere)
 
 
 class YOLOv5Server(ls.LitAPI):
@@ -228,6 +232,12 @@ if __name__ == "__main__":
     _yolo_model = _yolo_model.cuda().eval()
     print("[LitServe] YOLO model loaded")
 
+    # Pre-load WorldFusion model before LitServe spawns worker processes.
+    # Lazy loading inside a spawned worker re-initializes CUDA cleanly, but
+    # pre-loading here ensures the first request pays no cold-start penalty.
+    load_wf_model()
+    print("[LitServe] WorldFusion model pre-loaded")
+
     # Start gRPC server in background thread
     servicer = PerceptionServicer(_yolo_model, yolo_api.encode_response)
     grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
@@ -303,4 +313,7 @@ if __name__ == "__main__":
             traceback.print_exc()
             return JSONResponse(content={"error": str(e)}, status_code=500)
 
-    server.run(host=host, port=port)
+    # Use threads for HTTP server workers so they share the parent's CUDA context.
+    # LitServe's default "process" mode forks uvicorn after CUDA is initialized
+    # by YOLO loading, which causes "Cannot re-initialize CUDA in forked subprocess".
+    server.run(host=host, port=port, api_server_worker_type="thread")
