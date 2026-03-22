@@ -96,8 +96,8 @@ vehicle_base: &vehicle_base
       camera:
         visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4
-        image_width: 1920
-        image_height: 1440
+        image_width: 640
+        image_height: 480
         positions:
           # existing three (front / left / right)
           - [ 1.5,  0.0, 1.7,   0]     # front
@@ -202,8 +202,8 @@ rsu_base: &rsu_base
       camera:
         visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
         num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
-        image_width: 1920
-        image_height: 1440
+        image_width: 640
+        image_height: 480
         # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
         positions:
           - [2.5, 0, 1.0, 0]
@@ -289,8 +289,8 @@ scenario:
               camera:
                 visualize: 4
                 num: 4
-                image_width: 1920
-                image_height: 1440
+                image_width: 640
+                image_height: 480
                 positions:
                   - [ 1.5,  0.0, 1.7,   0]
                   - [ 0.0, -1.5, 1.7, -90]

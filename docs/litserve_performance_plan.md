@@ -148,14 +148,18 @@ Target deployment has many distributed clients, making HTTP per-request overhead
 
 ## Measured Results
 
-| Run | serialize_ms (avg) | http_ms (avg) | server_inference_ms (avg) | total_e2e_ms (avg) |
-|-----|-------------------|---------------|--------------------------|-------------------|
-| Baseline (O1+O3) | 15.09 | 67.15 | 16.05 | 82.58 |
-| +O2 JPEG | 17.84 (+2.75) | 50.05 (-17.10) | ~16 (unchanged†) | 68.24 (-14.34) |
+| Run | serialize_ms (avg) | http_ms (avg) | server_img_prep_ms (avg) | server_inference_ms (avg) | total_e2e_ms (avg) |
+|-----|-------------------|---------------|--------------------------|--------------------------|-------------------|
+| Baseline (O1+O3) | 15.09 | 67.15 | — | 16.05 | 82.58 |
+| +O2 JPEG (1920×1440) | 17.84 (+2.75) | 50.05 (-17.10) | ~19†† | ~16 | 68.24 (-14.34) |
+| +O4b TurboJPEG (1920×1440) | 21.33 | 49.05 | 20.00 | 14.53 | 70.75 |
+| +O4b + native 640×480 camera | **2.83 (-87%)** | **19.07 (-61%)** | **2.77 (-86%)** | 13.82 | **22.22 (-69%)** |
 
-†Prior to timing fix, JPEG decode (~19ms) was incorrectly attributed to `server_inference_ms`. After fix, `server_img_prep_ms` captures JPEG decode separately.
+†Prior to timing fix, JPEG decode was incorrectly attributed to `server_inference_ms`. After fix, `server_img_prep_ms` captures JPEG decode separately.
 
-Net: O2 saves ~14ms e2e (-17%), driven by payload reduction. Encode cost (+3ms) and server decode (~19ms) are the remaining CPU costs targeted by O4.
+††O4b at 1920×1440 showed higher serialize_ms than O2 baseline because TurboJPEG encodes more pixels at that resolution; the payoff only materializes after reducing camera resolution.
+
+**Key finding**: Setting the CARLA camera sensor to 640×480 natively (matching YOLO's internal inference resolution) eliminated 87% of encode/decode cost and 61% of HTTP roundtrip time. Total e2e dropped from 70.75ms to 22.22ms (-69%). The profile is now dominated by `http_ms` (~19ms), which is pure network transport overhead — the remaining gap between distributed (22ms) and local inference (~14ms).
 
 ---
 
@@ -168,14 +172,13 @@ Net: O2 saves ~14ms e2e (-17%), driven by payload reduction. Encode cost (+3ms) 
 | O1 — Session keep-alive | ✅ Done |
 | O3 — msgpack response | ✅ Done |
 | O2 — JPEG compression | ✅ Done |
-| O4a — Resize before encode | Pending |
-| O4b — libjpeg-turbo | Pending |
-| O4c — NVJPEG | Pending |
+| O4a — Resize before encode | ❌ Abandoned (vehicle crashes; pre-resize compounds JPEG artifacts) |
+| O4b — libjpeg-turbo | ❌ Reverted (no SIMD on target hardware; gains came from camera resolution, not codec) |
+| O4c — NVJPEG | Deferred (encode/decode now negligible at 640×480) |
+| Native 640×480 camera resolution | ✅ Done (YAML config change, no code change) |
 | O5 — gRPC transport | In progress |
 
 ## Recommended Next Steps
 
-1. **O4a** (resize before encode) — zero dependencies, implement and measure first
-2. **O4b** (libjpeg-turbo) — measure independently of O4a to isolate codec speedup
-3. **O5** (gRPC) — replace HTTP transport; see `docs/grpc_perception_migration.md`
-4. **O4c** (NVJPEG) — evaluate after gRPC is in place; pairs naturally with GPU pipeline on server
+1. **O5** (gRPC) — `http_ms` is now the sole bottleneck; see `docs/grpc_perception_migration.md`
+2. **O4c** (NVJPEG) — low priority; encode/decode are ~3ms each and no longer limit throughput
