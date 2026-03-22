@@ -10,3 +10,6 @@
 [submodule "ecav/BM2CP"]
 	path = ecav/BM2CP
 	url = https://github.com/tlandle/BM2CP.git
+[submodule "ecav/worldfusion"]
+	path = ecav/worldfusion
+	url = https://github.com/tlandle/WorldFusion.git
