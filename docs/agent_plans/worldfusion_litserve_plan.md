@@ -32,8 +32,9 @@
 - [x] O2. ~~Eliminate zero `depth_map` from payload~~ — tried, no benefit (upload not bottleneck; reverted)
 - [x] O3. ~~Cast `imgs` float32 → float16 before serialization~~ — tried, net negative (astype cost +2.5ms > http savings); reverted
 - [x] O4. Send `imgs` as uint8 instead of float32 — **kept**; lossless, payload 8021→3803KB (-4.2MB, -53%). On loopback: total_e2e neutral (233→233ms), to_numpy_ms cost only 0.31ms. Kept because on Azure over real network links, 4MB × 2 agents × 20Hz = 160 MB/s avoided upload bandwidth per intersection.
-- [ ] O5. Async/pipelined feature extraction — overlap build_batch + HTTP with vehicle tick loop
-- [ ] O6. (Future) gRPC — `ExtractFeatures` RPC; see `grpc_perception_migration.md` Section 7
+- [ ] O5. Edge-coordinated batch inference — merge all agents' sensor data at the edge, send one HTTP request per tick instead of N sequential requests
+- [ ] O6. Async/pipelined feature extraction — overlap build_batch + HTTP with vehicle tick loop
+- [ ] O7. (Future) gRPC — `ExtractFeatures` RPC; see `grpc_perception_migration.md` Section 7
 
 ---
 
@@ -343,6 +344,35 @@ Payload dropped from ~8021KB to ~5209KB (-2.75MB). Result:
 - `total_e2e_ms`: 233.54 → 238.33ms (slightly worse)
 
 Same root cause as O2: the upload path costs ~1.4ms regardless of payload size. Paying a 2.5ms conversion cost to save time on a path that wasn't costing anything is net negative.
+
+### O5 — Edge-coordinated batch inference
+
+**Motivation**: Vehicle and RSU currently make independent sequential HTTP requests, each triggering a batch=1 forward pass through the sensor encoder. The GPU runs the full encoder twice, paying kernel launch overhead and weight cache misses twice. At batch=1 the 5080 is heavily underutilized — the encoder has many sequential layers making it latency-bound, not throughput-bound. A single batch=N forward pass costs roughly 80-90ms for N=2 vs 2×67=134ms for two sequential batch=1 passes (~35-45ms per agent effective cost). Scales further: 3 agents → one batch=3 pass instead of three sequential passes, and so on.
+
+**Why Option B (edge-side aggregation) over server-side dynamic batching**: The edge already owns the coordination loop and calls all agents' `run_step()` sequentially. It has natural access to all vehicle and RSU perception managers. Server-side batching requires a request queue with a timeout that penalizes the first-arriving agent. Edge-side aggregation has no synchronization ambiguity.
+
+**Required changes**:
+
+*`WorldFusionPerceptionManager`*: Split `run_step()` into two phases:
+- `build_batch()` — runs `_build_batch()`, stores result in `self._pending_batch`; pure CPU, no HTTP
+- `apply_features(feature_dict)` — receives the spatial_features result from the edge, stores in `self.feature_dict` / `self.feature_map`
+
+*Edge manager*: New method `_run_batched_encoder()`:
+1. Call `build_batch()` on each vehicle and RSU perception manager
+2. Merge batches — camera tensors stack directly; voxel data requires reindexing the batch_idx column of `voxel_coords` per agent (agent 0: batch_idx=0, agent 1: batch_idx=1, etc.); `record_len` = `[1] * N`
+3. Send one HTTP POST to `/extract_features` with merged batch
+4. Receive `(N, C, H, W)` spatial_features response
+5. Split on dim 0 and call `apply_features()` on each agent
+
+*Server `_extract_wf_features`*: No changes required. The model was trained on V2X-Sim with multi-agent batches and already handles `record_len=[1,1,...]` correctly. Output shape is `(N, C, H, W)` naturally.
+
+**Voxel merging detail**: The only non-trivial piece. `voxel_features` and `voxel_num_points` concatenate directly. `voxel_coords` has shape `(K, 4)` where column 0 is the batch index (all zeros for a single-agent batch). For agent i, set `voxel_coords[:, 0] = i` before concatenation.
+
+**Expected benefit**: ~50% inference cost reduction per agent at N=2 (current scenario). Scales sublinearly with N — batch=4 won't be 4× faster but will be significantly better than 4 sequential calls. This is the highest-leverage remaining optimization on the server-side compute path.
+
+**Scaling note**: As the number of vehicles and RSUs per intersection grows, this optimization compounds. 4 vehicles + 1 RSU = 5 sequential 67ms calls (335ms) vs one batch=5 pass (~120ms estimated). The edge-side coordination cost is O(N) in build_batch (all CPU, parallelizable) and O(1) in HTTP calls and GPU inference.
+
+---
 
 ### O4 — LiDAR-only mode (skip camera branch)
 
