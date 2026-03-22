@@ -197,7 +197,8 @@ def _extract_wf_features(batch):
 
     if 'image_inputs' in batch and batch['image_inputs'] is not None:
         from einops import rearrange
-        imgs = batch['image_inputs']['imgs']
+        # Cast back to float32 if client sent as uint8 to reduce payload
+        imgs = batch['image_inputs']['imgs'].float()
         B, N, C, imH, imW = imgs.shape
         x = imgs.view(B * N, C, imH, imW)
         _, x = sensor.camenc(x, batch['image_inputs']['depth_map'], batch['record_len'])

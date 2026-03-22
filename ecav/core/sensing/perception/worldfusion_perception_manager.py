@@ -314,6 +314,11 @@ class WorldFusionPerceptionManager(PerceptionManager):
             return obj
 
         batch_np = _tensors_to_numpy(batch)
+        # Cast imgs float32 → uint8 to reduce payload by ~75% (~8MB → ~2MB).
+        # Lossless: CARLA captures uint8 pixels; _build_batch() casts to float32
+        # only for local inference. Server casts back before camenc.
+        if 'image_inputs' in batch_np and 'imgs' in batch_np['image_inputs']:
+            batch_np['image_inputs']['imgs'] = batch_np['image_inputs']['imgs'].astype(np.uint8)
         t1 = _t.time()
 
         payload = msgpack.packb(batch_np, use_bin_type=True)

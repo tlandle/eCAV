@@ -10,27 +10,30 @@
 
 **Phase 0 — Enable**
 - [x] 1. Fix `ml_manager` YAML block — uncomment with correct `worldfusion_endpoint`
-- [ ] 2. Set camera capture resolution in YAML to match model `final_dim` (480×360, width×height)
-- [ ] 3. Refactor shared transport utilities into `ecav/ml_manager/litserve_transport.py` (`make_session`, `TimingRecorder`, numpy↔tensor helpers)
-- [ ] 4. Fix bare `requests.post()` in `_extract_features_remote()` — use `make_session()` from transport module
+- [x] 2. Set camera capture resolution in YAML to match model `final_dim` (480×360, width×height)
+- [x] 3. Refactor shared transport utilities into `ecav/ml_manager/litserve_transport.py` (`make_session`, `TimingRecorder`, numpy↔tensor helpers)
+- [x] 4. Fix bare `requests.post()` in `_extract_features_remote()` — use `make_session()` from transport module
 - [x] 5. Pre-load WorldFusion model at LitServe server startup (eliminate first-tick cold load)
 
 **Phase 1 — Instrument**
-- [ ] 6. Consume all 5 server response headers in `_extract_features_remote()` (currently only reads 2 of 5: `Total` and `Inference`; missing `Read`, `Decode`, `Encode`)
-- [ ] 7. Accumulate per-tick timing rows in `WorldFusionPerceptionManager` — both distributed and local modes
-- [ ] 8. Add `close()` to `WorldFusionPerceptionManager`; call it explicitly from the scenario `finally` block (not via `CavWorld` — `scenario_manager.close()` does not propagate to perception managers)
-- [ ] 9. Call `edge.profiler.save_report()` from the scenario `finally` block — `EdgeProfiler` accumulates all edge-side metrics per tick but `save_report()` is never called from any scenario file; the JSON is never written
-- [ ] 10. Audit timing calculations for operator precedence bugs (Phase 0 analog from late-fusion)
-- [ ] 11. Add `tools/analyze_wf_timing.py` or extend `tools/analyze_ml_timing.py` with WorldFusion schema
+- [x] 6. Consume all 5 server response headers in `_extract_features_remote()` (currently only reads 2 of 5: `Total` and `Inference`; missing `Read`, `Decode`, `Encode`)
+- [x] 7. Accumulate per-tick timing rows in `WorldFusionPerceptionManager` — both distributed and local modes
+- [x] 8. Add `close()` to `WorldFusionPerceptionManager`; call it explicitly from the scenario `finally` block (not via `CavWorld` — `scenario_manager.close()` does not propagate to perception managers)
+- [x] 9. Call `edge.profiler.save_report()` from the scenario `finally` block — `EdgeProfiler` accumulates all edge-side metrics per tick but `save_report()` is never called from any scenario file; the JSON is never written
+- [x] 10. Audit timing calculations for operator precedence bugs — none found
+- [x] 11. Add `tools/analyze_wf_timing.py`
 
 **Phase 1 — Baseline run**
-- [ ] 12. Measure: payload size, build_batch_ms, serialize_ms, http_ms, server sub-timings, total_e2e_ms per agent
-- Observed payload: ~10 MB per agent per tick (2 agents → ~20 MB/tick inbound to server)
+- [x] 12. Measure: payload size, build_batch_ms, serialize_ms, http_ms, server sub-timings, total_e2e_ms per agent
+- Observed: ~8MB request, ~10MB response (float32), ~291ms http_ms, ~355ms total_e2e_ms (n=168, vehicle)
 
-**Phase 2 — Optimizations (post-measurement)**
-- [ ] 12. Eliminate zero `depth_map` from payload
-- [ ] 13. Cast `imgs` float32 → float16 before serialization
-- [ ] 14. (Future) gRPC — `ExtractFeatures` RPC; see `grpc_perception_migration.md` Section 7
+**Phase 2 — Optimizations**
+- [x] O1. Send spatial_features as float16 in response — **kept**; http_ms 291→175ms (-40%), total_e2e 355→234ms (-34%)
+- [x] O2. ~~Eliminate zero `depth_map` from payload~~ — tried, no benefit (upload not bottleneck; reverted)
+- [x] O3. ~~Cast `imgs` float32 → float16 before serialization~~ — tried, net negative (astype cost +2.5ms > http savings); reverted
+- [x] O4. Send `imgs` as uint8 instead of float32 — **kept**; lossless, payload 8021→3803KB (-4.2MB, -53%). On loopback: total_e2e neutral (233→233ms), to_numpy_ms cost only 0.31ms. Kept because on Azure over real network links, 4MB × 2 agents × 20Hz = 160 MB/s avoided upload bandwidth per intersection.
+- [ ] O5. Async/pipelined feature extraction — overlap build_batch + HTTP with vehicle tick loop
+- [ ] O6. (Future) gRPC — `ExtractFeatures` RPC; see `grpc_perception_migration.md` Section 7
 
 ---
 
@@ -303,19 +306,20 @@ This is fundamentally different from YOLO (dominated by HTTP transport). WorldFu
 
 Direct application of late-fusion O1. Already required for correctness; listed here for completeness.
 
-### O2 — Eliminate zero `depth_map` from payload
+### O2 — Eliminate zero `depth_map` from payload ~~(tried; discarded)~~
 
-**File**: `ecav/core/sensing/perception/worldfusion_perception_manager.py`
+**Implemented and measured. No observable benefit. Reverted.**
 
-The `depth_map` field in `image_inputs` is a zero tensor (placeholder). The server's `_extract_wf_features` uses `depth_map` only inside the `if 'image_inputs' in batch` branch for learned depth lifting — which the current V2X-Sim model does not use (it uses geometric/voxel projection instead). Transmitting 2.8 MB of zeros per agent per tick is pure overhead.
+Stripped `depth_map` from the request on the client, reconstructed as zeros on the server from `imgs` shape. Payload dropped from ~8021KB to ~6146KB (-1875KB). Result:
 
-**Fix**: Exclude `depth_map` from the batch sent to LitServe (replace with a sentinel or omit). Requires corresponding change in server's `_extract_wf_features` to not expect it.
+- `http_ms`: 174.75 → 174.68ms (noise)
+- `total_e2e_ms`: 233.54 → 233.74ms (noise)
+- `pack_ms`: 1.34 → 0.91ms (real but immaterial)
+- `server_read_ms`: 1.70 → 1.39ms (real but immaterial)
 
-**Impact estimate**: -2.8 MB per agent per call (~25% payload reduction).
+Root cause: the upload was never the bottleneck. Server reads the full request body in ~1.4ms regardless of whether it's 6MB or 8MB. `http_ms` is dominated by downloading the 5MB float16 response, which is unchanged. Adding client-strip + server-reconstruct complexity for zero e2e benefit is not justified. Change reverted.
 
-Verify the server path doesn't use depth_map before removing — confirm by inspecting `_extract_wf_features` with LiDAR-only inputs.
-
-### O3 — Cast `imgs` float32 → float16 before serialization
+### O3 — Cast `imgs` float32 → float16 before serialization ~~(tried; discarded)~~
 
 **File**: `ecav/core/sensing/perception/worldfusion_perception_manager.py`
 
@@ -330,9 +334,15 @@ if 'imgs' in batch['image_inputs']:
     batch['image_inputs']['imgs'] = batch['image_inputs']['imgs'].float()
 ```
 
-**Impact estimate**: -4.15 MB per agent per call (~38% remaining payload reduction after O2). Combined with O2: ~57% total payload reduction (11 MB → 4.7 MB per agent).
+**Implemented and measured. Net negative. Reverted.**
 
-**Risk**: float16 quantization error in camera features is unlikely to meaningfully affect detection quality given the upstream JPEG capture artifacts, but should be validated against a local (non-distributed) run on the same scenario.
+Payload dropped from ~8021KB to ~5209KB (-2.75MB). Result:
+
+- `to_numpy_ms`: 0.04 → 2.47ms (+2.43ms) — `astype(np.float16)` on an 8MB array costs ~2.5ms on the critical path
+- `http_ms`: 174.75 → 173.25ms (noise — upload still not the bottleneck)
+- `total_e2e_ms`: 233.54 → 238.33ms (slightly worse)
+
+Same root cause as O2: the upload path costs ~1.4ms regardless of payload size. Paying a 2.5ms conversion cost to save time on a path that wasn't costing anything is net negative.
 
 ### O4 — LiDAR-only mode (skip camera branch)
 
