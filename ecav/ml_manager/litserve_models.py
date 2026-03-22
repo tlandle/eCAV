@@ -5,6 +5,7 @@
 LitServe model servers for distributed inference
 """
 
+import glob
 import os
 import litserve as ls
 import torch
@@ -12,10 +13,27 @@ import numpy as np
 import cv2
 import msgpack
 import msgpack_numpy as m
-m.patch()  # Patch msgpack to handle numpy arrays
+from turbojpeg import TurboJPEG
 from typing import List
 from fastapi import Request
 from starlette.responses import JSONResponse, Response
+
+m.patch()  # Patch msgpack to handle numpy arrays
+
+
+def _init_turbojpeg() -> TurboJPEG:
+    """Instantiate TurboJPEG, searching the conda env lib dir if needed."""
+    try:
+        return TurboJPEG()
+    except RuntimeError:
+        pattern = os.path.expanduser('~/anaconda3/envs/*/lib/libturbojpeg.so.0')
+        candidates = sorted(glob.glob(pattern))
+        if not candidates:
+            raise RuntimeError("libturbojpeg.so.0 not found; install via: conda install -c conda-forge libjpeg-turbo")
+        return TurboJPEG(candidates[0])
+
+
+_turbo_jpeg = _init_turbojpeg()
 
 YOLO_PATH = './yolov5'  # Path to local YOLOv5 repo
 YOLO_FILE = 'yolov5m.pt'  # Local model file name
@@ -245,11 +263,8 @@ if __name__ == "__main__":
                 data = msgpack.unpackb(body_bytes, raw=False)
                 t_dec = time.time()
                 if 'jpeg_images' in data:
-                    # JPEG-compressed path: decode bytes -> BGR numpy arrays
-                    images = [
-                        cv2.imdecode(np.frombuffer(b, dtype=np.uint8), cv2.IMREAD_COLOR)
-                        for b in data['jpeg_images']
-                    ]
+                    # O4b: TurboJPEG decode (2-4x faster than cv2.imdecode)
+                    images = [_turbo_jpeg.decode(b) for b in data['jpeg_images']]
                 else:
                     # Raw numpy array path (msgpack-numpy encoded)
                     images = data.get("images", [])

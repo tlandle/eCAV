@@ -7,6 +7,7 @@ ML Manager supporting both local and distributed modes for model inference.
 """
 
 import csv
+import glob
 import os
 import time
 import torch
@@ -18,8 +19,25 @@ import json
 from typing import Dict, Any, List, Optional
 import msgpack
 import msgpack_numpy as m
+from turbojpeg import TurboJPEG
 
 m.patch()
+
+# YOLO internal inference resolution — resize before encode to avoid
+# redundant pixels being encoded/transmitted (YOLO letterboxes anyway).
+YOLO_INFER_SIZE = 640
+
+
+def _init_turbojpeg() -> TurboJPEG:
+    """Instantiate TurboJPEG, searching the conda env lib dir if needed."""
+    try:
+        return TurboJPEG()
+    except RuntimeError:
+        pattern = os.path.expanduser('~/anaconda3/envs/*/lib/libturbojpeg.so.0')
+        candidates = sorted(glob.glob(pattern))
+        if not candidates:
+            raise RuntimeError("libturbojpeg.so.0 not found; install via: conda install -c conda-forge libjpeg-turbo")
+        return TurboJPEG(candidates[0])
 
 # Local model imports
 from opencood.hypes_yaml.yaml_utils import load_yaml
@@ -109,6 +127,7 @@ class MLManager(object):
         print(f"[ML Manager] WorldFusion endpoint: {self.worldfusion_endpoint}")
 
         self._session = requests.Session()
+        self._turbo_jpeg = _init_turbojpeg()
 
         # Set object_detector to None to indicate distributed mode
         self.object_detector = None
@@ -192,15 +211,20 @@ class MLManager(object):
         """Run YOLO via distributed service using msgpack + JPEG-compressed images"""
         t0 = time.time()
 
-        # Encode each RGB frame as JPEG bytes (RGB -> BGR for cv2, then JPEG)
-        # YOLOv5 autoShape expects BGR numpy arrays; JPEG decode produces BGR.
+        # O4a: resize to YOLO inference resolution before encoding.
+        # YOLO letterboxes to YOLO_INFER_SIZE internally; resizing here
+        # eliminates redundant pixels from encode/transmit/decode.
+        # O4b: TurboJPEG (libjpeg-turbo) encodes 2-4x faster than cv2.
+        # RGB -> BGR for cv2/TurboJPEG convention; JPEG decode produces BGR.
         jpeg_images = []
         for img in rgb_images:
             bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            success, buf = cv2.imencode('.jpg', bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
-            if not success:
-                raise RuntimeError("cv2.imencode failed for YOLO request image")
-            jpeg_images.append(buf.tobytes())
+            h, w = bgr.shape[:2]
+            scale = YOLO_INFER_SIZE / max(h, w)
+            if scale < 1.0:
+                bgr = cv2.resize(bgr, (int(w * scale), int(h * scale)),
+                                 interpolation=cv2.INTER_LINEAR)
+            jpeg_images.append(self._turbo_jpeg.encode(bgr, quality=85))
 
         request_data = {'jpeg_images': jpeg_images}
         packed = msgpack.packb(request_data, use_bin_type=True)

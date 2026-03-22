@@ -122,6 +122,9 @@ pyquaternion==0.9.9
 pysocks==1.7.1
 python-dateutil==2.9.0.post0
 pytz==2025.2
+# PyTurboJPEG: Python bindings for libjpeg-turbo (SIMD-accelerated JPEG codec).
+# Also requires the native library: conda install -c conda-forge libjpeg-turbo
+PyTurboJPEG==2.2.0
 pyyaml==6.0.3
 referencing==0.37.0
 requests==2.32.5
