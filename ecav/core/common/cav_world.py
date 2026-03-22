@@ -58,14 +58,11 @@ class CavWorld(object):
         self.ml_manager = None
         self.tick_id = 0
         self.apply_ml = apply_ml
+        # Actor distribution (-d): individual actors run as separate processes
+        self.run_distributed = config.get('distributed', False) if config else False
+        # ML inference distribution (-l): perception offloaded to LitServe server
+        # These are orthogonal: either, both, or neither may be active.
         self.litserve = litserve
-
-        # Determine if running distributed from config or litserve flag
-        run_distributed = config.get('distributed', False) if config else False
-        # If litserve is enabled, we're running distributed ML inference
-        if litserve:
-            run_distributed = True
-        self.run_distributed = run_distributed
 
         # Get ML configuration
         ml_config = config.get('ml_manager', {}) if config else {}
@@ -76,7 +73,7 @@ class CavWorld(object):
             self.ml_manager = MLManager(
                 apply_ml=apply_ml,
                 rank=0,
-                run_distributed=run_distributed,
+                run_distributed=litserve,
                 config=ml_config
             )
         else:

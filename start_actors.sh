@@ -275,7 +275,7 @@ if [[ $num_edges -gt 0 ]]; then
             -e DISPLAY=$DISPLAY \
             -e TERM \
             ecav-python310:latest \
-            python3.10 opencda/ecav2/edge_process.py -e $e -P $edge_port
+            python3.10 ecav/ecav2/edge_process.py -e $e -P $edge_port
 
         echo "  ✓ $container_name started"
         echo "  Waiting 3 seconds before starting next edge..."
@@ -329,7 +329,7 @@ if [[ $num_rsu -gt 0 ]]; then
             -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
-            python3.10 opencda/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
+            python3.10 ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
 
         echo "  ✓ $container_name started"
         echo "  Waiting 5 seconds before starting next container..."

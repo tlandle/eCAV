@@ -14,11 +14,13 @@ import logging
 import time
 import random
 import weakref
+import logging
 
 import carla
 import numpy as np
 from omegaconf import OmegaConf
 from omegaconf.listconfig import ListConfig
+
 from ecav.core.common.cav_world import CavWorld
 from ecav.core.actuation.control_manager \
     import ControlManager
@@ -53,7 +55,6 @@ from ecav.client_metrics import ClientMetrics
 from ecav.core.common.ecloud_config import eLocationType
 from ecav.core.common.traffic_event import TrafficEvent, TrafficEventType
 
-import logging
 logger = logging.getLogger(__name__)
 
 cloud_config = load_yaml("cloud_config.yaml")
@@ -195,7 +196,7 @@ class VehicleManager(object):
                     if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
 
             else:
-                assert(False, "no known vehicle indexing format found")
+                assert False, "no known vehicle indexing format found"
 
  
         # eCLOUD BEGIN
@@ -216,7 +217,7 @@ class VehicleManager(object):
                     if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
 
             else:
-                assert(False, "no known vehicle indexing format found")
+                assert False, "no known vehicle indexing format found"
 
         spawned = False
         while not spawned:

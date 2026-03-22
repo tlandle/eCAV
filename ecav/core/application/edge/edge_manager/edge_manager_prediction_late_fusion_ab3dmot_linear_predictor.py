@@ -199,12 +199,17 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             from ecav.core.prediction.smart_predictor_manager import (
                 SMARTPredictorManager3D)
             smart_cfg = cfg['smart_predictor']
-            self.predictor = SMARTPredictorManager3D(
-                checkpoint_path=smart_cfg['checkpoint'],
-                map_cache_path=smart_cfg.get('map_cache'),
-                device=smart_cfg.get('device', 'cuda'),
-                num_output_steps=25)
-            print(f"[LateFusion Edge] Using SMART predictor")
+            try:
+                self.predictor = SMARTPredictorManager3D(
+                    checkpoint_path=smart_cfg['checkpoint'],
+                    map_cache_path=smart_cfg.get('map_cache'),
+                    device=smart_cfg.get('device', 'cuda'),
+                    num_output_steps=25)
+                print(f"[LateFusion Edge] Using SMART predictor")
+            except FileNotFoundError:
+                print(f"[LateFusion Edge] SMART checkpoint not found "
+                      f"({smart_cfg['checkpoint']}); falling back to linear predictor")
+                self.predictor = LinearPredictorManager(num_future_steps=25)
         else:
             self.predictor = LinearPredictorManager(num_future_steps=25)
             print(f"[LateFusion Edge] Using linear predictor")

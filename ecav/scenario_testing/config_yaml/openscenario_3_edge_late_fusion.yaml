@@ -84,7 +84,7 @@ scenario_runner:
   output: false
   outputDir: ''
   randomize: false
-  vehicle_index: 0
+  vehicle_index: -2
 
 
 

@@ -23,7 +23,6 @@ License: MIT
 
 import importlib
 import os
-from opencda.ecav2.arg_utils import build_arg_parser
 import sys
 import subprocess
 from omegaconf import OmegaConf
@@ -32,9 +31,11 @@ import warnings
 import json
 
 import grpc
-
-from opencda.version import __version__
 import coloredlogs, logging
+
+from ecav.version import __version__
+from ecav.ecav2.arg_utils import build_arg_parser
+
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='INFO', logger=logger)
