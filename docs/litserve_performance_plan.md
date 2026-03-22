@@ -108,14 +108,7 @@ Tradeoff: lossy compression may marginally affect detection confidence. Quantify
 
 `/predict_msgpack` previously accepted msgpack but responded with JSON. Changed to return `msgpack.packb(result)` with `media_type=application/octet-stream`; client parses with `msgpack.unpackb(response.content)`. The `/extract_features` endpoint already used this pattern.
 
-### O4. Remove `asyncio.to_thread` for single-client case
-**Effort**: 15 min | **Impact**: Low–Medium
-
-**File**: `ecav/ml_manager/litserve_models.py`, `/predict_msgpack` handler
-
-In the sequential (non-distributed actor) scenario there is exactly one client. The `to_thread` dispatch adds ~0.1–0.5ms and does not improve CUDA throughput since the GIL serializes CPU-side preprocessing regardless. Gate behind `LITSERVE_SINGLE_CLIENT=1` environment variable.
-
-### O5. gRPC transport (longer term)
+### O4. gRPC transport
 **Effort**: Multi-day | **Impact**: High
 
 The project already uses gRPC extensively (`ecav/protos/ecloud.proto`). Adding a YOLO inference RPC eliminates HTTP framing overhead entirely, provides built-in flow control, and enables more efficient binary serialization. Combine with O2 (JPEG) for maximum gain.
@@ -133,7 +126,7 @@ message YOLOResponse {
 }
 ```
 
-Pursue only if O1–O4 are insufficient to close the gap.
+Target deployment has many distributed clients, making HTTP per-request overhead significant at scale. gRPC follows O2 regardless of residual gap.
 
 ---
 
@@ -145,13 +138,10 @@ Pursue only if O1–O4 are insufficient to close the gap.
 | Phase 1 instrumentation | ✅ Done |
 | O1 — Session keep-alive | ✅ Done |
 | O3 — msgpack response | ✅ Done |
-| O2 — JPEG compression | Pending data analysis |
-| O4 — Remove `to_thread` | Pending data analysis |
-| O5 — gRPC transport | Longer term |
+| O2 — JPEG compression | ✅ Done |
+| O4 — gRPC transport | In progress |
 
 ## Recommended Next Steps
 
-1. **Analyze Phase 1 CSV** — identify which sub-component (`serialize_ms`, `http_ms`, `server_inference_ms`) dominates
-2. **Apply O2** (JPEG) if payload serialization/transport dominates
-3. **Apply O4** (remove `to_thread`) — low risk, evaluate independently
-4. **Evaluate** — if gap remains significant, proceed to O5 (gRPC)
+1. **Measure O2 impact** — run with JPEG and compare CSV against O1+O3 baseline
+2. **Implement O4** (gRPC) — replace HTTP transport entirely

@@ -169,6 +169,7 @@ class MLManager(object):
                 'serialize_ms': 0.0,
                 'http_ms': 0.0,
                 'server_decode_ms': 0.0,
+                'server_img_prep_ms': 0.0,
                 'server_inference_ms': 0.0,
                 'server_encode_ms': 0.0,
                 'client_deserialize_ms': 0.0,
@@ -188,11 +189,20 @@ class MLManager(object):
         return self.detect(rgb_images)
 
     def _detect_yolo_distributed(self, rgb_images):
-        """Run YOLO via distributed service using msgpack"""
+        """Run YOLO via distributed service using msgpack + JPEG-compressed images"""
         t0 = time.time()
 
-        # Pack numpy arrays with msgpack
-        request_data = {'images': rgb_images}
+        # Encode each RGB frame as JPEG bytes (RGB -> BGR for cv2, then JPEG)
+        # YOLOv5 autoShape expects BGR numpy arrays; JPEG decode produces BGR.
+        jpeg_images = []
+        for img in rgb_images:
+            bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            success, buf = cv2.imencode('.jpg', bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if not success:
+                raise RuntimeError("cv2.imencode failed for YOLO request image")
+            jpeg_images.append(buf.tobytes())
+
+        request_data = {'jpeg_images': jpeg_images}
         packed = msgpack.packb(request_data, use_bin_type=True)
 
         t_after_serialize = time.time()
@@ -215,6 +225,7 @@ class MLManager(object):
             print(f"[ML Manager] Network time: {http_ms:.1f}ms")
 
             server_decode_ms = float(response.headers.get('X-Server-Decode-Ms', 0.0))
+            server_img_prep_ms = float(response.headers.get('X-Server-ImgPrep-Ms', 0.0))
             server_inference_ms = float(response.headers.get('X-Server-Inference-Ms', 0.0))
             server_encode_ms = float(response.headers.get('X-Server-Encode-Ms', 0.0))
 
@@ -237,6 +248,7 @@ class MLManager(object):
                 'serialize_ms': serialize_ms,
                 'http_ms': http_ms,
                 'server_decode_ms': server_decode_ms,
+                'server_img_prep_ms': server_img_prep_ms,
                 'server_inference_ms': server_inference_ms,
                 'server_encode_ms': server_encode_ms,
                 'client_deserialize_ms': client_deserialize_ms,
@@ -258,8 +270,8 @@ class MLManager(object):
         if not self._dist_timing_rows:
             return
         fieldnames = ['tick', 'mode', 'serialize_ms', 'http_ms', 'server_decode_ms',
-                      'server_inference_ms', 'server_encode_ms', 'client_deserialize_ms',
-                      'parse_ms', 'total_e2e_ms']
+                      'server_img_prep_ms', 'server_inference_ms', 'server_encode_ms',
+                      'client_deserialize_ms', 'parse_ms', 'total_e2e_ms']
         with open(path, 'w', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()

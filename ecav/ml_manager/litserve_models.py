@@ -243,31 +243,42 @@ if __name__ == "__main__":
 
             def _yolo_process(body_bytes):
                 data = msgpack.unpackb(body_bytes, raw=False)
-                images = data.get("images", [])
                 t_dec = time.time()
+                if 'jpeg_images' in data:
+                    # JPEG-compressed path: decode bytes -> BGR numpy arrays
+                    images = [
+                        cv2.imdecode(np.frombuffer(b, dtype=np.uint8), cv2.IMREAD_COLOR)
+                        for b in data['jpeg_images']
+                    ]
+                else:
+                    # Raw numpy array path (msgpack-numpy encoded)
+                    images = data.get("images", [])
+                t_img_ready = time.time()
                 with torch.no_grad():
                     results = model(images)
                 t_inf = time.time()
                 response_data = api_yolo.encode_response(results)
                 packed = msgpack.packb(response_data, use_bin_type=True)
                 t_enc = time.time()
-                return images, packed, t_dec, t_inf, t_enc
+                return images, packed, t_dec, t_img_ready, t_inf, t_enc
 
-            images, packed, t_after_decode, t_after_inference, t_after_encode = \
+            images, packed, t_after_decode, t_img_ready, t_after_inference, t_after_encode = \
                 await asyncio.to_thread(_yolo_process, body)
 
             read_ms = (t_after_read - t_entry) * 1000
             decode_ms = (t_after_decode - t_after_read) * 1000
-            inference_ms = (t_after_inference - t_after_decode) * 1000
+            img_prep_ms = (t_img_ready - t_after_decode) * 1000   # JPEG decode (0 for raw path)
+            inference_ms = (t_after_inference - t_img_ready) * 1000
             encode_ms = (t_after_encode - t_after_inference) * 1000
             total_ms = (t_after_encode - t_entry) * 1000
 
-            print(f"[YOLO] {len(images)} imgs, inference={inference_ms:.0f}ms, "
-                  f"total={total_ms:.0f}ms")
+            print(f"[YOLO] {len(images)} imgs, img_prep={img_prep_ms:.0f}ms "
+                  f"inference={inference_ms:.0f}ms, total={total_ms:.0f}ms")
 
             timing_headers = {
                 'X-Server-Read-Ms': str(read_ms),
                 'X-Server-Decode-Ms': str(decode_ms),
+                'X-Server-ImgPrep-Ms': str(img_prep_ms),
                 'X-Server-Inference-Ms': str(inference_ms),
                 'X-Server-Encode-Ms': str(encode_ms),
                 'X-Server-Total-Ms': str(total_ms),
