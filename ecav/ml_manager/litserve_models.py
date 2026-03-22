@@ -211,7 +211,9 @@ def _extract_wf_features(batch):
         b, c, z, y, x_dim = spatial_3d.shape
         bd['spatial_features'] = spatial_3d.view(b, c * z, y, x_dim)
 
-    return {'spatial_features': bd['spatial_features'].cpu().numpy()}
+    # Return as float16 to halve response payload (~10MB → ~5MB).
+    # The edge manager casts back to float32 via .float().cuda() before fusion.
+    return {'spatial_features': bd['spatial_features'].cpu().half().numpy()}
 
 
 if __name__ == "__main__":
