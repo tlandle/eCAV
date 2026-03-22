@@ -211,19 +211,15 @@ class MLManager(object):
         """Run YOLO via distributed service using msgpack + JPEG-compressed images"""
         t0 = time.time()
 
-        # O4a: resize to YOLO inference resolution before encoding.
-        # YOLO letterboxes to YOLO_INFER_SIZE internally; resizing here
-        # eliminates redundant pixels from encode/transmit/decode.
         # O4b: TurboJPEG (libjpeg-turbo) encodes 2-4x faster than cv2.
-        # RGB -> BGR for cv2/TurboJPEG convention; JPEG decode produces BGR.
+        # RGB -> BGR for TurboJPEG convention; decode produces BGR for YOLO.
+        # NOTE: O4a (resize before encode) was found to degrade detection
+        # quality at the intersection scenario — pre-resize compounds JPEG
+        # artifacts on the already-downsampled image, hurting distant objects.
+        # YOLO's internal letterbox handles the resize more cleanly post-decode.
         jpeg_images = []
         for img in rgb_images:
             bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-            h, w = bgr.shape[:2]
-            scale = YOLO_INFER_SIZE / max(h, w)
-            if scale < 1.0:
-                bgr = cv2.resize(bgr, (int(w * scale), int(h * scale)),
-                                 interpolation=cv2.INTER_LINEAR)
             jpeg_images.append(self._turbo_jpeg.encode(bgr, quality=85))
 
         request_data = {'jpeg_images': jpeg_images}
