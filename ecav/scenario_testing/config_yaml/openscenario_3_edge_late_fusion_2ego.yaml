@@ -10,7 +10,7 @@ define: &perception_is_active true
 perception_active: *perception_is_active
 
 ml_manager:
-  yolo_endpoint: 'http://localhost:18000'
+  yolo_endpoint: 'localhost:18001'
 
 world:
   sync_mode: true

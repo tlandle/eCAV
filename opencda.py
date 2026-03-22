@@ -169,12 +169,21 @@ def main():
 
     # Rebuild gRPC proto files if requested
     if opt.build:
+        # ecloud: stubs output to repo root (imported as top-level modules)
         subprocess.run([
             'python', '-m', 'grpc_tools.protoc',
-            '-I./opencda/protos',
+            '-I./ecav/protos',
             '--python_out=.',
             '--grpc_python_out=.',
-            './opencda/protos/ecloud.proto'
+            './ecav/protos/ecloud.proto'
+        ])
+        # perception: stubs output to ecav/protos/ (imported via sys.path)
+        subprocess.run([
+            'python', '-m', 'grpc_tools.protoc',
+            '-I./ecav/protos',
+            '--python_out=./ecav/protos',
+            '--grpc_python_out=./ecav/protos',
+            './ecav/protos/perception.proto'
         ])
 
     if opt.vehicle_index == -2:
@@ -197,6 +206,7 @@ if __name__ == '__main__':
 
         sys.path.insert(0, '/opt/carla-simulator/PythonAPI/carla')
         sys.path.insert(0, os.path.join(os.getcwd(), 'opencda'))
+        sys.path.insert(0, os.path.join(os.getcwd(), 'ecav', 'protos'))
         sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
         sys.path.insert(0, os.getcwd())
 

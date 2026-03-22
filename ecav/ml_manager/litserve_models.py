@@ -6,15 +6,25 @@ LitServe model servers for distributed inference
 """
 
 import os
+import sys
+from concurrent import futures
+
+# perception_pb2 stubs live in ecav/protos/; add to path when running standalone
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'ecav', 'protos'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+import grpc
 import litserve as ls
-import torch
-import numpy as np
-import cv2
 import msgpack
 import msgpack_numpy as m
-from typing import List
+import numpy as np
+import torch
 from fastapi import Request
 from starlette.responses import JSONResponse, Response
+from typing import List
+
+import perception_pb2_grpc
+from perception_servicer import PerceptionServicer
 
 m.patch()  # Patch msgpack to handle numpy arrays
 
@@ -44,11 +54,9 @@ class YOLOv5Server(ls.LitAPI):
         if imgs is None:
             raise ValueError("Request must contain key 'images'.")
 
-        # With msgpack-numpy, images are already numpy arrays!
         if not isinstance(imgs, list):
             raise ValueError("'images' must be a list.")
 
-        # Verify they're numpy arrays
         for i, img in enumerate(imgs):
             if not isinstance(img, np.ndarray):
                 raise ValueError(f"Image {i} is {type(img)}, expected numpy.ndarray")
@@ -92,23 +100,6 @@ class YOLOv5Server(ls.LitAPI):
             })
 
         return resp
-
-
-# Global model instance for custom endpoint (loaded once on startup)
-_global_model = None
-
-def load_global_model():
-    """Load model once for the custom endpoint"""
-    global _global_model
-    if _global_model is None:
-        print("[Global] Loading YOLOv5 model for msgpack endpoint...")
-        if os.path.exists(os.path.join(YOLO_PATH, YOLO_FILE)):
-            _global_model = torch.hub.load(YOLO_PATH, model='yolov5m', source='local')
-        else:
-            _global_model = torch.hub.load("ultralytics/yolov5", "yolov5m")
-        _global_model = _global_model.cuda().eval()
-        print("[Global] Model loaded!")
-    return _global_model
 
 
 # ============= WorldFusion Feature Server =============
@@ -222,88 +213,39 @@ def _extract_wf_features(batch):
 if __name__ == "__main__":
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "18000"))
+    grpc_port = int(os.getenv("GRPC_PORT", "18001"))
 
-    print(f"[LitServe] Starting combined server on {host}:{port}")
-    print(f"[LitServe] Endpoints: /predict_msgpack (YOLO), /extract_features (WorldFusion)")
+    print(f"[LitServe] Starting server — HTTP on {host}:{port}, gRPC on {host}:{grpc_port}")
+    print(f"[LitServe] HTTP endpoint: /extract_features (WorldFusion)")
+    print(f"[LitServe] gRPC endpoint: PerceptionService.DetectYolo")
 
+    # Load YOLO model once; shared between gRPC servicer and this process
+    yolo_api = YOLOv5Server()
+    if os.path.exists(os.path.join(YOLO_PATH, YOLO_FILE)):
+        _yolo_model = torch.hub.load(YOLO_PATH, model='yolov5m', source='local')
+    else:
+        _yolo_model = torch.hub.load("ultralytics/yolov5", "yolov5m")
+    _yolo_model = _yolo_model.cuda().eval()
+    print("[LitServe] YOLO model loaded")
+
+    # Start gRPC server in background thread
+    servicer = PerceptionServicer(_yolo_model, yolo_api.encode_response)
+    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
+    perception_pb2_grpc.add_PerceptionServiceServicer_to_server(servicer, grpc_server)
+    grpc_server.add_insecure_port(f"[::]:{grpc_port}")
+    grpc_server.start()
+    print(f"[gRPC] PerceptionService listening on port {grpc_port}")
+
+    # WorldFusion HTTP server (uvicorn/LitServe)
     api = WorldFusionFeatureServer()
     server = ls.LitServer(api, accelerator="auto")
 
-    # YOLO endpoint
-    @server.app.post("/predict_msgpack")
-    async def predict_msgpack(request: Request):
-        """YOLO object detection via msgpack binary data."""
-        import asyncio
-        import time
-        try:
-            t_entry = time.time()
-            model = load_global_model()
-
-            body = await request.body()
-            t_after_read = time.time()
-
-            def _yolo_process(body_bytes):
-                data = msgpack.unpackb(body_bytes, raw=False)
-                t_dec = time.time()
-                if 'jpeg_images' in data:
-                    images = [
-                        cv2.imdecode(np.frombuffer(b, dtype=np.uint8), cv2.IMREAD_COLOR)
-                        for b in data['jpeg_images']
-                    ]
-                else:
-                    # Raw numpy array path (msgpack-numpy encoded)
-                    images = data.get("images", [])
-                t_img_ready = time.time()
-                with torch.no_grad():
-                    results = model(images)
-                t_inf = time.time()
-                response_data = api_yolo.encode_response(results)
-                packed = msgpack.packb(response_data, use_bin_type=True)
-                t_enc = time.time()
-                return images, packed, t_dec, t_img_ready, t_inf, t_enc
-
-            images, packed, t_after_decode, t_img_ready, t_after_inference, t_after_encode = \
-                await asyncio.to_thread(_yolo_process, body)
-
-            read_ms = (t_after_read - t_entry) * 1000
-            decode_ms = (t_after_decode - t_after_read) * 1000
-            img_prep_ms = (t_img_ready - t_after_decode) * 1000   # JPEG decode (0 for raw path)
-            inference_ms = (t_after_inference - t_img_ready) * 1000
-            encode_ms = (t_after_encode - t_after_inference) * 1000
-            total_ms = (t_after_encode - t_entry) * 1000
-
-            print(f"[YOLO] {len(images)} imgs, img_prep={img_prep_ms:.0f}ms "
-                  f"inference={inference_ms:.0f}ms, total={total_ms:.0f}ms")
-
-            timing_headers = {
-                'X-Server-Read-Ms': str(read_ms),
-                'X-Server-Decode-Ms': str(decode_ms),
-                'X-Server-ImgPrep-Ms': str(img_prep_ms),
-                'X-Server-Inference-Ms': str(inference_ms),
-                'X-Server-Encode-Ms': str(encode_ms),
-                'X-Server-Total-Ms': str(total_ms),
-            }
-
-            return Response(
-                content=packed,
-                media_type="application/octet-stream",
-                headers=timing_headers,
-            )
-
-        except Exception as e:
-            import traceback
-            print(f"[YOLO] Error: {e}")
-            traceback.print_exc()
-            return JSONResponse(content={"error": str(e)}, status_code=500)
-
-    # WorldFusion feature extraction endpoint
     @server.app.post("/extract_features")
     async def extract_features(request: Request):
         """WorldFusion intermediate feature extraction via msgpack.
 
         Uses asyncio.to_thread() so that the synchronous GPU inference
-        does not block the uvicorn event loop. This allows concurrent
-        body reads and response writes for multiple clients.
+        does not block the uvicorn event loop.
         """
         import asyncio
         import time
@@ -360,8 +302,5 @@ if __name__ == "__main__":
             print(f"[WorldFusion] Error: {e}")
             traceback.print_exc()
             return JSONResponse(content={"error": str(e)}, status_code=500)
-
-    # Create a YOLO API instance for encode_response in the msgpack endpoint
-    api_yolo = YOLOv5Server()
 
     server.run(host=host, port=port)

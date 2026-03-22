@@ -227,6 +227,7 @@ if __name__ == '__main__':
 
         sys.path.insert(0, '/opt/carla-simulator/PythonAPI/carla')
         sys.path.insert(0, os.path.join(os.getcwd(), 'ecav'))
+        sys.path.insert(0, os.path.join(os.getcwd(), 'ecav', 'protos'))
         sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
         sys.path.insert(0, os.getcwd())
 

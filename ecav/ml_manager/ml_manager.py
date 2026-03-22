@@ -7,18 +7,19 @@ ML Manager supporting both local and distributed modes for model inference.
 """
 
 import csv
-import glob
 import os
 import time
-import torch
-import torch.multiprocessing as mp
+from typing import Dict, Any, List, Optional
+
 import cv2
+import grpc
+import msgpack_numpy as m
 import numpy as np
 import requests
-import json
-from typing import Dict, Any, List, Optional
-import msgpack
-import msgpack_numpy as m
+import torch
+
+import perception_pb2
+import perception_pb2_grpc
 
 m.patch()
 
@@ -102,14 +103,22 @@ class MLManager(object):
         """Initialize distributed service endpoints"""
         print("[ML Manager] Initializing in DISTRIBUTED mode...")
 
-        # Service endpoints
-        self.yolo_endpoint = self.config.get('yolo_endpoint', 'http://localhost:18000')
+        # gRPC perception endpoint
+        yolo_endpoint = self.config.get('yolo_endpoint', 'localhost:18001')
         self.worldfusion_endpoint = self.config.get('worldfusion_endpoint', 'http://localhost:18000')
 
-        print(f"[ML Manager] YOLO endpoint: {self.yolo_endpoint}")
+        print(f"[ML Manager] YOLO endpoint: {yolo_endpoint}")
         print(f"[ML Manager] WorldFusion endpoint: {self.worldfusion_endpoint}")
 
-        self._session = requests.Session()
+        self._grpc_channel = grpc.insecure_channel(
+            target=yolo_endpoint,
+            options=[
+                ("grpc.max_send_message_length", 16 * 1024 * 1024),
+                ("grpc.max_receive_message_length", 16 * 1024 * 1024),
+                ("grpc.keepalive_timeout_ms", 10000),
+            ],
+        )
+        self._perception_stub = perception_pb2_grpc.PerceptionServiceStub(self._grpc_channel)
 
         # Set object_detector to None to indicate distributed mode
         self.object_detector = None
@@ -168,7 +177,7 @@ class MLManager(object):
                 'tick': self._tick,
                 'mode': 'local',
                 'serialize_ms': 0.0,
-                'http_ms': 0.0,
+                'rpc_ms': 0.0,
                 'server_decode_ms': 0.0,
                 'server_img_prep_ms': 0.0,
                 'server_inference_ms': 0.0,
@@ -190,67 +199,56 @@ class MLManager(object):
         return self.detect(rgb_images)
 
     def _detect_yolo_distributed(self, rgb_images):
-        """Run YOLO via distributed service using msgpack + JPEG-compressed images"""
+        """Run YOLO via gRPC PerceptionService.DetectYolo."""
         t0 = time.time()
 
-        # RGB -> BGR for cv2 convention; JPEG decode produces BGR for YOLO.
-        jpeg_images = []
+        # RGB -> BGR for cv2 convention; JPEG decode on server produces BGR for YOLO.
+        jpeg_frames = []
         for img in rgb_images:
             bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
             success, buf = cv2.imencode('.jpg', bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
             if not success:
                 raise RuntimeError("cv2.imencode failed for YOLO request image")
-            jpeg_images.append(buf.tobytes())
-
-        request_data = {'jpeg_images': jpeg_images}
-        packed = msgpack.packb(request_data, use_bin_type=True)
+            jpeg_frames.append(buf.tobytes())
 
         t_after_serialize = time.time()
         serialize_ms = (t_after_serialize - t0) * 1000
-        print(f"[ML Manager] Packing time: {serialize_ms:.1f}ms, size: {len(packed)/1024:.1f}KB")
 
         try:
-            response = self._session.post(
-                f"{self.yolo_endpoint}/predict_msgpack",
-                data=packed,
-                headers={'Content-Type': 'application/msgpack'},
-                timeout=30
+            grpc_request = perception_pb2.YoloRequest(
+                jpeg_frames=jpeg_frames,
+                actor_id=self.rank,
             )
+            response = self._perception_stub.DetectYolo(grpc_request, timeout=30)
 
-            if response.status_code != 200:
-                raise RuntimeError(f"YOLO service error: {response.text}")
-
-            t_after_http = time.time()
-            http_ms = (t_after_http - t_after_serialize) * 1000
-            print(f"[ML Manager] Network time: {http_ms:.1f}ms")
-
-            server_decode_ms = float(response.headers.get('X-Server-Decode-Ms', 0.0))
-            server_img_prep_ms = float(response.headers.get('X-Server-ImgPrep-Ms', 0.0))
-            server_inference_ms = float(response.headers.get('X-Server-Inference-Ms', 0.0))
-            server_encode_ms = float(response.headers.get('X-Server-Encode-Ms', 0.0))
-
-            result = msgpack.unpackb(response.content, raw=False)
+            t_after_rpc = time.time()
+            rpc_ms = (t_after_rpc - t_after_serialize) * 1000
 
             t_after_deserialize = time.time()
-            client_deserialize_ms = (t_after_deserialize - t_after_http) * 1000
-            print(f"[ML Manager] Decode time: {client_deserialize_ms:.1f}ms")
+            client_deserialize_ms = (t_after_deserialize - t_after_rpc) * 1000
 
-            parsed = self._parse_yolo_response(result)
+            parsed = self._parse_yolo_response(response)
 
             t_after_parse = time.time()
             parse_ms = (t_after_parse - t_after_deserialize) * 1000
             total_e2e_ms = (t_after_parse - t0) * 1000
-            print(f"[ML Manager] TOTAL: {total_e2e_ms:.1f}ms")
+
+            print(
+                f"[ML Manager] serialize={serialize_ms:.1f}ms "
+                f"rpc={rpc_ms:.1f}ms "
+                f"parse={parse_ms:.1f}ms "
+                f"total={total_e2e_ms:.1f}ms"
+            )
 
             self._dist_timing_rows.append({
                 'tick': self._tick,
                 'mode': 'distributed',
                 'serialize_ms': serialize_ms,
-                'http_ms': http_ms,
-                'server_decode_ms': server_decode_ms,
-                'server_img_prep_ms': server_img_prep_ms,
-                'server_inference_ms': server_inference_ms,
-                'server_encode_ms': server_encode_ms,
+                'rpc_ms': rpc_ms,
+                'server_decode_ms': response.decode_ms,
+                'server_img_prep_ms': response.img_prep_ms,
+                'server_inference_ms': response.inference_ms,
+                'server_encode_ms': response.encode_ms,
                 'client_deserialize_ms': client_deserialize_ms,
                 'parse_ms': parse_ms,
                 'total_e2e_ms': total_e2e_ms,
@@ -260,7 +258,7 @@ class MLManager(object):
             return parsed
 
         except Exception as e:
-            print(f"[ML Manager] YOLO distributed error: {e}")
+            print(f"[ML Manager] YOLO gRPC error: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -269,7 +267,7 @@ class MLManager(object):
         """Write accumulated per-tick timing rows to a CSV file."""
         if not self._dist_timing_rows:
             return
-        fieldnames = ['tick', 'mode', 'serialize_ms', 'http_ms', 'server_decode_ms',
+        fieldnames = ['tick', 'mode', 'serialize_ms', 'rpc_ms', 'server_decode_ms',
                       'server_img_prep_ms', 'server_inference_ms', 'server_encode_ms',
                       'client_deserialize_ms', 'parse_ms', 'total_e2e_ms']
         with open(path, 'w', newline='') as f:
@@ -280,13 +278,12 @@ class MLManager(object):
     def close(self):
         """Release resources and dump accumulated timing data."""
         if self._dist_timing_rows:
-            import os
             import datetime
             ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             os.makedirs('logs', exist_ok=True)
             self.dump_timing_csv(os.path.join('logs', f'ml_timing_{ts}.csv'))
-        if hasattr(self, '_session'):
-            self._session.close()
+        if hasattr(self, '_grpc_channel'):
+            self._grpc_channel.close()
 
     # ============= BM2CP Methods =============
 
@@ -564,19 +561,19 @@ class MLManager(object):
         return deserialized
 
 
-    def _parse_yolo_response(self, response: Dict):
-        """Parse distributed YOLO response to a Results-like proxy."""
-        detections = response.get('detections', [])
+    def _parse_yolo_response(self, response):
+        """Parse proto YoloResponse to a Results-like proxy."""
+        per_image = list(response.per_image)
 
-        # Convert string keys back to integers
-        names_raw = detections[0]['names'] if detections else {}
-        names = {int(k): v for k, v in names_raw.items()}  # String keys → int keys
+        # class_names map uses int keys in proto
+        names = dict(per_image[0].class_names) if per_image else {}
+
         class YOLOResult:
             def __init__(self, dets, names):
                 self.xyxy = []
                 self.names = names or {}
                 for det in dets:
-                    boxes = det.get('boxes', [])
+                    boxes = [list(d.box) for d in det.detections]
                     self.xyxy.append(torch.tensor(boxes))  # [N,6]: x1,y1,x2,y2,conf,cls
 
                 # AUTO-PRINT on creation to match local YOLO behavior
@@ -610,7 +607,7 @@ class MLManager(object):
             def names_dict(self):
                 return self.names
 
-        return YOLOResult(detections, names)
+        return YOLOResult(per_image, names)
 
 def is_vehicle_cococlass(label):
     """

@@ -21,21 +21,30 @@ eCAV supports optional distribution and parallelization to two core aspects of t
 - distributed actors, where individual actor(s) run in standalone processes, optionally containerized in Docker containers
 - distributed perception, where rather than running a local perception stack, perception data - camera and lidar - is fed to a litserve instance running the core perception stack; this avoids each individual actor from running the same PyTorch model - YOLOv5 - on its own.
 
-With the exception of the central orchestration comms server, which is written in C++ for true multithreaded operation, the project is written entirely in Python. Allt of the project is written using Python 3.10 environment. We use a Conda environment - invoked by `conda activate ecav` - defined by the file `requirements_3_10.txt`
+With the exception of the central orchestration comms server, which is written in C++ for true multithreaded operation, the project is written entirely in Python. All of the project is written using Python 3.10 environment. We use a Conda environment - invoked by `conda activate opencda` - defined by the file `requirements_3_10.txt`
+
+### Code Organization
+
+The codebase is split across two top-level directories:
+
+- **`ecav/`** — active development target. All new work goes here. Contains the core simulation logic, perception, edge managers, ML manager, scenario files, and protobufs.
+- **`opencda/`** — legacy upstream code. Much of it has been superseded by `ecav/` equivalents. Before editing anything in `opencda/`, verify whether an `ecav/` counterpart exists and should be edited instead.
+
+When in doubt about which directory a file belongs to, check `ecav/` first.
 
 ### Implementation
 
-Individual scenarios are invoked through the root `openda.py` process. The test scenario is passed as a command line arg - e.g. `-t openscenario_3_edge`. This name must correspond to both a `.py` and a `.yaml` file
+Individual scenarios are invoked through the root `ecav.py` entry point. The test scenario is passed as a command line arg - e.g. `-t openscenario_3_edge`. This name must correspond to both a `.py` and a `.yaml` file:
 
-- the PY file is in `open_scenario_testing/`
+- the PY file is in `ecav/scenario_testing/` (scenario runner files)
 - the YAML file is in `ecav/scenario_testing/config_yaml/`
-    - the YAML file contains a section `scenario_runner` which provides the name an associated CARLA scenario, e.g. `scenario_3` which corresponds to both a `.py` and `.xml` file which are contained in `ecav/scenario_testing/scenarios/`
+    - the YAML file contains a section `scenario_runner` which provides the name of an associated CARLA scenario, e.g. `scenario_3`, which corresponds to both a `.py` and `.xml` file in `ecav/scenario_testing/scenarios/`
 
-The root `ecav.py` process will call the associated `.py` file - e.g. `openscenario_3_edge.py` - which spawns a separate scenario runner process - `scenario_runner/scenario_runner.py` based on the arguments specified in the YAML and XML files. It will then call `ecav/scenario_testing/utils/sim_api.py` which spawns the central orchestration server - a CPP executable.
+`ecav.py` calls the associated scenario `.py` file, which spawns a separate scenario runner process — `scenario_runner/scenario_runner.py` — based on the arguments specified in the YAML and XML files. It then calls `ecav/scenario_testing/utils/sim_api.py` which spawns the central orchestration server (a C++ executable).
 
-All communication between processes are handled via gRPC with messages written using protobufs. The `.proto` file for the project is located at `ecav/protos/ecloud.proto`
+All inter-process communication uses gRPC with protobufs. Proto files are in `ecav/protos/` (`ecloud.proto` for orchestration, `perception.proto` for distributed perception). Generated stubs (`*_pb2.py`, `*_pb2_grpc.py`) live alongside the `.proto` files and are added to `sys.path` at startup by `ecav.py`. Recompile with `python ecav.py --build`.
 
-The root `ecav.py` process handles each time step - or _"tick"_ - as well as metric gathering and evaluation.
+`ecav.py` handles each time step (_"tick"_) as well as metric gathering and evaluation.
 
 ### Usage
 

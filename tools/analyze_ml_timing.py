@@ -16,7 +16,7 @@ import numpy as np
 
 NUMERIC_COLS = [
     'serialize_ms',
-    'http_ms',
+    'rpc_ms',
     'server_decode_ms',
     'server_img_prep_ms',
     'server_inference_ms',

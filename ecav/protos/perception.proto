@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package perception;
+
+// Request: one or more JPEG-compressed camera frames from a single actor tick
+message YoloRequest {
+  repeated bytes jpeg_frames = 1;   // Pre-compressed JPEG bytes (cv2.imencode)
+  int32 actor_id = 2;               // For server-side logging/metrics
+}
+
+// A single detection box: [x1, y1, x2, y2, confidence, class_id]
+message Detection {
+  repeated float box = 1;
+}
+
+// Per-image detection results
+message ImageDetections {
+  repeated Detection detections = 1;
+  map<int32, string> class_names = 2;
+  string summary = 3;
+}
+
+// Response: detections per input image + server-side timing breakdown
+message YoloResponse {
+  repeated ImageDetections per_image = 1;
+  float decode_ms = 2;
+  float img_prep_ms = 3;
+  float inference_ms = 4;
+  float encode_ms = 5;
+  float total_ms = 6;
+}
+
+service PerceptionService {
+  rpc DetectYolo(YoloRequest) returns (YoloResponse);
+}

@@ -15,7 +15,7 @@ perception_active: *perception_is_active
 
 # ML Manager configuration for distributed mode (LitServe)
 ml_manager:
-  yolo_endpoint: 'http://localhost:18000'
+  yolo_endpoint: 'localhost:18001'
 
 world:
   sync_mode: true
