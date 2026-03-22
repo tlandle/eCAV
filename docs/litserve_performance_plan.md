@@ -108,25 +108,54 @@ Tradeoff: lossy compression may marginally affect detection confidence. Quantify
 
 `/predict_msgpack` previously accepted msgpack but responded with JSON. Changed to return `msgpack.packb(result)` with `media_type=application/octet-stream`; client parses with `msgpack.unpackb(response.content)`. The `/extract_features` endpoint already used this pattern.
 
-### O4. gRPC transport
-**Effort**: Multi-day | **Impact**: High
+### O4. Image codec optimization
+**Effort**: 30 min – 2 hr | **Impact**: Medium–High
 
-The project already uses gRPC extensively (`ecav/protos/ecloud.proto`). Adding a YOLO inference RPC eliminates HTTP framing overhead entirely, provides built-in flow control, and enables more efficient binary serialization. Combine with O2 (JPEG) for maximum gain.
+JPEG encode (~18ms client) and decode (~19ms server) are now the dominant CPU costs after O2. Three options, in priority order:
 
-Candidate proto schema:
-```protobuf
-service PerceptionService {
-  rpc DetectYOLO (YOLORequest) returns (YOLOResponse);
-}
-message YOLORequest {
-  repeated bytes jpeg_images = 1;
-}
-message YOLOResponse {
-  repeated Detection detections = 1;
-}
+**O4a. Resize to YOLO inference resolution before encoding**
+YOLOv5m internally letterboxes input to 640×640 regardless. Resizing 800×600 → 640×480 client-side before `cv2.imencode` reduces pixel count ~36%, directly reducing both encode time and payload size. Zero new dependencies. Server decode is proportionally faster. Tradeoff: double resize (client + YOLO letterbox), but the gain is linear with pixel reduction.
+
+**O4b. libjpeg-turbo via `PyTurboJPEG`**
+Drop-in replacement for `cv2.imencode`/`cv2.imdecode` using SIMD-accelerated libjpeg-turbo. Typically 2–4× faster than OpenCV's JPEG implementation on the same CPU at equivalent quality. No change to payload format, server, or downstream logic.
+
+```python
+from turbojpeg import TurboJPEG
+jpeg = TurboJPEG()
+buf = jpeg.encode(bgr_img, quality=85)      # client
+img = jpeg.decode(buf)                       # server
 ```
 
-Target deployment has many distributed clients, making HTTP per-request overhead significant at scale. gRPC follows O2 regardless of residual gap.
+**O4c. NVJPEG (GPU-accelerated codec)**
+Encode on the client GPU, decode on the server GPU via `torchvision.io.decode_jpeg` / `pynvjpeg`. Eliminates both CPU encode and decode costs entirely. The GPU is already loaded for YOLO inference; JPEG decode can pipeline on a separate CUDA stream ahead of the forward pass. Highest impact but requires CUDA context on both client and server.
+
+```python
+# server decode (torchvision)
+import torchvision.io as tvio
+img_tensor = tvio.decode_jpeg(torch.frombuffer(jpeg_bytes, dtype=torch.uint8), device='cuda')
+```
+
+### O5. gRPC transport
+**Effort**: Multi-day | **Impact**: Medium (single client), High (multi-client at scale)
+
+The project already uses gRPC extensively (`ecav/protos/ecloud.proto`). Adding a YOLO inference RPC eliminates HTTP framing overhead entirely and provides HTTP/2 multiplexing — N distributed actors share a single connection, removing per-actor TCP connection overhead. For a single actor on localhost the latency gain is ~3–5ms; the benefit compounds at scale.
+
+See `docs/grpc_perception_migration.md` for the full implementation plan.
+
+Target deployment has many distributed clients, making HTTP per-request overhead significant at scale. gRPC follows O4 regardless of residual transport gap.
+
+---
+
+## Measured Results
+
+| Run | serialize_ms (avg) | http_ms (avg) | server_inference_ms (avg) | total_e2e_ms (avg) |
+|-----|-------------------|---------------|--------------------------|-------------------|
+| Baseline (O1+O3) | 15.09 | 67.15 | 16.05 | 82.58 |
+| +O2 JPEG | 17.84 (+2.75) | 50.05 (-17.10) | ~16 (unchanged†) | 68.24 (-14.34) |
+
+†Prior to timing fix, JPEG decode (~19ms) was incorrectly attributed to `server_inference_ms`. After fix, `server_img_prep_ms` captures JPEG decode separately.
+
+Net: O2 saves ~14ms e2e (-17%), driven by payload reduction. Encode cost (+3ms) and server decode (~19ms) are the remaining CPU costs targeted by O4.
 
 ---
 
@@ -139,9 +168,14 @@ Target deployment has many distributed clients, making HTTP per-request overhead
 | O1 — Session keep-alive | ✅ Done |
 | O3 — msgpack response | ✅ Done |
 | O2 — JPEG compression | ✅ Done |
-| O4 — gRPC transport | In progress |
+| O4a — Resize before encode | Pending |
+| O4b — libjpeg-turbo | Pending |
+| O4c — NVJPEG | Pending |
+| O5 — gRPC transport | In progress |
 
 ## Recommended Next Steps
 
-1. **Measure O2 impact** — run with JPEG and compare CSV against O1+O3 baseline
-2. **Implement O4** (gRPC) — replace HTTP transport entirely
+1. **O4a** (resize before encode) — zero dependencies, implement and measure first
+2. **O4b** (libjpeg-turbo) — measure independently of O4a to isolate codec speedup
+3. **O5** (gRPC) — replace HTTP transport; see `docs/grpc_perception_migration.md`
+4. **O4c** (NVJPEG) — evaluate after gRPC is in place; pairs naturally with GPU pipeline on server
