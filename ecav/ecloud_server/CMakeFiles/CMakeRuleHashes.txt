@@ -1,2 +1,0 @@
-# Hashes of file build rules.
-4a0891a83117d6a124975278b2f58163 ecloud.pb.cc
