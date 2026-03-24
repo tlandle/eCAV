@@ -106,7 +106,7 @@ def load_sweep(sweep_dirs=None, focal_ego_only=True):
     if sweep_dirs is None:
         sweep_dirs = [os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            'opencda/scenario_testing/evaluation_outputs/20260311_230618')]
+            'ecav/scenario_testing/evaluation_outputs/20260311_230618')]
     if isinstance(sweep_dirs, str):
         sweep_dirs = [sweep_dirs]
 

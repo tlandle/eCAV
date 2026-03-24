@@ -20,9 +20,9 @@ from collections import defaultdict
 
 SWEEP_DIRS = [
     # Single-ego sweep
-    "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/opencda/scenario_testing/evaluation_outputs/20260311_162505",
+    "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/ecav/scenario_testing/evaluation_outputs/20260311_162505",
     # Multi-ego sweep
-    "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/opencda/scenario_testing/evaluation_outputs/20260311_171848",
+    "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/ecav/scenario_testing/evaluation_outputs/20260311_171848",
 ]
 
 SELF_GHOST_MAX_DIST_M = 3.0
