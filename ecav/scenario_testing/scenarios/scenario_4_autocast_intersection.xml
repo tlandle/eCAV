@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<!-- Scenario 4: AutoCast-style occluded intersection (Town03)
+     Replicates the geometry from AutoCast10 (Qian et al., arXiv:2112.14947).
+
+     Ego drives north on the right lane toward the intersection at ~(-88, 131).
+     A red-light violator approaches from the east (left cross-street).
+     A wall of parked trucks in the ego's left lane creates full occlusion.
+     The violator is invisible to the ego until it clears the truck wall.
+
+     Configurable for all cooperative perception modes:
+       - Late fusion (YOLO detection + AB3DMOT)
+       - Intermediate fusion (BM2CP features)
+       - Early fusion / AutoCast (point cloud sharing + MCKP)
+       - Harbor (hybrid V2I + V2V relay)
+       - Edge-hosted world model (intermediate fusion + SSM + SMART)
+-->
+<scenarios>
+    <scenario name="Scenario_4" type="Scenario_4" town="Town03">
+        <!-- Ego: right lane, heading north, starts south of intersection -->
+        <ego_vehicle x="-88.0" y="80.0" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
+
+        <!-- Collider: red-light violator from the east (left cross-street)
+             Starts underground (z=-500), teleported when ego triggers.
+             Position matches AutoCast10: x=-43.89, y=131.46 -->
+        <other_actor x="-43.9" y="131.5" z="-500" yaw="180" model="vehicle.audi.tt" />
+
+        <!-- Occlusion wall: dense parked trucks in the left lane (every 6m)
+             These create a solid visual barrier between ego and the cross-street.
+             Matches AutoCast's carlacola truck wall. -->
+        <other_actor x="-84.0" y="86.0" z="-500" yaw="90" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="-84.0" y="92.0" z="-500" yaw="90" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="-84.0" y="98.0" z="-500" yaw="90" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="-84.0" y="104.0" z="-500" yaw="90" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="-84.0" y="110.0" z="-500" yaw="90" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="-84.0" y="116.0" z="-500" yaw="90" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="-84.0" y="122.0" z="-500" yaw="90" model="vehicle.carlamotors.carlacola" />
+
+        <!-- Parked cars at intersection (provide cooperative perception if equipped)
+             Matches AutoCast10 actor placement -->
+        <!-- Left side parked (east of intersection on cross-street) -->
+        <other_actor x="-63.0" y="127.5" z="-500" yaw="180" model="vehicle.bmw.grandtourer" />
+        <other_actor x="-63.0" y="131.5" z="-500" yaw="180" model="vehicle.nissan.micra" />
+
+        <!-- Right side parked (west of intersection on cross-street) -->
+        <other_actor x="-100.0" y="136.0" z="-500" yaw="0" model="vehicle.chevrolet.impala" />
+        <other_actor x="-100.0" y="140.0" z="-500" yaw="0" model="vehicle.audi.tt" />
+
+        <!-- Northbound parked (past intersection) -->
+        <other_actor x="-79.0" y="142.0" z="-500" yaw="270" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="-74.0" y="131.0" z="-500" yaw="270" model="vehicle.dodge.charger_police" />
+
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0"
+                 wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75"
+                 fog_density="0" />
+    </scenario>
+</scenarios>
