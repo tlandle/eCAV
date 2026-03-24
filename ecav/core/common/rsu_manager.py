@@ -31,6 +31,12 @@ def _pick_perception_class(percep_yaml: dict):
         )
         return WorldFusionPerceptionManager
 
+    if backend == "cobevt":
+        from ecav.core.sensing.perception.cobevt_perception_manager import (
+            CoBEVTPerceptionManager,
+        )
+        return CoBEVTPerceptionManager
+
     from ecav.core.sensing.perception.perception_manager import (
         PerceptionManager,
     )

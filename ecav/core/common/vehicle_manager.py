@@ -34,6 +34,8 @@ from ecav.core.sensing.perception.bm2cp_perception_manager import \
      BM2CPPerceptionManager
 from ecav.core.sensing.perception.worldfusion_perception_manager import \
      WorldFusionPerceptionManager
+from ecav.core.sensing.perception.cobevt_perception_manager import \
+     CoBEVTPerceptionManager
 from ecav.core.sensing.tracking.tracking_manager \
     import TrackingManager
 from ecav.core.safety.safety_manager import SafetyManager
@@ -447,6 +449,11 @@ class VehicleManager(object):
                 debug_helper=self.client_metrics)
         elif percep_type == 'worldfusion':
             self.perception_manager = WorldFusionPerceptionManager(
+                self.vehicle, percep_cfg, cav_world,
+                data_dumping, tracking_manager=self.tracking_manager,
+                debug_helper=self.client_metrics)
+        elif percep_type == 'cobevt':
+            self.perception_manager = CoBEVTPerceptionManager(
                 self.vehicle, percep_cfg, cav_world,
                 data_dumping, tracking_manager=self.tracking_manager,
                 debug_helper=self.client_metrics)

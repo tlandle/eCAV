@@ -59,6 +59,11 @@ from ecav.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
 # Edge-manager implementations ──────────────────────────────────────────────
 from ecav.core.application.edge.edge_manager import get_edge_class
+# V2V cooperative managers (peer-to-peer, not edge-hosted) ─────────────────
+from ecav.core.application.v2v.v2v_manager import V2VCooperativeManager
+from ecav.core.application.v2v.v2v_early_fusion_manager import V2VEarlyFusionManager
+from ecav.core.application.v2v.harbor_manager import HarborManager
+from ecav.core.application.v2v.baselines.cmp.cmp_manager import CMPManager
 from ecav.sim_metrics import SimMetrics
 from ecav.client_metrics import ClientMetrics
 from ecav.scenario_testing.utils.yaml_utils import load_yaml
@@ -95,16 +100,31 @@ ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 # ---------------------------------------------------------------------------
 def _select_edge_manager(edge_yaml_block):
     """
-    Translate edge['manager_type'] into a registered edge-manager class.
+    Translate edge['manager_type'] into a registered manager class.
 
     Known aliases:
-        bm2cp         →  BM2CPEdge  (BM2CP→AB3DMOT→LinearPredictor pipeline)
-        late_fusion   →  LateFusionEdge
-        perception    →  PerceptionEdge
-        maneuver      →  ManeuverEdge
-    Anything else is sent straight to the registry.
+        late_fusion   ->  LateFusionEdge
+        perception    ->  PerceptionEdge
+        maneuver      ->  ManeuverEdge
+        oracle        ->  OracleEdge
+        vips_temporal ->  VIPSTemporalEdge
+        v2v_coop / v2v -> V2VCooperativeManager (BM2CP intermediate fusion V2V)
+        v2v_early / autocast -> V2VEarlyFusionManager (AutoCast point cloud V2V)
+        cmp / v2v_cmp -> CMPManager (CMP CoBEVT + MTR cooperative prediction V2V)
+        harbor -> HarborManager (hybrid V2V)
+    Anything else is sent straight to the edge registry.
     """
     key = edge_yaml_block.get('manager_type', 'late_fusion').upper()
+
+    # V2V managers are not edge managers. Return directly.
+    if key in ('V2V_COOP', 'V2V'):
+        return V2VCooperativeManager
+    if key in ('V2V_EARLY', 'V2V_AUTOCAST', 'AUTOCAST'):
+        return V2VEarlyFusionManager
+    if key in ('HARBOR', 'V2V_HARBOR', 'HYBRID'):
+        return HarborManager
+    if key in ('CMP', 'V2V_CMP'):
+        return CMPManager
 
     alias = {
         'LATE_FUSION':    'LATE_FUSION',
