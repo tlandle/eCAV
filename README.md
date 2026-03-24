@@ -12,6 +12,58 @@ eCAV is a distributed simulation platform for characterizing the operational saf
 - MAC-Layer Modeling: Implementation of C-V2X PC5 Mode 4 Sensing-Based Semi-Persistent Scheduling (3GPP TS 36.321).
 - Scenario Library: Evaluation in high-risk occlusion scenarios derived from NHTSA Pre-Crash Typologies.
 
+## Supported Models
+
+### Cooperative Perception
+- [x] [CMP (CoBEVT + MTR) [RA-L2025]](https://ieeexplore.ieee.org/document/10908648) - V2V cooperative perception and prediction (32KB payload, 256x compression)
+- [x] [BM2CP [CoRL2023]](https://proceedings.mlr.press/v229/zhao23a.html) - V2V multi-modal intermediate fusion (~200KB payload)
+- [x] [AutoCast [MobiSys2022]](https://dl.acm.org/doi/10.1145/3498361.3538925) - V2V early fusion with MCKP scheduling (~10-50KB payload)
+- [x] Late Fusion (YOLO + LiDAR) - Edge-assisted detected object fusion (~5KB payload)
+- [x] WorldFusion - Edge-assisted BEV feature fusion (eCAV)
+- [ ] [Where2comm [NeurIPS2022]](https://proceedings.neurips.cc/paper_files/paper/2022/hash/1f5c5cd01b864d53cc5fa0a3472e152e-Abstract-Conference.html)
+- [ ] [V2X-ViT [ECCV2022]](https://link.springer.com/chapter/10.1007/978-3-031-19842-7_7)
+- [ ] [EMP [MobiCom2021]](https://dl.acm.org/doi/10.1145/3447993.3483242)
+
+### OPV2V 3D Detection (100ms delay)
+
+| Method | Compression | Payload | AP@0.5 | AP@0.7 | Weights |
+|--------|-------------|---------|--------|--------|---------|
+| No Cooperation | N/A | 0 | 0.79 | 0.65 | [download](ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/point_pillar_sinbevt/) |
+| [V2VNet [ECCV2020]](https://link.springer.com/chapter/10.1007/978-3-030-58536-5_36) | None | 82.5 MB/s | 0.83 | 0.66 | [download](ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/point_pillar_v2vnet_multiego/) |
+| [CoBEVT/CMP [RA-L2025]](https://ieeexplore.ieee.org/document/10908648) | 256x | **0.32 MB/s** | **0.92** | **0.82** | [download](ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/corpbevtlidar_delay_1_frame_aug_c256/) |
+| [BM2CP [CoRL2023]](https://proceedings.mlr.press/v229/zhao23a.html) | None | ~200KB/msg | - | - | [download](ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_02_20_01_42/) |
+
+### OPV2V Cooperative Motion Prediction
+
+| Method | Perception Frontend | Cooperation | minADE@5s | minFDE@5s | Weights |
+|--------|-------------------|-------------|-----------|-----------|---------|
+| No Cooperation | SinBEVT | None | 2.2217 | 5.1853 | - |
+| [CMP [RA-L2025]](https://ieeexplore.ieee.org/document/10908648) | [V2VNet [ECCV2020]](https://link.springer.com/chapter/10.1007/978-3-030-58536-5_36) | Perception + Prediction | 2.1174 | 4.9037 | [download](ecav/core/application/v2v/baselines/cmp/CMP/MTR/output/opv2v_multiego_v2vnet/) |
+| **[CMP [RA-L2025]](https://ieeexplore.ieee.org/document/10908648)** | **CoBEVT (256x)** | **Perception + Prediction** | **1.8578** | **4.1628** | [download](ecav/core/application/v2v/baselines/cmp/CMP/MTR/output/opv2v_multiego_cobevt_c256/) |
+
+### Perception Backends
+
+| Config Value | Model | Sensors | Usage |
+|-------------|-------|---------|-------|
+| `default` | YOLO + LiDAR frustum | Cameras + LiDAR | Edge late fusion, AutoCast |
+| `bm2cp` | PointPillar + BM2CP | LiDAR + Cameras | BM2CP V2V, WorldFusion |
+| `cobevt` | PointPillar + CoBEVT 256x | LiDAR only | CMP V2V baseline |
+| `worldfusion` | PointPillar + WorldFusion | LiDAR + Cameras | WorldFusion edge |
+
+### Network Simulation
+- [x] **ns-3 NR V2X Mode 2** - Full 5G-LENA NR sidelink MAC (shared-memory co-simulation)
+- [x] **Analytical SB-SPS** - Python fallback (WINNER+ B1 propagation)
+- [x] **SEE-V2X Hybrid** - Trace-driven C-V2X latency (213K real samples)
+
+### Datasets
+
+| Dataset | Usage | Source |
+|---------|-------|--------|
+| [OPV2V [ICRA2022]](https://ieeexplore.ieee.org/document/9812038) | CMP, CoBEVT, V2VNet | [UCLA Mobility Lab](https://mobility-lab.seas.ucla.edu/opv2v/) |
+| [V2V4Real](https://mobility-lab.seas.ucla.edu/v2v4real/) | CMP real-world eval | [UCLA Mobility Lab](https://mobility-lab.seas.ucla.edu/v2v4real/) |
+| [V2X-Sim 2.0](https://ai4ce.github.io/V2X-Sim/) | BM2CP, WorldFusion | [AI4CE Lab](https://ai4ce.github.io/V2X-Sim/) |
+| SEE-V2X | C-V2X latency traces | Bundled |
+
 ## System Architecture
 
 ![System Overview](docs/md_files/images/system_architecture.png)
@@ -88,9 +140,14 @@ python test_runner.py -t openscenario_3_edge_late_fusion \
 
 eCAV integrates research from the following projects:
 - [OpenCDA](https://github.com/ucla-mobility/OpenCDA): Baseline coordination and planning logic.
-- [OpenCOOD](https://github.com/ucla-mobility/OpenCOOD): Collaborative perception (BM2CP).
-- [AB3DMOT](https://github.com/xinshuoweng/AB3DMOT): 3D multi-object tracking.
+- [OpenCOOD](https://github.com/ucla-mobility/OpenCOOD) / [OPV2V [ICRA2022]](https://ieeexplore.ieee.org/document/9812038): Collaborative perception framework and dataset.
+- [CMP [RA-L2025]](https://ieeexplore.ieee.org/document/10908648): Cooperative motion prediction (Wang et al.).
+- [BM2CP [CoRL2023]](https://proceedings.mlr.press/v229/zhao23a.html): Multi-modal collaborative perception (Zhao et al.).
+- [AutoCast [MobiSys2022]](https://dl.acm.org/doi/10.1145/3498361.3538925): Infrastructure-less cooperative perception (Qiu et al.).
+- [AB3DMOT [IROS2020]](https://ieeexplore.ieee.org/document/9341164): 3D multi-object tracking (Weng et al.).
+- [MTR [NeurIPS2022]](https://proceedings.neurips.cc/paper_files/paper/2022/hash/2ab47c960bfee4f86dfc362f26ad066a-Abstract-Conference.html): Motion Transformer prediction (Shi et al.).
 - [SMART](https://github.com/rainmaker22/SMART): Trajectory prediction.
+- [5G-LENA](https://5g-lena.cttc.es/): ns-3 NR V2X sidelink simulation.
 - [Waymo Open Dataset](https://waymo.com/open/): Perception model training.
 - [CARLA](https://github.com/carla-simulator/carla): Physics and sensor simulation.
 
