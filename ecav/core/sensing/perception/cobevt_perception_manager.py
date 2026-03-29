@@ -38,17 +38,15 @@ logger = logging.getLogger(__name__)
 
 # CMP's opencood is separate from ecav's worldfusion/opencood.
 # We import CMP's opencood from the baselines/cmp/CMP directory.
-_CMP_OPENCOOD_ROOT = os.path.abspath(os.path.join(
+_CMP_ROOT = os.path.abspath(os.path.join(
     os.path.dirname(__file__),
     '..', '..', 'application', 'v2v', 'baselines', 'cmp', 'CMP'))
 
 
 def _ensure_cmp_path():
-    """Add CMP's opencood to sys.path (before ecav's opencood)."""
-    if _CMP_OPENCOOD_ROOT not in sys.path:
-        # Insert at position 0 so CMP's opencood takes priority
-        # over ecav's worldfusion/opencood when this manager is active
-        sys.path.insert(0, _CMP_OPENCOOD_ROOT)
+    """Add CMP root to sys.path so cmp_opencood is importable."""
+    if _CMP_ROOT not in sys.path:
+        sys.path.insert(0, _CMP_ROOT)
 
 
 class CoBEVTPerceptionManager(PerceptionManager):
@@ -95,9 +93,9 @@ class CoBEVTPerceptionManager(PerceptionManager):
         ckpt_path = pathlib.Path(model_config['checkpoint'])
 
         # Import CMP's opencood modules
-        from opencood.hypes_yaml.yaml_utils import load_yaml
-        import opencood.tools.train_utils as train_utils
-        from opencood.data_utils.pre_processor.sp_voxel_preprocessor import SpVoxelPreprocessor
+        from cmp_opencood.hypes_yaml.yaml_utils import load_yaml
+        import cmp_opencood.tools.train_utils as train_utils
+        from cmp_opencood.data_utils.opv2v.pre_processor.sp_voxel_preprocessor import SpVoxelPreprocessor
 
         self.hypes = load_yaml(str(hypes_path))
         logger.info("CoBEVT hypes loaded from %s", hypes_path)
@@ -107,13 +105,13 @@ class CoBEVTPerceptionManager(PerceptionManager):
         self._vp = SpVoxelPreprocessor(pre_config, train=False)
 
         # Load CoBEVT model
-        from opencood.models.point_pillar_cobevt import PointPillarCoBEVT
+        import torch
+        from cmp_opencood.models.point_pillar_cobevt import PointPillarCoBEVT
         self.model = PointPillarCoBEVT(self.hypes['model']['args']).to(self.device).eval()
 
-        epoch_id = int(str(ckpt_path.name).split('epoch')[-1].split('.')[0])
-        _, self.model = train_utils.load_model(
-            str(ckpt_path.parent), self.model, epoch=epoch_id)
-        logger.info("CoBEVT model loaded (epoch %d)", epoch_id)
+        state_dict = torch.load(str(ckpt_path), map_location=self.device)
+        self.model.load_state_dict(state_dict, strict=False)
+        logger.info("CoBEVT model loaded from %s", ckpt_path)
 
         self.feature_dict = None
         self.feature_map = None
@@ -131,12 +129,14 @@ class CoBEVTPerceptionManager(PerceptionManager):
         batch = self._build_batch()
 
         _ensure_cmp_path()
-        import opencood.tools.train_utils as train_utils
+        import cmp_opencood.tools.train_utils as train_utils
         batch = train_utils.to_device(batch, self.device)
 
-        # Run through PointPillar VFE + scatter + backbone + shrink + compress
-        # This matches the first half of CoBEVT's forward() method,
-        # before the fusion step (which happens in the V2V manager)
+        # Extract features only: VFE -> scatter -> backbone -> shrink -> encode.
+        # Detection heads require CoBEVT fusion which runs in the V2V manager
+        # with all received features (self + peers).
+        import time as _time
+
         batch_dict = {
             'voxel_features': batch['processed_lidar']['voxel_features'],
             'voxel_coords': batch['processed_lidar']['voxel_coords'],
@@ -144,36 +144,113 @@ class CoBEVTPerceptionManager(PerceptionManager):
             'record_len': batch['record_len'],
         }
 
+        t_fwd = _time.time()
         batch_dict = self.model.pillar_vfe(batch_dict)
         batch_dict = self.model.scatter(batch_dict)
         batch_dict = self.model.backbone(batch_dict)
-
         spatial_features_2d = batch_dict['spatial_features_2d']
-
         if self.model.shrink_flag:
             spatial_features_2d = self.model.shrink_conv(spatial_features_2d)
+        fwd_ms = (_time.time() - t_fwd) * 1000
 
+        # Encode for V2V transmission
+        t_enc = _time.time()
         if self.model.compression:
-            spatial_features_2d = self.model.naive_compressor(spatial_features_2d)
+            compressed = self.model.naive_compressor.encoder(spatial_features_2d)
+        else:
+            compressed = spatial_features_2d
+        encode_ms = (_time.time() - t_enc) * 1000
 
-        # Store features for the V2V manager to collect and broadcast
+        # Store compressed features for V2V broadcast.
+        # No psm/rm here. Detection requires fusion which runs in the
+        # CMP manager with all received features.
         self.feature_dict = {
-            'spatial_features': spatial_features_2d.cpu(),
+            'spatial_features': compressed.cpu(),
+            'compressed': self.model.compression,
         }
-        self.feature_map = self.feature_dict['spatial_features'].half()
+        self.feature_map = compressed.cpu().half()
 
         if self._first_run:
-            feat_bytes = spatial_features_2d.nelement() * spatial_features_2d.element_size()
-            logger.info("CoBEVT feature extraction OK. "
-                        "Shape=%s, size=%dB (%.1fKB)",
-                        list(spatial_features_2d.shape),
-                        feat_bytes, feat_bytes / 1024)
+            raw_bytes = spatial_features_2d.nelement() * spatial_features_2d.element_size()
+            tx_bytes = compressed.nelement() * compressed.element_size()
+            ratio = raw_bytes / max(tx_bytes, 1)
+            logger.info("CoBEVT extract OK. "
+                        "Pre-compress=%s (%dKB), "
+                        "Post-compress=%s (%dKB, %.0fx), "
+                        "backbone=%.1fms encode=%.1fms",
+                        list(spatial_features_2d.shape), raw_bytes / 1024,
+                        list(compressed.shape), tx_bytes / 1024, ratio,
+                        fwd_ms, encode_ms)
             self._first_run = False
 
     def _build_batch(self) -> Dict[str, Any]:
-        """Build input batch from raw LiDAR (same voxelization as CMP)."""
+        """Build input batch from raw LiDAR (same preprocessing as OPV2V)."""
         lidar_np = np.ascontiguousarray(self.lidar.data, dtype=np.float32)
+
+        # Note: OPV2V ground plane is at z~-1.96, ours at z~-2.62 in sensor
+        # frame. PointPillar's 4m z-voxel [-3,1] accommodates both.
+
+        # Save every tick's point cloud for offline analysis
+        _veh_id = self.vehicle.id if hasattr(self, 'vehicle') and self.vehicle else 'unknown'
+        if not hasattr(self, '_dump_tick'):
+            self._dump_tick = 0
+            os.makedirs('/tmp/carla_scene_dump', exist_ok=True)
+        np.save(f'/tmp/carla_scene_dump/veh{_veh_id}_tick{self._dump_tick:04d}.npy', lidar_np)
+        self._dump_tick += 1
+
+        logger.info("RAW LIDAR veh=%s tick=%d: shape=%s "
+                     "x=[%.1f,%.1f] y=[%.1f,%.1f] z=[%.1f,%.1f] "
+                     "intensity=[%.3f,%.3f,mean=%.3f] "
+                     "n_points=%d",
+                     _veh_id, self._dump_tick - 1,
+                     lidar_np.shape,
+                     lidar_np[:, 0].min(), lidar_np[:, 0].max(),
+                     lidar_np[:, 1].min(), lidar_np[:, 1].max(),
+                     lidar_np[:, 2].min(), lidar_np[:, 2].max(),
+                     lidar_np[:, 3].min(), lidar_np[:, 3].max(),
+                     lidar_np[:, 3].mean(),
+                     len(lidar_np))
+
+        # Match OPV2V preprocessing pipeline:
+        # 1. Shuffle points
+        np.random.shuffle(lidar_np)
+
+        # 2. Remove ego vehicle points (same mask as OPV2V)
+        ego_mask = ((lidar_np[:, 0] >= -1.95) & (lidar_np[:, 0] <= 2.95) &
+                    (lidar_np[:, 1] >= -1.1) & (lidar_np[:, 1] <= 1.1))
+        lidar_np = lidar_np[~ego_mask]
+
+        # 3. Clip to BEV range [-140.8, -38.4, -3, 140.8, 38.4, 1]
+        lidar_range = self.hypes.get('preprocess', {}).get(
+            'cav_lidar_range', [-140.8, -38.4, -3, 140.8, 38.4, 1])
+        range_mask = ((lidar_np[:, 0] >= lidar_range[0]) &
+                      (lidar_np[:, 0] <= lidar_range[3]) &
+                      (lidar_np[:, 1] >= lidar_range[1]) &
+                      (lidar_np[:, 1] <= lidar_range[4]) &
+                      (lidar_np[:, 2] >= lidar_range[2]) &
+                      (lidar_np[:, 2] <= lidar_range[5]))
+        lidar_np = lidar_np[range_mask]
+
+        if self._first_run:
+            logger.info("AFTER PREPROC: %d pts (ego_removed=%d, range_clipped), "
+                        "x=[%.1f,%.1f] y=[%.1f,%.1f] z=[%.1f,%.1f]",
+                        len(lidar_np), ego_mask.sum(),
+                        lidar_np[:, 0].min() if len(lidar_np) > 0 else 0,
+                        lidar_np[:, 0].max() if len(lidar_np) > 0 else 0,
+                        lidar_np[:, 1].min() if len(lidar_np) > 0 else 0,
+                        lidar_np[:, 1].max() if len(lidar_np) > 0 else 0,
+                        lidar_np[:, 2].min() if len(lidar_np) > 0 else 0,
+                        lidar_np[:, 2].max() if len(lidar_np) > 0 else 0)
+
         proc_lidar_np = self._vp.preprocess(lidar_np)
+
+        if self._first_run:
+            logger.info("VOXELIZED: n_voxels=%d voxel_features=%s "
+                        "voxel_coords=%s voxel_num_points=%s",
+                        len(proc_lidar_np.get('voxel_features', [])),
+                        proc_lidar_np['voxel_features'].shape if 'voxel_features' in proc_lidar_np else '?',
+                        proc_lidar_np['voxel_coords'].shape if 'voxel_coords' in proc_lidar_np else '?',
+                        proc_lidar_np['voxel_num_points'].shape if 'voxel_num_points' in proc_lidar_np else '?')
         proc_lidar = {k: torch.from_numpy(v) for k, v in proc_lidar_np.items()}
 
         # Add batch index column to voxel coords

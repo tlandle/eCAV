@@ -93,11 +93,11 @@ vehicle_base:
       lidar: &id003
         visualize: false
         channels: 64
-        range: 50
-        points_per_second: 1150000
+        range: 120
+        points_per_second: 1300000
         rotation_frequency: 20
-        upper_fov: 10.0
-        lower_fov: -30.0
+        upper_fov: 2.0
+        lower_fov: -25.0
         dropoff_general_rate: 0.0
         dropoff_intensity_limit: 1.0
         dropoff_zero_intensity: 0.0

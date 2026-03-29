@@ -69,7 +69,7 @@ vehicle_base:
   sensing:
     perception:
       activate: true
-      camera: &id002
+      camera:
         visualize: 4
         num: 4
         positions:
@@ -89,14 +89,14 @@ vehicle_base:
           - 0.0
           - 1.7
           - 180
-      lidar: &id003
+      lidar: &id002
         visualize: false
         channels: 64
-        range: 50
-        points_per_second: 1150000
+        range: 120
+        points_per_second: 1300000
         rotation_frequency: 20
-        upper_fov: 10.0
-        lower_fov: -30.0
+        upper_fov: 2.0
+        lower_fov: -25.0
         dropoff_general_rate: 0.0
         dropoff_intensity_limit: 1.0
         dropoff_zero_intensity: 0.0
@@ -104,7 +104,7 @@ vehicle_base:
     localization: &id004
       activate: true
       dt: ${world.fixed_delta_seconds}
-      gnss: &id005
+      gnss: &id003
         noise_alt_stddev: 0.5
         noise_lat_stddev: 1.5e-06
         noise_lon_stddev: 1.5e-06
@@ -134,7 +134,7 @@ vehicle_base:
       trajectory_dt: 0.2
       debug: true
       debug_trajectory: true
-  controller: &id007
+  controller: &id005
     type: pid_controller
     args:
       lat:
@@ -157,7 +157,7 @@ vehicle_base:
     yaw_noise: 0.0
     speed_noise: 0.0
     lag: 0
-  map_manager: &id008
+  map_manager: &id006
     pixels_per_meter: 2
     raster_size:
     - 224
@@ -165,7 +165,7 @@ vehicle_base:
     lane_sample_resolution: 0.1
     visualize: false
     activate: true
-  safety_manager: &id009
+  safety_manager: &id007
     print_message: true
     collision_sensor:
       history_size: 30
@@ -265,23 +265,7 @@ scenario:
     downlink_packet_loss_pct: 0.0
     mode: PREDICTION
     manager_type: cmp
-    rsus:
-    - sensing:
-        perception:
-          activate: true
-          camera: *id002
-          lidar: *id003
-          backend: cobevt
-          cobevt_model: &id006
-            hypes_yaml: ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/corpbevtlidar_delay_1_frame_aug_c256/config.yaml
-            checkpoint: ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/corpbevtlidar_delay_1_frame_aug_c256/net_epoch25.pth
-        localization: *id004
-      name: rsu1
-      spawn_position:
-      - -82.0
-      - 126.0
-      - 7.0
-      id: -1
+    rsus: []
     vehicles:
     - sensing:
         perception:
@@ -307,17 +291,19 @@ scenario:
               - 1.7
               - 180
             backend: default
-          lidar: *id003
+          lidar: *id002
           localization:
             activate: true
             dt: ${world.fixed_delta_seconds}
-            gnss: *id005
+            gnss: *id003
             debug_helper:
               show_animation: false
               x_scale: 1.0
               y_scale: 1.0
           backend: cobevt
-          cobevt_model: *id006
+          cobevt_model: &id008
+            hypes_yaml: ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/corpbevtlidar_delay_1_frame_aug_c256/config.yaml
+            checkpoint: ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/corpbevtlidar_delay_1_frame_aug_c256/net_epoch25.pth
         localization: *id004
       behavior:
         max_speed: 50
@@ -339,7 +325,7 @@ scenario:
           trajectory_dt: 0.2
           debug: false
           debug_trajectory: false
-      controller: *id007
+      controller: *id005
       v2x:
         enabled: false
         communication_range: 35
@@ -347,8 +333,8 @@ scenario:
         yaw_noise: 0.0
         speed_noise: 0.0
         lag: 0
-      map_manager: *id008
-      safety_manager: *id009
+      map_manager: *id006
+      safety_manager: *id007
       name: cav1
       destination:
       - -28.8
@@ -378,17 +364,17 @@ scenario:
               - 1.7
               - 180
             backend: default
-          lidar: *id003
+          lidar: *id002
           localization:
             activate: true
             dt: ${world.fixed_delta_seconds}
-            gnss: *id005
+            gnss: *id003
             debug_helper:
               show_animation: false
               x_scale: 1.0
               y_scale: 1.0
           backend: cobevt
-          cobevt_model: *id006
+          cobevt_model: *id008
         localization: *id004
       behavior:
         max_speed: 50
@@ -410,7 +396,7 @@ scenario:
           trajectory_dt: 0.2
           debug: false
           debug_trajectory: false
-      controller: *id007
+      controller: *id005
       v2x:
         enabled: false
         communication_range: 35
@@ -418,8 +404,8 @@ scenario:
         yaw_noise: 0.0
         speed_noise: 0.0
         lag: 0
-      map_manager: *id008
-      safety_manager: *id009
+      map_manager: *id006
+      safety_manager: *id007
       name: cav2
       spawn_position:
       - -130.0
@@ -456,17 +442,17 @@ scenario:
               - 1.7
               - 180
             backend: default
-          lidar: *id003
+          lidar: *id002
           localization:
             activate: true
             dt: ${world.fixed_delta_seconds}
-            gnss: *id005
+            gnss: *id003
             debug_helper:
               show_animation: false
               x_scale: 1.0
               y_scale: 1.0
           backend: cobevt
-          cobevt_model: *id006
+          cobevt_model: *id008
         localization: *id004
       behavior:
         max_speed: 50
@@ -488,7 +474,7 @@ scenario:
           trajectory_dt: 0.2
           debug: false
           debug_trajectory: false
-      controller: *id007
+      controller: *id005
       v2x:
         enabled: false
         communication_range: 35
@@ -496,8 +482,8 @@ scenario:
         yaw_noise: 0.0
         speed_noise: 0.0
         lag: 0
-      map_manager: *id008
-      safety_manager: *id009
+      map_manager: *id006
+      safety_manager: *id007
       name: cav3
       spawn_position:
       - -20.0
@@ -534,17 +520,17 @@ scenario:
               - 1.7
               - 180
             backend: default
-          lidar: *id003
+          lidar: *id002
           localization:
             activate: true
             dt: ${world.fixed_delta_seconds}
-            gnss: *id005
+            gnss: *id003
             debug_helper:
               show_animation: false
               x_scale: 1.0
               y_scale: 1.0
           backend: cobevt
-          cobevt_model: *id006
+          cobevt_model: *id008
         localization: *id004
       behavior:
         max_speed: 50
@@ -566,7 +552,7 @@ scenario:
           trajectory_dt: 0.2
           debug: false
           debug_trajectory: false
-      controller: *id007
+      controller: *id005
       v2x:
         enabled: false
         communication_range: 35
@@ -574,8 +560,8 @@ scenario:
         yaw_noise: 0.0
         speed_noise: 0.0
         lag: 0
-      map_manager: *id008
-      safety_manager: *id009
+      map_manager: *id006
+      safety_manager: *id007
       name: cav4
       spawn_position:
       - -77.5
@@ -606,7 +592,7 @@ scenario:
     tracker_cfg:
       min_hits: 3
       max_age: 6
-    cobevt_model: *id006
+    cobevt_model: *id008
     feature_budget:
       confidence_threshold: 0.1
       max_bytes_per_tti: 32000

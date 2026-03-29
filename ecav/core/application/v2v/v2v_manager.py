@@ -118,6 +118,9 @@ class V2VCooperativeManager:
                 antenna_h=ch_cfg.get("antenna_h", 1.5),
             )
         else:
+            n_veh = len(cfg.get("vehicles", []))
+            n_rsu = len(cfg.get("rsus", []))
+            net_cfg["max_vehicles"] = net_cfg.get("max_vehicles", max(n_veh + n_rsu + 2, 8))
             self.channel_engine = get_v2v_engine(
                 net_cfg,
                 carrier_ghz=ch_cfg.get("carrier_ghz", 5.9),

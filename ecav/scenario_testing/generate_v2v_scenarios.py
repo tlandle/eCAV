@@ -109,6 +109,20 @@ FUSION_LEVELS = {
             },
         },
         "perception_backend": "cobevt",
+        # OPV2V-matched LiDAR config (verified from OPV2V .pcd files:
+        # 64 channels, 58K pts/scan, FOV [-25, 2], range 120m)
+        "lidar_override": {
+            "channels": 64,
+            "range": 120,
+            "points_per_second": 1300000,
+            "rotation_frequency": 20,
+            "upper_fov": 2.0,
+            "lower_fov": -25.0,
+            "dropoff_general_rate": 0.0,
+            "dropoff_intensity_limit": 1.0,
+            "dropoff_zero_intensity": 0.0,
+            "noise_stddev": 0.0,
+        },
     },
 }
 
@@ -176,6 +190,25 @@ def generate_v2v_variant(source_path, fusion_key, fusion_cfg):
     # Add fusion-level-specific config
     for k, v in fusion_cfg.get("extra_edge_config", {}).items():
         edge[k] = v
+
+    # Override LiDAR config if specified (to match training dataset)
+    if "lidar_override" in fusion_cfg:
+        lidar_cfg = fusion_cfg["lidar_override"]
+        vehicles = edge.get("vehicles", [])
+        for veh in vehicles:
+            sensing = veh.get("sensing", {})
+            if "perception" in sensing and "lidar" in sensing["perception"]:
+                sensing["perception"]["lidar"].update(lidar_cfg)
+            elif "lidar" in sensing:
+                sensing["lidar"].update(lidar_cfg)
+
+        rsus = edge.get("rsus", [])
+        for rsu in rsus:
+            sensing = rsu.get("sensing", {})
+            if "perception" in sensing and "lidar" in sensing["perception"]:
+                sensing["perception"]["lidar"].update(lidar_cfg)
+            elif "lidar" in sensing:
+                sensing["lidar"].update(lidar_cfg)
 
     # Set perception backend if specified (e.g., cobevt for CMP)
     if "perception_backend" in fusion_cfg:

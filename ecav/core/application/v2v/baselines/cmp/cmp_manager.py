@@ -51,15 +51,14 @@ logger = logging.getLogger("V2VCMPBaseline")
 
 # Default CMP repo location
 _CMP_ROOT = os.path.abspath(os.path.join(
-    os.path.dirname(__file__),
-    '..', '..', '..', '..', '..', '..', '..',
-    'SOTA_Predictors', 'CMP'))
+    os.path.dirname(__file__), 'CMP'))
 
 
 def _ensure_cmp_imports(cmp_root: str):
     """Add CMP and its dependencies to sys.path."""
     paths = [
         cmp_root,
+        os.path.join(cmp_root, 'MTR'),
         os.path.join(cmp_root, 'AB3Dmot'),
         os.path.join(cmp_root, 'AB3Dmot', 'Xinshuo_PyToolbox'),
     ]
@@ -127,6 +126,11 @@ class CMPManager:
                 tx_power_dbm=ch_cfg.get("tx_power_dbm", 23.0),
             )
         else:
+            # Set max_vehicles to scenario size (vehicles + RSUs + margin)
+            n_vehicles = len(cfg.get("vehicles", []))
+            n_rsus = len(cfg.get("rsus", []))
+            max_veh = max(n_vehicles + n_rsus + 2, 8)  # minimum 8
+            net_cfg["max_vehicles"] = net_cfg.get("max_vehicles", max_veh)
             self.channel_engine = get_v2v_engine(
                 net_cfg,
                 carrier_ghz=ch_cfg.get("carrier_ghz", 5.9),
@@ -151,6 +155,9 @@ class CMPManager:
         self._per_vehicle_trackers: Dict[int, Any] = {}
         self._per_vehicle_trajectories: Dict[
             int, Dict[int, ObstacleTrajectory]] = {}
+        # Previous tick's detection positions per vehicle for speed computation
+        # (matches CMP's interpolate_speed: velocity = position diff / dt)
+        self._prev_det_positions: Dict[int, np.ndarray] = {}
 
         # --- Linear predictor (MTR integration TODO) ---
         from ecav.core.prediction.linear_predictor_manager import (
@@ -166,10 +173,9 @@ class CMPManager:
                      self._payload_bytes)
 
     def _load_perception_model(self, cfg: Dict):
-        """Load CoBEVT perception model using CMP's own train_utils."""
-        from opencood.hypes_yaml.yaml_utils import load_yaml
-        from opencood.tools import train_utils
-        from opencood.data_utils.post_processor import VoxelPostprocessor
+        """Load CoBEVT config and post-processor (model loaded by perception manager)."""
+        from cmp_opencood.hypes_yaml.yaml_utils import load_yaml
+        from cmp_opencood.data_utils.opv2v.post_processor import VoxelPostprocessor
 
         model_cfg = cfg.get("cobevt_model", {})
         hypes_path = model_cfg.get("hypes_yaml")
@@ -181,23 +187,45 @@ class CMPManager:
                 "cobevt_model.checkpoint in config")
 
         self.hypes = load_yaml(hypes_path)
-        self.model = train_utils.create_model(self.hypes).cuda().eval()
-
-        ckpt_dir = os.path.dirname(checkpoint)
-        epoch_id = int(checkpoint.split("epoch")[-1].split(".")[0])
-        _, self.model = train_utils.load_model(ckpt_dir, self.model, epoch_id)
+        # Model is loaded by the CoBEVT perception manager. The CMP manager
+        # accesses it via self.vehicle_manager_list[0].perception_manager.model
+        # to avoid the opencood namespace collision between CMP's and ecav's.
+        self.model = None  # set lazily from perception manager
 
         self.post_processor = VoxelPostprocessor(
-            self.hypes["postprocess"], dataset=None, train=False)
+            self.hypes["postprocess"], train=False)
 
-        logger.info("CoBEVT model loaded from %s (epoch %d)",
-                     ckpt_dir, epoch_id)
+        logger.info("CoBEVT model loaded from %s", checkpoint)
 
     def _get_or_create_tracker(self, veh_idx: int):
         """Create per-vehicle AB3DMOT tracker using CMP's own implementation."""
         if veh_idx not in self._per_vehicle_trackers:
+            import importlib.util
             from easydict import EasyDict as edict
-            from AB3DMOT_libs.model import AB3DMOT
+
+            # Temporarily prepend CMP's AB3Dmot to sys.path so that
+            # AB3DMOT_libs.* imports (including kalman_filter.KF) resolve
+            # to CMP's versions, not ecav's
+            _cmp_ab3d = os.path.join(self._cmp_root, 'AB3Dmot')
+            _cmp_xinshuo = os.path.join(_cmp_ab3d, 'Xinshuo_PyToolbox')
+            _inserted = []
+            for p in [_cmp_ab3d, _cmp_xinshuo]:
+                if p not in sys.path:
+                    sys.path.insert(0, p)
+                    _inserted.append(p)
+
+            # Force reimport of AB3DMOT_libs modules from CMP's path
+            import importlib as _il
+            for mod_name in list(sys.modules.keys()):
+                if mod_name.startswith('AB3DMOT_libs'):
+                    del sys.modules[mod_name]
+
+            from AB3DMOT_libs.model import AB3DMOT as _CMP_AB3DMOT
+            _mod_cls = _CMP_AB3DMOT
+
+            # Restore sys.path
+            for p in _inserted:
+                sys.path.remove(p)
 
             tracker_config = edict({
                 'dataset': 'opv2v',
@@ -207,7 +235,10 @@ class CMPManager:
                 'vis': False,
                 'affi_pro': True,
             })
-            self._per_vehicle_trackers[veh_idx] = AB3DMOT(tracker_config, 'Car', None)
+            import io
+            _log = io.StringIO()  # CMP's AB3DMOT expects a writable log
+            self._per_vehicle_trackers[veh_idx] = _mod_cls(
+                tracker_config, 'Car', log=_log)
             self._per_vehicle_trajectories[veh_idx] = {}
         return self._per_vehicle_trackers[veh_idx]
 
@@ -240,6 +271,7 @@ class CMPManager:
                 per_vehicle_features[i] = {
                     "spatial_features": fd["spatial_features"],
                     "pose": vm.localizer.get_ego_pos(),
+                    "compressed": fd.get("compressed", False),
                 }
             all_locs.append(vm.localizer.get_ego_pos().location)
 
@@ -251,6 +283,7 @@ class CMPManager:
                 rsu_features.append({
                     "spatial_features": fd["spatial_features"],
                     "pose": rsu.localizer.get_ego_pos(),
+                    "compressed": fd.get("compressed", False),
                 })
 
         if per_vehicle_features:
@@ -262,6 +295,7 @@ class CMPManager:
         self.update_information(tick)
 
         if not self.feat_history:
+            logger.info("[CMP] tick=%d no features yet, advancing", tick)
             self._advance_vehicles(tick, {})
             return
 
@@ -270,6 +304,8 @@ class CMPManager:
         N = len(self.vehicle_manager_list)
         if N == 0:
             return
+        logger.info("[CMP] tick=%d N=%d feats=%d rsu_feats=%d",
+                     tick, N, len(per_veh_features), len(rsu_features))
 
         # 1. Occlusion matrix
         occ_matrix = compute_occlusion_matrix(self.world, all_locs)
@@ -304,12 +340,15 @@ class CMPManager:
         # 4. Metrics
         sc_assign = self.channel_engine.get_subchannel_assignments()
         stats = self.v2v_metrics.record_tick(tick, link_results, N, sc_assign)
+        logger.info("[CMP] tick=%d PRR=%.3f links=%d ch=%.1fms",
+                     tick, stats.prr, len(link_results), channel_ms)
 
         # 5. Delivery map
         delivery_map = self.feature_exchange.build_delivery_map(link_results)
 
         # 6. Per-vehicle: collect delivered features, fuse, detect, track, predict
         per_vehicle_predictions: Dict[int, list] = {}
+        per_vehicle_stage_timing: Dict[int, Dict[str, float]] = {}
         t_pipe_start = time.time()
 
         for veh_idx in range(N):
@@ -322,85 +361,126 @@ class CMPManager:
             for rsu_feat in rsu_features:
                 received.append(rsu_feat)
 
-            per_vehicle_predictions[veh_idx] = self._cmp_pipeline(
+            preds, stage_timing = self._cmp_pipeline_timed(
                 veh_idx, received, frame_id)
+            per_vehicle_predictions[veh_idx] = preds
+            per_vehicle_stage_timing[veh_idx] = stage_timing
 
         total_pipeline_ms = (time.time() - t_pipe_start) * 1000
 
-        self._timing_log.append({
+        # Aggregate per-stage means across vehicles
+        stage_keys = ['decode_ms', 'fusion_ms', 'postprocess_ms',
+                      'tracking_ms', 'prediction_ms', 'total_ms']
+        stage_means = {}
+        for k in stage_keys:
+            vals = [t.get(k, 0) for t in per_vehicle_stage_timing.values()]
+            stage_means[k] = float(np.mean(vals)) if vals else 0
+
+        tick_record = {
             "tick": tick,
             "n_vehicles": N,
+            "n_features_per_vehicle": {
+                v: t.get("n_received", 0) for v, t in per_vehicle_stage_timing.items()
+            },
             "channel_ms": channel_ms,
             "total_pipeline_ms": total_pipeline_ms,
             "prr": stats.prr,
-        })
+            "stage_means": stage_means,
+            "per_vehicle": per_vehicle_stage_timing,
+        }
+        self._timing_log.append(tick_record)
+
+        if tick % 20 == 0:
+            logger.info("[CMP] tick=%d N=%d PRR=%.3f ch=%.1fms "
+                        "decode=%.1fms fuse=%.1fms track=%.1fms pred=%.1fms total=%.1fms",
+                        tick, N, stats.prr, channel_ms,
+                        stage_means.get('decode_ms', 0),
+                        stage_means.get('fusion_ms', 0),
+                        stage_means.get('tracking_ms', 0),
+                        stage_means.get('prediction_ms', 0),
+                        total_pipeline_ms)
 
         # 7. Advance
         self._advance_vehicles(tick, per_vehicle_predictions)
 
-    def _cmp_pipeline(self, veh_idx, received_features, frame_id):
+    def _cmp_pipeline_timed(self, veh_idx, received_features, frame_id):
         """
-        Run the CMP perception + tracking + prediction pipeline.
+        Run CMP pipeline with per-stage timing.
 
-        Uses CMP's actual CoBEVT model for perception fusion and
-        CMP's AB3DMOT for tracking. Prediction uses linear predictor
-        as MTR online integration is pending.
+        Returns (predictions, timing_dict) where timing_dict has:
+          n_received, decode_ms, fusion_ms, postprocess_ms,
+          tracking_ms, prediction_ms, total_ms, n_detections, n_tracks
         """
+        t_total = time.time()
+        timing = {"n_received": len(received_features)}
+
         if not received_features:
-            return []
+            logger.info("[CMP] veh=%d SKIP: no received features", veh_idx)
+            timing["total_ms"] = 0
+            return [], timing
 
         feat_tensors, poses = [], []
+        is_compressed = False
+        sources = []
         for feat in received_features:
             if "spatial_features" in feat:
                 feat_tensors.append(feat["spatial_features"])
                 poses.append(feat["pose"])
+                sources.append(feat.get("_source", "?"))
+                if feat.get("compressed", False):
+                    is_compressed = True
         if not feat_tensors:
-            return []
+            logger.info("[CMP] veh=%d SKIP: no spatial_features in %d received",
+                        veh_idx, len(received_features))
+            timing["total_ms"] = 0
+            return [], timing
 
-        # --- CoBEVT fusion (using CMP's model directly) ---
-        from opencood.utils import transformation_utils
+        logger.info("[CMP] veh=%d n_feats=%d compressed=%s sources=%s shapes=%s",
+                     veh_idx, len(feat_tensors), is_compressed, sources,
+                     [list(f.shape) for f in feat_tensors])
 
+        # --- Stage 1: Receiver-side decode ---
+        t0 = time.time()
         spatial_features = torch.cat(feat_tensors, dim=0).cuda()
+        _pm_model = self.vehicle_manager_list[0].perception_manager.model
+        if is_compressed and hasattr(_pm_model, 'naive_compressor'):
+            spatial_features = _pm_model.naive_compressor.decoder(spatial_features)
+        timing["decode_ms"] = (time.time() - t0) * 1000
+        logger.info("[CMP] veh=%d DECODE: %d feats, compressed=%s, shape=%s",
+                     veh_idx, len(feat_tensors), is_compressed,
+                     list(spatial_features.shape))
+
+        # --- Stage 2: CoBEVT fusion + detection heads ---
+        # The fusion module is REQUIRED for detection. The model was trained
+        # end-to-end with fusion. Skipping it produces garbage.
+        t0 = time.time()
         L = len(feat_tensors)
         max_cav = self.hypes["train_params"]["max_cav"]
-
-        # Build pairwise transforms (same as CMP does)
-        pose_list = [
-            [p.location.x, p.location.y, p.location.z,
-             p.rotation.roll, p.rotation.yaw, p.rotation.pitch]
-            for p in poses]
-
-        pairwise = np.tile(np.eye(4), (1, max_cav, max_cav, 1, 1))
-        for i in range(min(L, max_cav)):
-            for j in range(min(L, max_cav)):
-                pairwise[0, i, j] = transformation_utils.x1_to_x2(
-                    pose_list[i], pose_list[j])
-        pairwise_t = torch.from_numpy(pairwise).float().cuda()
         record_len = torch.tensor([L], dtype=torch.int64).cuda()
 
+        from cmp_opencood.models.fuse_modules.fuse_utils import regroup
+        regroup_feature, mask = regroup(spatial_features, record_len, max_cav)
+
+        from einops import repeat
+        com_mask = mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)
+        com_mask = repeat(com_mask,
+                          'b h w c l -> b (h new_h) (w new_w) c l',
+                          new_h=regroup_feature.shape[3],
+                          new_w=regroup_feature.shape[4])
+
         with torch.no_grad():
-            # Call the model's forward components directly
-            # This matches CMP's inference_early_fusion path
-            from opencood.models.fuse_modules.fuse_utils import regroup
+            fused_feature = _pm_model.fusion_net(regroup_feature, com_mask)
+            psm = _pm_model.cls_head(fused_feature)
+            rm = _pm_model.reg_head(fused_feature)
 
-            # Regroup features for CoBEVT fusion
-            regroup_feature, mask = regroup(
-                spatial_features, record_len, max_cav)
+        psm_max = torch.sigmoid(psm).max().item()
+        timing["fusion_ms"] = (time.time() - t0) * 1000
+        logger.info("[CMP] veh=%d FUSION: L=%d psm_max=%.3f %.1fms",
+                     veh_idx, L, psm_max, timing["fusion_ms"])
 
-            # CoBEVT SwapFusionEncoder
-            from einops import repeat
-            com_mask = mask.unsqueeze(1).unsqueeze(2).unsqueeze(3)
-            com_mask = repeat(com_mask,
-                              'b h w c l -> b (h new_h) (w new_w) c l',
-                              new_h=regroup_feature.shape[3],
-                              new_w=regroup_feature.shape[4])
-
-            fused_feature = self.model.fusion_net(regroup_feature, com_mask)
-            psm = self.model.cls_head(fused_feature)
-            rm = self.model.reg_head(fused_feature)
-
-        # --- Post-process to boxes ---
-        from opencood.utils import box_utils
+        # --- Stage 3: Post-process (NMS, box conversion) ---
+        t0 = time.time()
+        from cmp_opencood.utils import box_utils
 
         pred_dict = {"psm": psm, "rm": rm}
         anchor_box_np = self.post_processor.generate_anchor_box()
@@ -414,15 +494,20 @@ class CMPManager:
             data_dict, output_dict)
 
         if pred_corners is None or len(pred_corners) == 0:
-            return []
+            timing["postprocess_ms"] = (time.time() - t0) * 1000
+            timing["n_detections"] = 0
+            timing["tracking_ms"] = 0
+            timing["prediction_ms"] = 0
+            timing["total_ms"] = (time.time() - t_total) * 1000
+            logger.info("[CMP] veh=%d POSTPROC: no detections after NMS", veh_idx)
+            return [], timing
 
-        # Convert to world-frame AB3DMOT format
         corners_np = pred_corners.cpu().detach().numpy()
         scores_np = pred_scores.cpu().detach().numpy()
         boxes_7dof = box_utils.corner_to_center(corners_np, order="hwl")
 
         ego_pose = poses[0]
-        boxes_7dof[:, 1] *= -1  # opencood -> CARLA Y convention
+        boxes_7dof[:, 1] *= -1
         anchor_world_matrix = np.array(ego_pose.get_matrix())
         centers_homo = np.hstack(
             (boxes_7dof[:, :3], np.ones((len(boxes_7dof), 1))))
@@ -432,17 +517,28 @@ class CMPManager:
         world_boxes[:, :3] = centers_world[:, :3]
         world_boxes[:, 6] += np.radians(ego_pose.rotation.yaw)
 
-        # Self-detection filter
         ego_x, ego_y = ego_pose.location.x, ego_pose.location.y
-        keep = []
-        for i in range(len(world_boxes)):
-            dist = np.sqrt((world_boxes[i, 0] - ego_x)**2 +
-                           (world_boxes[i, 1] - ego_y)**2)
-            if dist >= 2.0:
-                keep.append(i)
+        all_dists = [np.sqrt((world_boxes[i, 0] - ego_x)**2 +
+                             (world_boxes[i, 1] - ego_y)**2)
+                     for i in range(len(world_boxes))]
+        keep = [i for i, d in enumerate(all_dists) if d >= 2.0]
+
+        timing["postprocess_ms"] = (time.time() - t0) * 1000
+        timing["n_detections"] = len(keep)
+        timing["n_raw_detections"] = len(world_boxes)
+
+        logger.info("[CMP] veh=%d POSTPROC: %d raw dets, %d after self-filter "
+                     "(ego=%.1f,%.1f) dists=%s scores=%s",
+                     veh_idx, len(world_boxes), len(keep),
+                     ego_x, ego_y,
+                     [f"{d:.1f}" for d in all_dists[:8]],
+                     [f"{s:.2f}" for s in scores_np[:8]])
 
         if not keep:
-            return []
+            timing["tracking_ms"] = 0
+            timing["prediction_ms"] = 0
+            timing["total_ms"] = (time.time() - t_total) * 1000
+            return [], timing
 
         ab3d_boxes = np.column_stack([
             world_boxes[keep][:, [3, 4, 5, 0, 1, 2, 6]],
@@ -451,44 +547,100 @@ class CMPManager:
         info = np.array([[frame_id, i, -1] for i in range(len(keep))])
         det_results = {"dets": ab3d_boxes, "info": info}
 
-        # --- AB3DMOT tracking (using CMP's tracker) ---
+        # Log detection positions
+        for di in range(min(len(keep), 5)):
+            d = ab3d_boxes[di]
+            logger.info("[CMP] veh=%d DET[%d]: pos=(%.1f,%.1f,%.1f) "
+                         "hwl=(%.1f,%.1f,%.1f) score=%.2f",
+                         veh_idx, di, d[3], d[4], d[5],
+                         d[0], d[1], d[2], d[7])
+
+        # --- Stage 4: AB3DMOT tracking ---
+        t0 = time.time()
         tracker = self._get_or_create_tracker(veh_idx)
-        # CMP's AB3DMOT expects a specific input format
-        # For now use ecav's tracker interface
-        from ecav.core.tracking import get_tracker as ecav_get_tracker
-        if veh_idx not in self._per_vehicle_trackers or \
-                not isinstance(self._per_vehicle_trackers[veh_idx], object):
-            # Fall back to ecav's AB3DMOT if CMP's has import issues
-            pass
+        n_dets = len(det_results["dets"])
+        cmp_dets_all = {
+            'dets': det_results["dets"][:, :7] if n_dets > 0 else np.empty((0, 7)),
+            'info': det_results["info"],
+            'cav_id': np.zeros(n_dets, dtype=np.int32),
+        }
 
-        tracks_result = tracker.track(det_results, frame_id) \
-            if hasattr(tracker, 'track') else ([], [])
+        results_list, affi = tracker.track(cmp_dets_all, frame_id, f"carla_veh{veh_idx}")
 
-        # Build trajectories
+        # Build velocity map from KF state (CMP's output doesn't include velocity)
+        # tracker.trackers[i] has .id and .kf.x[7:10] = [dx, dy, dz]
+        kf_velocity_by_id = {}
+        for kf_trk in tracker.trackers:
+            vel = kf_trk.get_velocity().flatten()
+            kf_velocity_by_id[kf_trk.id] = vel  # [dx, dy, dz]
+
         history: Deque[np.ndarray] = deque(maxlen=10)
-        if tracks_result and len(tracks_result) > 0:
-            tracks = tracks_result[0] if isinstance(tracks_result, tuple) else tracks_result
-            if tracks is not None and len(tracks) > 0:
-                if isinstance(tracks, list) and len(tracks) > 0:
-                    history.append(tracks[0] if isinstance(tracks[0], np.ndarray) else np.array(tracks[0]))
+        n_tracks = 0
+        if results_list and len(results_list) > 0 and len(results_list[0]) > 0:
+            history.append(results_list[0])
+            n_tracks = len(results_list[0])
+            for ti in range(min(n_tracks, 5)):
+                trk = results_list[0][ti]
+                tid = int(trk[7])
+                vel = kf_velocity_by_id.get(tid, np.zeros(3))
+                speed = float(np.sqrt(vel[0]**2 + vel[1]**2))
+                logger.info("[CMP] veh=%d TRK[%d]: id=%d pos=(%.1f,%.1f,%.1f) "
+                             "vel=(%.1f,%.1f) speed=%.1f",
+                             veh_idx, ti, tid,
+                             trk[3], trk[4], trk[5],
+                             vel[0], vel[1], speed)
+        else:
+            logger.info("[CMP] veh=%d TRACKING: 0 tracks from %d dets", veh_idx, n_dets)
 
-        self._update_trajectories(veh_idx, history)
+        self._update_trajectories(veh_idx, history, kf_velocity_by_id)
+        timing["tracking_ms"] = (time.time() - t0) * 1000
+        timing["n_tracks"] = n_tracks
 
-        # --- Prediction (linear for now, MTR TODO) ---
+        # Log trajectory state
+        n_trajs = len(self._per_vehicle_trajectories[veh_idx])
+        traj_lens = {tid: len(t.trajectory)
+                     for tid, t in self._per_vehicle_trajectories[veh_idx].items()}
+        logger.info("[CMP] veh=%d TRAJECTORIES: %d active, lengths=%s",
+                     veh_idx, n_trajs, traj_lens)
+
+        # --- Stage 5: Prediction ---
+        t0 = time.time()
         predictions = self.lin_pred.generate_predicted_trajectories(
             self._per_vehicle_trajectories[veh_idx])
-        return predictions if predictions else []
+        timing["prediction_ms"] = (time.time() - t0) * 1000
+        timing["n_predictions"] = len(predictions) if predictions else 0
 
-    def _update_trajectories(self, veh_idx, hist, horizon=10):
+        if predictions:
+            for pi in range(min(len(predictions), 3)):
+                pred = predictions[pi]
+                obs = pred.obstacle_trajectory.obstacle
+                logger.info("[CMP] veh=%d PRED[%d]: track_id=%d carla_id=%d "
+                             "pos=(%.1f,%.1f) speed=%.1f n_waypoints=%d",
+                             veh_idx, pi,
+                             getattr(obs, 'track_id', -1),
+                             getattr(obs, 'carla_id', -1),
+                             obs.location.x, obs.location.y,
+                             getattr(obs, 'kf_speed_mps', 0),
+                             len(pred.predicted_trajectory) if hasattr(pred, 'predicted_trajectory') else 0)
+        else:
+            logger.info("[CMP] veh=%d PREDICTION: 0 predictions from %d trajectories",
+                         veh_idx, n_trajs)
+
+        timing["total_ms"] = (time.time() - t_total) * 1000
+
+        return (predictions if predictions else []), timing
+
+    def _update_trajectories(self, veh_idx, hist, kf_velocity_by_id=None, horizon=10):
         trajs = self._per_vehicle_trajectories[veh_idx]
         updated = set()
+        if kf_velocity_by_id is None:
+            kf_velocity_by_id = {}
 
         for frame in hist:
             if frame is None or len(frame) == 0:
                 continue
             for trk in frame:
                 tid = int(trk[7])
-                cid = int(trk[8]) if len(trk) > 8 else -1
                 tf = _box_to_transform(trk[:7])
                 updated.add(tid)
 
@@ -503,13 +655,16 @@ class CMPManager:
                 traj.trajectory.appendleft(tf)
                 traj.obstacle.transform = tf
                 traj.obstacle.location = tf.location
-                traj.obstacle.carla_id = cid
+                traj.obstacle.carla_id = -1
 
-                if len(trk) > 12:
-                    traj.obstacle.kf_vx = float(trk[10])
-                    traj.obstacle.kf_vy = float(trk[12])
-                    traj.obstacle.kf_speed_mps = (
-                        (trk[10]**2 + trk[12]**2)**0.5) / self.dt
+                # Get velocity from KF state (CMP's output doesn't have it)
+                vel = kf_velocity_by_id.get(tid)
+                if vel is not None and len(vel) >= 2:
+                    # KF state: [dx, dy, dz] in units per tick
+                    traj.obstacle.kf_vx = float(vel[0])
+                    traj.obstacle.kf_vy = float(vel[1])
+                    traj.obstacle.kf_speed_mps = float(
+                        np.sqrt(vel[0]**2 + vel[1]**2)) / self.dt
 
         if updated:
             for tid in list(trajs):
@@ -520,6 +675,10 @@ class CMPManager:
         for i, vm in enumerate(self.vehicle_manager_list):
             preds = per_vehicle_predictions.get(i, [])
             vm.agent.edge_predictions = list(preds) if preds else []
+            n_preds = len(vm.agent.edge_predictions)
+            if n_preds > 0 or tick % 20 == 0:
+                logger.info("[CMP] ADVANCE veh=%d tick=%d edge_predictions=%d",
+                             i, tick, n_preds)
             if not self.run_distributed:
                 vm.update_info(tick)
                 vm.vehicle.apply_control(vm.run_step())
@@ -540,15 +699,58 @@ class CMPManager:
         return self._timing_log
 
     def get_timing_summary(self):
+        """Return per-stage timing statistics for evaluation output."""
         if not self._timing_log:
             return {}
         ch = [t["channel_ms"] for t in self._timing_log]
         pipe = [t["total_pipeline_ms"] for t in self._timing_log]
-        return {
-            "channel_ms_mean": float(np.mean(ch)),
-            "pipeline_ms_mean": float(np.mean(pipe)),
+
+        summary = {
             "n_ticks": len(self._timing_log),
+            "channel_ms_mean": float(np.mean(ch)),
+            "channel_ms_p95": float(np.percentile(ch, 95)),
+            "pipeline_ms_mean": float(np.mean(pipe)),
+            "pipeline_ms_p95": float(np.percentile(pipe, 95)),
         }
+
+        # Per-stage statistics
+        stage_keys = ['decode_ms', 'fusion_ms', 'postprocess_ms',
+                      'tracking_ms', 'prediction_ms']
+        for key in stage_keys:
+            vals = [t["stage_means"].get(key, 0)
+                    for t in self._timing_log if "stage_means" in t]
+            if vals:
+                summary[f"{key}_mean"] = float(np.mean(vals))
+                summary[f"{key}_p95"] = float(np.percentile(vals, 95))
+
+        # Detection and track counts
+        for count_key in ['n_detections', 'n_tracks', 'n_predictions']:
+            all_vals = []
+            for t in self._timing_log:
+                for vt in t.get("per_vehicle", {}).values():
+                    if count_key in vt:
+                        all_vals.append(vt[count_key])
+            if all_vals:
+                summary[f"{count_key}_mean"] = float(np.mean(all_vals))
+
+        # PRR statistics
+        prrs = [t["prr"] for t in self._timing_log]
+        summary["prr_mean"] = float(np.mean(prrs))
+        summary["prr_p5"] = float(np.percentile(prrs, 5))
+
+        return summary
+
+    def save_timing_log(self, output_dir: str):
+        """Save full per-tick timing log to JSON for offline analysis."""
+        import json
+        os.makedirs(output_dir, exist_ok=True)
+        path = os.path.join(output_dir, "cmp_pipeline_timing.json")
+        with open(path, 'w') as f:
+            json.dump({
+                "summary": self.get_timing_summary(),
+                "per_tick": self._timing_log,
+            }, f, indent=2, default=str)
+        logger.info("Pipeline timing saved to %s", path)
 
     def cleanup(self):
         if hasattr(self.channel_engine, 'shutdown'):

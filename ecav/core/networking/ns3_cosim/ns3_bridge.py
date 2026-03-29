@@ -263,8 +263,14 @@ class NS3Bridge:
         # Signal ns-3
         buf[8] = STATE_PYTHON_READY
 
-        # Wait for ns-3 to finish
-        timeout = 5.0  # 5s max (first tick may take longer due to setup)
+        # Wait for ns-3 to finish. First tick takes longer because it
+        # triggers NR V2X topology setup (node creation, bearer activation).
+        # With 128 max_vehicles, setup takes ~30s.
+        if not hasattr(self, '_first_tick_done'):
+            timeout = 60.0
+        else:
+            timeout = 5.0
+        self._first_tick_done = True
         t0 = time.time()
         while time.time() - t0 < timeout:
             if buf[8] == STATE_NS3_DONE:

@@ -16,7 +16,7 @@ import math
 from collections import OrderedDict, Counter
 
 
-from opencood.hypes_yaml.yaml_utils import load_yaml
+from cmp_opencood.hypes_yaml.yaml_utils import load_yaml
 
 class V2V4RealMultiEgoDataset(DatasetTemplate):
     def __init__(self, dataset_cfg, training=True, logger=None, visualize=False):

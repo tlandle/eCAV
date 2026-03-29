@@ -9,10 +9,10 @@ from PIL import Image
 import numpy as np
 import copy
 
-from opencood.data_utils.v2v4real.datasets import GT_RANGE
-from opencood.utils import box_utils_v2v4real as box_utils
-from opencood.utils.transformation_utils import x1_to_x2, x_to_world
-from opencood.hypes_yaml.yaml_utils import load_yaml
+from cmp_opencood.data_utils.v2v4real.datasets import GT_RANGE
+from cmp_opencood.utils import box_utils_v2v4real as box_utils
+from cmp_opencood.utils.transformation_utils import x1_to_x2, x_to_world
+from cmp_opencood.hypes_yaml.yaml_utils import load_yaml
 
 from tqdm import tqdm
 import sys
