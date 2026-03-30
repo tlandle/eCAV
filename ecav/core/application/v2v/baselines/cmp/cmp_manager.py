@@ -49,6 +49,8 @@ from ecav.core.application.v2v.v2v_metrics import V2VMetrics
 
 logger = logging.getLogger("V2VCMPBaseline")
 
+_TIME_INTERVAL = 0.1  # seconds between prediction frames (OPV2V convention)
+
 # Default CMP repo location
 _CMP_ROOT = os.path.abspath(os.path.join(
     os.path.dirname(__file__), 'CMP'))
@@ -159,10 +161,11 @@ class CMPManager:
         # (matches CMP's interpolate_speed: velocity = position diff / dt)
         self._prev_det_positions: Dict[int, np.ndarray] = {}
 
-        # --- Linear predictor (MTR integration TODO) ---
-        from ecav.core.prediction.linear_predictor_manager import (
-            LinearPredictorManager)
-        self.lin_pred = LinearPredictorManager(num_future_steps=25)
+        # --- MTR prediction (CMP's actual predictor) ---
+        from ecav.core.application.v2v.baselines.cmp.mtr_online_predictor import (
+            MTROnlinePredictor)
+        self._mtr_predictor = MTROnlinePredictor(
+            self._cmp_root, world, cfg, device='cuda:0')
 
         # --- Feature history ---
         self.feat_history: Deque = deque(maxlen=200)
@@ -603,10 +606,46 @@ class CMPManager:
         logger.info("[CMP] veh=%d TRAJECTORIES: %d active, lengths=%s",
                      veh_idx, n_trajs, traj_lens)
 
-        # --- Stage 5: Prediction ---
+        # --- Stage 5: Prediction (MTR or linear fallback) ---
         t0 = time.time()
-        predictions = self.lin_pred.generate_predicted_trajectories(
-            self._per_vehicle_trajectories[veh_idx])
+
+        # Update MTR trajectory history with tracker results
+        if self._mtr_predictor is not None and results_list and len(results_list) > 0:
+            self._mtr_predictor.update_tracks(veh_idx, results_list[0])
+
+        # Try MTR prediction first
+        mtr_output = None
+        if self._mtr_predictor is not None and n_tracks > 0:
+            ego_pose = poses[0] if poses else None
+            if ego_pose is not None:
+                mtr_output = self._mtr_predictor.predict(
+                    veh_idx, ego_pose, fused_feature)
+
+        if mtr_output is not None and 'pred_trajs' in mtr_output:
+            # Transform predictions from center-object frame to world frame
+            # Same transform as CMP's generate_prediction_dicts
+            from mtr.utils.common_utils import rotate_points_along_z
+            pred_trajs_raw = mtr_output['pred_trajs']  # (N, modes, timestamps, 5)
+            pred_scores_raw = mtr_output['pred_scores']
+            center_objects_world = mtr_output['input_dict']['center_objects_world'].type_as(pred_trajs_raw)
+
+            N, M, T, F = pred_trajs_raw.shape
+            pred_trajs_world = rotate_points_along_z(
+                points=pred_trajs_raw.view(N, M * T, F),
+                angle=center_objects_world[:, 6].view(N)
+            ).view(N, M, T, F)
+            pred_trajs_world[:, :, :, 0:2] += center_objects_world[:, None, None, 0:2]
+
+            pred_trajs = pred_trajs_world.cpu().numpy()
+            pred_scores = pred_scores_raw.cpu().numpy()
+            predictions = self._mtr_to_ecav_predictions(
+                pred_trajs, pred_scores, veh_idx)
+            logger.info("[CMP] veh=%d MTR: %d predictions, %d modes",
+                         veh_idx, len(predictions),
+                         pred_trajs.shape[1] if pred_trajs.ndim > 1 else 0)
+        else:
+            predictions = []
+
         timing["prediction_ms"] = (time.time() - t0) * 1000
         timing["n_predictions"] = len(predictions) if predictions else 0
 
@@ -614,21 +653,90 @@ class CMPManager:
             for pi in range(min(len(predictions), 3)):
                 pred = predictions[pi]
                 obs = pred.obstacle_trajectory.obstacle
-                logger.info("[CMP] veh=%d PRED[%d]: track_id=%d carla_id=%d "
-                             "pos=(%.1f,%.1f) speed=%.1f n_waypoints=%d",
+                logger.info("[CMP] veh=%d PRED[%d]: track_id=%d "
+                             "pos=(%.1f,%.1f) speed=%.1f",
                              veh_idx, pi,
                              getattr(obs, 'track_id', -1),
-                             getattr(obs, 'carla_id', -1),
                              obs.location.x, obs.location.y,
-                             getattr(obs, 'kf_speed_mps', 0),
-                             len(pred.predicted_trajectory) if hasattr(pred, 'predicted_trajectory') else 0)
+                             getattr(obs, 'kf_speed_mps', 0))
         else:
-            logger.info("[CMP] veh=%d PREDICTION: 0 predictions from %d trajectories",
-                         veh_idx, n_trajs)
+            logger.info("[CMP] veh=%d MTR: 0 predictions from %d tracks",
+                         veh_idx, n_tracks)
 
         timing["total_ms"] = (time.time() - t_total) * 1000
 
         return (predictions if predictions else []), timing
+
+    def _mtr_to_ecav_predictions(self, pred_trajs, pred_scores, veh_idx):
+        """
+        Convert MTR output to ecav's prediction format.
+
+        MTR outputs trajectories in center-object-relative coordinates.
+        We transform them back to world coordinates using each object's
+        current world position and heading from the tracker.
+
+        MTR output:
+            pred_trajs: (num_objects, num_modes, num_timestamps, 7)
+                        [x, y, z, vx, vy, vz, heading] in object-centric frame
+            pred_scores: (num_objects, num_modes)
+
+        Returns list of ObstaclePrediction objects in world coordinates.
+        """
+        import carla
+        from ecav.core.prediction.obstacle_prediction import ObstaclePrediction
+
+        predictions = []
+        trajs = self._per_vehicle_trajectories.get(veh_idx, {})
+        track_ids = list(trajs.keys())
+
+        for obj_idx in range(len(pred_trajs)):
+            best_mode = int(pred_scores[obj_idx].argmax())
+            traj = pred_trajs[obj_idx, best_mode]  # (num_timestamps, 7)
+
+            if obj_idx >= len(track_ids):
+                continue
+            tid = track_ids[obj_idx]
+            if tid not in trajs:
+                continue
+
+            obs_traj = trajs[tid]
+
+            # pred_trajs are already in world frame (transformed before this call)
+            # traj shape: (num_timestamps, 5) = [x, y, vx, vy, heading]
+            pred_waypoints = []
+            for t in range(len(traj)):
+                wp = _Tf(
+                    location=_Loc(x=float(traj[t, 0]),
+                                  y=float(traj[t, 1]),
+                                  z=0.0),
+                    rotation=_Rot(yaw=float(np.degrees(traj[t, 4]))
+                                  if traj.shape[1] > 4 else 0.0)
+                )
+                pred_waypoints.append(wp)
+
+            # Speed from MTR's velocity output (already in world frame)
+            if traj.shape[1] >= 4:
+                vx = float(traj[0, 2])
+                vy = float(traj[0, 3])
+                speed = float(np.sqrt(vx**2 + vy**2))
+                obs_traj.obstacle.kf_speed_mps = speed
+            elif len(pred_waypoints) >= 2:
+                dx = pred_waypoints[1].location.x - pred_waypoints[0].location.x
+                dy = pred_waypoints[1].location.y - pred_waypoints[0].location.y
+                speed = float(np.sqrt(dx**2 + dy**2)) / _TIME_INTERVAL
+                obs_traj.obstacle.kf_speed_mps = speed
+
+            pred = ObstaclePrediction(
+                obstacle_trajectory=obs_traj,
+                transform=carla.Transform(
+                    carla.Location(
+                        x=pred_waypoints[0].location.x,
+                        y=pred_waypoints[0].location.y)),
+                probability=float(pred_scores[obj_idx, best_mode]),
+                predicted_trajectory=pred_waypoints)
+            predictions.append(pred)
+
+        return predictions
 
     def _update_trajectories(self, veh_idx, hist, kf_velocity_by_id=None, horizon=10):
         trajs = self._per_vehicle_trajectories[veh_idx]
