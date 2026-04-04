@@ -473,6 +473,60 @@ This is a modest refactor — three functions/classes extracted to one new file 
 
 ---
 
+## Distributed WorldFusion Architecture
+
+**Reference**: `docs/agent_plans/EDGE_ARCHITECTURE_PROPOSAL.md`
+
+The optimization work above was developed against the sequential scenario (`-t openscenario_3_edge_worldfusion`), where the edge manager runs co-located with the orchestrator in a single process. In the target distributed architecture (EDGE_ARCHITECTURE_PROPOSAL.md Phase 4), the topology changes materially:
+
+```
+Sequential (current):
+  orchestrator process
+    └── EdgeManager
+          ├── VehicleManager → WorldFusionPerceptionManager → POST /extract_features
+          └── RSUManager    → WorldFusionPerceptionManager → POST /extract_features
+
+Distributed (target):
+  orchestrator (ecloud_server.cc)
+    └── edge process (edge_process.py)
+          ├── receives sensor data from Vehicle containers via gRPC
+          ├── receives sensor data from RSU containers via gRPC
+          └── EdgeManager → single POST /extract_features (batch=N)
+```
+
+The key difference: in the distributed case, it is the **edge process** that calls LitServe, not individual vehicle containers. Vehicle and RSU containers transmit their raw sensor data (camera frames, LiDAR point clouds) to the edge via gRPC. The edge runs `_build_batch()` for each actor, merges them, and makes one batched LitServe call.
+
+### Implications for optimization work
+
+| Optimization | Sequential relevance | Distributed relevance |
+|-------------|---------------------|----------------------|
+| O1 (float16 response) | Halves per-call response payload | Same benefit — edge receives float16 |
+| O4 (uint8 imgs) | Neutral on loopback, bandwidth-saving on Azure | Edge→LitServe is co-located; request payload not over WAN. May be irrelevant in distributed mode unless edge and LitServe run on separate hosts. |
+| O5 (edge batch) | Requires splitting perception manager into two phases; artificial coordination | **Natural fit** — edge already receives all N actors' data before calling LitServe. Single batch=N call is the obvious implementation. No perception manager API changes needed. |
+| O6 (async pipeline) | Low priority; edge loop is synchronous per tick | In distributed mode, edge tick loop can overlap batch inference with actor data collection for tick N+1. Higher leverage. |
+| Measurement infra (CSV, EdgeProfiler) | Direct output | Reusable — edge process inherits the same edge manager + profiler; timing CSV emitted per edge process |
+
+### Research comparison required
+
+The research contribution requires measuring **local inference vs LitServe-offloaded inference** at the edge in both scenarios:
+
+1. **Sequential (co-located)**: Edge manager calls LitServe on same host — establishes loopback baseline, validates O1/O5
+2. **Distributed (containerized)**: Edge process in Docker calls LitServe on inference host — establishes the real deployment cost over real network links
+
+The sequential measurements (O1: 355→234ms, O5 pending) provide the baseline from which the distributed overhead can be estimated. Azure inter-host HTTP adds network RTT + bandwidth on top of loopback latency.
+
+### Implementation order for distributed target
+
+The sequential scenario optimization work (O1, O4, measurement infra) is a prerequisite, not a detour. Before the distributed edge architecture (EDGE_ARCHITECTURE_PROPOSAL.md Phases 1-8) is built:
+
+1. ✅ Characterize LitServe endpoint performance (payload, latency decomposition)
+2. ✅ Apply applicable payload optimizations (O1, O4)
+3. ☐ Implement O5 (batch inference) — highest-leverage remaining item; also the natural design in distributed mode
+4. ☐ Build distributed edge architecture (EDGE_ARCHITECTURE_PROPOSAL.md)
+5. ☐ Measure edge-process → LitServe over real network; compare local vs offloaded at the distributed edge
+
+---
+
 ## Risk Assessment
 
 | Risk | Mitigation |

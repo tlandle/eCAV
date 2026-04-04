@@ -177,3 +177,15 @@ opencda/ecloud_server/CMakeFiles/
 opencda/ecloud_server/CMakeCache.txt
 opencda/ecloud_server/cmake_install.cmake
 opencda/ecloud_server/Makefile
+ecav/ecloud_server/CMakeFiles/
+ecav/ecloud_server/CMakeCache.txt
+ecav/ecloud_server/cmake_install.cmake
+ecav/ecloud_server/Makefile
+
+# Local environment configuration (user-specific paths)
+local.env
+
+.claude/
+
+logs/
+docs/agent_plans/

@@ -1,0 +1,17 @@
+{
+  "alwaysUpdateLinks": true,
+  "userIgnoreFilters": [
+    "build/",
+    "yolov5/",
+    "sort/",
+    "waymo-open-dataset/",
+    "ecav/BM2CP/",
+    "ecav/worldfusion/",
+    "scenario_runner/",
+    "evaluation_outputs/",
+    "see-v2x-input/",
+    "logs/",
+    "AB3DMOT_libs/",
+    "lazy"
+  ]
+}
