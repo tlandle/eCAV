@@ -117,6 +117,7 @@ using ecloud::EdgeIndex;
 using ecloud::ActorConnectionInfo;
 using ecloud::EdgeMapping;
 using ecloud::EdgeMappingSetup;
+using ecloud::EdgeReadyNotification;
 
 std::atomic<int16_t> numCompletedVehicles_;
 std::atomic<int16_t> numRepliedVehicles_;
@@ -160,6 +161,7 @@ std::map<int32_t, int32_t> vehicleToEdgeMapping_;  // vehicle_index -> edge_inde
 std::map<int32_t, int32_t> rsuToEdgeMapping_;      // rsu_index -> edge_index
 std::atomic<int16_t> numRegisteredEdges_;
 std::atomic<int16_t> numCompletedEdges_;
+std::atomic<int16_t> numEdgesActorReady_;
 bool hasEdges_;  // True if scenario has edges (from sim_api.py)
 int16_t numExpectedEdges_;  // Expected number of edges to register
 
@@ -634,6 +636,7 @@ public:
         version_ = request->version();
         numCars_ = request->vehicle_index(); // bit of a hack to use vindex as count
         isEdge_ = request->is_edge();
+        numEdgesActorReady_ = 0;
         // TODO: simIP_ = // always localhost for now
 
         assert( numCars_ <= MAX_CARS );
@@ -773,6 +776,25 @@ public:
             pushedTick_ = true;
             simAPIClient_->PushTick(request->tick_id(), command_, INVALID_TIME);
             LOG(INFO) << "tick " << request->tick_id() << " COMPLETE (all edges reported)";
+        }
+
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Edge_ActorsReady(CallbackServerContext* context,
+                               const EdgeReadyNotification* request,
+                               Empty* reply) override {
+
+        LOG(INFO) << "Edge_ActorsReady - edge " << request->edge_index()
+                  << " (" << request->num_actors() << " actors)";
+
+        numEdgesActorReady_++;
+
+        if (numEdgesActorReady_.load() == numExpectedEdges_) {
+            LOG(INFO) << "All edges actor-ready - signaling sim_api to begin tick loop";
+            simAPIClient_->PushTick(TICK_ID_INVALID, Command::ACTORS_READY, INVALID_TIME);
         }
 
         ServerUnaryReactor* reactor = context->DefaultReactor();

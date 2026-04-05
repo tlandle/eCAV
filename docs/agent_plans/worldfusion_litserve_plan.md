@@ -374,13 +374,13 @@ Same root cause as O2: the upload path costs ~1.4ms regardless of payload size. 
 
 ---
 
-### O4 — LiDAR-only mode (skip camera branch)
+### Variant — LiDAR-only mode (skip camera branch)
 
 The WorldFusion model supports LiDAR-only input (the camera branch is guarded by `if 'image_inputs' in batch`). If the scene geometry at the blind intersection is well-covered by LiDAR alone, skipping image inputs eliminates the camera tensor payload entirely (saving 11 MB per agent per tick) and simplifies the server encoder path.
 
 This is a research tradeoff, not a pure engineering optimization — detection quality with LiDAR-only vs. camera+LiDAR at the intersection needs evaluation. Document as an option to test after baseline measurements are available.
 
-### O5 — gRPC transport (future)
+### O7 — gRPC transport (future)
 
 As discussed for the YOLO path, gRPC provides HTTP/2 multiplexing and eliminates HTTP framing overhead. For WorldFusion the argument is weaker than for YOLO:
 
@@ -475,9 +475,11 @@ This is a modest refactor — three functions/classes extracted to one new file 
 
 ## Distributed WorldFusion Architecture
 
-**Reference**: `docs/agent_plans/EDGE_ARCHITECTURE_PROPOSAL.md`
+**Reference**: `docs/agent_plans/edge_architecture_proposal.md`
 
-The optimization work above was developed against the sequential scenario (`-t openscenario_3_edge_worldfusion`), where the edge manager runs co-located with the orchestrator in a single process. In the target distributed architecture (EDGE_ARCHITECTURE_PROPOSAL.md Phase 4), the topology changes materially:
+**Implementation status**: The distributed edge infrastructure is built. `ecav/protos/ecloud.proto` has all edge architecture message types and RPCs (Phases 1–2 of the proposal: `EdgeRegistrationInfo`, `EdgeScenarioConfig`, `EdgeTickComplete`, `EdgeTick`, `ActorConnectionInfo`, `IntermediateFeatures`, `IntermediateFeaturesBatch`, `FusionResult`, and the full edge RPC service). The standalone edge process at `ecav/ecav2/edge_process.py` implements `EdgeProcess` and `EdgeServer` with registration, actor coordination, and the tick loop (Phase 4). The WorldFusion integration point — `EdgeProcess.fuse_predictions()` — exists but is currently a placeholder: it passes each actor's raw `pickled_agent_objects` back unchanged. The `_run_batched_encoder()` logic described in O5 below is what turns this placeholder into actual WorldFusion fusion.
+
+The optimization work above was developed against the sequential scenario (`-t openscenario_3_edge_worldfusion`), where the edge manager runs co-located with the orchestrator in a single process. In the distributed architecture (Phase 4 is complete), the topology is:
 
 ```
 Sequential (current):
@@ -517,13 +519,17 @@ The sequential measurements (O1: 355→234ms, O5 pending) provide the baseline f
 
 ### Implementation order for distributed target
 
-The sequential scenario optimization work (O1, O4, measurement infra) is a prerequisite, not a detour. Before the distributed edge architecture (EDGE_ARCHITECTURE_PROPOSAL.md Phases 1-8) is built:
-
 1. ✅ Characterize LitServe endpoint performance (payload, latency decomposition)
 2. ✅ Apply applicable payload optimizations (O1, O4)
-3. ☐ Implement O5 (batch inference) — highest-leverage remaining item; also the natural design in distributed mode
-4. ☐ Build distributed edge architecture (EDGE_ARCHITECTURE_PROPOSAL.md)
-5. ☐ Measure edge-process → LitServe over real network; compare local vs offloaded at the distributed edge
+3. ✅ Proto complete (`ecloud.proto` — all edge messages and RPCs including intermediate fusion)
+4. ✅ Standalone edge process frame (`ecav/ecav2/edge_process.py` — registration, tick loop, actor coordination)
+5. ✅ C++ orchestrator edge RPCs (`ecloud_server.cc` — `Edge_Register`, `Edge_TickComplete`, `Server_SetEdgeMappings`, `Client_GetConnectionInfo`)
+6. ✅ Actor client edge routing (`ecloud_actor_client.py` — `Client_GetConnectionInfo`, `Edge_ActorRegister`, `Edge_ActorSendUpdate` in tick loop)
+7. ✅ Shell scripts (`start_actors.sh` — edge containers launched before vehicles)
+8. ☐ **Phase 6 (`sim_api.py`) — blocking**: Add `compute_edge_mappings()` + `Server_SetEdgeMappings` call. Without this the distributed edge is a no-op.
+9. ☐ Implement O5 (batch inference) — WorldFusion integration into `EdgeProcess.fuse_predictions()`: call `_build_batch()` on each actor's perception manager, merge, POST once to LitServe, split response, call `apply_features()` per actor
+10. ☐ Phase 8 end-to-end test
+11. ☐ Measure edge-process → LitServe over real network; compare local vs offloaded at the distributed edge
 
 ---
 

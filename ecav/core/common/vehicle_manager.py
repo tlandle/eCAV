@@ -408,6 +408,10 @@ class VehicleManager(object):
         logger.debug("V2XManager created")
         
         # localization module
+        # Distributed proxy VMs get position via vehicle.get_transform() directly;
+        # sensor attachment would fail because the ego actor lives in another process.
+        if carla_world is not None and run_distributed:
+            sensing_config['localization']['activate'] = False
         print(f"[VM __init__] creating LocalizationManager...", flush=True)
         self.localizer = LocalizationManager(
             self.vehicle, sensing_config['localization'], self.carla_map)

@@ -13,6 +13,8 @@ class eDoneBehavior(Enum):
 
 class EcloudConfig(object):
 
+    fatal_errors = True
+
     RANDOM = "random"
     EXPLICIT = "explicit"
     DESTROY = "destroy"

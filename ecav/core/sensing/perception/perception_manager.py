@@ -6,6 +6,7 @@ Perception module base.
 # Author: Runsheng Xu <rxx3386@ucla.edu>, tyler.landle <tlandle3@gatech.edu>`
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import os
 import weakref
 import sys
 import time
@@ -431,9 +432,10 @@ class PerceptionManager:
 
         #print(config_yaml)
         self.activate = config_yaml['activate']
-        self.camera_visualize = config_yaml['camera']['visualize']
+        in_docker = os.environ.get('IS_DOCKER', '0') == '1'
+        self.camera_visualize = 0 if in_docker else config_yaml['camera']['visualize']
         self.camera_num = config_yaml['camera']['num']
-        self.lidar_visualize = config_yaml['lidar']['visualize']
+        self.lidar_visualize = False if in_docker else config_yaml['lidar']['visualize']
         self._nms_distance_threshold = config_yaml.get(
             'cross_camera_nms_threshold', 5.0)
         self.global_position = config_yaml['global_position'] \

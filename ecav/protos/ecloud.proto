@@ -23,6 +23,7 @@ enum Command {
   REQUEST_DEBUG_INFO = 2;
   PULL_WAYPOINTS_AND_TICK = 3;
   PULL_OBJECTS_AND_TICK = 4;
+  ACTORS_READY = 5;
 }
 
 enum VehicleState {
@@ -331,6 +332,12 @@ message EdgeTickComplete {
   int32 num_actors_processed = 3;  // How many actors this edge processed
 }
 
+// Edge notifies orchestrator all its actors have registered and are ready for ticks
+message EdgeReadyNotification {
+  int32 edge_index = 1;
+  int32 num_actors = 2;
+}
+
 // Tick notification to edge (orchestrator -> edge)
 message EdgeTick {
   int32 tick_id = 1;
@@ -406,6 +413,8 @@ service Ecloud {
   rpc Edge_Register(EdgeRegistrationInfo) returns (EdgeScenarioConfig);
   // Edge notifies orchestrator it completed processing for a tick
   rpc Edge_TickComplete(EdgeTickComplete) returns (Empty);
+  // Edge notifies orchestrator all its actors have completed init and are ready for ticks
+  rpc Edge_ActorsReady(EdgeReadyNotification) returns (Empty);
 
   // ORCHESTRATOR -> EDGE (push)
   // Orchestrator pushes tick to edge (reuses PushTick with EdgeTick semantics)
@@ -414,6 +423,8 @@ service Ecloud {
   // ACTOR -> EDGE
   // Actor registers with edge (similar to Client_RegisterVehicle)
   rpc Edge_ActorRegister(RegistrationInfo) returns (SimulationInfo);
+  // Actor signals it has completed initialization and is ready for ticks
+  rpc Edge_ActorReady(RegistrationInfo) returns (Empty);
   // Actor sends update to edge, receives previous tick's fused data
   rpc Edge_ActorSendUpdate(VehicleUpdate) returns (ObjectBuffer);
 

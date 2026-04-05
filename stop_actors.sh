@@ -31,30 +31,30 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Stopping Base OpenCDA Process"
+echo "Stopping Base eCAV Process"
 echo "=========================================="
 echo ""
 
-# Check if base OpenCDA process is running (on host, not in container)
-if pgrep -f "python opencda.py.*-d" > /dev/null; then
-    echo "Stopping base OpenCDA process..."
-    pkill -f "python opencda.py.*-d"
+# Check if base eCAV process is running (on host, not in container)
+if pgrep -f "python ecav.py.*-d" > /dev/null; then
+    echo "Stopping base eCAV process..."
+    pkill -f "python ecav.py.*-d"
     sleep 2
 
     # Force kill if still running
-    if pgrep -f "python opencda.py.*-d" > /dev/null; then
-        echo "Force killing base OpenCDA process..."
-        pkill -9 -f "python opencda.py.*-d"
+    if pgrep -f "python ecav.py.*-d" > /dev/null; then
+        echo "Force killing base eCAV process..."
+        pkill -9 -f "python ecav.py.*-d"
         sleep 1
     fi
 
-    if ! pgrep -f "python opencda.py.*-d" > /dev/null; then
-        echo "✓ Base OpenCDA process stopped"
+    if ! pgrep -f "python ecav.py.*-d" > /dev/null; then
+        echo "✓ Base eCAV process stopped"
     else
-        echo "⚠ Warning: Some OpenCDA processes may still be running"
+        echo "⚠ Warning: Some eCAV processes may still be running"
     fi
 else
-    echo "Base OpenCDA process is not running."
+    echo "Base eCAV process is not running."
 fi
 
 echo ""
@@ -116,11 +116,11 @@ echo ""
 echo "Docker containers:"
 docker container ls -a
 echo ""
-echo "Base OpenCDA processes:"
-if pgrep -f "python opencda.py.*-d" > /dev/null; then
-    pgrep -af "python opencda.py.*-d"
+echo "Base eCAV processes:"
+if pgrep -f "python ecav.py.*-d" > /dev/null; then
+    pgrep -af "python ecav.py.*-d"
 else
-    echo "  No base OpenCDA processes running"
+    echo "  No base eCAV processes running"
 fi
 echo ""
 echo "Carla processes:"

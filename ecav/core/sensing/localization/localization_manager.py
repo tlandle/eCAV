@@ -242,8 +242,9 @@ class LocalizationManager(object):
             self._ego_pos_history = deque(maxlen=100)
             self._timestamp_history = deque(maxlen=100)
 
-            self.gnss = GnssSensor(vehicle, config_yaml['gnss'])
-            self.imu = ImuSensor(vehicle)
+            if self.activate:
+                self.gnss = GnssSensor(vehicle, config_yaml['gnss'])
+                self.imu = ImuSensor(vehicle)
 
             # heading direction noise
             self.heading_noise_std = \
@@ -404,5 +405,7 @@ class LocalizationManager(object):
         """
         Destroy the sensors
         """
-        self.gnss.sensor.destroy()
-        self.imu.sensor.destroy()
+        if hasattr(self, 'gnss'):
+            self.gnss.sensor.destroy()
+        if hasattr(self, 'imu'):
+            self.imu.sensor.destroy()

@@ -39,9 +39,14 @@ static const char* Ecloud_method_names[] = {
   "/ecloud.Ecloud/Server_SetEdgeMappings",
   "/ecloud.Ecloud/Edge_Register",
   "/ecloud.Ecloud/Edge_TickComplete",
+  "/ecloud.Ecloud/Edge_ActorsReady",
   "/ecloud.Ecloud/Edge_PushTick",
   "/ecloud.Ecloud/Edge_ActorRegister",
+  "/ecloud.Ecloud/Edge_ActorReady",
   "/ecloud.Ecloud/Edge_ActorSendUpdate",
+  "/ecloud.Ecloud/Edge_SendIntermediateFeatures",
+  "/ecloud.Ecloud/Edge_GetFusionResult",
+  "/ecloud.Ecloud/Edge_PerformFusion",
 };
 
 std::unique_ptr< Ecloud::Stub> Ecloud::NewStub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, const ::grpc::StubOptions& options) {
@@ -67,9 +72,14 @@ Ecloud::Stub::Stub(const std::shared_ptr< ::grpc::ChannelInterface>& channel, co
   , rpcmethod_Server_SetEdgeMappings_(Ecloud_method_names[13], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Edge_Register_(Ecloud_method_names[14], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   , rpcmethod_Edge_TickComplete_(Ecloud_method_names[15], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Edge_PushTick_(Ecloud_method_names[16], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Edge_ActorRegister_(Ecloud_method_names[17], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
-  , rpcmethod_Edge_ActorSendUpdate_(Ecloud_method_names[18], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_ActorsReady_(Ecloud_method_names[16], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_PushTick_(Ecloud_method_names[17], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_ActorRegister_(Ecloud_method_names[18], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_ActorReady_(Ecloud_method_names[19], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_ActorSendUpdate_(Ecloud_method_names[20], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_SendIntermediateFeatures_(Ecloud_method_names[21], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_GetFusionResult_(Ecloud_method_names[22], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
+  , rpcmethod_Edge_PerformFusion_(Ecloud_method_names[23], options.suffix_for_stats(),::grpc::internal::RpcMethod::NORMAL_RPC, channel)
   {}
 
 ::grpc::Status Ecloud::Stub::PushTick(::grpc::ClientContext* context, const ::ecloud::Tick& request, ::ecloud::Empty* response) {
@@ -440,6 +450,29 @@ void Ecloud::Stub::async::Edge_TickComplete(::grpc::ClientContext* context, cons
   return result;
 }
 
+::grpc::Status Ecloud::Stub::Edge_ActorsReady(::grpc::ClientContext* context, const ::ecloud::EdgeReadyNotification& request, ::ecloud::Empty* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::ecloud::EdgeReadyNotification, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Edge_ActorsReady_, context, request, response);
+}
+
+void Ecloud::Stub::async::Edge_ActorsReady(::grpc::ClientContext* context, const ::ecloud::EdgeReadyNotification* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::ecloud::EdgeReadyNotification, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_ActorsReady_, context, request, response, std::move(f));
+}
+
+void Ecloud::Stub::async::Edge_ActorsReady(::grpc::ClientContext* context, const ::ecloud::EdgeReadyNotification* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_ActorsReady_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::PrepareAsyncEdge_ActorsReadyRaw(::grpc::ClientContext* context, const ::ecloud::EdgeReadyNotification& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::ecloud::Empty, ::ecloud::EdgeReadyNotification, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Edge_ActorsReady_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::AsyncEdge_ActorsReadyRaw(::grpc::ClientContext* context, const ::ecloud::EdgeReadyNotification& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncEdge_ActorsReadyRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 ::grpc::Status Ecloud::Stub::Edge_PushTick(::grpc::ClientContext* context, const ::ecloud::EdgeTick& request, ::ecloud::Empty* response) {
   return ::grpc::internal::BlockingUnaryCall< ::ecloud::EdgeTick, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Edge_PushTick_, context, request, response);
 }
@@ -486,6 +519,29 @@ void Ecloud::Stub::async::Edge_ActorRegister(::grpc::ClientContext* context, con
   return result;
 }
 
+::grpc::Status Ecloud::Stub::Edge_ActorReady(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::ecloud::Empty* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::ecloud::RegistrationInfo, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Edge_ActorReady_, context, request, response);
+}
+
+void Ecloud::Stub::async::Edge_ActorReady(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::ecloud::RegistrationInfo, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_ActorReady_, context, request, response, std::move(f));
+}
+
+void Ecloud::Stub::async::Edge_ActorReady(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_ActorReady_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::PrepareAsyncEdge_ActorReadyRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::ecloud::Empty, ::ecloud::RegistrationInfo, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Edge_ActorReady_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::AsyncEdge_ActorReadyRaw(::grpc::ClientContext* context, const ::ecloud::RegistrationInfo& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncEdge_ActorReadyRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
 ::grpc::Status Ecloud::Stub::Edge_ActorSendUpdate(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::ecloud::ObjectBuffer* response) {
   return ::grpc::internal::BlockingUnaryCall< ::ecloud::VehicleUpdate, ::ecloud::ObjectBuffer, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Edge_ActorSendUpdate_, context, request, response);
 }
@@ -505,6 +561,75 @@ void Ecloud::Stub::async::Edge_ActorSendUpdate(::grpc::ClientContext* context, c
 ::grpc::ClientAsyncResponseReader< ::ecloud::ObjectBuffer>* Ecloud::Stub::AsyncEdge_ActorSendUpdateRaw(::grpc::ClientContext* context, const ::ecloud::VehicleUpdate& request, ::grpc::CompletionQueue* cq) {
   auto* result =
     this->PrepareAsyncEdge_ActorSendUpdateRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status Ecloud::Stub::Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::ecloud::Empty* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::ecloud::IntermediateFeatures, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Edge_SendIntermediateFeatures_, context, request, response);
+}
+
+void Ecloud::Stub::async::Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::ecloud::IntermediateFeatures, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_SendIntermediateFeatures_, context, request, response, std::move(f));
+}
+
+void Ecloud::Stub::async::Edge_SendIntermediateFeatures(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_SendIntermediateFeatures_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::PrepareAsyncEdge_SendIntermediateFeaturesRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::ecloud::Empty, ::ecloud::IntermediateFeatures, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Edge_SendIntermediateFeatures_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::Empty>* Ecloud::Stub::AsyncEdge_SendIntermediateFeaturesRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeatures& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncEdge_SendIntermediateFeaturesRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status Ecloud::Stub::Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::ecloud::FusionResult* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Edge_GetFusionResult_, context, request, response);
+}
+
+void Ecloud::Stub::async::Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_GetFusionResult_, context, request, response, std::move(f));
+}
+
+void Ecloud::Stub::async::Edge_GetFusionResult(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_GetFusionResult_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* Ecloud::Stub::PrepareAsyncEdge_GetFusionResultRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::ecloud::FusionResult, ::ecloud::IntermediateFeaturesRequest, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Edge_GetFusionResult_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* Ecloud::Stub::AsyncEdge_GetFusionResultRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesRequest& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncEdge_GetFusionResultRaw(context, request, cq);
+  result->StartCall();
+  return result;
+}
+
+::grpc::Status Ecloud::Stub::Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::ecloud::FusionResult* response) {
+  return ::grpc::internal::BlockingUnaryCall< ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), rpcmethod_Edge_PerformFusion_, context, request, response);
+}
+
+void Ecloud::Stub::async::Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response, std::function<void(::grpc::Status)> f) {
+  ::grpc::internal::CallbackUnaryCall< ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_PerformFusion_, context, request, response, std::move(f));
+}
+
+void Ecloud::Stub::async::Edge_PerformFusion(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response, ::grpc::ClientUnaryReactor* reactor) {
+  ::grpc::internal::ClientCallbackUnaryFactory::Create< ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(stub_->channel_.get(), stub_->rpcmethod_Edge_PerformFusion_, context, request, response, reactor);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* Ecloud::Stub::PrepareAsyncEdge_PerformFusionRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) {
+  return ::grpc::internal::ClientAsyncResponseReaderHelper::Create< ::ecloud::FusionResult, ::ecloud::IntermediateFeaturesBatch, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(channel_.get(), cq, rpcmethod_Edge_PerformFusion_, context, request);
+}
+
+::grpc::ClientAsyncResponseReader< ::ecloud::FusionResult>* Ecloud::Stub::AsyncEdge_PerformFusionRaw(::grpc::ClientContext* context, const ::ecloud::IntermediateFeaturesBatch& request, ::grpc::CompletionQueue* cq) {
+  auto* result =
+    this->PrepareAsyncEdge_PerformFusionRaw(context, request, cq);
   result->StartCall();
   return result;
 }
@@ -673,6 +798,16 @@ Ecloud::Service::Service() {
   AddMethod(new ::grpc::internal::RpcServiceMethod(
       Ecloud_method_names[16],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::EdgeReadyNotification, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](Ecloud::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::ecloud::EdgeReadyNotification* req,
+             ::ecloud::Empty* resp) {
+               return service->Edge_ActorsReady(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Ecloud_method_names[17],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::EdgeTick, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
              ::grpc::ServerContext* ctx,
@@ -681,7 +816,7 @@ Ecloud::Service::Service() {
                return service->Edge_PushTick(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[17],
+      Ecloud_method_names[18],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::RegistrationInfo, ::ecloud::SimulationInfo, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -691,7 +826,17 @@ Ecloud::Service::Service() {
                return service->Edge_ActorRegister(ctx, req, resp);
              }, this)));
   AddMethod(new ::grpc::internal::RpcServiceMethod(
-      Ecloud_method_names[18],
+      Ecloud_method_names[19],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::RegistrationInfo, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](Ecloud::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::ecloud::RegistrationInfo* req,
+             ::ecloud::Empty* resp) {
+               return service->Edge_ActorReady(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Ecloud_method_names[20],
       ::grpc::internal::RpcMethod::NORMAL_RPC,
       new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::VehicleUpdate, ::ecloud::ObjectBuffer, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
           [](Ecloud::Service* service,
@@ -699,6 +844,36 @@ Ecloud::Service::Service() {
              const ::ecloud::VehicleUpdate* req,
              ::ecloud::ObjectBuffer* resp) {
                return service->Edge_ActorSendUpdate(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Ecloud_method_names[21],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::IntermediateFeatures, ::ecloud::Empty, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](Ecloud::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::ecloud::IntermediateFeatures* req,
+             ::ecloud::Empty* resp) {
+               return service->Edge_SendIntermediateFeatures(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Ecloud_method_names[22],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::IntermediateFeaturesRequest, ::ecloud::FusionResult, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](Ecloud::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::ecloud::IntermediateFeaturesRequest* req,
+             ::ecloud::FusionResult* resp) {
+               return service->Edge_GetFusionResult(ctx, req, resp);
+             }, this)));
+  AddMethod(new ::grpc::internal::RpcServiceMethod(
+      Ecloud_method_names[23],
+      ::grpc::internal::RpcMethod::NORMAL_RPC,
+      new ::grpc::internal::RpcMethodHandler< Ecloud::Service, ::ecloud::IntermediateFeaturesBatch, ::ecloud::FusionResult, ::grpc::protobuf::MessageLite, ::grpc::protobuf::MessageLite>(
+          [](Ecloud::Service* service,
+             ::grpc::ServerContext* ctx,
+             const ::ecloud::IntermediateFeaturesBatch* req,
+             ::ecloud::FusionResult* resp) {
+               return service->Edge_PerformFusion(ctx, req, resp);
              }, this)));
 }
 
@@ -817,6 +992,13 @@ Ecloud::Service::~Service() {
   return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
 }
 
+::grpc::Status Ecloud::Service::Edge_ActorsReady(::grpc::ServerContext* context, const ::ecloud::EdgeReadyNotification* request, ::ecloud::Empty* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
 ::grpc::Status Ecloud::Service::Edge_PushTick(::grpc::ServerContext* context, const ::ecloud::EdgeTick* request, ::ecloud::Empty* response) {
   (void) context;
   (void) request;
@@ -831,7 +1013,35 @@ Ecloud::Service::~Service() {
   return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
 }
 
+::grpc::Status Ecloud::Service::Edge_ActorReady(::grpc::ServerContext* context, const ::ecloud::RegistrationInfo* request, ::ecloud::Empty* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
 ::grpc::Status Ecloud::Service::Edge_ActorSendUpdate(::grpc::ServerContext* context, const ::ecloud::VehicleUpdate* request, ::ecloud::ObjectBuffer* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status Ecloud::Service::Edge_SendIntermediateFeatures(::grpc::ServerContext* context, const ::ecloud::IntermediateFeatures* request, ::ecloud::Empty* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status Ecloud::Service::Edge_GetFusionResult(::grpc::ServerContext* context, const ::ecloud::IntermediateFeaturesRequest* request, ::ecloud::FusionResult* response) {
+  (void) context;
+  (void) request;
+  (void) response;
+  return ::grpc::Status(::grpc::StatusCode::UNIMPLEMENTED, "");
+}
+
+::grpc::Status Ecloud::Service::Edge_PerformFusion(::grpc::ServerContext* context, const ::ecloud::IntermediateFeaturesBatch* request, ::ecloud::FusionResult* response) {
   (void) context;
   (void) request;
   (void) response;

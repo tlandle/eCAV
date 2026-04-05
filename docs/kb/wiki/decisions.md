@@ -101,6 +101,16 @@ Record of key decisions with rationale. Forward-looking plans live in [docs/agen
 
 ---
 
+## D11: Edge Index and Port Are Dynamically Assigned, Not in YAML
+
+**Decision:** `edge_index` and `edge_port` are not declared in scenario YAML files. Instead, `start_actors.sh` assigns edge indices sequentially (0, 1, 2...) and ports sequentially from base port 50054.
+
+**Rationale:** Edge identity is an execution-time property, not a scenario property. Hardcoding ports in YAML would create conflicts across concurrent simulation runs. Dynamic assignment keeps YAML files describing what actors exist (vehicles, RSUs, edge type/manager), while the shell script controls how they are deployed.
+
+**Trade-off:** Cannot specify custom non-sequential edge indices or ports via YAML. Single-edge scenarios (the current research focus) are unaffected.
+
+---
+
 ## D10: Edge Process Owns Tick Barrier for Its Actors
 
 **Decision:** In the planned edge architecture, each edge process manages its own tick barrier (waits for all its actors to ack before sending up to the comms server).

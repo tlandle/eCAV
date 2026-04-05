@@ -265,6 +265,16 @@ class Scenario_3(BasicScenario):
 
         self.ego_max_speed_kmh = float(kv.get("ego_vehicle_max_speed", 70))
         self.oncoming_speed_mps = float(kv.get("oncoming_vehicle_speed", 13.4))
+
+        # Lincoln's path through the intersection. Town03-specific coordinates,
+        # determined empirically. The vehicle enters from the east and exits south.
+        self.lincoln_waypoints = [
+            carla.Location(x=-84.8,  y=127.9, z=0.5),
+            carla.Location(x=-108.6, y=129.5, z=0.5),
+            carla.Location(x=-120.6, y=129.5, z=0.5),
+            carla.Location(x=-140.6, y=115.2, z=0.5),
+            carla.Location(x=-142.0, y=87.6,  z=0.5),
+        ]
         print(f"Ego vehicle max speed: {self.ego_max_speed_kmh} km/h")
 
 
@@ -278,19 +288,22 @@ class Scenario_3(BasicScenario):
                                                 scenario_params=scenario_params)
 
     def _initialize_actors(self, config):
-        # In distributed mode, vehicle clients don't spawn background actors
+        # Ego/RSU containers don't spawn background actors — they're spawned by the non_ego container
         if self.distributed and self.vehicle_index >= 0:
             return
 
-        # Spawn vehicles
+        # Spawn vehicles at the XML-defined transforms (z=-500 keeps them underground).
+        # ActorTransformSetter in the behavior tree teleports them to visible positions.
         for actor_config in config.other_actors:
             actor = CarlaDataProvider.request_new_actor(
                 actor_config.model, actor_config.transform)
+            if actor is None:
+                raise RuntimeError(f"Failed to spawn {actor_config.model} at {actor_config.transform}")
+
             self.other_actors.append(actor)
             actor.set_simulate_physics(enabled=True)
             actor.set_autopilot(False)           #  follower will drive via apply_control
 
-        # Transformation that renders the vehicle visible
         for i in range(self.num_vehicle):
             car_transform = self.other_actors[i].get_transform()
             setattr(self, f"car_0{i + 1}_visible", carla.Transform(
@@ -305,61 +318,62 @@ class Scenario_3(BasicScenario):
                 car_transform.location.y,
                 car_transform.location.z + 501, ))
 
+    def _build_vehicle_sequences(self, use_trigger: bool):
+        """
+        Build per-vehicle Sequence nodes for the behavior tree.
+
+        use_trigger=True  → non-distributed: insert InTriggerDistanceToLocation before driving
+                            and populate self.agents for external access.
+        use_trigger=False → distributed non-ego: teleport immediately, no trigger.
+
+        Vehicle 0 (Lincoln) drives a fixed waypoint plan through the intersection.
+        No SyncArrival — that created a feedback loop (ego brakes → Lincoln slows →
+        scenario becomes non-physical). Speed is set once and never adapts to ego.
+        All other vehicles are stationary (velocity=0).
+        """
+        print(f"Vehicle 01 (Lincoln) velocity: {self.oncoming_speed_mps} m/s "
+              f"({self.oncoming_speed_mps*3.6:.1f} km/h, fixed)")
+
+        sequences = []
+        for i in range(self.num_vehicle):
+            actor = self.other_actors[i]
+            transform = getattr(self, f"car_0{i + 1}_visible")
+            velocity = self.oncoming_speed_mps if i == 0 else getattr(self, f"vehicle_0{i + 1}_velocity")
+            drive = (WaypointFollower(actor, velocity, plan=self.lincoln_waypoints)
+                     if i == 0 else WaypointFollower(actor, velocity))
+
+            seq = py_trees.composites.Sequence(f"Vehicle_0{i + 1}")
+            seq.add_child(ActorTransformSetter(actor, transform))
+            if use_trigger:
+                trigger_location = getattr(self, f"vehicle_0{i + 1}_trigger_location")
+                seq.add_child(InTriggerDistanceToLocation(
+                    self.ego_vehicles[0], trigger_location, self._trigger_distance))
+                self.agents.append(drive)
+            seq.add_child(drive)
+            seq.add_child(Idle())
+            sequences.append(seq)
+
+        return sequences
+
     def _create_behavior(self):
-        # In distributed mode, vehicle clients use a minimal behavior tree
         if self.distributed and self.vehicle_index >= 0:
+            # Ego/RSU containers: minimal tree, just terminate when ego drives 200 m
             termination = DriveDistance(self.ego_vehicles[self.vehicle_index], 200)
             root = py_trees.composites.Parallel(
                 "Parallel Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
             root.add_child(termination)
             return root
 
-        sequence_vehicle = []
+        # Non-ego (distributed) or standalone: build vehicle sequences then wrap in Parallel
+        # Distributed non-ego teleports immediately; standalone uses trigger-distance gating.
+        use_trigger = not self.distributed
+        sequences = self._build_vehicle_sequences(use_trigger)
 
-        # Vehicle behavior
-        for i in range(self.num_vehicle):
-            sequence_vehicle.append(py_trees.composites.Sequence(f"Vehicle_0{i + 1}"))
-            trigger_location = getattr(self, f"vehicle_0{i + 1}_trigger_location")
-            actor = self.other_actors[i]
-            transform = getattr(self, f"car_0{i + 1}_visible")
-            velocity = getattr(self, f"vehicle_0{i + 1}_velocity")
-
-            trigger_behavior = InTriggerDistanceToLocation(self.ego_vehicles[0], trigger_location,
-                                                           self._trigger_distance)
-            set_transform_behavior = ActorTransformSetter(actor, transform)
-            if i == 0:
-                # Fixed-speed drive: Lincoln drives at a pre-computed constant
-                # speed from spawn through the intersection.  No SyncArrival —
-                # that created a feedback loop (ego brakes → Lincoln slows →
-                # scenario becomes non-physical).  The speed is set once by
-                # test_runner's oncoming_speed_for() and never adapts to ego.
-                waypoint = [
-                    carla.Location(x=-84.8, y=127.9, z=0.5),    # ego lane center
-                    carla.Location(x=-108.6, y=129.5, z=0.5),
-                    carla.Location(x=-120.6, y=129.5, z=0.5),
-                    carla.Location(x=-140.6, y=115.2, z=0.5),
-                    carla.Location(x=-142.0, y=87.6, z=0.5),
-                ]
-                velocity = self.oncoming_speed_mps  # m/s (WaypointFollower units)
-                print(f"Vehicle 01 velocity: {velocity} m/s ({velocity*3.6:.1f} km/h, fixed)")
-                drive_behavior = WaypointFollower(actor, velocity, plan=waypoint)
-            else:
-                drive_behavior = WaypointFollower(actor, velocity)
-
-            sequence_vehicle[i].add_child(set_transform_behavior)
-            sequence_vehicle[i].add_child(trigger_behavior)
-            sequence_vehicle[i].add_child(drive_behavior)
-            sequence_vehicle[i].add_child(Idle())
-            self.agents.append(drive_behavior)
-
-        # End condition
         termination = DriveDistance(self.ego_vehicles[0], 200)
-
-        # Build composite behavior tree
         root = py_trees.composites.Parallel(
             "Parallel Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
-        for i in range(self.num_vehicle):
-            root.add_child(sequence_vehicle[i])
+        for seq in sequences:
+            root.add_child(seq)
         root.add_child(termination)
         return root
 

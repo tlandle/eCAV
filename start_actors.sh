@@ -102,7 +102,7 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     echo "Starting LitServe inference server..."
     _CONDA_ROOT="/home/jordan/anaconda3"
     LITSERVE_LOG=$(mktemp /tmp/litserve.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python opencda/ml_manager/litserve_models.py > '$LITSERVE_LOG' 2>&1" &
+    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python ecav/ml_manager/litserve_models.py > '$LITSERVE_LOG' 2>&1" &
     LITSERVE_PID=$!
     echo "  LitServe PID: $LITSERVE_PID"
     echo "  Log file: $LITSERVE_LOG"
@@ -164,7 +164,7 @@ if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
     gpu_flag="--runtime=nvidia --gpus all"
 fi
 
-# Build ML flag for opencda.py
+# Build ML flag for ecav.py
 ml_flag=""
 if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
     ml_flag="--apply_ml"
@@ -189,28 +189,28 @@ echo "=========================================="
 echo ""
 
 # Create temporary log file for opencda base process
-OPENCDA_LOG=$(mktemp /tmp/opencda_base.XXXXXX.log)
-echo "OpenCDA log file: $OPENCDA_LOG"
+ECAV_LOG=$(mktemp /tmp/opencda_base.XXXXXX.log)
+echo "eCAV log file: $ECAV_LOG"
 echo ""
 
-# Start base OpenCDA process (on host, not in container)
-echo "Starting base OpenCDA process on host..."
-echo "  Log file: $OPENCDA_LOG"
+# Start base eCAV process (on host, not in container)
+echo "Starting base eCAV process on host..."
+echo "  Log file: $ECAV_LOG"
 
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
 _CONDA_ROOT="/home/jordan/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u opencda.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag > '$OPENCDA_LOG' 2>&1" &
-OPENCDA_PID=$!
+bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag > '$ECAV_LOG' 2>&1" &
+ECAV_PID=$!
 
-echo "  ✓ Base process started (PID: $OPENCDA_PID)"
+echo "  ✓ Base process started (PID: $ECAV_PID)"
 echo "  Monitoring log file for 'pushed scenario start' message..."
 
 # Monitor the log file until we see "pushed scenario start"
 timeout=60  # 60 second timeout
 elapsed=0
 while [[ $elapsed -lt $timeout ]]; do
-    if grep -qi "pushed scenario start" "$OPENCDA_LOG" 2>/dev/null; then
+    if grep -qi "pushed scenario start" "$ECAV_LOG" 2>/dev/null; then
         echo "  ✓ Scenario initialization complete!"
         break
     fi
@@ -224,7 +224,7 @@ echo ""
 
 if [[ $elapsed -ge $timeout ]]; then
     echo "ERROR: Timeout waiting for 'pushed scenario start' message."
-    echo "Check logs: tail -f $OPENCDA_LOG"
+    echo "Check logs: tail -f $ECAV_LOG"
     echo ""
     
     # Check if Carla is running
@@ -275,7 +275,7 @@ if [[ $num_edges -gt 0 ]]; then
             -e DISPLAY=$DISPLAY \
             -e TERM \
             ecav-python310:latest \
-            python3.10 ecav/ecav2/edge_process.py -e $e -P $edge_port
+            python3.10 -u ecav/ecav2/edge_process.py -e $e -P $edge_port
 
         echo "  ✓ $container_name started"
         echo "  Waiting 3 seconds before starting next edge..."
@@ -304,7 +304,7 @@ do
         -e TERM \
         -e QT_X11_NO_MITSHM=1 \
         ecav-python310:latest \
-        python3.10 opencda.py $ml_flag $litserve_flag -v 0.9.15 -d -i $i -T $((8000 + i))
+        python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i $i -T $((8000 + i))
 
     echo "  ✓ $container_name started"
     echo "  Waiting 5 seconds before starting next container..."
@@ -329,7 +329,7 @@ if [[ $num_rsu -gt 0 ]]; then
             -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
-            python3.10 ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
+            python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
 
         echo "  ✓ $container_name started"
         echo "  Waiting 5 seconds before starting next container..."
@@ -353,7 +353,7 @@ docker run $gpu_flag -d \
     -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
     -e DISPLAY=$DISPLAY \
     ecav-python310:latest \
-    python3.10 opencda.py $ml_flag $litserve_flag -v 0.9.15 -d -i -1 -T 8100
+    python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i -1 -T 8100
 
 echo "  ✓ $container_name started"
 
@@ -395,7 +395,7 @@ REPORTED_ERRORS_FILE=$(mktemp /tmp/reported_errors.XXXXXX)
 
 while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
     # Check for completion (log file is already being written to by base process)
-    if grep -qi "pushed END" "$OPENCDA_LOG"; then
+    if grep -qi "pushed END" "$ECAV_LOG"; then
         echo ""
         echo "✓ Scenario completed successfully!"
         scenario_completed=true
@@ -403,7 +403,7 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
     fi
 
     # Check for errors (common Python error patterns) - only report new ones
-    grep -E "Traceback|Error:|Exception:|WARNING|COLLISION|CRITICAL|FATAL" "$OPENCDA_LOG" 2>/dev/null > /tmp/opencda_errors_all.txt
+    grep -E "Traceback|Error:|Exception:|WARNING|COLLISION|CRITICAL|FATAL" "$ECAV_LOG" 2>/dev/null > /tmp/opencda_errors_all.txt
     if [[ -s /tmp/opencda_errors_all.txt ]]; then
         # Find errors that haven't been reported yet
         new_errors=()
@@ -537,13 +537,13 @@ echo "=========================================="
 echo "Session Summary"
 echo "=========================================="
 echo ""
-echo "OpenCDA base log file: $OPENCDA_LOG"
+echo "eCAV base log file: $ECAV_LOG"
 echo ""
 echo "To view logs for a specific container, use:"
 echo "  docker logs -f <container_name>"
 echo ""
 echo "To check for errors in the base process:"
-echo "  grep -E 'Error|Exception|Traceback' $OPENCDA_LOG"
+echo "  grep -E 'Error|Exception|Traceback' $ECAV_LOG"
 echo ""
 echo "To stop all containers, run:"
 echo "  ./stop_actors.sh"

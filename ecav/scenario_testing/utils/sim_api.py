@@ -482,6 +482,46 @@ class ScenarioManager:
 
         return response
 
+    async def server_set_edge_mappings(self, stub_, setup):
+        await stub_.Server_SetEdgeMappings(setup)
+        logger.info("pushed edge mappings: %d edge(s)", setup.num_edges)
+
+    @staticmethod
+    def compute_edge_mappings(scenario_params):
+        """Build EdgeMappingSetup from scenario edge_list.
+
+        Assigns contiguous global vehicle/RSU indices per edge,
+        matching the sequential assignment in start_actors.sh.
+        """
+        mappings = []
+        global_vehicle_idx = 0
+        global_rsu_idx = 0
+
+        for edge_idx, edge in enumerate(scenario_params['scenario']['edge_list']):
+            vehicle_indices = []
+            rsu_indices = []
+
+            if 'vehicles' in edge:
+                for _ in edge['vehicles']:
+                    vehicle_indices.append(global_vehicle_idx)
+                    global_vehicle_idx += 1
+
+            if 'rsus' in edge:
+                for _ in edge['rsus']:
+                    rsu_indices.append(global_rsu_idx)
+                    global_rsu_idx += 1
+
+            mappings.append(ecloud.EdgeMapping(
+                edge_index=edge_idx,
+                vehicle_indices=vehicle_indices,
+                rsu_indices=rsu_indices,
+            ))
+
+        return ecloud.EdgeMappingSetup(
+            num_edges=len(mappings),
+            mappings=mappings,
+        )
+
     async def server_end_scenario(self, stub_):
         empty = await stub_.Server_EndScenario(ecloud.Empty())
 
@@ -681,9 +721,20 @@ class ScenarioManager:
           server_request.vehicle_index = self.vehicle_count + self.rsu_count # bit of a hack to use vindex as count here
           server_request.is_edge = self.is_edge or self.verbose_updates
 
+          if self.is_edge:
+              edge_mapping_setup = self.compute_edge_mappings(self.scenario_params)
+              await self.server_set_edge_mappings(self.ecloud_server, edge_mapping_setup)
+
           logger.info("Waiting for scenario start")
           await self.server_start_scenario(self.ecloud_server, server_request)
           logger.info("Start scenario started")
+
+          if self.is_edge:
+              logger.info("Waiting for all edges to confirm actors ready...")
+              assert self.push_q.empty(), "push_q should be empty before actor-ready wait"
+              await self.push_q.get()
+              self.push_q.task_done()
+              logger.info("All edges actor-ready — proceeding to tick loop")
 
           self.world.tick()
         except Exception as e:

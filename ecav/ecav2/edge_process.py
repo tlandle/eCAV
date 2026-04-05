@@ -101,6 +101,7 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
 
     async def Edge_ActorRegister(self, request: ecloud.RegistrationInfo, context) -> ecloud.SimulationInfo:
         """Actor registers with this edge."""
+        await self.edge_process.scenario_ready.wait()
         logger.info("Actor registration: vehicle_index=%s, container=%s, push_port=%s",
                    request.vehicle_index, request.container_name, request.vehicle_port)
 
@@ -150,6 +151,26 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
 
         return reply
 
+    async def Edge_ActorReady(self, request: ecloud.RegistrationInfo, context) -> ecloud.Empty:
+        """Actor signals it has completed initialization and is ready for ticks."""
+        vehicle_index = request.vehicle_index
+        actor_type = request.actor_type
+        key = f"{actor_type}_{vehicle_index}"
+
+        if key in self.edge_process.actors:
+            self.edge_process.actors[key].actor_id = request.actor_id
+            self.edge_process.actors[key].vid = request.vid
+
+        self.edge_process.num_actors_ready += 1
+        logger.info("Actor %s ready (%d/%d)", vehicle_index,
+                    self.edge_process.num_actors_ready,
+                    self.edge_process.expected_num_actors)
+
+        if self.edge_process.num_actors_ready == self.edge_process.expected_num_actors:
+            await self.edge_process.notify_actors_ready()
+
+        return ecloud.Empty()
+
     async def Edge_ActorSendUpdate(self, request: ecloud.VehicleUpdate, context) -> ecloud.ObjectBuffer:
         """Actor sends update to edge, receives previous tick's fused data."""
         vehicle_index = request.vehicle_index
@@ -194,10 +215,12 @@ class EdgeProcess:
         self.application = ""
         self.version = ""
         self.carla_ip = ""
+        self.scenario_ready = asyncio.Event()  # set once register_with_orchestrator() completes
 
         # Actor tracking
         self.actors = {}  # vehicle_index -> EdgeActorInfo
         self.expected_num_actors = 0
+        self.num_actors_ready = 0
         self.fused_predictions = {}  # vehicle_index -> pickled predictions
 
         # Tick tracking
@@ -215,6 +238,8 @@ class EdgeProcess:
             logger.setLevel(logging.DEBUG)
         elif self.opt.quiet:
             logger.setLevel(logging.WARNING)
+
+        logging.basicConfig(level=logging.INFO)
 
     def arg_parse(self):
         parser = argparse.ArgumentParser(description="eCAV Edge Process")
@@ -269,6 +294,7 @@ class EdgeProcess:
         self.version = config.version
         self.carla_ip = config.carla_ip
         self.expected_num_actors = config.num_vehicles + config.num_rsus
+        self.scenario_ready.set()
 
         logger.info("Edge %s registered successfully. Expected actors: %d vehicles, %d RSUs",
                    self.edge_index, config.num_vehicles, config.num_rsus)
@@ -299,6 +325,15 @@ class EdgeProcess:
             await asyncio.sleep(0.1)
 
         logger.info("All %d actors registered", self.expected_num_actors)
+
+    async def notify_actors_ready(self):
+        """Notify orchestrator that all actors have completed initialization."""
+        request = ecloud.EdgeReadyNotification()
+        request.edge_index = self.edge_index
+        request.num_actors = self.num_actors_ready
+        await self.orchestrator_stub.Edge_ActorsReady(request)
+        logger.info("Edge %s: notified orchestrator — %d actors ready",
+                    self.edge_index, self.num_actors_ready)
 
     async def report_tick_complete(self, tick_id):
         """Report to orchestrator that this edge completed processing for the tick."""

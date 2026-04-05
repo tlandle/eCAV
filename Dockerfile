@@ -15,7 +15,9 @@ RUN python3.10 -m pip install --upgrade pip && python3.10 -m pip install "setupt
 
 COPY requirements_3_10.txt .
 
-RUN python3.10 -m pip install --ignore-installed blinker && python3.10 -m pip install -r requirements_3_10.txt
+RUN python3.10 -m pip install --ignore-installed blinker && \
+    python3.10 -m pip install torch==2.9.1 torchvision==0.24.1 && \
+    python3.10 -m pip install -r requirements_3_10.txt -f https://data.pyg.org/whl/torch-2.9.1+cu128.html
 
 RUN apt-get install -y libglfw3-dev
 
@@ -26,10 +28,10 @@ RUN export DISPLAY=:0.0
 COPY . .
 
 # Install opencood from local BM2CP submodule
-RUN python3.10 -m pip install -e opencda/BM2CP
+RUN python3.10 -m pip install -e ecav/BM2CP
 
 # Build Cython extension (box_overlaps)
-RUN cd opencda/BM2CP && python3.10 opencood/utils/setup.py build_ext --inplace
+RUN cd ecav/BM2CP && python3.10 opencood/utils/setup.py build_ext --inplace
 
 # NOTE: pcdet_utils CUDA extensions (iou3d_nms, roiaware_pool3d, pointnet2) are NOT built here.
 # Container actors run in distributed mode with carla_world=None, so they use the base

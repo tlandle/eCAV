@@ -17,8 +17,9 @@ import sys
 import carla
 import pickle
 
-sys.path.insert(0,'/opt/carla-simulator/PythonAPI/carla') 
+sys.path.insert(0,'/opt/carla-simulator/PythonAPI/carla')
 sys.path.insert(0, os.path.join(os.getcwd(), 'ecav'))
+sys.path.insert(0, os.path.join(os.getcwd(), 'ecav', 'protos'))
 sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
 sys.path.insert(0, os.getcwd())
 
@@ -185,9 +186,7 @@ class Ecav2ActorClient:
 
         await self.send_carla_data_to_ecav()
 
-        logger.info("send_carla_data_to_ecav completed")
-
-        assert self.push_q.empty(), logger.exception("push_q had %s in it when it should have been empty", self.push_q.get_nowait())
+        assert self.push_q.empty(), f"push_q should be empty before first tick — had item already"
         self.pong = await self.push_q.get()
         self.push_q.task_done()
 
@@ -216,7 +215,7 @@ class Ecav2ActorClient:
 
         # First connect to orchestrator to get connection info
         self.channel = grpc.aio.insecure_channel(
-            target=f"{ECLOUD_IP}:{self.opt.port}",
+            target=f"{ECLOUD_IP}:50051",
             options=[
                 ("grpc.lb_policy_name", "pick_first"),
                 ("grpc.enable_retries", 1),
@@ -350,22 +349,27 @@ class Ecav2ActorClient:
 
     #TODO: move to eCloudClient
     async def send_carla_data_to_ecav(self,) -> ecloud.SimulationInfo:
-        assert self.ecloud_server is not None, "stub not initialized"
         message = {"vehicle_index": self.vehicle_index, "actor_id": self.actor_id, "vid": self.vid}
         logger.info("Vehicle: Sending Carla rpc %s", message)
 
-        # send actor ID and vid to API
         update = ecloud.RegistrationInfo()
         update.vehicle_state = ecloud.VehicleState.CARLA_UPDATE
         update.vehicle_index = self.vehicle_index
         update.vid = self.vid
         update.actor_id = self.actor_id
+        update.actor_type = self.actor_type
 
-        sim_info = await self.ecloud_server.Client_RegisterVehicle(update)
+        if self.connected_to_edge:
+            # Signal edge we are initialized and ready for ticks.
+            # The edge aggregates these across all actors, then notifies the orchestrator,
+            # which unblocks run_comms() and allows the tick loop to start.
+            assert self.edge_stub is not None, "edge stub not initialized"
+            await self.edge_stub.Edge_ActorReady(update)
+        else:
+            assert self.ecloud_server is not None, "orchestrator stub not initialized"
+            await self.ecloud_server.Client_RegisterVehicle(update)
 
-        logger.info("send_carla_data_to_ecav: response received")
-
-        return sim_info
+        logger.info("send_carla_data_to_ecav completed")
 
     #TODO: move to eCloudClient
     async def send_vehicle_update(self, vehicle_update_):

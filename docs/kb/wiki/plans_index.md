@@ -10,7 +10,7 @@ Status of all implementation plans in [docs/agent_plans/](../../agent_plans/).
 | [litserve_performance_plan.md](../../agent_plans/litserve_performance_plan.md) | ✅ Mostly complete | No |
 | [grpc_perception_migration.md](../../agent_plans/grpc_perception_migration.md) | ✅ Complete | No |
 | [worldfusion_litserve_plan.md](../../agent_plans/worldfusion_litserve_plan.md) | 🔄 In progress | **Yes — O5 pending** |
-| [edge_architecture_proposal.md](../../agent_plans/edge_architecture_proposal.md) | ⏳ Not started | **Yes — Phase 0 next** |
+| [edge_architecture_proposal.md](../../agent_plans/edge_architecture_proposal.md) | 🔄 In progress | **Yes — Phases 1+4 complete; others TBD** |
 | [distributed_actor_plan.md](../../agent_plans/distributed_actor_plan.md) | ⏳ Not started | No |
 | [hardcoded_paths_remediation.md](../../agent_plans/hardcoded_paths_remediation.md) | ⏳ Not started | No |
 
@@ -41,21 +41,22 @@ Phase 0 (enable) ✅, Phase 1 (instrument) ✅, Optimizations O1+O4 ✅, O5 pend
 
 See [current_state.md](current_state.md) for measured performance data.
 
-### edge_architecture_proposal.md — ⏳ Not started
+### edge_architecture_proposal.md — 🔄 Mostly complete; one blocking gap
+
 Goal: Standalone edge process that owns per-edge actor coordination, tick barrier, and LitServe batching.
 
-8-phase plan:
-- Phase 0: CLI flag cleanup (`--litserve`, remove `distributed` from YAML)
-- Phase 1: Proto updates (edge registration RPCs in `ecloud.proto`)
-- Phase 2: YAML schema updates (edge_index, edge_port fields)
-- Phase 3: C++ orchestrator (edge registration routing, edge tick logic)
-- Phase 4: Standalone `edge_process.py`
-- Phase 5: Actor client updates (edge discovery at runtime)
-- Phase 6: Scenario config parsing
-- Phase 7: `start_actors.sh` updates
-- Phase 8: Build, test, validate
+Phase status (from full codebase audit):
+- Phase 0: ⚠️ Partial — `--litserve` flag done; `distributed:` YAML field still present in ~75 files (inert, overwritten by CLI)
+- Phase 1: ✅ Complete — `ecav/protos/ecloud.proto`
+- Phase 2: ✅ Not needed — edge_index/port assigned dynamically, not via YAML
+- Phase 3: ✅ Complete — `ecav/ecloud_server/ecloud_server.cc` has all edge RPCs
+- Phase 4: ✅ Complete — `ecav/ecav2/edge_process.py` (placeholder fusion)
+- Phase 5: ✅ Complete — `ecav/ecav2/ecloud_actor_client.py` has full connection discovery
+- Phase 6: ❌ **Missing — blocking** — `sim_api.py` never calls `Server_SetEdgeMappings`; orchestrator's vehicle→edge map is never populated; all actors fall back to direct orchestrator connection
+- Phase 7: ✅ Complete — `start_actors.sh` launches edge containers
+- Phase 8: ❌ Not started
 
-Key design decision: actors discover their edge at registration time; edge manages its own tick barrier (not the C++ comms server directly).
+**Next action**: Implement Phase 6 in `sim_api.py` — compute edge-vehicle mappings from YAML `edge_list` and call `Server_SetEdgeMappings` before scenario start. Then Phase 8 end-to-end test.
 
 ### distributed_actor_plan.md — ⏳ Not started
 Goal: Full containerized distributed actor execution.

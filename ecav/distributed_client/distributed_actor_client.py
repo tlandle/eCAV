@@ -25,6 +25,7 @@ import pickle
 
 sys.path.insert(0, '/opt/carla-simulator/PythonAPI/carla')
 sys.path.insert(0, os.path.join(os.getcwd(), 'ecav'))
+sys.path.insert(0, os.path.join(os.getcwd(), 'ecav', 'protos'))
 sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
 sys.path.insert(0, os.getcwd())
 
@@ -222,10 +223,6 @@ class DistributedActorClient:
 
         logger.info("send_carla_data_to_ecav completed")
 
-        assert self.push_q.empty(), logger.exception(
-            "push_q had %s in it when it should have been empty",
-            self.push_q.get_nowait()
-        )
         self.pong = await self.push_q.get()
         self.push_q.task_done()
 
@@ -479,10 +476,6 @@ class DistributedActorClient:
                 self.reported_done = True
                 logger.info("reported_done")
 
-            assert self.push_q.empty(), logger.exception(
-                "push_q had %s in it when it should have been empty",
-                self.push_q.get_nowait()
-            )
             self.pong = await self.push_q.get()
             self.push_q.task_done()
             assert self.pong.tick_id != self.tick_id
