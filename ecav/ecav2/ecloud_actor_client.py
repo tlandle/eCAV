@@ -474,11 +474,13 @@ class Ecav2ActorClient:
                 else:
                     pm = self.rsu_manager.perception_manager
                 if hasattr(pm, 'feature_dict') and pm.feature_dict is not None:
+                    import zlib
                     import msgpack
                     import msgpack_numpy as m_np
                     m_np.patch()
                     feat_payload = {k: v.half().cpu().numpy() for k, v in pm.feature_dict.items()}
-                    vehicle_update.pickled_features = msgpack.packb(feat_payload, use_bin_type=True)
+                    vehicle_update.pickled_features = zlib.compress(
+                        msgpack.packb(feat_payload, use_bin_type=True))
             except Exception as e:
                 print(f"[FEATURES] Error serializing features: {e}", flush=True)
             t_pickle_features = time.time()

@@ -110,6 +110,35 @@ fi
 
 echo ""
 echo "=========================================="
+echo "Killing Any Remaining Python Processes"
+echo "=========================================="
+echo ""
+
+# sometimes we just get python as a process still running. but this is ALWAYS a lingering scenario
+if pgrep -f "python .*-d" > /dev/null; then
+    echo "Stopping python process..."
+    pkill -f "python .*-d"
+    sleep 2
+
+    # Force kill if still running
+    if pgrep -f "python .*-d" > /dev/null; then
+        echo "Force killing python process..."
+        pkill -9 -f "python .*-d"
+        sleep 1
+    fi
+
+    if ! pgrep -f "python .*-d" > /dev/null; then
+        echo "✓ All python processes stopped"
+    else
+        echo "⚠ Warning: Some python processes may still be running"
+    fi
+else
+    echo "No python processes are running."
+fi
+
+
+echo ""
+echo "=========================================="
 echo "Current status:"
 echo "=========================================="
 echo ""

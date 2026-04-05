@@ -367,11 +367,13 @@ class ScenarioManager:
                 # Unpack intermediate features for WorldFusion/BM2CP
                 if vehicle_update.pickled_features:
                     try:
+                        import zlib
                         import torch
                         import msgpack
                         import msgpack_numpy as m_np
                         m_np.patch()
-                        feat_dict_np = msgpack.unpackb(vehicle_update.pickled_features, raw=False)
+                        feat_dict_np = msgpack.unpackb(
+                            zlib.decompress(vehicle_update.pickled_features), raw=False)
                         feat_dict = {k: torch.from_numpy(v) for k, v in feat_dict_np.items()}
                         manager_proxy.perception_manager.feature_dict = feat_dict
                         actor_label = "RSU" if is_rsu else "vehicle"
