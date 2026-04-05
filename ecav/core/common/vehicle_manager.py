@@ -425,8 +425,12 @@ class VehicleManager(object):
         # Actual ML perception runs on the vehicle clients.
         if not self.perception_active:
             sensing_config['perception']['activate'] = False
-            sensing_config['perception']['camera_visualize'] = 0
-            sensing_config['perception']['lidar_visualize'] = False
+            # Must use nested keys — PerceptionManager reads config_yaml['camera']['visualize'],
+            # not the flat 'camera_visualize' key.  The flat keys were silently ignored,
+            # leaving camera.visualize=4 in effect and causing 4 CARLA camera actors to be
+            # spawned per proxy VM even though they are never read.
+            sensing_config['perception']['camera']['visualize'] = 0
+            sensing_config['perception']['lidar']['visualize'] = False
 
         self.tracking_manager = TrackingManager(self.vehicle, cav_world, data_dumping, tracker_type = "SORT")
         percep_cfg = sensing_config['perception']
