@@ -89,6 +89,12 @@ class RSUManager:
         if is_server_proxy:
             from ecav.core.sensing.perception.perception_manager import PerceptionManager
             PercepCls = PerceptionManager
+            # Suppress all sensor spawning — proxy RSUs receive detections via gRPC
+            # and never run local perception. Must use nested keys; PerceptionManager
+            # reads config_yaml['camera']['visualize'], not a flat 'camera_visualize'.
+            sensing_cfg["perception"]["activate"] = False
+            sensing_cfg["perception"]["camera"]["visualize"] = 0
+            sensing_cfg["perception"]["lidar"]["visualize"] = False
             print(f"[RSUManager] Distributed proxy — using base PerceptionManager")
         else:
             PercepCls = _pick_perception_class(sensing_cfg["perception"])

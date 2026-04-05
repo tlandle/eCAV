@@ -368,6 +368,38 @@ Same root cause as O2: the upload path costs ~1.4ms regardless of payload size. 
 
 **Voxel merging detail**: The only non-trivial piece. `voxel_features` and `voxel_num_points` concatenate directly. `voxel_coords` has shape `(K, 4)` where column 0 is the batch index (all zeros for a single-agent batch). For agent i, set `voxel_coords[:, 0] = i` before concatenation.
 
+```python
+def _merge_voxel_batches(batch_list):
+    all_voxel_features = []
+    all_voxel_coords = []
+    all_voxel_num_points = []
+
+    for agent_idx, batch in enumerate(batch_list):
+        pc = batch['processed_lidar']
+        vf  = pc['voxel_features']    # (N_voxels_i, 32, 4)  float32
+        vc  = pc['voxel_coords']      # (N_voxels_i, 4)  int32; col 0 is batch_idx
+        vnp = pc['voxel_num_points']  # (N_voxels_i,)    int32
+
+        vc = vc.copy()          # don't mutate the perception manager's pending batch
+        vc[:, 0] = agent_idx   # reindex batch_idx column
+
+        all_voxel_features.append(vf)
+        all_voxel_coords.append(vc)
+        all_voxel_num_points.append(vnp)
+
+    return {
+        'voxel_features':    np.concatenate(all_voxel_features,    axis=0),
+        'voxel_coords':      np.concatenate(all_voxel_coords,      axis=0),
+        'voxel_num_points':  np.concatenate(all_voxel_num_points,  axis=0),
+    }
+```
+
+Camera tensors stack on the batch dimension: `imgs` is `(1, 4, 3, H, W)` per agent → concatenate to `(N, 4, 3, H, W)`. `rots`, `trans`, `intrins`, `post_rots`, `post_trans` stack the same way. `record_len = [1] * N`.
+
+**Important**: `record_len` is the number of agents in the fused batch, NOT batch size in the PyTorch sense. The model uses it to partition the voxel encoder output per agent before the backbone.
+
+**Response split**: Server returns `spatial_features` shape `(N, C, H, W)`. Split on dim 0: `feature_dict_i = {'spatial_features': spatial_features[i:i+1]}`. Pass each slice to `apply_features()` on the corresponding perception manager.
+
 **Expected benefit**: ~50% inference cost reduction per agent at N=2 (current scenario). Scales sublinearly with N — batch=4 won't be 4× faster but will be significantly better than 4 sequential calls. This is the highest-leverage remaining optimization on the server-side compute path.
 
 **Scaling note**: As the number of vehicles and RSUs per intersection grows, this optimization compounds. 4 vehicles + 1 RSU = 5 sequential 67ms calls (335ms) vs one batch=5 pass (~120ms estimated). The edge-side coordination cost is O(N) in build_batch (all CPU, parallelizable) and O(1) in HTTP calls and GPU inference.
@@ -530,6 +562,164 @@ The sequential measurements (O1: 355→234ms, O5 pending) provide the baseline f
 9. ☐ Implement O5 (batch inference) — WorldFusion integration into `EdgeProcess.fuse_predictions()`: call `_build_batch()` on each actor's perception manager, merge, POST once to LitServe, split response, call `apply_features()` per actor
 10. ☐ Phase 8 end-to-end test
 11. ☐ Measure edge-process → LitServe over real network; compare local vs offloaded at the distributed edge
+
+---
+
+## Additional Optimization Opportunities (Post-O5)
+
+The following were identified by deeper static analysis after O1–O5 were designed. Ordered by expected ROI. None have been tried yet.
+
+### Instrumentation gap — measure first
+
+Before committing to any of these, add `n_voxels` to the per-tick timing CSV:
+
+```python
+# worldfusion_perception_manager.py, in run_step() before _extract_features_remote():
+n_voxels = self._pending_batch['processed_lidar']['voxel_coords'].shape[0]
+```
+
+This single number informs the ROI for zlib compression, float16 voxels, and ROI cropping. Current voxel sparsity is unknown.
+
+---
+
+### O8 — zlib/zstd compression on HTTP request/response
+
+**Current state**: The HTTP WorldFusion path sends raw `msgpack.packb()` with no compression. The gRPC actor→edge path already uses `zlib` on pickled features — the asymmetry is unintentional.
+
+**Change**:
+```python
+# worldfusion_perception_manager.py, _extract_features_remote():
+import zlib
+payload = msgpack.packb(batch_np, use_bin_type=True)
+payload = zlib.compress(payload, level=6)   # add this line
+
+# litserve_models.py, extract_features endpoint:
+body = await asyncio.to_thread(zlib.decompress, body)   # add this line
+batch = msgpack.unpackb(body, raw=False)
+```
+
+**Expected**: 30–50% payload reduction if voxel data is sparse. zlib at level=6 costs ~2ms on 3.8MB; break-even only if `http_ms` drops by >2ms. On loopback this is a wash; on real network links (Azure) it's straightforwardly positive.
+
+Consider `zstd` (python-zstandard) instead of zlib: same API, better ratio, faster decompression. Try both.
+
+**Risk**: Low. Compression is transparent; the only failure mode is a CPU-cost regression on loopback.
+
+**Impact**: HIGH on Azure, LOW on loopback. **Measure** with the timing CSV before deciding.
+
+---
+
+### O9 — float32 → float16 for voxel features
+
+**Current state**: `voxel_features` shape `(N_voxels, 32, 4)` is float32. This is the bulk of the lidar payload.
+
+**Change**:
+```python
+# worldfusion_perception_manager.py, before pack:
+vf = batch_np['processed_lidar']['voxel_features']
+if vf is not None:
+    batch_np['processed_lidar']['voxel_features'] = vf.astype(np.float16)
+
+# litserve_models.py, _extract_wf_features, before encoder:
+voxel_features = processed_lidar['voxel_features'].float()   # cast back
+```
+
+**Expected**: ~50% reduction in voxel_features payload size (variable; depends on N_voxels). Unlike O3 (camera float16), voxel data is LiDAR-derived and doesn't have the `astype` cost problem — the arrays are much smaller.
+
+**Risk**: May degrade fusion quality. Requires mAP comparison on Scenario 3 before keeping. Do not merge without accuracy validation.
+
+---
+
+### O10 — Async feature extraction (O6 extended detail)
+
+The existing O6 entry is a placeholder. The concrete implementation path:
+
+```python
+# EdgeProcess.process_tick() refactor sketch:
+async def process_tick(self, tick_id, command):
+    # Phase 1: build batches for all actors (CPU-only, no blocking I/O)
+    for actor in self.actors.values():
+        actor.perception_manager.build_batch()
+
+    # Phase 2: merge + one LitServe call (awaitable)
+    features = await asyncio.to_thread(self._run_batched_encoder)
+
+    # Phase 3: distribute features + run planning (can overlap with Phase 2 of tick N+1)
+    self._distribute_features(features)
+    await self._run_planning()
+```
+
+**Gating question**: profile how much of the edge tick is non-feature-extraction work. If planning/prediction is <10ms and feature extraction is 80ms, async gives ~0 benefit. If they're comparable, async pipelining can hide most of the extraction latency.
+
+**Add to timing CSV**: `planning_ms`, `prediction_ms`, `tracking_ms` alongside `extract_features_ms` so we can compute the potential overlap.
+
+**Complexity**: HIGH. Risk of subtle tick-ordering bugs. Defer until O5 baseline is measured and the profiling above shows meaningful overlap opportunity.
+
+---
+
+### O11 — Spatial ROI cropping before voxelization
+
+Crop the LiDAR point cloud to an intersection-centered bounding box before `_build_batch()` runs voxelization. Points outside the intersection don't contribute to blind-intersection detection.
+
+```python
+# worldfusion_perception_manager.py, before _build_batch():
+ROI_XY = (-50, 50)   # meters from intersection center; scenario-specific
+mask = (
+    (lidar_data[:, 0] >= ROI_XY[0]) & (lidar_data[:, 0] <= ROI_XY[1]) &
+    (lidar_data[:, 1] >= ROI_XY[0]) & (lidar_data[:, 1] <= ROI_XY[1])
+)
+lidar_data = lidar_data[mask]
+```
+
+**Expected**: 30–50% reduction in N_voxels for vehicles that are partially outside the ROI. No benefit for RSUs (which are already at the intersection center).
+
+**Risk**: Hardcoded bounds are scenario-specific. Missing points at the ROI boundary can drop detections. Only apply to scenarios with a well-defined fixed intersection.
+
+**Complexity**: MEDIUM. Validate detection quality against uncroped baseline before enabling.
+
+---
+
+### O12 — Feature reuse caching for stationary agents (RSU)
+
+If an agent's sensor data is identical to the previous tick, skip the LitServe call and reuse `feature_dict` from the previous tick. Primarily useful for RSUs, which see a near-static scene except when vehicles enter the FOV.
+
+```python
+# worldfusion_perception_manager.py, run_step():
+current_hash = hash(batch_np['processed_lidar']['voxel_coords'].tobytes())
+if current_hash == self._last_voxel_hash and self.feature_dict is not None:
+    return   # reuse cached features
+self._last_voxel_hash = current_hash
+# ... normal LitServe call ...
+```
+
+**Expected**: Skips RSU LitServe calls on ticks where the intersection scene hasn't changed. For a static RSU watching an empty intersection, this could be most ticks.
+
+**Risk**: Silently stale features if the hash comparison has false negatives or if the scene changes subtly. Hash only voxel_coords (not voxel_features) to avoid the cost of hashing the larger array.
+
+**Complexity**: LOW. Safe if well-tested.
+
+---
+
+### O7 note — gRPC message size limit
+
+When O7 (gRPC ExtractFeatures RPC) is eventually implemented: the default `grpc.max_receive_message_length` is 4MB. The WorldFusion request payload is ~3.8MB post-O4, which is close to the default limit. Set explicitly on both server and stub:
+
+```python
+options = [('grpc.max_receive_message_length', 16 * 1024 * 1024)]  # 16MB
+```
+
+At N=2 batch (O5), the merged request could reach ~7MB — well over the 4MB default.
+
+---
+
+### Priority matrix (post-O5)
+
+| Optimization | Impact | Complexity | Gate |
+|---|---|---|---|
+| O8: zlib/zstd compression | HIGH on Azure, LOW loopback | LOW | Measure on actual network |
+| O9: float16 voxels | MEDIUM | LOW | Accuracy validation required |
+| O10: async pipelining (O6) | MEDIUM | HIGH | Profile edge tick first |
+| O11: ROI cropping | LOW–MEDIUM | MEDIUM | Intersection-specific; measure N_voxels distribution first |
+| O12: feature caching | LOW | LOW | RSU-only benefit |
 
 ---
 
