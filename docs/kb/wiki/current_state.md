@@ -33,9 +33,21 @@ Both fusion modes confirmed working end-to-end in distributed mode, with product
 
 ---
 
-## Backlog
+## Milestone: Sequential WorldFusion Unblocked (2026-04-06)
 
-- **O5 sequential test**: Run `openscenario_3_edge_worldfusion` without `-d`. Expected: batch=2 fires, cutting RSU inference ~50% by merging both agents into a single forward pass. Low priority — distributed mode is already fast.
+`openscenario_3_edge_worldfusion -l` (without `-d`) was deadlocked at "waiting for actors".
+
+**Root cause**: `scenario_runner/scenario_runner.py:_prepare_ego_vehicles` only spawned the ego vehicle when `vehicle_index == 0` (the distributed-mode non-ego container convention). In sequential mode `vehicle_index = -2`, so the subprocess fell into the `else` branch and looped forever waiting for an ego nobody would spawn. This broke when `vehicle_index` was changed from `0` to `-2` in commit `3b9dcdb`.
+
+**Fix**: Also spawn when `distributed=False`, regardless of `vehicle_index`. Distributed behavior unchanged. Committed to scenario_runner submodule (`34488e0`) and bumped in main repo (`925d526`).
+
+**Status**: Proceeds past actor discovery. Secondary CARLA `rpc::timeout` errors on `_initialize_actors` appear on a dirty CARLA session (leftover state from the stuck run); clears on fresh CARLA restart.
+
+**Verified**: `python ecav.py -t openscenario_3_edge_worldfusion --apply_ml` runs clean end-to-end. O5 batch=2 sequential path confirmed working.
+
+---
+
+## Backlog
 
 ---
 
