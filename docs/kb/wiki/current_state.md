@@ -117,7 +117,7 @@ RSU bimodal = two independent batch=1 gRPC calls racing the GPU in distributed m
 
 ## Immediate Next Steps
 
-1. **YOLO regression**: Run late fusion scenario to confirm YOLO gRPC still works after proto recompile.
+1. **YOLO gRPC server** — implemented, pending verification run. `ecav/ml_manager/yolo_grpc_server.py` created; loads YOLOv5, wires to existing `PerceptionServicer`, serves port 18001. `start_actors.sh` has new `use_yolo_grpc` prompt + startup/teardown block. `stop_actors.sh` updated. Run `openscenario_3_edge_late_fusion -d` with YOLO gRPC=Y to verify.
 2. **O5 sequential test**: Run `openscenario_3_edge_worldfusion` without `-d`; batch=2 should fire and cut RSU inference ~50% by merging both agents' forward passes.
 
 ## TODO / Backlog

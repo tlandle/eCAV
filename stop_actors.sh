@@ -80,6 +80,21 @@ else
     echo "WorldFusion gRPC server is not running."
 fi
 
+if pgrep -f "yolo_grpc_server" > /dev/null; then
+    echo "Stopping YOLO gRPC server..."
+    pkill -f "yolo_grpc_server"
+    sleep 2
+    if pgrep -f "yolo_grpc_server" > /dev/null; then
+        pkill -9 -f "yolo_grpc_server"
+        sleep 1
+    fi
+    if ! pgrep -f "yolo_grpc_server" > /dev/null; then
+        echo "✓ YOLO gRPC server stopped"
+    else
+        echo "⚠ Warning: YOLO gRPC server may still be running"
+    fi
+fi
+
 if pgrep -f "litserve_models" > /dev/null; then
     echo "Stopping LitServe inference server..."
     pkill -f "litserve_models"
@@ -174,10 +189,10 @@ else
     echo "  No Carla processes running"
 fi
 echo ""
-echo "WorldFusion gRPC / LitServe processes:"
-if pgrep -f "worldfusion_grpc_server\|litserve_models" > /dev/null; then
-    pgrep -af "worldfusion_grpc_server\|litserve_models"
+echo "WorldFusion / YOLO gRPC / LitServe processes:"
+if pgrep -f "worldfusion_grpc_server\|yolo_grpc_server\|litserve_models" > /dev/null; then
+    pgrep -af "worldfusion_grpc_server\|yolo_grpc_server\|litserve_models"
 else
-    echo "  No WorldFusion gRPC / LitServe processes running"
+    echo "  No WorldFusion / YOLO gRPC / LitServe processes running"
 fi
 echo ""

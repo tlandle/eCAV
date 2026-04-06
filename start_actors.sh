@@ -7,6 +7,7 @@ read -p "Enter number of RSUs: " num_rsu
 read -p "Enter number of edges (0 if edge-less scenario): " num_edges
 read -p "Use ML (Y/n)? " use_ml
 read -p "Use WorldFusion gRPC server for distributed ML inference (Y/n)? " use_litserve
+read -p "Use YOLO gRPC server for distributed YOLO inference / late fusion (Y/n)? " use_yolo_grpc
 read -p "Rebuild containers (Y/n)? " rebuild
 
 # Validate inputs
@@ -128,6 +129,42 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     fi
 fi
 
+# Start YOLO gRPC server if requested
+YOLO_GRPC_PID=""
+if [[ "$use_yolo_grpc" = "Y" || "$use_yolo_grpc" = "y" ]]; then
+    if [[ "$use_ml" != "Y" && "$use_ml" != "y" ]]; then
+        echo "ERROR: YOLO gRPC server requires ML to be enabled. Please answer 'Y' to 'Use ML'."
+        exit 1
+    fi
+    echo "Starting YOLO gRPC inference server (port 18001)..."
+    _CONDA_ROOT="/home/jordan/anaconda3"
+    YOLO_GRPC_LOG=$(mktemp /tmp/yolo_grpc.XXXXXX.log)
+    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/yolo_grpc_server.py > '$YOLO_GRPC_LOG' 2>&1" &
+    YOLO_GRPC_PID=$!
+    echo "  YOLO gRPC PID: $YOLO_GRPC_PID"
+    echo "  Log file: $YOLO_GRPC_LOG"
+    echo "  Waiting for YOLO gRPC server to be ready on port 18001..."
+
+    timeout=90
+    elapsed=0
+    while [[ $elapsed -lt $timeout ]]; do
+        if conda run -n opencda python -c "import grpc; c=grpc.insecure_channel('localhost:18001'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
+            echo "  ✓ YOLO gRPC server is ready"
+            break
+        fi
+        sleep 2
+        ((elapsed+=2))
+        echo -n "."
+    done
+    echo ""
+
+    if [[ $elapsed -ge $timeout ]]; then
+        echo "ERROR: YOLO gRPC server did not become ready within ${timeout}s."
+        echo "Check logs: tail -f $YOLO_GRPC_LOG"
+        exit 1
+    fi
+fi
+
 # Determine GPU settings
 gpu_flag=""
 if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
@@ -183,7 +220,8 @@ echo "Ego vehicles: $num_ego"
 echo "RSUs: $num_rsu"
 echo "Edges: $num_edges"
 echo "ML enabled: $use_ml"
-echo "LitServe: $use_litserve"
+echo "WorldFusion gRPC: $use_litserve"
+echo "YOLO gRPC: $use_yolo_grpc"
 echo "=========================================="
 echo ""
 
@@ -525,6 +563,27 @@ if [[ -n "$WF_GRPC_PID" ]]; then
     fi
     pkill -f "worldfusion_grpc_server" 2>/dev/null || true
     pkill -f "litserve_models" 2>/dev/null || true
+fi
+
+# Stop YOLO gRPC server if it was started
+if [[ -n "$YOLO_GRPC_PID" ]]; then
+    echo ""
+    echo "=========================================="
+    echo "Stopping YOLO gRPC Server"
+    echo "=========================================="
+    if kill -0 "$YOLO_GRPC_PID" 2>/dev/null; then
+        echo "Stopping YOLO gRPC server (PID: $YOLO_GRPC_PID)..."
+        kill "$YOLO_GRPC_PID"
+        sleep 2
+        if kill -0 "$YOLO_GRPC_PID" 2>/dev/null; then
+            kill -9 "$YOLO_GRPC_PID"
+            sleep 1
+        fi
+        echo "✓ YOLO gRPC server stopped"
+    else
+        echo "YOLO gRPC server process already exited."
+    fi
+    pkill -f "yolo_grpc_server" 2>/dev/null || true
 fi
 
 if [[ "$scenario_completed" == false ]]; then
