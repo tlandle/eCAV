@@ -84,11 +84,13 @@ class WorldFusionPerceptionManager(PerceptionManager):
         print("[WorldFusion] SpVoxelPreprocessor initialized.")
 
         # Remote endpoint resolution — gRPC takes priority over LitServe.
-        # gRPC: WF_GRPC_ENDPOINT env → worldfusion_grpc_endpoint YAML key → ml_manager attribute
+        # Priority: WF_GRPC_ENDPOINT env (distributed containers) →
+        #           worldfusion_grpc_endpoint per-agent YAML key →
+        #           ml_manager attribute (only when -l/litserve active)
         self.grpc_endpoint = os.environ.get('WF_GRPC_ENDPOINT', None)
         if self.grpc_endpoint is None:
             self.grpc_endpoint = model_config.get('worldfusion_grpc_endpoint', None)
-        if self.grpc_endpoint is None and cav_world is not None and cav_world.ml_manager is not None:
+        if self.grpc_endpoint is None and cav_world is not None and getattr(cav_world, 'litserve', False) and cav_world.ml_manager is not None:
             self.grpc_endpoint = getattr(cav_world.ml_manager, 'worldfusion_grpc_endpoint', None)
         self.use_grpc = self.grpc_endpoint is not None
 
