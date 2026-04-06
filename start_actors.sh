@@ -372,7 +372,7 @@ do
         python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i $i -T $((8000 + i))
 
     echo "  ✓ $container_name started"
-    wait_for_container_log "$container_name" "Registered with edge" 90 || exit 1
+    wait_for_container_log "$container_name" "Registered with" 90 || exit 1
 done
 
 # Start RSU containers
@@ -396,7 +396,7 @@ if [[ $num_rsu -gt 0 ]]; then
             python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
 
         echo "  ✓ $container_name started"
-        wait_for_container_log "$container_name" "Registered with edge" 90 || exit 1
+        wait_for_container_log "$container_name" "Registered with" 90 || exit 1
     done
 fi
 

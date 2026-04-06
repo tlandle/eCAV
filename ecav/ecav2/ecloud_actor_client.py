@@ -261,6 +261,7 @@ class Ecav2ActorClient:
             self.connected_to_edge = False
             ecloud_update = await self.send_registration_to_ecloud_server()
             self.vehicle_index = ecloud_update.vehicle_index - ( 2 if self.actor_type == ecloud.ActorType.RSU else 0 )
+            logger.info("Registered with orchestrator, vehicle_index=%s", self.vehicle_index)
 
         assert self.vehicle_index is not None, "vehicle_index not set"
 
