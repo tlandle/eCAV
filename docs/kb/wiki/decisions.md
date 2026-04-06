@@ -1,5 +1,5 @@
 ---
-updated: 2026-04-04
+updated: 2026-04-06
 ---
 # Architectural Decisions
 
@@ -118,3 +118,60 @@ Record of key decisions with rationale. Forward-looking plans live in [docs/agen
 **Rationale:** The C++ comms server currently waits for N actors. With edge processes, having the server track individual actors through the edge would require the server to have knowledge of the edge-actor topology. Instead, each edge presents a single interface to the comms server: "my actors are done." This keeps the comms server topology-agnostic.
 
 **Plan:** [edge_architecture_proposal.md](../../agent_plans/edge_architecture_proposal.md) §3.2
+
+---
+
+## D12: WorldFusion gRPC Migration (msgpack-in-bytes over LitServe for large payloads)
+
+**Decision:** Replace LitServe HTTP + `multiprocessing.Manager` IPC with a standalone gRPC server
+running inference in-process (`worldfusion_grpc_server.py`, port 18002).
+
+**Rationale:** LitServe's `workers_per_device` architecture uses `multiprocessing.Manager` queues
+between the uvicorn HTTP worker and the inference worker. For 861KB payloads, pickle + queue
+write + queue read both ways added ~100-120ms of irreducible IPC overhead — larger than the
+actual inference time (~67ms). gRPC eliminates the IPC hop entirely: `grpc_ms ≈ server_total_ms ± 5ms`.
+
+**Proto design (msgpack-in-bytes):** The batch dict has ~10 nested numpy arrays including an
+optional image_inputs sub-dict. Structured proto fields would require a `NumpyArray` message
+per field. Using `bytes payload = 1` (zlib+msgpack) meant zero encoding logic change — only
+the transport layer changed.
+
+**Result:** Vehicle latency 185ms → 130ms (−55ms); RSU latency 380ms → 140ms (−240ms) best case.
+
+**See also:** [WorldFusion Performance](worldfusion_performance.md)
+
+---
+
+## D13: Standalone Per-Function gRPC Servers (not co-hosted in LitServe)
+
+**Decision:** YOLO and WorldFusion each run as independent standalone gRPC servers
+(`yolo_grpc_server.py` port 18001, `worldfusion_grpc_server.py` port 18002) rather than
+being co-hosted in a single LitServe process.
+
+**Rationale:** The original design co-hosted YOLO gRPC and WorldFusion HTTP inside one LitServe
+process. When WorldFusion was stripped to a WorldFusion-only LitServe server (to enable
+`workers_per_device` without YOLO forcing `api_server_worker_type="thread"`), the YOLO gRPC
+server became unhosted. Standalone servers are simpler, independently restartable, and avoid
+CUDA context sharing between unrelated models.
+
+**Trade-off:** Two separate processes to manage (start/stop/probe). Mitigated by `start_actors.sh`
+independent startup blocks with `grpc.channel_ready_future` readiness probes.
+
+---
+
+## D14: Log-Based Container Readiness in start_actors.sh
+
+**Decision:** Replace static `sleep N` delays between container startups with `docker logs` polling
+against known INFO-level log signals. Each container is started only after the previous one emits
+its readiness message.
+
+**Signals used:**
+- Edge: `"registered successfully"` (after `register_with_orchestrator()` completes)
+- Vehicle/RSU: `"Registered with"` (covers both `"Registered with edge"` and `"Registered with orchestrator"` for edge-less scenarios)
+
+**Rationale:** Static sleeps are both too long (waste wall time on fast machines) and too short
+(race conditions on slow machines or under load). Log signals are causally correct — a container
+is ready exactly when it says it is.
+
+**Note:** `"Edge X ready for simulation"` was considered but fires *after* `wait_for_actors()` —
+i.e., after all actors have already connected. That is too late to use as the "start actors" gate.

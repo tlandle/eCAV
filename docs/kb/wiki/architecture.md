@@ -1,5 +1,5 @@
 ---
-updated: 2026-04-04
+updated: 2026-04-06
 ---
 # System Architecture
 
@@ -31,10 +31,15 @@ Five process types:
 
 The first ego vehicle process to register spawns all CARLA actors. All non-ego vehicles are spawned by a single `ecav.py -i -1` call.
 
-### LitServe Mode (`-l` flag, orthogonal to `-d`)
+### Distributed ML Inference (`-l` flag, orthogonal to `-d`)
 
-An additional optional process:
-6. **LitServe server** — ML inference; port 18000 (WorldFusion HTTP), port 18001 (YOLO gRPC)
+Optional additional processes (one or both, depending on scenario):
+6. **WorldFusion gRPC server** (`worldfusion_grpc_server.py`) — intermediate feature extraction; port 18002 gRPC
+7. **YOLO gRPC server** (`yolo_grpc_server.py`) — object detection for late fusion; port 18001 gRPC
+
+LitServe (port 18000 HTTP) is retained for local/debug only. The production path is gRPC for
+both model servers — eliminates `multiprocessing.Manager` IPC overhead that made LitServe
+unsuitable for large payloads (~860KB). See [WorldFusion Performance](worldfusion_performance.md).
 
 ## Key Components
 
