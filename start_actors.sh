@@ -225,6 +225,37 @@ echo "YOLO gRPC: $use_yolo_grpc"
 echo "=========================================="
 echo ""
 
+# Poll docker logs for a pattern, with timeout and crash detection.
+# Usage: wait_for_container_log <container> <pattern> [timeout_seconds]
+wait_for_container_log() {
+    local container=$1
+    local pattern=$2
+    local timeout=${3:-90}
+    local elapsed=0
+    echo -n "  Waiting for container $container to be ready..."
+    while [[ $elapsed -lt $timeout ]]; do
+        if docker logs "$container" 2>&1 | grep -q "$pattern"; then
+            echo " ✓"
+            return 0
+        fi
+        local state
+        state=$(docker inspect -f '{{.State.Status}}' "$container" 2>/dev/null)
+        if [[ "$state" == "exited" || "$state" == "dead" ]]; then
+            echo ""
+            echo "ERROR: Container $container stopped unexpectedly (status: $state)"
+            docker logs --tail 20 "$container" 2>&1
+            return 1
+        fi
+        sleep 1
+        ((elapsed++))
+        echo -n "."
+    done
+    echo ""
+    echo "ERROR: Timeout (${timeout}s) waiting for '$pattern' in $container"
+    docker logs --tail 20 "$container" 2>&1
+    return 1
+}
+
 # Create temporary log file for ecav base process
 ECAV_LOG=$(mktemp /tmp/ecav_base.XXXXXX.log)
 echo "eCAV log file: $ECAV_LOG"
@@ -315,12 +346,9 @@ if [[ $num_edges -gt 0 ]]; then
             python3.10 -u ecav/ecav2/edge_process.py -e $e -P $edge_port
 
         echo "  ✓ $container_name started"
-        echo "  Waiting 3 seconds before starting next edge..."
-        sleep 3
+        wait_for_container_log "$container_name" "registered successfully" 90 || exit 1
     done
     echo ""
-    echo "Waiting 5 seconds for edges to register with orchestrator..."
-    sleep 5
 fi
 
 # Start ego vehicle containers
@@ -344,8 +372,7 @@ do
         python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i $i -T $((8000 + i))
 
     echo "  ✓ $container_name started"
-    echo "  Waiting 5 seconds before starting next container..."
-    sleep 5
+    wait_for_container_log "$container_name" "Registered with edge" 90 || exit 1
 done
 
 # Start RSU containers
@@ -369,8 +396,7 @@ if [[ $num_rsu -gt 0 ]]; then
             python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
 
         echo "  ✓ $container_name started"
-        echo "  Waiting 5 seconds before starting next container..."
-        sleep 5
+        wait_for_container_log "$container_name" "Registered with edge" 90 || exit 1
     done
 fi
 

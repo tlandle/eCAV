@@ -122,7 +122,7 @@ RSU bimodal = two independent batch=1 gRPC calls racing the GPU in distributed m
 
 ## TODO / Backlog
 
-- **`start_actors.sh` determinism**: Replace timed delays between container startups with grep-able log signals from the main process. The main process should emit a known log line (e.g. `[sim_api] READY`) that `start_actors.sh` waits on before spinning up dependent containers.
+- ~~**`start_actors.sh` determinism**~~ — Done. Static sleeps replaced with `docker logs` polling on existing INFO-level signals: `"registered successfully"` (edge) and `"Registered with edge"` (vehicle/RSU).
 
 ---
 
