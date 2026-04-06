@@ -17,6 +17,8 @@ os.environ.setdefault('YOLOv5_AUTOINSTALL', 'false')
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'ecav', 'protos'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
+import zlib
+
 import grpc
 import litserve as ls
 import msgpack
@@ -266,10 +268,13 @@ if __name__ == "__main__":
         try:
             t0 = time.time()
             body = await request.body()
+            encoding = request.headers.get("Content-Encoding", "")
             t_read = time.time()
 
             def _process(body_bytes):
                 t1 = time.time()
+                if encoding == "zlib":
+                    body_bytes = zlib.decompress(body_bytes)
                 batch = msgpack.unpackb(body_bytes, raw=False)
                 t2 = time.time()
                 result = _extract_wf_features(batch)

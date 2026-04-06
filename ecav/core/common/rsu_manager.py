@@ -49,6 +49,7 @@ class RSUManager:
         cav_world,
         current_time="",
         data_dumping=False,
+        run_distributed=False,
     ):
         self.rid = -abs(config_yaml.get("id", -1))
 
@@ -79,12 +80,11 @@ class RSUManager:
         )
 
         # ------------------- perception ---------------------------- #
-        # In distributed mode, server-side RSU managers are proxies that
-        # receive features via gRPC — no need to load GPU models.
-        run_distributed = cav_world is not None and getattr(cav_world, 'run_distributed', False)
-        # Server-side RSU: cav_world.litserve is False (server never uses -l)
-        # Client-side RSU: cav_world.litserve may be True (client uses -l)
-        is_server_proxy = run_distributed and not getattr(cav_world, 'litserve', False)
+        # Proxy RSUs (root process in distributed mode) receive features via gRPC
+        # and skip local perception. run_distributed is passed explicitly by the caller
+        # (same pattern as VehicleManager) — do NOT read cav_world.run_distributed,
+        # which reflects the YAML 'distributed' key and stays False even with -d active.
+        is_server_proxy = run_distributed
 
         if is_server_proxy:
             from ecav.core.sensing.perception.perception_manager import PerceptionManager

@@ -32,7 +32,7 @@
 - [x] O2. ~~Eliminate zero `depth_map` from payload~~ — tried, no benefit (upload not bottleneck; reverted)
 - [x] O3. ~~Cast `imgs` float32 → float16 before serialization~~ — tried, net negative (astype cost +2.5ms > http savings); reverted
 - [x] O4. Send `imgs` as uint8 instead of float32 — **kept**; lossless, payload 8021→3803KB (-4.2MB, -53%). On loopback: total_e2e neutral (233→233ms), to_numpy_ms cost only 0.31ms. Kept because on Azure over real network links, 4MB × 2 agents × 20Hz = 160 MB/s avoided upload bandwidth per intersection.
-- [ ] O5. Edge-coordinated batch inference — merge all agents' sensor data at the edge, send one HTTP request per tick instead of N sequential requests
+- [x] O5. Edge-coordinated batch inference — merge all agents' sensor data at the edge, send one HTTP request per tick instead of N sequential requests
 - [ ] O6. Async/pipelined feature extraction — overlap build_batch + HTTP with vehicle tick loop
 - [ ] O7. (Future) gRPC — `ExtractFeatures` RPC; see `grpc_perception_migration.md` Section 7
 
@@ -582,7 +582,7 @@ This single number informs the ROI for zlib compression, float16 voxels, and ROI
 
 ---
 
-### O8 — zlib/zstd compression on HTTP request/response
+### O8 — zlib/zstd compression on HTTP request/response ✓ DONE (2026-04-05)
 
 **Current state**: The HTTP WorldFusion path sends raw `msgpack.packb()` with no compression. The gRPC actor→edge path already uses `zlib` on pickled features — the asymmetry is unintentional.
 

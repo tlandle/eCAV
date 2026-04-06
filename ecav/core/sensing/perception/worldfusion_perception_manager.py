@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime
 import os
 import pathlib
+import zlib
 import torch
 import numpy as np
 from typing import Dict, Any, Optional
@@ -118,6 +119,12 @@ class WorldFusionPerceptionManager(PerceptionManager):
         self._tick = 0
         self._timing = TimingRecorder(fieldnames=_WF_TIMING_FIELDS)
         self._agent_type = "RSU" if infra_id is not None else "Vehicle"
+
+        # O5 batch-encoder state
+        self._pending_batch = None       # set by build_batch(), cleared by apply_features()
+        self._build_batch_ms = 0.0       # timing for build_batch(), passed to apply_features()
+        self._features_extracted_this_tick = False  # True after apply_features(); clears on next detect()
+
         print("[WorldFusion] Init complete.\n")
 
     def detect(self, ego_pos, **kw):
@@ -131,8 +138,61 @@ class WorldFusionPerceptionManager(PerceptionManager):
         cams_ready = self.rgb_camera and all(c.image is not None for c in self.rgb_camera)
 
         if lidar_ready and cams_ready:
-            self.run_step()
+            if self._features_extracted_this_tick:
+                # O5: features already set by apply_features() from the edge batch encoder
+                self._features_extracted_this_tick = False
+            else:
+                self.run_step()
         return {"vehicles": [], "traffic_lights": [], "static": []}
+
+    def build_batch(self):
+        """
+        O5 phase 1: run _build_batch() and store result without sending to LitServe.
+        Called by WorldFusionEdge before _run_o5_batch_encoder() aggregates all agents.
+        No-ops if sensors are not yet ready.
+        """
+        import time as _t
+        lidar_ready = self.lidar and self.lidar.data is not None
+        cams_ready = self.rgb_camera and all(c.image is not None for c in self.rgb_camera)
+        if not (lidar_ready and cams_ready):
+            self._pending_batch = None
+            self._build_batch_ms = 0.0
+            return
+        t0 = _t.time()
+        self._pending_batch = self._build_batch()
+        self._build_batch_ms = (_t.time() - t0) * 1000.0
+        self._features_extracted_this_tick = False
+
+    def apply_features(self, feature_dict_cpu, batch_timing=None):
+        """
+        O5 phase 2: store spatial_features returned by the edge batch encoder.
+        Called by WorldFusionEdge after splitting the batched LitServe response.
+
+        batch_timing : dict matching _WF_TIMING_FIELDS (http_ms, server_* etc.)
+                       covering the shared HTTP cost for the entire batch.
+        """
+        self.feature_dict = feature_dict_cpu
+        self.feature_map = self.feature_dict['spatial_features'].half()
+        self._features_extracted_this_tick = True
+        self._pending_batch = None
+        self._tick += 1
+
+        if batch_timing is not None:
+            # total_e2e covers this agent's build_batch + the shared batch HTTP round-trip
+            total_e2e = round(self._build_batch_ms + batch_timing.get('total_e2e_ms', 0.0), 2)
+            self._timing.record({
+                'tick':             self._tick,
+                'mode':             'distributed',
+                'agent_type':       self._agent_type,
+                'build_batch_ms':   round(self._build_batch_ms, 2),
+                **batch_timing,
+                'total_e2e_ms':     total_e2e,
+            })
+
+        if self._first_run:
+            print(f"[WorldFusion O5] {self._agent_type}: first features applied. "
+                  f"shape={self.feature_map.shape}", flush=True)
+            self._first_run = False
 
     @torch.inference_mode()
     def run_step(self):
@@ -321,13 +381,16 @@ class WorldFusionPerceptionManager(PerceptionManager):
             batch_np['image_inputs']['imgs'] = batch_np['image_inputs']['imgs'].astype(np.uint8)
         t1 = _t.time()
 
-        payload = msgpack.packb(batch_np, use_bin_type=True)
+        payload = zlib.compress(msgpack.packb(batch_np, use_bin_type=True))
         t2 = _t.time()
 
         response = self._session.post(
             f"{self.litserve_endpoint}/extract_features",
             data=payload,
-            headers={"Content-Type": "application/octet-stream"},
+            headers={
+                "Content-Type": "application/octet-stream",
+                "Content-Encoding": "zlib",
+            },
             timeout=30,
         )
         t3 = _t.time()

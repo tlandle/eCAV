@@ -1014,7 +1014,8 @@ class ScenarioManager:
                                      self.carla_map,
                                      self.cav_world,
                                      self.scenario_params['current_time'],
-                                     data_dump)
+                                     data_dump,
+                                     run_distributed=self.run_distributed)
 
             rsu_list.append(rsu_manager)
 
@@ -1384,13 +1385,14 @@ class ScenarioManager:
                                        self.carla_map,
                                        self.cav_world,
                                        self.scenario_params['current_time'],
-                                       data_dump)
+                                       data_dump,
+                                       run_distributed=self.run_distributed)
                     edge_manager.add_rsu(rsu_manager)
                     rsu_id = cav.get('id', index)
                     self.rsu_managers[rsu_id] = rsu_manager
                     print(f"[RSU MANAGER] Registered RSU manager with key={rsu_id}")
             if 'vehicles' in edge:
-                for index, cav in enumerate(edge['vehicles']): 
+                for index, cav in enumerate(edge['vehicles']):
                     logger.debug("Creating VehicleManager for vehicle %s", index)
                     # Multi-ego support: first vehicle uses pre-spawned ego,
                     # subsequent vehicles spawn from their config spawn_position
@@ -1496,7 +1498,8 @@ class ScenarioManager:
                                        self.carla_map,
                                        self.cav_world,
                                        self.scenario_params['current_time'],
-                                       data_dump)
+                                       data_dump,
+                                       run_distributed=self.run_distributed)
                     edge_manager.add_rsu(rsu_manager)
                     rsu_id = cav.get('id', index)
                     self.rsu_managers[rsu_id] = rsu_manager

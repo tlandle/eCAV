@@ -40,3 +40,9 @@ Master index. All wiki articles are LLM-maintained. Raw source material lives in
 - [sessions/](../raw/sessions/) — End-of-session logs (written by Claude at session end)
 - [notes/](../raw/notes/) — Research discussion notes (jrapp contributes)
 - [papers/](../raw/papers/) — Paper and reference markdown
+
+## Tools
+
+| Article | Description |
+|---------|-------------|
+| [ccusage](tools/ccusage.md) | Claude Code token usage and cost reporting |

@@ -84,14 +84,16 @@ Be curious. That's the most important thing.
 
 ### Knowledge Base
 
-A Karpathy-style knowledge base lives at `docs/kb/`. At the end of every conversation where meaningful work was done:
+A Karpathy-style knowledge base lives at `docs/kb/`.
+
+**Update `docs/kb/wiki/current_state.md` after any meaningful block of work** — a diagnosis confirmed, a plan written, a bug fixed, an architectural finding established. Do not wait until end of session. This is the primary artifact for context recovery after a gap.
+
+At the end of every conversation where meaningful work was done:
 
 1. Write `docs/kb/raw/sessions/YYYY-MM-DD.md` — branch, what was touched, key decisions, files changed
-1. Update `docs/kb/wiki/current_state.md` — active branch, in-progress work, next steps
+2. Verify `docs/kb/wiki/current_state.md` reflects the full session (not just the last block)
 
-**Before** compaction_:
-
-1. Write `docs/kb/raw/sessions/YYYY-MM-DD_scratch.md` with any in-flight work to this as well so that we don't lose understanding as a result of compaction.
+The compaction scratch file (`YYYY-MM-DD_scratch.md`) has been removed as a directive — there is no reliable way to know when compaction is imminent, so it is not actionable. Keeping `current_state.md` up to date throughout the session is the mitigation.
 
 This is automatic; jrapp does not need to ask. See [docs/agent_plans/kb_plan.md](../docs/agent_plans/kb_plan.md) for full KB structure.
 

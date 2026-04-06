@@ -188,8 +188,8 @@ echo "LitServe: $use_litserve"
 echo "=========================================="
 echo ""
 
-# Create temporary log file for opencda base process
-ECAV_LOG=$(mktemp /tmp/opencda_base.XXXXXX.log)
+# Create temporary log file for ecav base process
+ECAV_LOG=$(mktemp /tmp/ecav_base.XXXXXX.log)
 echo "eCAV log file: $ECAV_LOG"
 echo ""
 
@@ -380,7 +380,7 @@ echo "=========================================="
 echo "Monitoring scenario execution..."
 echo "=========================================="
 echo ""
-echo "Watching opencda_base logs for completion or errors..."
+echo "Watching ecav_base logs for completion or errors..."
 echo "Waiting for 'pushed END' message (press Ctrl+C to stop monitoring)..."
 echo ""
 
@@ -403,8 +403,8 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
     fi
 
     # Check for errors (common Python error patterns) - only report new ones
-    grep -E "Traceback|Error:|Exception:|WARNING|COLLISION|CRITICAL|FATAL" "$ECAV_LOG" 2>/dev/null > /tmp/opencda_errors_all.txt
-    if [[ -s /tmp/opencda_errors_all.txt ]]; then
+    grep -E "Traceback|Error:|Exception:|WARNING|COLLISION|CRITICAL|FATAL" "$ECAV_LOG" 2>/dev/null > /tmp/ecav_errors_all.txt
+    if [[ -s /tmp/ecav_errors_all.txt ]]; then
         # Find errors that haven't been reported yet
         new_errors=()
         while IFS= read -r error_line; do
@@ -414,12 +414,12 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
                 new_errors+=("$error_line")
                 echo "$error_hash" >> "$REPORTED_ERRORS_FILE"
             fi
-        done < /tmp/opencda_errors_all.txt
+        done < /tmp/ecav_errors_all.txt
 
         # Only display if there are new errors
         if [[ ${#new_errors[@]} -gt 0 ]]; then
             echo ""
-            echo "⚠ New errors detected in opencda_base logs:"
+            echo "⚠ New errors detected in ecav_base logs:"
             echo "----------------------------------------"
             for err in "${new_errors[@]}"; do
                 echo "$err"
@@ -504,7 +504,7 @@ echo ""
 echo ""
 
 # Clean up temporary error tracking file
-rm -f "$REPORTED_ERRORS_FILE" /tmp/opencda_errors_all.txt
+rm -f "$REPORTED_ERRORS_FILE" /tmp/ecav_errors_all.txt
 
 # Stop LitServe server if it was started
 if [[ -n "$LITSERVE_PID" ]]; then

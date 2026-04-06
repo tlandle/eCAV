@@ -28,6 +28,7 @@ import os
 import math
 import random
 import time
+import zlib
 from collections import deque
 from typing import Dict, List, Deque, Tuple, Any, Optional
 
@@ -1379,6 +1380,169 @@ class WorldFusionEdge(_BaseEdgeManager):
             print(f"[GHOST FILTER] Removed {len(tracks_to_remove)} ghost tracks, "
                   f"{len(self.tracked_trajectories)} remaining")
 
+    @staticmethod
+    def _merge_wf_batches(batch_list):
+        """
+        Merge N per-agent WorldFusion Tensor batches into one for batch inference.
+
+        voxel_coords column 0 is the batch index; must be reindexed per agent.
+        All other fields are concatenated on dim 0 (the batch dimension).
+        record_len = [1] * N tells the model how many agents are in the batch.
+        """
+        all_vf, all_vc, all_vnp = [], [], []
+        all_imgs, all_rots, all_trans, all_intrins = [], [], [], []
+        all_post_rots, all_post_trans, all_depth = [], [], []
+
+        for agent_idx, batch in enumerate(batch_list):
+            pc = batch['processed_lidar']
+            vc = pc['voxel_coords'].clone()
+            vc[:, 0] = agent_idx   # reindex batch_idx column
+            all_vf.append(pc['voxel_features'])
+            all_vc.append(vc)
+            all_vnp.append(pc['voxel_num_points'])
+
+            ii = batch['image_inputs']
+            all_imgs.append(ii['imgs'])
+            all_rots.append(ii['rots'])
+            all_trans.append(ii['trans'])
+            all_intrins.append(ii['intrins'])
+            all_post_rots.append(ii['post_rots'])
+            all_post_trans.append(ii['post_trans'])
+            all_depth.append(ii['depth_map'])
+
+        N = len(batch_list)
+        return {
+            'processed_lidar': {
+                'voxel_features':   torch.cat(all_vf,  dim=0),
+                'voxel_coords':     torch.cat(all_vc,  dim=0),
+                'voxel_num_points': torch.cat(all_vnp, dim=0),
+            },
+            'image_inputs': {
+                'imgs':       torch.cat(all_imgs,       dim=0),
+                'rots':       torch.cat(all_rots,       dim=0),
+                'trans':      torch.cat(all_trans,      dim=0),
+                'intrins':    torch.cat(all_intrins,    dim=0),
+                'post_rots':  torch.cat(all_post_rots,  dim=0),
+                'post_trans': torch.cat(all_post_trans, dim=0),
+                'depth_map':  torch.cat(all_depth,      dim=0),
+            },
+            'record_len': torch.tensor([1] * N, dtype=torch.int64),
+        }
+
+    def _run_o5_batch_encoder(self):
+        """
+        O5: gather pending batches from all WorldFusion-litserve PMs, send one
+        batched HTTP POST to LitServe, and distribute spatial_features back.
+
+        Returns True if the batch was sent, False if skipped (no eligible PMs or
+        no sensors ready yet).  When True, each PM's _features_extracted_this_tick
+        is set so that the subsequent detect() calls skip per-agent extraction.
+        """
+        import msgpack
+        import msgpack_numpy as m_np
+        m_np.patch()
+        import numpy as np
+        from ecav.core.sensing.perception.worldfusion_perception_manager import (
+            WorldFusionPerceptionManager)
+
+        # Collect all WF-litserve PMs (vehicles first, then RSUs — order must be
+        # consistent between build_batch() and apply_features() splitting)
+        wf_pms = []
+        for vm in self.vehicle_manager_list:
+            pm = vm.perception_manager
+            if isinstance(pm, WorldFusionPerceptionManager) and pm.use_litserve:
+                wf_pms.append(pm)
+        for rsu in self.rsu_manager_list:
+            pm = rsu.perception_manager
+            if isinstance(pm, WorldFusionPerceptionManager) and pm.use_litserve:
+                wf_pms.append(pm)
+
+        if not wf_pms:
+            return False
+
+        # Phase 1: build all batches (CPU only, no HTTP)
+        for pm in wf_pms:
+            pm.build_batch()
+
+        ready = [pm for pm in wf_pms if pm._pending_batch is not None]
+        if not ready:
+            return False
+
+        # Phase 2: merge + numpy conversion + HTTP POST
+        t_merge = time.time()
+        merged = self._merge_wf_batches([pm._pending_batch for pm in ready])
+
+        def _to_numpy(obj):
+            if isinstance(obj, torch.Tensor):
+                return obj.contiguous().numpy()
+            if isinstance(obj, dict):
+                return {k: _to_numpy(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_to_numpy(v) for v in obj]
+            return obj
+
+        batch_np = _to_numpy(merged)
+        # Cast imgs uint8 to reduce payload (~4× smaller), same as single-agent path
+        if 'image_inputs' in batch_np and 'imgs' in batch_np['image_inputs']:
+            batch_np['image_inputs']['imgs'] = batch_np['image_inputs']['imgs'].astype(np.uint8)
+
+        payload = zlib.compress(msgpack.packb(batch_np, use_bin_type=True))
+        t_pack = time.time()
+
+        endpoint = ready[0].litserve_endpoint
+        session  = ready[0]._session
+        response = session.post(
+            f"{endpoint}/extract_features",
+            data=payload,
+            headers={
+                "Content-Type": "application/octet-stream",
+                "Content-Encoding": "zlib",
+            },
+            timeout=30,
+        )
+        t_http = time.time()
+
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"[WorldFusion O5] LitServe error: {response.status_code} {response.text[:200]}")
+
+        result = msgpack.unpackb(response.content, raw=False)
+        t_unpack = time.time()
+
+        # spatial_features shape: (N, C, H, W) — split on dim 0
+        spatial_features = torch.from_numpy(result['spatial_features'])
+
+        def _hdr(name):
+            return float(response.headers.get(name, '0'))
+
+        timing = {
+            'to_numpy_ms':         0,
+            'pack_ms':             round((t_pack   - t_merge) * 1000.0, 2),
+            'payload_bytes':       len(payload),
+            'http_ms':             round((t_http   - t_pack)  * 1000.0, 2),
+            'server_read_ms':      _hdr('X-Server-Read-Ms'),
+            'server_decode_ms':    _hdr('X-Server-Decode-Ms'),
+            'server_inference_ms': _hdr('X-Server-Inference-Ms'),
+            'server_encode_ms':    _hdr('X-Server-Encode-Ms'),
+            'server_total_ms':     _hdr('X-Server-Total-Ms'),
+            'response_bytes':      len(response.content),
+            'unpack_ms':           round((t_unpack - t_http)  * 1000.0, 2),
+            'to_tensor_ms':        0,
+            'total_e2e_ms':        round((t_unpack - t_merge) * 1000.0, 2),
+        }
+
+        print(f"[WorldFusion O5] batch={len(ready)} | "
+              f"merge+pack={((t_pack-t_merge)*1000):.0f}ms ({len(payload)/1024:.0f}KB) | "
+              f"http={((t_http-t_pack)*1000):.0f}ms | "
+              f"unpack={((t_unpack-t_http)*1000):.0f}ms | "
+              f"total={((t_unpack-t_merge)*1000):.0f}ms", flush=True)
+
+        # Phase 3: distribute features back to each PM
+        for i, pm in enumerate(ready):
+            pm.apply_features({'spatial_features': spatial_features[i:i+1].cpu()}, timing)
+
+        return True
+
     def _update_agents(self, tick: int, predictions: Optional[List]):
         """
         Update all managed vehicles and RSUs with predictions.
@@ -1403,6 +1567,12 @@ class WorldFusionEdge(_BaseEdgeManager):
         # Ego-consistency gate check at publish boundary
         if predictions:
             self._check_ego_gate_violations(tick, predictions)
+
+        # O5: build+merge+POST all WF-litserve agents in one batch before the
+        # per-agent update_info() loop.  Each PM's _features_extracted_this_tick
+        # is set so detect() skips individual extraction on this tick.
+        if not self.run_distributed:
+            self._run_o5_batch_encoder()
 
         # Distribute predictions to vehicles
         for index, vm in enumerate(self.vehicle_manager_list):
