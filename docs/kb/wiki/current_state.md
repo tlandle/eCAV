@@ -47,6 +47,22 @@ Both fusion modes confirmed working end-to-end in distributed mode, with product
 
 ---
 
+## WIP / Exploratory
+
+### Azure Distributed Deployment (2026-04-06)
+
+Planning phase. See [azure_deploy.md](../../agent_plans/azure_deploy.md).
+
+**Topology**: 5-node split — node-0 (CARLA + ecav.py), node-1 (ecloud_server), node-2 (inference), node-3 (GPU actors), node-4 (CPU actors).
+
+**Key finding**: codebase is already ~90% wired for multi-node. `sim_api.py:580` already skips spawning `ecloud_server` when `ECLOUD_IP != 'localhost'`. Only code change needed: `ecav.py:43` hardcodes `ECLOUD_SERVER_ADDRESS = "localhost:50051"` — must read from `cloud_config.yaml` for actor containers on remote nodes.
+
+**Approach**: Ansible for cluster orchestration; per-node startup scripts extracted from `start_actors.sh`; `cloud_config.yaml` rendered per-node from Jinja2 template.
+
+**Status**: Plan written, not yet implemented.
+
+---
+
 ## Backlog
 
 ---
