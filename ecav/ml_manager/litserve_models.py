@@ -2,175 +2,169 @@
 # Author: Tyler Landle <tlandle3@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 """
-LitServe model servers for distributed inference
+LitServe WorldFusion feature extraction server.
+
+Serves the WorldFusion sensor encoder (LiDAR voxelizer + camera encoder →
+BEV spatial_features) via HTTP POST /extract_features.
+
+YOLO (late-fusion path) is not served here — it is unused in WorldFusion
+scenarios and was the sole reason this server previously required
+api_server_worker_type="thread". With YOLO removed, the default "process"
+mode is used, enabling workers_per_device=N with independent CUDA contexts.
+
+Workers:
+    workers_per_device = min(WF_MAX_WORKERS, WF_NUM_ACTORS)
+    WF_NUM_ACTORS  — actors calling /extract_features per tick (default 2)
+    WF_MAX_WORKERS — GPU headroom limit; run --profile to compute for your GPU
+
+Profile mode:
+    python litserve_models.py --profile
 """
 
 import os
 import sys
-from concurrent import futures
-
-# Suppress YOLOv5's auto-install via system pip, which fails on this host
-# because the system pip is too old to parse `python_version > 3.8` markers.
-os.environ.setdefault('YOLOv5_AUTOINSTALL', 'false')
 
 # perception_pb2 stubs live in ecav/protos/; add to path when running standalone
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'ecav', 'protos'))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
+import time
 import zlib
 
-import grpc
 import litserve as ls
 import msgpack
 import msgpack_numpy as m
 import numpy as np
 import torch
-from fastapi import Request
-from starlette.responses import JSONResponse, Response
-from typing import List
-
-import perception_pb2_grpc
-from perception_servicer import PerceptionServicer
+from starlette.responses import Response
 
 m.patch()  # Patch msgpack to handle numpy arrays
 
-YOLO_PATH = './yolov5'  # Path to local YOLOv5 repo
-YOLO_FILE = 'hubconf.py'  # Detect local yolov5 repo (weights may be elsewhere)
+# ============= WorldFusion model (global per-worker) =============
 
-
-class YOLOv5Server(ls.LitAPI):
-    def setup(self, device="cuda"):
-        """Load YOLOv5 model"""
-        self.device = device
-
-        # Check if local YOLOv5 repo exists
-        if os.path.exists(os.path.join(YOLO_PATH, YOLO_FILE)):
-            print(f"[YOLOv5Server] Loading from local path: {YOLO_PATH}")
-            self.model = torch.hub.load(YOLO_PATH, model='yolov5m', source='local')
-        else:
-            print("[YOLOv5Server] Loading from Ultralytics repository")
-            self.model = torch.hub.load("ultralytics/yolov5", "yolov5m")
-
-        self.model = self.model.to(device).eval()
-        print(f"[YOLOv5Server] Model loaded on {device}")
-
-    def decode_request(self, request: dict) -> List[np.ndarray]:
-        """Decode images - msgpack sends numpy arrays directly"""
-        imgs = request.get("images")
-        if imgs is None:
-            raise ValueError("Request must contain key 'images'.")
-
-        if not isinstance(imgs, list):
-            raise ValueError("'images' must be a list.")
-
-        for i, img in enumerate(imgs):
-            if not isinstance(img, np.ndarray):
-                raise ValueError(f"Image {i} is {type(img)}, expected numpy.ndarray")
-
-        print(f"[YOLOv5Server] Received {len(imgs)} numpy arrays directly")
-        return imgs
-
-    def predict(self, images: List[np.ndarray]):
-        """Run YOLO inference"""
-        with torch.no_grad():
-            results = self.model(images)
-            return results
-
-    def encode_response(self, output):
-        """Encode response as dict"""
-        resp = {"detections": []}
-
-        for idx, pred in enumerate(output.xyxy):
-            if hasattr(pred, 'is_cuda') and pred.is_cuda:
-                p = pred.cpu()
-            else:
-                p = pred
-
-            boxes = p.numpy().tolist()
-            cls_ids = [int(b[5]) for b in boxes] if boxes else []
-            counts = {}
-            for cid in cls_ids:
-                counts[cid] = counts.get(cid, 0) + 1
-
-            summary = ", ".join(
-                f"{n} {output.names.get(cid, str(cid))}" + ("" if n == 1 else "s")
-                for cid, n in counts.items()
-            ) or "(no detections)"
-
-            names_str = {str(k): v for k, v in output.names.items()}
-
-            resp["detections"].append({
-                "boxes": boxes,
-                "names": names_str,
-                "summary": summary
-            })
-
-        return resp
-
-
-# ============= WorldFusion Feature Server =============
-
-# Global WorldFusion model instance (loaded lazily on first request)
+# Each worker process has its own copy of these globals.
+# setup() populates them after spawn; __main__ must NOT touch them.
 _wf_model = None
 _wf_device = None
 
 
 def load_wf_model():
-    """Load WorldFusion model once for the custom endpoint (main process)."""
+    """Load WorldFusion model into this process. Idempotent."""
     global _wf_model, _wf_device
-    if _wf_model is None:
-        import pathlib
-        from opencood.hypes_yaml.yaml_utils import load_yaml
-        from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
-        import opencood.tools.train_utils as train_utils
+    if _wf_model is not None:
+        return _wf_model
 
-        _wf_device = 'cuda'
+    import pathlib
+    from opencood.hypes_yaml.yaml_utils import load_yaml
+    from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
+    import opencood.tools.train_utils as train_utils
 
-        hypes_path = os.environ.get(
-            'WF_HYPES_YAML',
-            'ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/config.yaml'
-        )
-        ckpt_path = os.environ.get(
-            'WF_CHECKPOINT',
-            'ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/net_epoch50.pth'
-        )
+    _wf_device = 'cuda'
 
-        print(f"[WorldFusionServer] Loading hypes: {hypes_path}")
-        hypes = load_yaml(str(hypes_path))
+    hypes_path = os.environ.get(
+        'WF_HYPES_YAML',
+        'ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/config.yaml'
+    )
+    ckpt_path = os.environ.get(
+        'WF_CHECKPOINT',
+        'ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/net_epoch50.pth'
+    )
 
-        _wf_model = PointPillarWorldFusion(hypes['model']['args']).to(_wf_device).eval()
+    print(f"[WorldFusionServer] Loading hypes: {hypes_path}")
+    hypes = load_yaml(str(hypes_path))
+    _wf_model = PointPillarWorldFusion(hypes['model']['args']).to(_wf_device).eval()
 
-        ckpt = pathlib.Path(ckpt_path)
-        epoch_id = int(str(ckpt.name).split('epoch')[-1].split('.')[0])
-        _, _wf_model = train_utils.load_model(
-            str(ckpt.parent), _wf_model, epoch=epoch_id
-        )
-        print(f"[WorldFusionServer] Model loaded from epoch {epoch_id} on {_wf_device}")
+    ckpt = pathlib.Path(ckpt_path)
+    epoch_id = int(str(ckpt.name).split('epoch')[-1].split('.')[0])
+    _, _wf_model = train_utils.load_model(str(ckpt.parent), _wf_model, epoch=epoch_id)
+    print(f"[WorldFusionServer] Model loaded from epoch {epoch_id} on {_wf_device}")
     return _wf_model
 
 
+def _merge_wf_batches(batch_list):
+    """Merge list of per-actor msgpack dicts into a single batch dict.
+
+    voxel_coords[:,0] is the batch/agent index used by PointPillarScatter.
+    Each actor arrives with coords[:,0]=0; must be reindexed to agent_idx
+    so scatter canvas slots are populated correctly (slot i → agent i's BEV).
+
+    record_len = [1] * N matches the O5 edge manager convention.
+    """
+    if len(batch_list) == 1:
+        return batch_list[0]
+
+    pc_list = [b['processed_lidar'] for b in batch_list]
+
+    coords_reindexed = []
+    for i, pc in enumerate(pc_list):
+        coords = pc['voxel_coords'].copy()
+        coords[:, 0] = i
+        coords_reindexed.append(coords)
+
+    merged = {
+        'processed_lidar': {
+            'voxel_features':   np.concatenate([pc['voxel_features']   for pc in pc_list]),
+            'voxel_coords':     np.concatenate(coords_reindexed),
+            'voxel_num_points': np.concatenate([pc['voxel_num_points'] for pc in pc_list]),
+        },
+        'record_len': np.concatenate([b['record_len'] for b in batch_list]),
+    }
+    if batch_list[0].get('image_inputs') is not None:
+        merged['image_inputs'] = {
+            k: np.concatenate([b['image_inputs'][k] for b in batch_list], axis=0)
+            for k in batch_list[0]['image_inputs']
+        }
+    return merged
+
+
 class WorldFusionFeatureServer(ls.LitAPI):
-    """LitServe server stub — real work done via custom /extract_features endpoint."""
+    """LitServe native pipeline for WorldFusion feature extraction.
+
+    decode_request → batch → predict → unbatch → encode_response
+
+    Requests are automatically batched by LitServe (max_batch_size, batch_timeout)
+    so vehicle + RSU are merged into a single batch=2 forward pass, eliminating
+    the CUDA serialization seen with the previous custom-endpoint approach.
+    """
 
     def setup(self, device="cuda"):
-        pass
+        load_wf_model()
 
     def decode_request(self, request):
-        return request
+        # request is raw bytes from _prepare_request (patched below to handle
+        # application/octet-stream without calling request.json())
+        try:
+            body = zlib.decompress(request)
+        except zlib.error:
+            body = request
+        return msgpack.unpackb(body, raw=False)
+
+    def batch(self, inputs):
+        return _merge_wf_batches(inputs)
 
     def predict(self, x):
-        return x
+        t0 = time.time()
+        result = _extract_wf_features(x)
+        batch_size = result['spatial_features'].shape[0]
+        print(f"[WorldFusion pid={os.getpid()}] batch={batch_size} "
+              f"inference={int((time.time()-t0)*1000)}ms "
+              f"payload={result['spatial_features'].nbytes//1024}KB")
+        return result
+
+    def unbatch(self, output):
+        N = output['spatial_features'].shape[0]
+        return [{'spatial_features': output['spatial_features'][i:i+1]} for i in range(N)]
 
     def encode_response(self, output):
-        return output
+        return Response(content=msgpack.packb(output, use_bin_type=True),
+                        media_type="application/octet-stream")
 
 
 @torch.inference_mode()
 def _extract_wf_features(batch):
     """Extract intermediate features from WorldFusion sensor encoder.
 
-    Replicates WorldFusionPerceptionManager._extract_intermediate_features()
-    for server-side execution. Accepts numpy arrays from msgpack, returns numpy.
+    Accepts numpy arrays from msgpack (single or merged batch), returns numpy.
     """
     import opencood.tools.train_utils as train_utils
 
@@ -182,7 +176,6 @@ def _extract_wf_features(batch):
         return obj
 
     batch = _numpy_to_tensors(batch)
-
     model = load_wf_model()
     batch = train_utils.to_device(batch, _wf_device)
     sensor = model.sensor
@@ -219,109 +212,112 @@ def _extract_wf_features(batch):
     return {'spatial_features': bd['spatial_features'].cpu().half().numpy()}
 
 
+# ============= Profile mode =============
+
+def _run_profile_worker():
+    """Run inside a subprocess: load model, measure VRAM, print recommendation.
+
+    Executed as a child process so CUDA init stays isolated from the parent.
+    """
+    if not torch.cuda.is_available():
+        print("[Profile] No CUDA device found.")
+        return
+
+    gpu = torch.cuda.get_device_properties(0)
+    total_mb = gpu.total_memory / (1024 ** 2)
+
+    torch.cuda.empty_cache()
+    free_before, _ = torch.cuda.mem_get_info(0)
+    load_wf_model()
+    free_after, _ = torch.cuda.mem_get_info(0)
+
+    model_mb = (free_before - free_after) / (1024 ** 2)
+    # Inference overhead ≈ 2.5× model size (activations, workspace for batch=1)
+    per_worker_mb = model_mb * 2.5
+    usable_mb = total_mb * 0.80
+    carla_budget_mb = 2500
+    usable_with_carla_mb = (total_mb - carla_budget_mb) * 0.85
+
+    gpu_max             = max(1, int(usable_mb / per_worker_mb))
+    gpu_max_with_carla  = max(1, int(usable_with_carla_mb / per_worker_mb))
+
+    print(f"[Profile] GPU: {gpu.name} ({total_mb:.0f} MB total)")
+    print(f"[Profile] WorldFusion model footprint: {model_mb:.0f} MB")
+    print(f"[Profile] Per-worker estimate (model + inference overhead): {per_worker_mb:.0f} MB")
+    print(f"[Profile] Recommended WF_MAX_WORKERS: {gpu_max} (without CARLA) / "
+          f"{gpu_max_with_carla} (with CARLA)")
+    print(f"[Profile] Export: export WF_MAX_WORKERS={gpu_max_with_carla}")
+
+
+def _run_profile():
+    """Spawn an isolated subprocess to measure VRAM footprint."""
+    import subprocess
+    print("[Profile] Measuring WorldFusion VRAM footprint in isolated subprocess...")
+    result = subprocess.run(
+        [sys.executable, __file__, '--profile-worker'],
+        capture_output=False,   # stream output directly
+    )
+    if result.returncode != 0:
+        print(f"[Profile] Subprocess exited with code {result.returncode}")
+
+
+# ============= Entry point =============
+
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="WorldFusion LitServe server")
+    parser.add_argument('--profile', action='store_true',
+                        help="Measure GPU VRAM footprint and print WF_MAX_WORKERS recommendation")
+    parser.add_argument('--profile-worker', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+
+    if args.profile_worker:
+        _run_profile_worker()
+        sys.exit(0)
+
+    if args.profile:
+        _run_profile()
+        sys.exit(0)
+
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "18000"))
-    grpc_port = int(os.getenv("GRPC_PORT", "18001"))
 
-    print(f"[LitServe] Starting server — HTTP on {host}:{port}, gRPC on {host}:{grpc_port}")
-    print(f"[LitServe] HTTP endpoint: /extract_features (WorldFusion)")
-    print(f"[LitServe] gRPC endpoint: PerceptionService.DetectYolo")
+    import math
+    MAX_BATCH_SIZE = 2
 
-    # Load YOLO model once; shared between gRPC servicer and this process
-    yolo_api = YOLOv5Server()
-    if os.path.exists(os.path.join(YOLO_PATH, YOLO_FILE)):
-        _yolo_model = torch.hub.load(YOLO_PATH, model='yolov5m', source='local')
-    else:
-        _yolo_model = torch.hub.load("ultralytics/yolov5", "yolov5m")
-    _yolo_model = _yolo_model.cuda().eval()
-    print("[LitServe] YOLO model loaded")
+    num_actors  = int(os.environ.get('WF_NUM_ACTORS', '2'))
+    max_workers = int(os.environ.get('WF_MAX_WORKERS', str(num_actors)))
+    # One worker per MAX_BATCH_SIZE actors: requests batch together rather than racing
+    # to separate workers. e.g. 2 actors / batch=2 → 1 worker; 4 actors → 2 workers.
+    workers = max(1, min(max_workers, math.ceil(num_actors / MAX_BATCH_SIZE)))
 
-    # Pre-load WorldFusion model before LitServe spawns worker processes.
-    # Lazy loading inside a spawned worker re-initializes CUDA cleanly, but
-    # pre-loading here ensures the first request pays no cold-start penalty.
-    load_wf_model()
-    print("[LitServe] WorldFusion model pre-loaded")
+    print(f"[LitServe] Starting WorldFusion server — HTTP on {host}:{port}")
+    print(f"[LitServe] workers_per_device={workers} "
+          f"(WF_NUM_ACTORS={num_actors}, WF_MAX_WORKERS={max_workers})")
+    print(f"[LitServe] max_batch_size={MAX_BATCH_SIZE} batch_timeout=15ms endpoint=/extract_features")
 
-    # Start gRPC server in background thread
-    servicer = PerceptionServicer(_yolo_model, yolo_api.encode_response)
-    grpc_server = grpc.server(futures.ThreadPoolExecutor(max_workers=4))
-    perception_pb2_grpc.add_PerceptionServiceServicer_to_server(servicer, grpc_server)
-    grpc_server.add_insecure_port(f"[::]:{grpc_port}")
-    grpc_server.start()
-    print(f"[gRPC] PerceptionService listening on port {grpc_port}")
+    api = WorldFusionFeatureServer(
+        max_batch_size=MAX_BATCH_SIZE,
+        batch_timeout=0.015,
+        api_path='/extract_features',
+    )
+    server = ls.LitServer(api, accelerator="auto", workers_per_device=workers)
 
-    # WorldFusion HTTP server (uvicorn/LitServe)
-    api = WorldFusionFeatureServer()
-    server = ls.LitServer(api, accelerator="auto")
+    # LitServe's _prepare_request calls request.json() for any non-form POST body,
+    # which fails for our application/octet-stream msgpack payload. Patch the class
+    # method to return raw bytes for binary content before server.run() registers endpoints.
+    from litserve.server import BaseRequestHandler
+    from starlette.requests import Request as _StarlRequest
 
-    @server.app.post("/extract_features")
-    async def extract_features(request: Request):
-        """WorldFusion intermediate feature extraction via msgpack.
+    _orig_prepare = BaseRequestHandler._prepare_request
 
-        Uses asyncio.to_thread() so that the synchronous GPU inference
-        does not block the uvicorn event loop.
-        """
-        import asyncio
-        import time
+    async def _binary_prepare(self, request, request_type):
+        if request_type == _StarlRequest:
+            if request.headers.get("Content-Type", "") == "application/octet-stream":
+                return await request.body()
+        return await _orig_prepare(self, request, request_type)
 
-        try:
-            t0 = time.time()
-            body = await request.body()
-            encoding = request.headers.get("Content-Encoding", "")
-            t_read = time.time()
+    BaseRequestHandler._prepare_request = _binary_prepare
 
-            def _process(body_bytes):
-                t1 = time.time()
-                if encoding == "zlib":
-                    body_bytes = zlib.decompress(body_bytes)
-                batch = msgpack.unpackb(body_bytes, raw=False)
-                t2 = time.time()
-                result = _extract_wf_features(batch)
-                t3 = time.time()
-                payload = msgpack.packb(result, use_bin_type=True)
-                t4 = time.time()
-                return payload, (t2 - t1), (t3 - t2), (t4 - t3)
-
-            payload, decode_s, infer_s, encode_s = await asyncio.to_thread(
-                _process, body
-            )
-            t_done = time.time()
-
-            read_ms = int((t_read - t0) * 1000)
-            decode_ms = int(decode_s * 1000)
-            infer_ms = int(infer_s * 1000)
-            encode_ms = int(encode_s * 1000)
-            total_ms = int((t_done - t0) * 1000)
-
-            print(f"[WorldFusion] read={read_ms}ms "
-                  f"decode={decode_ms}ms "
-                  f"inference={infer_ms}ms "
-                  f"encode={encode_ms}ms "
-                  f"total={total_ms}ms "
-                  f"payload={len(payload)/1024:.0f}KB")
-
-            headers = {
-                'X-Server-Read-Ms': str(read_ms),
-                'X-Server-Decode-Ms': str(decode_ms),
-                'X-Server-Inference-Ms': str(infer_ms),
-                'X-Server-Encode-Ms': str(encode_ms),
-                'X-Server-Total-Ms': str(total_ms),
-            }
-
-            return Response(
-                content=payload,
-                media_type="application/octet-stream",
-                headers=headers,
-            )
-
-        except Exception as e:
-            import traceback
-            print(f"[WorldFusion] Error: {e}")
-            traceback.print_exc()
-            return JSONResponse(content={"error": str(e)}, status_code=500)
-
-    # Use threads for HTTP server workers so they share the parent's CUDA context.
-    # LitServe's default "process" mode forks uvicorn after CUDA is initialized
-    # by YOLO loading, which causes "Cannot re-initialize CUDA in forked subprocess".
-    server.run(host=host, port=port, api_server_worker_type="thread")
+    server.run(host=host, port=port)

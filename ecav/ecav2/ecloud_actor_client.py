@@ -420,9 +420,11 @@ class Ecav2ActorClient:
             t_tick_start = time.time()
             client_start_timestamp = Timestamp()
             client_start_timestamp.GetCurrentTime()
-            # update info runs BEFORE waypoint injection
+            # update info runs BEFORE waypoint injection.
+            # Wrapped in asyncio.to_thread so the blocking LitServe HTTP call
+            # (requests.post inside WorldFusion PM) does not stall the event loop.
             update_info_start_time = time.time()
-            self.vehicle_manager.update_info()
+            await asyncio.to_thread(self.vehicle_manager.update_info)
             t_update_info = time.time()
 
             control = self.vehicle_manager.run_step()

@@ -30,6 +30,26 @@ message YoloResponse {
   float total_ms = 6;
 }
 
+// Request: zlib-compressed msgpack blob containing the sensor batch.
+// Payload encodes: processed_lidar {voxel_features, voxel_coords, voxel_num_points},
+//                  image_inputs {imgs (uint8), rots, trans, intrins, ...},
+//                  record_len
+message WfRequest {
+  bytes payload   = 1;  // zlib(msgpack(batch_numpy_dict))
+  int32 actor_id  = 2;  // for server-side logging
+}
+
+// Response: msgpack-encoded {'spatial_features': np.ndarray float16}
+// spatial_features shape: [B, C*Z, H, W] (typically [1, 256, 192, 704])
+message WfResponse {
+  bytes payload       = 1;  // msgpack({'spatial_features': np.ndarray float16})
+  float unpack_ms     = 2;
+  float inference_ms  = 3;
+  float pack_ms       = 4;
+  float total_ms      = 5;
+}
+
 service PerceptionService {
-  rpc DetectYolo(YoloRequest) returns (YoloResponse);
+  rpc DetectYolo          (YoloRequest) returns (YoloResponse);
+  rpc ExtractWfFeatures   (WfRequest)   returns (WfResponse);
 }

@@ -27,24 +27,25 @@ in distributed mode on Scenario 3.
 
 Plan: [litserve_parallelism_plan.md](../../agent_plans/litserve_parallelism_plan.md)
 
-**Root cause (diagnosed):** All GPU ops in `litserve_models.py` share CUDA stream 0. Two concurrent `asyncio.to_thread()` calls both submit GPU work, but it serializes on that stream. FastAPI/uvicorn does NOT block — the serialization is purely at the CUDA level. Result per tick:
-- Vehicle (HOST process): served immediately → `http≈165ms`
-- RSU (Docker container): queues behind vehicle → `http≈400ms` (~320ms CUDA wait + ~80ms inference)
+**Root cause (final):** `num_api_servers=2` spawns two uvicorn workers, but SO_REUSEPORT distributes connections by `hash(src_ip, src_port, dst_ip, dst_port)`. Both containers use `--network=host` → both appear as `127.0.0.1` to the kernel. Combined with `requests.Session` keep-alive (sticky TCP connection), both containers landed on the same worker at startup and remained there. Confirmed via `os.getpid()` in log: both requests show the same PID despite two workers being spawned.
 
-**Key architectural finding:** YOLO is only used by the classic `PerceptionManager` (default backend). Neither `WorldFusionPerceptionManager` nor `BM2CPPerceptionManager` calls `ml_manager.detect()`. In a WorldFusion scenario, YOLO is loaded at LitServe startup and never called — it wastes GPU memory and, critically, initializes CUDA in the parent process before `server.run()`, which forces `api_server_worker_type="thread"` (single HTTP worker, no process-level parallelism). Stripping YOLO from `litserve_models.py` unblocks `workers_per_device=2` with no other structural changes.
+**Prior root cause (also real):** All GPU ops share CUDA stream 0 within a single process. Two concurrent `asyncio.to_thread()` calls serialize at the GPU level, not the HTTP level. FastAPI/uvicorn accepts both concurrently; the bottleneck is CUDA.
 
-**Parallelism plan — Phase 1 (per-thread CUDA streams):**
-- Wrap `_extract_wf_features()` GPU ops in a `torch.cuda.Stream()` per call
-- Minimal change; may not fully overlap if model is memory-bandwidth-bound (GPU has insufficient headroom)
-- Verification: both callers should see `http≈100-120ms` instead of one at 165ms and one at 400ms
+**Background:** YOLO is only used by the classic `PerceptionManager`. Neither `WorldFusionPerceptionManager` nor `BM2CPPerceptionManager` calls `ml_manager.detect()`. Stripping YOLO from `litserve_models.py` eliminated the parent-process CUDA init that forced `api_server_worker_type="thread"`. Phase 2 complete (`num_api_servers=N`, `WF_NUM_ACTORS`/`WF_MAX_WORKERS`, `--profile` mode).
 
-**Parallelism plan — Phase 2 (WorldFusion-only server + `workers_per_device=2`):**
-- Strip `YOLOv5Server`, YOLO model loading, and gRPC startup from `litserve_models.py`
-- Move WorldFusion model loading into `WorldFusionFeatureServer.setup()` (not parent `__main__`)
-- Switch to `server.run()` default `"process"` mode + `workers_per_device=2`
-- Two independent worker processes, each with their own CUDA context — no stream contention
+**Three options — to be implemented in order and evaluated:**
 
-See plan doc for full checklist including optional auto-batching (asyncio batch queue, no client changes needed).
+| Option | Approach | Status |
+|--------|----------|--------|
+| A | Per-thread CUDA streams | **DONE — no help.** `stream_wait=0ms`; both containers still sticky to same worker. |
+| B | Port-per-actor (ports 18000/18001) | **DONE — partially.** Server-side both fast (~80ms). But: (1) OOM from double model load in spawn+uvicorn workers; (2) RSU tick still ~220ms slower due to `update_info()` blocking asyncio event loop in `ecloud_actor_client.py`. **Rolled back to single server.** |
+| C | LitServe native path — `decode_request → predict → encode_response`; `workers_per_device=1, max_batch_size=2, batch_timeout=15ms` | **IMPLEMENTED — pending verification run** |
+
+**RSU event loop fix**: `ecloud_actor_client.py` line 425 — `update_info()` was a blocking `requests.post()` inside `async def tick()`. Fixed: `await asyncio.to_thread(self.vehicle_manager.update_info)`. Eliminates ~220ms asyncio event loop starvation per RSU tick.
+
+**LitServe spawn worker bug** (found during Option B): `WorldFusionFeatureServer.setup()` was loading the model into LitServe's inference spawn worker even though the custom `/extract_features` endpoint bypasses the native predict() pipeline entirely. This wasted ~400 MB × 2 servers. Fix: `setup()` is now a no-op. For Option C, `setup()` becomes the correct place to load the model again (inference workers handle predict()).
+
+**Verification target:** Both callers see `http≈80-120ms` (no CUDA queue wait).
 
 ### Previously Completed Payload Optimizations
 
@@ -79,11 +80,45 @@ Full notes in [`tyler_worldfusion_litserve_questions.md`](../../kb/raw/notes/tyl
 - **`workers_per_device=N`** was never considered — distributed path was untested when built. It is the correct fix.
 - **Compression bug** confirmed by Tyler: actor→LitServe HTTP path was missing `zlib`. Fixed (see below).
 
+## Option C Outcome (2026-04-06)
+
+Option C implemented and tested. batch=2 fires ~42% of ticks (110/261 requests). Findings:
+
+- **batch=1 inference**: ~67ms server-side. **batch=2 inference**: ~128ms server-side (2 agents, single forward pass).
+- **Client-observed http_ms**: vehicle ~185-218ms, consistently ~106ms above server total. RSU data from Option C run not yet confirmed (docker logs show pre-C data only).
+- **Root cause of the gap**: `multiprocessing.Manager` queue IPC. At 861KB payload, pickle + queue write + queue read both ways ≈ 100-120ms. This is irreducible in LitServe's `workers_per_device` architecture.
+- **Conclusion**: Option C eliminated CUDA serialization but exposed IPC as the new bottleneck. LitServe is the wrong tool for large binary payloads. **gRPC is the exit.**
+
+## In-Progress: WorldFusion gRPC Migration (Phases 1–5 Done)
+
+Plan: [`worldfusion_grpc_plan.md`](../../agent_plans/worldfusion_grpc_plan.md)
+
+**All implementation complete — pending verification run (Phase 6).**
+
+Files changed:
+- `ecav/protos/perception.proto` — added `WfRequest`, `WfResponse`, `ExtractWfFeatures` RPC; recompiled
+- `ecav/ml_manager/worldfusion_servicer.py` — NEW: `WorldFusionServicer` (in-process, no IPC)
+- `ecav/ml_manager/worldfusion_grpc_server.py` — NEW: standalone entry point; port 18002, `ThreadPoolExecutor(4)`
+- `ecav/core/sensing/perception/worldfusion_perception_manager.py` — gRPC endpoint detection (3-priority), `_extract_features_grpc()`, `use_grpc` branch in `run_step()`, `http_ms` → `grpc_ms`, channel close in `close()`
+- `ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py` — `_run_o5_batch_encoder()` uses `stub.ExtractWfFeatures()` instead of `session.post()`
+- `ecav/ml_manager/ml_manager.py` — `worldfusion_grpc_endpoint` attribute from config
+- `start_actors.sh` — starts `worldfusion_grpc_server.py` (port 18002, gRPC readiness probe)
+- `ecav/scenario_testing/config_yaml/openscenario_3_edge_worldfusion.yaml` — `worldfusion_grpc_endpoint: 'localhost:18002'` in ml_manager + both worldfusion_model sections
+
+**Verified (2026-04-06):** `grpc_ms ≈ server_total_ms + 5-8ms` across all ticks. IPC overhead (~106ms) fully eliminated.
+
+| Agent | grpc_ms | total_e2e_ms | vs LitServe |
+|-------|---------|--------------|-------------|
+| Vehicle | 73-81ms | 125-143ms | −55ms |
+| RSU (fast) | 82-90ms | 130-140ms | −240ms |
+| RSU (slow, GPU serial) | 130-153ms | 190-206ms | improved |
+
+RSU bimodal = two independent batch=1 gRPC calls racing the GPU in distributed mode. Not a transport issue — pure CUDA serialization. Fix is O5 sequential batch=2, lower priority.
+
 ## Immediate Next Steps
 
-1. **Phase 1**: Implement per-thread CUDA streams in `_extract_wf_features()` in `litserve_models.py`; add `stream_wait_ms` to log; run 30 ticks to verify both callers see ~100-120ms
-2. **Phase 2**: Strip YOLO from `litserve_models.py`, move model load into `setup()`, enable `workers_per_device=N` where N = `min(gpu_headroom, num_actors_with_sensors)` — see design note in plan
-3. **O5 sequential test**: Run `openscenario_3_edge_worldfusion` without `-d`; expect batch=2 and ~50% per-agent inference reduction
+1. **YOLO regression**: Run late fusion scenario to confirm YOLO gRPC still works after proto recompile.
+2. **O5 sequential test**: Run `openscenario_3_edge_worldfusion` without `-d`; batch=2 should fire and cut RSU inference ~50% by merging both agents' forward passes.
 
 ## TODO / Backlog
 
@@ -95,6 +130,12 @@ Full notes in [`tyler_worldfusion_litserve_questions.md`](../../kb/raw/notes/tyl
 
 | Date | Item |
 |------|------|
+| 2026-04-06 | WorldFusion gRPC migration: phases 1–5 complete (proto, servicer, grpc_server, PM client, edge O5, start_actors, YAML) — pending verification run |
+| 2026-04-06 | Option C implemented; batch=2 fires ~42% of ticks; IPC overhead (~106ms) identified as new bottleneck; gRPC migration planned |
+| 2026-04-06 | `asyncio.to_thread` fix for RSU event loop blocking (`ecloud_actor_client.py` line 425) |
+| 2026-04-06 | voxel_coords reindex fix in `_merge_wf_batches` (batch=2 scatter slot assignment) |
+| 2026-04-06 | LitServe `_prepare_request` monkey-patch for binary body (`application/octet-stream`) |
+| 2026-04-05 | Phase 2: WorldFusion-only LitServe server; YOLO stripped; `workers_per_device=N`; `--profile` mode |
 | 2026-04-05 | O8: zlib compression on actor→LitServe HTTP path (3 files: WF PM, edge manager O5, litserve server) |
 | 2026-04-05 | Tyler meeting: architecture confirmed, compression bug confirmed, early fusion ruled out |
 | 2026-04-05 | Diagnosed CUDA stream serialization as root cause of WorldFusion 400ms RSU latency |

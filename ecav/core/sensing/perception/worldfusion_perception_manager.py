@@ -28,7 +28,7 @@ _WF_TIMING_FIELDS = [
     'tick', 'mode', 'agent_type',
     'build_batch_ms',
     'to_numpy_ms', 'pack_ms', 'payload_bytes',
-    'http_ms',
+    'grpc_ms',
     'server_read_ms', 'server_decode_ms', 'server_inference_ms',
     'server_encode_ms', 'server_total_ms',
     'response_bytes', 'unpack_ms', 'to_tensor_ms',
@@ -83,22 +83,47 @@ class WorldFusionPerceptionManager(PerceptionManager):
         self._vp = SpVoxelPreprocessor(pre_config, train=False)
         print("[WorldFusion] SpVoxelPreprocessor initialized.")
 
-        # Determine litserve mode:
-        # 1. Explicit per-model config: litserve_endpoint in worldfusion_model
-        # 2. Global -l flag: cav_world.litserve → use ml_manager.worldfusion_endpoint
-        self.litserve_endpoint = model_config.get('litserve_endpoint', None)
+        # Remote endpoint resolution — gRPC takes priority over LitServe.
+        # gRPC: WF_GRPC_ENDPOINT env → worldfusion_grpc_endpoint YAML key → ml_manager attribute
+        self.grpc_endpoint = os.environ.get('WF_GRPC_ENDPOINT', None)
+        if self.grpc_endpoint is None:
+            self.grpc_endpoint = model_config.get('worldfusion_grpc_endpoint', None)
+        if self.grpc_endpoint is None and cav_world is not None and cav_world.ml_manager is not None:
+            self.grpc_endpoint = getattr(cav_world.ml_manager, 'worldfusion_grpc_endpoint', None)
+        self.use_grpc = self.grpc_endpoint is not None
+
+        # LitServe: WF_LITSERVE_ENDPOINT env → litserve_endpoint YAML key → global -l flag
+        self.litserve_endpoint = os.environ.get('WF_LITSERVE_ENDPOINT', None)
+        if self.litserve_endpoint is None:
+            self.litserve_endpoint = model_config.get('litserve_endpoint', None)
         if self.litserve_endpoint is None and cav_world is not None and getattr(cav_world, 'litserve', False):
             if cav_world.ml_manager is not None:
                 self.litserve_endpoint = getattr(cav_world.ml_manager, 'worldfusion_endpoint', 'http://localhost:18000')
+        self.use_litserve = self.litserve_endpoint is not None and not self.use_grpc
 
-        self.use_litserve = self.litserve_endpoint is not None
+        self._session = None
+        self._wf_channel = None
+        self._wf_stub = None
 
-        if self.use_litserve:
-            print(f"[WorldFusion] Using LitServe endpoint: {self.litserve_endpoint}")
+        if self.use_grpc:
+            import grpc
+            import perception_pb2_grpc as _pb2_grpc
+            _32MB = 32 * 1024 * 1024
+            self._wf_channel = grpc.insecure_channel(
+                self.grpc_endpoint,
+                options=[
+                    ("grpc.max_send_message_length",    _32MB),
+                    ("grpc.max_receive_message_length", _32MB),
+                ],
+            )
+            self._wf_stub = _pb2_grpc.PerceptionServiceStub(self._wf_channel)
             self.model = None
+            print(f"[WorldFusion] Using gRPC endpoint: {self.grpc_endpoint}")
+        elif self.use_litserve:
             self._session = make_session()
+            self.model = None
+            print(f"[WorldFusion] Using LitServe endpoint: {self.litserve_endpoint}")
         else:
-            self._session = None
             # Load the WorldFusion model locally for GPU feature extraction
             ckpt_path = pathlib.Path(model_config['checkpoint'])
             from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
@@ -168,8 +193,8 @@ class WorldFusionPerceptionManager(PerceptionManager):
         O5 phase 2: store spatial_features returned by the edge batch encoder.
         Called by WorldFusionEdge after splitting the batched LitServe response.
 
-        batch_timing : dict matching _WF_TIMING_FIELDS (http_ms, server_* etc.)
-                       covering the shared HTTP cost for the entire batch.
+        batch_timing : dict matching _WF_TIMING_FIELDS (grpc_ms, server_* etc.)
+                       covering the shared gRPC/HTTP cost for the entire batch.
         """
         self.feature_dict = feature_dict_cpu
         self.feature_map = self.feature_dict['spatial_features'].half()
@@ -292,7 +317,18 @@ class WorldFusionPerceptionManager(PerceptionManager):
         t_batch_end = _t.time()
         build_batch_ms = (t_batch_end - t_batch_start) * 1000.0
 
-        if self.use_litserve:
+        if self.use_grpc:
+            feature_dict_cpu, remote_timing = self._extract_features_grpc(batch)
+            t_step_end = _t.time()
+            self._timing.record({
+                'tick': self._tick,
+                'mode': 'distributed',
+                'agent_type': self._agent_type,
+                'build_batch_ms': round(build_batch_ms, 2),
+                **remote_timing,
+                'total_e2e_ms': round((t_step_end - t_batch_start) * 1000.0, 2),
+            })
+        elif self.use_litserve:
             # Send preprocessed batch to remote GPU server
             feature_dict_cpu, remote_timing = self._extract_features_remote(batch)
             t_step_end = _t.time()
@@ -321,7 +357,7 @@ class WorldFusionPerceptionManager(PerceptionManager):
                 'agent_type': self._agent_type,
                 'build_batch_ms': round(build_batch_ms, 2),
                 'to_numpy_ms': 0, 'pack_ms': 0, 'payload_bytes': 0,
-                'http_ms': 0,
+                'grpc_ms': 0,
                 'server_read_ms': 0, 'server_decode_ms': 0,
                 'server_inference_ms': round(local_ms, 2),
                 'server_encode_ms': 0, 'server_total_ms': 0,
@@ -449,14 +485,96 @@ class WorldFusionPerceptionManager(PerceptionManager):
         }
         return result_tensors, timing
 
+    def _extract_features_grpc(self, batch: Dict):
+        """
+        Send preprocessed batch to WorldFusion gRPC server for feature extraction.
+
+        Same encoding as _extract_features_remote (zlib+msgpack) — only the transport
+        changes. Server timing comes from WfResponse fields instead of HTTP headers.
+
+        Returns (result_tensors, timing_dict) matching _WF_TIMING_FIELDS.
+        """
+        import time as _t
+        import msgpack
+        import msgpack_numpy as m_np
+        import perception_pb2
+        m_np.patch()
+
+        t0 = _t.time()
+
+        def _tensors_to_numpy(obj):
+            if isinstance(obj, torch.Tensor):
+                return obj.contiguous().numpy()
+            if isinstance(obj, dict):
+                return {k: _tensors_to_numpy(v) for k, v in obj.items()}
+            return obj
+
+        batch_np = _tensors_to_numpy(batch)
+        if 'image_inputs' in batch_np and 'imgs' in batch_np['image_inputs']:
+            batch_np['image_inputs']['imgs'] = batch_np['image_inputs']['imgs'].astype(np.uint8)
+        t1 = _t.time()
+
+        payload = zlib.compress(msgpack.packb(batch_np, use_bin_type=True))
+        t2 = _t.time()
+
+        actor_id = int(getattr(self, 'id', 0) or 0)
+        response = self._wf_stub.ExtractWfFeatures(
+            perception_pb2.WfRequest(payload=payload, actor_id=actor_id),
+            timeout=30,
+        )
+        t3 = _t.time()
+
+        result = msgpack.unpackb(response.payload, raw=False)
+        t4 = _t.time()
+
+        result_tensors = {k: torch.from_numpy(v) for k, v in result.items()}
+        t5 = _t.time()
+
+        to_numpy_ms  = (t1 - t0) * 1000.0
+        pack_ms      = (t2 - t1) * 1000.0
+        grpc_ms      = (t3 - t2) * 1000.0
+        unpack_ms    = (t4 - t3) * 1000.0
+        to_tensor_ms = (t5 - t4) * 1000.0
+        total_ms     = (t5 - t0) * 1000.0
+
+        print(f"[WorldFusion gRPC {self._agent_type}] "
+              f"to_numpy={to_numpy_ms:.0f}ms | "
+              f"pack={pack_ms:.0f}ms ({len(payload)/1024:.0f}KB) | "
+              f"grpc={grpc_ms:.0f}ms "
+              f"(srv_unpack={response.unpack_ms:.0f} infer={response.inference_ms:.0f} "
+              f"pack={response.pack_ms:.0f} total={response.total_ms:.0f}ms) | "
+              f"unpack={unpack_ms:.0f}ms ({len(response.payload)/1024:.0f}KB) | "
+              f"to_tensor={to_tensor_ms:.0f}ms | "
+              f"total={total_ms:.0f}ms", flush=True)
+
+        timing = {
+            'to_numpy_ms':          round(to_numpy_ms, 2),
+            'pack_ms':              round(pack_ms, 2),
+            'payload_bytes':        len(payload),
+            'grpc_ms':              round(grpc_ms, 2),
+            'server_read_ms':       0,
+            'server_decode_ms':     round(response.unpack_ms, 2),
+            'server_inference_ms':  round(response.inference_ms, 2),
+            'server_encode_ms':     round(response.pack_ms, 2),
+            'server_total_ms':      round(response.total_ms, 2),
+            'response_bytes':       len(response.payload),
+            'unpack_ms':            round(unpack_ms, 2),
+            'to_tensor_ms':         round(to_tensor_ms, 2),
+            'total_e2e_ms':         round(total_ms, 2),
+        }
+        return result_tensors, timing
+
     def close(self):
-        """Flush timing CSV and release the HTTP session."""
+        """Flush timing CSV and release transport resources."""
         if len(self._timing) > 0:
             ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             agent_tag = 'rsu' if self.vehicle is None else 'vehicle'
             path = os.path.join('logs', f'wf_timing_{agent_tag}_{ts}.csv')
             self._timing.dump_csv(path)
             print(f"[WorldFusion] Timing CSV written ({len(self._timing)} rows): {path}")
+        if self._wf_channel is not None:
+            self._wf_channel.close()
+            self._wf_channel = None
         if self._session is not None:
             self._session.close()
             self._session = None

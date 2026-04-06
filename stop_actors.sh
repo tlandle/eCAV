@@ -59,9 +59,26 @@ fi
 
 echo ""
 echo "=========================================="
-echo "Stopping LitServe Server"
+echo "Stopping WorldFusion gRPC / LitServe Server"
 echo "=========================================="
 echo ""
+
+if pgrep -f "worldfusion_grpc_server" > /dev/null; then
+    echo "Stopping WorldFusion gRPC server..."
+    pkill -f "worldfusion_grpc_server"
+    sleep 2
+    if pgrep -f "worldfusion_grpc_server" > /dev/null; then
+        pkill -9 -f "worldfusion_grpc_server"
+        sleep 1
+    fi
+    if ! pgrep -f "worldfusion_grpc_server" > /dev/null; then
+        echo "✓ WorldFusion gRPC server stopped"
+    else
+        echo "⚠ Warning: WorldFusion gRPC server may still be running"
+    fi
+else
+    echo "WorldFusion gRPC server is not running."
+fi
 
 if pgrep -f "litserve_models" > /dev/null; then
     echo "Stopping LitServe inference server..."
@@ -76,8 +93,6 @@ if pgrep -f "litserve_models" > /dev/null; then
     else
         echo "⚠ Warning: LitServe processes may still be running"
     fi
-else
-    echo "LitServe is not running."
 fi
 
 echo ""
@@ -159,10 +174,10 @@ else
     echo "  No Carla processes running"
 fi
 echo ""
-echo "LitServe processes:"
-if pgrep -f "litserve_models" > /dev/null; then
-    pgrep -af "litserve_models"
+echo "WorldFusion gRPC / LitServe processes:"
+if pgrep -f "worldfusion_grpc_server\|litserve_models" > /dev/null; then
+    pgrep -af "worldfusion_grpc_server\|litserve_models"
 else
-    echo "  No LitServe processes running"
+    echo "  No WorldFusion gRPC / LitServe processes running"
 fi
 echo ""

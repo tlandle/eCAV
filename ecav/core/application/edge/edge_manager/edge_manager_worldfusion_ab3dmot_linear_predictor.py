@@ -1431,36 +1431,41 @@ class WorldFusionEdge(_BaseEdgeManager):
 
     def _run_o5_batch_encoder(self):
         """
-        O5: gather pending batches from all WorldFusion-litserve PMs, send one
-        batched HTTP POST to LitServe, and distribute spatial_features back.
+        O5: gather pending batches from all WorldFusion-gRPC PMs, send one
+        batched gRPC call to the WorldFusion server, and distribute
+        spatial_features back.
 
         Returns True if the batch was sent, False if skipped (no eligible PMs or
         no sensors ready yet).  When True, each PM's _features_extracted_this_tick
         is set so that the subsequent detect() calls skip per-agent extraction.
+
+        Borrows _wf_stub from ready[0] — all PMs connect to the same endpoint;
+        gRPC channels are thread-safe.
         """
         import msgpack
         import msgpack_numpy as m_np
         m_np.patch()
         import numpy as np
+        import perception_pb2
         from ecav.core.sensing.perception.worldfusion_perception_manager import (
             WorldFusionPerceptionManager)
 
-        # Collect all WF-litserve PMs (vehicles first, then RSUs — order must be
+        # Collect all WF-gRPC PMs (vehicles first, then RSUs — order must be
         # consistent between build_batch() and apply_features() splitting)
         wf_pms = []
         for vm in self.vehicle_manager_list:
             pm = vm.perception_manager
-            if isinstance(pm, WorldFusionPerceptionManager) and pm.use_litserve:
+            if isinstance(pm, WorldFusionPerceptionManager) and pm.use_grpc:
                 wf_pms.append(pm)
         for rsu in self.rsu_manager_list:
             pm = rsu.perception_manager
-            if isinstance(pm, WorldFusionPerceptionManager) and pm.use_litserve:
+            if isinstance(pm, WorldFusionPerceptionManager) and pm.use_grpc:
                 wf_pms.append(pm)
 
         if not wf_pms:
             return False
 
-        # Phase 1: build all batches (CPU only, no HTTP)
+        # Phase 1: build all batches (CPU only, no RPC)
         for pm in wf_pms:
             pm.build_batch()
 
@@ -1468,7 +1473,7 @@ class WorldFusionEdge(_BaseEdgeManager):
         if not ready:
             return False
 
-        # Phase 2: merge + numpy conversion + HTTP POST
+        # Phase 2: merge + numpy conversion + gRPC call
         t_merge = time.time()
         merged = self._merge_wf_batches([pm._pending_batch for pm in ready])
 
@@ -1489,52 +1494,40 @@ class WorldFusionEdge(_BaseEdgeManager):
         payload = zlib.compress(msgpack.packb(batch_np, use_bin_type=True))
         t_pack = time.time()
 
-        endpoint = ready[0].litserve_endpoint
-        session  = ready[0]._session
-        response = session.post(
-            f"{endpoint}/extract_features",
-            data=payload,
-            headers={
-                "Content-Type": "application/octet-stream",
-                "Content-Encoding": "zlib",
-            },
+        stub = ready[0]._wf_stub
+        response = stub.ExtractWfFeatures(
+            perception_pb2.WfRequest(payload=payload, actor_id=0),
             timeout=30,
         )
-        t_http = time.time()
+        t_grpc = time.time()
 
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"[WorldFusion O5] LitServe error: {response.status_code} {response.text[:200]}")
-
-        result = msgpack.unpackb(response.content, raw=False)
+        result = msgpack.unpackb(response.payload, raw=False)
         t_unpack = time.time()
 
         # spatial_features shape: (N, C, H, W) — split on dim 0
         spatial_features = torch.from_numpy(result['spatial_features'])
 
-        def _hdr(name):
-            return float(response.headers.get(name, '0'))
-
         timing = {
             'to_numpy_ms':         0,
-            'pack_ms':             round((t_pack   - t_merge) * 1000.0, 2),
+            'pack_ms':             round((t_pack  - t_merge) * 1000.0, 2),
             'payload_bytes':       len(payload),
-            'http_ms':             round((t_http   - t_pack)  * 1000.0, 2),
-            'server_read_ms':      _hdr('X-Server-Read-Ms'),
-            'server_decode_ms':    _hdr('X-Server-Decode-Ms'),
-            'server_inference_ms': _hdr('X-Server-Inference-Ms'),
-            'server_encode_ms':    _hdr('X-Server-Encode-Ms'),
-            'server_total_ms':     _hdr('X-Server-Total-Ms'),
-            'response_bytes':      len(response.content),
-            'unpack_ms':           round((t_unpack - t_http)  * 1000.0, 2),
+            'grpc_ms':             round((t_grpc  - t_pack)  * 1000.0, 2),
+            'server_read_ms':      0,
+            'server_decode_ms':    round(response.unpack_ms, 2),
+            'server_inference_ms': round(response.inference_ms, 2),
+            'server_encode_ms':    round(response.pack_ms, 2),
+            'server_total_ms':     round(response.total_ms, 2),
+            'response_bytes':      len(response.payload),
+            'unpack_ms':           round((t_unpack - t_grpc) * 1000.0, 2),
             'to_tensor_ms':        0,
             'total_e2e_ms':        round((t_unpack - t_merge) * 1000.0, 2),
         }
 
         print(f"[WorldFusion O5] batch={len(ready)} | "
               f"merge+pack={((t_pack-t_merge)*1000):.0f}ms ({len(payload)/1024:.0f}KB) | "
-              f"http={((t_http-t_pack)*1000):.0f}ms | "
-              f"unpack={((t_unpack-t_http)*1000):.0f}ms | "
+              f"grpc={((t_grpc-t_pack)*1000):.0f}ms "
+              f"(srv_total={response.total_ms:.0f}ms) | "
+              f"unpack={((t_unpack-t_grpc)*1000):.0f}ms | "
               f"total={((t_unpack-t_merge)*1000):.0f}ms", flush=True)
 
         # Phase 3: distribute features back to each PM

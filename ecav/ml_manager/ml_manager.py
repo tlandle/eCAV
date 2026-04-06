@@ -106,9 +106,12 @@ class MLManager(object):
         # gRPC perception endpoint
         yolo_endpoint = self.config.get('yolo_endpoint', 'localhost:18001')
         self.worldfusion_endpoint = self.config.get('worldfusion_endpoint', 'http://localhost:18000')
+        self.worldfusion_grpc_endpoint = self.config.get('worldfusion_grpc_endpoint', None)
 
         print(f"[ML Manager] YOLO endpoint: {yolo_endpoint}")
         print(f"[ML Manager] WorldFusion endpoint: {self.worldfusion_endpoint}")
+        if self.worldfusion_grpc_endpoint:
+            print(f"[ML Manager] WorldFusion gRPC endpoint: {self.worldfusion_grpc_endpoint}")
 
         self._grpc_channel = grpc.insecure_channel(
             target=yolo_endpoint,

@@ -6,7 +6,7 @@ read -p "Enter number of ego vehicles: " num_ego
 read -p "Enter number of RSUs: " num_rsu
 read -p "Enter number of edges (0 if edge-less scenario): " num_edges
 read -p "Use ML (Y/n)? " use_ml
-read -p "Use LitServe for distributed ML inference (Y/n)? " use_litserve
+read -p "Use WorldFusion gRPC server for distributed ML inference (Y/n)? " use_litserve
 read -p "Rebuild containers (Y/n)? " rebuild
 
 # Validate inputs
@@ -92,28 +92,27 @@ else
 fi
 echo ""
 
-# Start LitServe server if requested
-LITSERVE_PID=""
+# Start WorldFusion gRPC server if requested
+WF_GRPC_PID=""
 if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     if [[ "$use_ml" != "Y" && "$use_ml" != "y" ]]; then
-        echo "ERROR: LitServe requires ML to be enabled. Please answer 'Y' to 'Use ML'."
+        echo "ERROR: WorldFusion gRPC server requires ML to be enabled. Please answer 'Y' to 'Use ML'."
         exit 1
     fi
-    echo "Starting LitServe inference server..."
+    echo "Starting WorldFusion gRPC inference server (port 18002)..."
     _CONDA_ROOT="/home/jordan/anaconda3"
-    LITSERVE_LOG=$(mktemp /tmp/litserve.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python ecav/ml_manager/litserve_models.py > '$LITSERVE_LOG' 2>&1" &
-    LITSERVE_PID=$!
-    echo "  LitServe PID: $LITSERVE_PID"
-    echo "  Log file: $LITSERVE_LOG"
-    echo "  Waiting for LitServe to be ready on port 18000..."
+    WF_GRPC_LOG=$(mktemp /tmp/worldfusion_grpc.XXXXXX.log)
+    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/worldfusion_grpc_server.py > '$WF_GRPC_LOG' 2>&1" &
+    WF_GRPC_PID=$!
+    echo "  WorldFusion gRPC PID: $WF_GRPC_PID"
+    echo "  Log file: $WF_GRPC_LOG"
+    echo "  Waiting for WorldFusion gRPC server to be ready on port 18002..."
 
-    timeout=60
+    timeout=90
     elapsed=0
     while [[ $elapsed -lt $timeout ]]; do
-        if curl -s --max-time 1 http://localhost:18000 > /dev/null 2>&1 || \
-           curl -s --max-time 1 http://localhost:18000/docs > /dev/null 2>&1; then
-            echo "  ✓ LitServe is ready"
+        if conda run -n opencda python -c "import grpc; c=grpc.insecure_channel('localhost:18002'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
+            echo "  ✓ WorldFusion gRPC server is ready"
             break
         fi
         sleep 2
@@ -123,8 +122,8 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     echo ""
 
     if [[ $elapsed -ge $timeout ]]; then
-        echo "ERROR: LitServe did not become ready within ${timeout}s."
-        echo "Check logs: tail -f $LITSERVE_LOG"
+        echo "ERROR: WorldFusion gRPC server did not become ready within ${timeout}s."
+        echo "Check logs: tail -f $WF_GRPC_LOG"
         exit 1
     fi
 fi
@@ -506,25 +505,25 @@ echo ""
 # Clean up temporary error tracking file
 rm -f "$REPORTED_ERRORS_FILE" /tmp/ecav_errors_all.txt
 
-# Stop LitServe server if it was started
-if [[ -n "$LITSERVE_PID" ]]; then
+# Stop WorldFusion gRPC server if it was started
+if [[ -n "$WF_GRPC_PID" ]]; then
     echo ""
     echo "=========================================="
-    echo "Stopping LitServe Server"
+    echo "Stopping WorldFusion gRPC Server"
     echo "=========================================="
-    if kill -0 "$LITSERVE_PID" 2>/dev/null; then
-        echo "Stopping LitServe (PID: $LITSERVE_PID)..."
-        kill "$LITSERVE_PID"
+    if kill -0 "$WF_GRPC_PID" 2>/dev/null; then
+        echo "Stopping WorldFusion gRPC server (PID: $WF_GRPC_PID)..."
+        kill "$WF_GRPC_PID"
         sleep 2
-        if kill -0 "$LITSERVE_PID" 2>/dev/null; then
-            kill -9 "$LITSERVE_PID"
+        if kill -0 "$WF_GRPC_PID" 2>/dev/null; then
+            kill -9 "$WF_GRPC_PID"
             sleep 1
         fi
-        echo "✓ LitServe stopped"
+        echo "✓ WorldFusion gRPC server stopped"
     else
-        echo "LitServe process already exited."
+        echo "WorldFusion gRPC server process already exited."
     fi
-    # Clean up any child processes (uvicorn workers)
+    pkill -f "worldfusion_grpc_server" 2>/dev/null || true
     pkill -f "litserve_models" 2>/dev/null || true
 fi
 
