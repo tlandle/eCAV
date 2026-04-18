@@ -49,6 +49,27 @@ Both fusion modes confirmed working end-to-end in distributed mode, with product
 
 ## WIP / Exploratory
 
+### Multi-Edge Locale & Handoff Architecture (2026-04-18)
+
+Architecture plan written. See [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md).
+
+**Scope:** Two interrelated problems — locale ownership (how an edge claims geographic CARLA space) and vehicle handoff (how vehicles transfer between edges when crossing locale boundaries).
+
+**Locale v1:** Rectangular bounding box (min/max XYZ in YAML `locale_bounds` field). Spawn-time geometric assignment replaces explicit vehicle lists. Transition zone width is a research variable.
+
+**Handoff models (all three to implement and compare):**
+- **Model C (first):** Orchestrator-driven via CARLA direct position query. Lowest cost; cleanest experimental baseline.
+- **Model A (second):** Vehicle-driven; most V2X deployment-realistic.
+- **Model B (third):** Edge-driven with peer-to-peer channels; warmest handoff; most complex.
+
+**State transfer:** Cold start in v1 (handoff gap is the research signal). Warm handoff (state serialization) is Phase 2 and a core Paper 2 research variable.
+
+**Paper mapping:**
+- Paper 2: Multi-edge handoff characterization (handoff gap, cold vs. warm, Model A/B/C comparison, latency stacking)
+- Paper 3: Scaling (N-edge tick throughput, simultaneous crossings, city-block grid)
+
+**Status:** Plan written; implementation not yet started. Next step: Phase 0 (locale YAML schema + `compute_edge_mappings()` geometric rewrite).
+
 ### Azure Distributed Deployment (2026-04-06)
 
 Planning phase. See [azure_deploy.md](../../agent_plans/azure_deploy.md).
