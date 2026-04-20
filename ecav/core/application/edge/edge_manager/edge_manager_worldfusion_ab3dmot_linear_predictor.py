@@ -667,7 +667,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         L = len(poses)
         max_cav = self.hypes['train_params']['max_cav']
 
-        # Convert poses to [x, y, z, roll, yaw, pitch] format
+        # Convert poses to [x, y, z, roll, yaw, pitch] format.
+        # Agent 0 is the RSU (world anchor). Agents 1..L-1 are CAVs.
         pose_list = [
             [p.location.x, p.location.y, p.location.z,
              p.rotation.roll, p.rotation.yaw, p.rotation.pitch]
@@ -677,41 +678,32 @@ class WorldFusionEdge(_BaseEdgeManager):
         # Initialize with identity matrices
         pairwise = np.tile(np.eye(4), (1, max_cav, max_cav, 1, 1))
 
-        # Compute transforms from world anchor to each agent
-        # T_anchor_to_j = x1_to_x2(world_anchor, pose_j)
-        T_to_anchor = []
+        # Compute each agent's agent-to-world transformation matrix.
+        # This matches the Multi-V2X dataset convention where each agent
+        # stores a transformation_matrix that maps agent-local → world.
+        T_agent_to_world = []
         for j in range(L):
-            T_j_to_anchor = transformation_utils.x1_to_x2(
-                pose_list[j],       # FROM agent j
-                self.world_anchor   # TO world anchor
+            # x1_to_x2(src, dst) produces the 4x4 matrix that transforms
+            # points from src frame to dst frame.
+            # agent-to-world: src = agent pose, dst = world origin
+            T = transformation_utils.x1_to_x2(
+                pose_list[j],                      # FROM agent j
+                [0, 0, 0, 0, 0, 0]                # TO world origin
             )
-            T_to_anchor.append(T_j_to_anchor)
+            T_agent_to_world.append(T)
 
-            # DEBUG: Print transform details
-            rot_deg = np.degrees(np.arctan2(T_j_to_anchor[1, 0], T_j_to_anchor[0, 0]))
-            tx, ty = T_j_to_anchor[0, 3], T_j_to_anchor[1, 3]
-            print(f"[XFORM DEBUG] T_agent{j}_to_anchor: trans=({tx:.2f}, {ty:.2f}), rot={rot_deg:.1f}°")
-            print(f"[XFORM DEBUG]   agent{j} pose: x={pose_list[j][0]:.2f}, y={pose_list[j][1]:.2f}, yaw={pose_list[j][4]:.2f}°")
-            print(f"[XFORM DEBUG]   anchor pose: x={self.world_anchor[0]:.2f}, y={self.world_anchor[1]:.2f}, yaw={self.world_anchor[4]:.2f}°")
-
-        # Row 0 contains transforms from world anchor to each agent (for warping to world frame)
-        for j in range(L):
-            T_anchor_to_j = np.linalg.inv(T_to_anchor[j])
-            pairwise[0, 0, j] = T_anchor_to_j
-
-            # DEBUG: Print inverted transform
-            rot_deg = np.degrees(np.arctan2(T_anchor_to_j[1, 0], T_anchor_to_j[0, 0]))
-            tx, ty = T_anchor_to_j[0, 3], T_anchor_to_j[1, 3]
-            print(f"[XFORM DEBUG] T_anchor_to_agent{j}: trans=({tx:.2f}, {ty:.2f}), rot={rot_deg:.1f}°")
-
-        # Fill rest of matrix with standard pairwise transforms
-        for i in range(1, L):
+        # Fill pairwise matrix exactly as the dataset does:
+        # pairwise[i,j] = inv(T_j_to_world) @ T_i_to_world
+        # This transforms points from agent i's frame to agent j's frame.
+        for i in range(L):
             for j in range(L):
                 if i == j:
                     pairwise[0, i, j] = np.eye(4)
                 else:
-                    T_i_to_j = np.linalg.inv(T_to_anchor[j]) @ T_to_anchor[i]
-                    pairwise[0, i, j] = T_i_to_j
+                    pairwise[0, i, j] = (
+                        np.linalg.inv(T_agent_to_world[j])
+                        @ T_agent_to_world[i]
+                    )
 
         return torch.from_numpy(pairwise).float().cuda()
 
@@ -733,14 +725,16 @@ class WorldFusionEdge(_BaseEdgeManager):
         # to avoid falling back to VoxelPostprocessor (see lines 191-206)
         anchor_box_np = self.post_processor.generate_anchor_box()
 
-        # lidar_pose: array of agent poses, shape (N, 6) where 6 = [x,y,z,roll,yaw,pitch]
-        lidar_pose_np = np.array([self.world_anchor])  # Use world anchor as reference pose
+        # lidar_pose: use origin since features are fused in RSU-local frame
+        # and anchor boxes are generated centered at origin. The RSU world
+        # position offset is added after corner_to_center.
+        lidar_pose_np = np.array([[0, 0, 0, 0, 0, 0]])
 
         data_dict_for_post = {
             'ego': {
                 'anchor_box': torch.from_numpy(anchor_box_np).cuda(),
                 'transformation_matrix': torch.eye(4).cuda(),
-                'world_anchor': [self.world_anchor],  # List containing the anchor pose
+                'world_anchor': [[0, 0, 0, 0, 0, 0]],  # Origin: features are in RSU-local frame
                 'lidar_pose': lidar_pose_np,  # Agent poses array
             }
         }
@@ -823,19 +817,19 @@ class WorldFusionEdge(_BaseEdgeManager):
             print(f"[CARLA ACTORS] Error: {e}")
             traceback.print_exc()
 
-        # Model output is ALREADY in CARLA's coordinate convention (left-handed, Y right)
-        # No coordinate flip needed - just add anchor offset
-        # (Previous Y/yaw negation was incorrect)
-
-        # Now add world anchor offset to get CARLA world coordinates
-        boxes_7dof[:, 0] += self.world_anchor[0]  # x
-        boxes_7dof[:, 1] += self.world_anchor[1]  # y
-        boxes_7dof[:, 2] += self.world_anchor[2]  # z
-
-        # Debug: print world coordinates AFTER adding anchor offset
-        for i in range(min(len(boxes_7dof), 3)):
-            world_x, world_y, world_yaw = boxes_7dof[i, 0], boxes_7dof[i, 1], boxes_7dof[i, 6]
-            print(f"[COORD DEBUG] Det {i} CARLA WORLD: x={world_x:.2f}, y={world_y:.2f}, yaw={np.degrees(world_yaw):.1f}deg (should match vehicle CARLA pos)")
+        # Detections are in the RSU's local frame (agent 0). To convert to
+        # CARLA world coordinates, add the RSU's actual world position.
+        # Use the RSU pose from the latest tick, not the static world_anchor
+        # config, since the RSU localizer reports the actual position.
+        rsu_pose = self.world_anchor  # fallback
+        if self.rsu_manager_list:
+            rsu_loc = self.rsu_manager_list[0].localizer.get_ego_pos()
+            if rsu_loc is not None:
+                rsu_pose = [rsu_loc.location.x, rsu_loc.location.y,
+                            rsu_loc.location.z, 0, rsu_loc.rotation.yaw, 0]
+        boxes_7dof[:, 0] += rsu_pose[0]
+        boxes_7dof[:, 1] += rsu_pose[1]
+        boxes_7dof[:, 2] += rsu_pose[2]
 
         # Reorder columns for AB3DMOT's required format (h,w,l,x,y,z,ry,score)
         # Score is appended as column 8 so Box3D.array2bbox_raw sets bbox.s correctly;

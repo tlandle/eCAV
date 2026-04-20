@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 _PAST_FRAMES = 10       # 10 past frames at 10Hz
 _TIME_INTERVAL = 0.1    # 10Hz
 _FUTURE_FRAMES = 50     # 5s at 10Hz
-_MIN_HIST_TICKS = 22    # 11 frames at 10Hz = 22 ticks at 20Hz
+_MIN_HIST_TICKS = 5     # lowered from 22 for compatibility with sparse detections
 _SUBSAMPLE = 2          # 20Hz -> 10Hz
 _MIN_SPEED_MPS = 1.0    # stationary gate
 
