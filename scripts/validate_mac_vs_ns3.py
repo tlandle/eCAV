@@ -54,7 +54,7 @@ def analytical_prr(N, M):
 def run_sbsps_sweep(N_values, M, num_ticks=10000, p_keep=0.4,
                     p_loss_base=0.02, seed=42):
     """Run SB-SPS model for each N and return PRR + burst stats."""
-    from opencda.core.application.edge.latency.mac_model import SbSpsMac
+    from ecav.core.application.edge.latency.mac_model import SbSpsMac
 
     results = []
     for N in N_values:
@@ -226,7 +226,7 @@ def main():
             hist = r.get('burst_histogram', {})
             if not hist:
                 # Re-run to get histogram (the summary didn't store raw)
-                from opencda.core.application.edge.latency.mac_model import SbSpsMac
+                from ecav.core.application.edge.latency.mac_model import SbSpsMac
                 mac = SbSpsMac(M=M_ref, p_keep=args.p_keep,
                                p_loss_base=args.p_loss_base, seed=args.seed)
                 senders = list(range(r['N']))

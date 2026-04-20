@@ -20,10 +20,10 @@ Usage:
     python scripts/generate_multi_ego_scenario.py --num-egos 16 --stagger 15
 
 Output:
-    opencda/scenario_testing/config_yaml/openscenario_3_edge_late_fusion_{N}ego.yaml
-    opencda/scenario_testing/scenarios/scenario_3_{N}ego.xml
-    opencda/scenario_testing/scenarios/scenario_3_{N}ego.py
-    opencda/scenario_testing/openscenario_3_edge_late_fusion_{N}ego.py
+    ecav/scenario_testing/config_yaml/openscenario_3_edge_late_fusion_{N}ego.yaml
+    ecav/scenario_testing/scenarios/scenario_3_{N}ego.xml
+    ecav/scenario_testing/scenarios/scenario_3_{N}ego.py
+    ecav/scenario_testing/openscenario_3_edge_late_fusion_{N}ego.py
 """
 
 import argparse
@@ -34,7 +34,7 @@ from pathlib import Path
 from textwrap import dedent, indent
 
 ROOT = Path(__file__).resolve().parent.parent
-SCENARIO_DIR = ROOT / "opencda" / "scenario_testing"
+SCENARIO_DIR = ROOT / "ecav" / "scenario_testing"
 CONFIG_DIR = SCENARIO_DIR / "config_yaml"
 SCENES_DIR = SCENARIO_DIR / "scenarios"
 
@@ -413,8 +413,8 @@ scenario_runner:
   town: town03
   scenario: Scenario_3
   num_actors: 2
-  configFile: opencda/scenario_testing/scenarios/scenario_3.xml
-  additionalScenario: opencda/scenario_testing/scenarios/scenario_3.py
+  configFile: ecav/scenario_testing/scenarios/scenario_3.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_3.py
   host: *host
   port: *port
   timeout: 10
@@ -640,11 +640,11 @@ import asyncio
 
 import carla
 import scenario_runner.scenario_runner as sr
-import opencda.scenario_testing.utils.sim_api as sim_api
-from opencda.core.common.cav_world import CavWorld
-from opencda.scenario_testing.evaluations.evaluate_manager import \\
+import ecav.scenario_testing.utils.sim_api as sim_api
+from ecav.core.common.cav_world import CavWorld
+from ecav.scenario_testing.evaluations.evaluate_manager import \\
     EvaluationManager
-from opencda.scenario_testing.utils.yaml_utils import add_current_time
+from ecav.scenario_testing.utils.yaml_utils import add_current_time
 
 import ecloud_pb2 as ecloud
 

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 """
-Paper 1: Real-data plots aligned to the synthetic figure layout.
+Safety Envelope paper: aligned per-ego figure pipeline.
 
-Generates the SAME figures as paper1_synthetic_plots.py but from real
-experiment data. Uses load_sweep() from paper1_real_data_plots.py for
-data loading (focal-ego-only, episode-based counting, post-hoc
-reclassification).
+Generates the v37 paper figures from simulation_metrics.json sweeps.
+Uses load_sweep() from paper1_real_data_plots.py for data loading
+(focal-ego-only, episode-based counting, post-hoc reclassification).
 
 Usage:
     python3 paper1_real_aligned_plots.py [sweep_dir1] [sweep_dir2] ...
@@ -23,7 +22,7 @@ from collections import defaultdict
 sys.path.insert(0, os.path.dirname(__file__))
 from paper1_real_data_plots import load_sweep, get_latencies, get_ego_counts
 
-# ── Style constants (match synthetic script exactly) ─────────────────
+# ── Style constants ──────────────────────────────────────────────────
 plt.rcParams.update({
     'font.size': 9, 'axes.labelsize': 9, 'axes.titlesize': 10,
     'legend.fontsize': 7, 'xtick.labelsize': 8, 'ytick.labelsize': 8,
@@ -34,7 +33,7 @@ plt.rcParams.update({
 FIG_1COL = (3.35, 2.2)
 FIG_2COL = (7.0, 2.6)
 
-# ── Config key system (matches synthetic) ────────────────────────────
+# ── Config key system ────────────────────────────────────────────────
 # Oracle is a single config (no on/off distinction).
 MANAGER_NAMES = ['oracle', 'late_fusion', 'vips']
 MANAGER_LABELS = {'oracle': 'Oracle', 'late_fusion': 'Late Fusion', 'vips': 'VIPS'}
@@ -68,7 +67,7 @@ MGR_MAP = {
 # Order for iterating configs in plots
 CONFIG_ORDER = ['oracle', 'lf_on', 'lf_off', 'vips_on', 'vips_off']
 
-OUT = os.path.join(os.path.dirname(__file__), 'paper1_figures_real_aligned')
+OUT = os.path.join(os.path.dirname(__file__), 'figures_real_aligned')
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -412,7 +411,7 @@ def fig6_multi_ego_scaling(groups):
         k[2] for k in groups
         if k[3] is not None and k[3] > 1
     ))
-    # Prefer 0, 200, 400 to match synthetic
+    # Prefer 0, 200, 400 ms as representative operating points
     rep_lats = [l for l in [0, 200, 400] if l in multi_lats_available]
     if not rep_lats:
         rep_lats = multi_lats_available[:3]
@@ -423,7 +422,7 @@ def fig6_multi_ego_scaling(groups):
 
     mgr = 'late_fusion'
 
-    # Match synthetic: S_op=blue, S_ghost=red; solid=SBA ON, dashed=SBA OFF
+    # S_op=blue, S_ghost=red; solid=SBA ON, dashed=SBA OFF
     met_cfg = [
         ('S_op',    'o', r'$S_{op}$',    '#1f77b4'),
         ('S_ghost', 's', r'$S_{ghost}$', '#d62728'),
@@ -606,7 +605,7 @@ def fig12_system_overhead(groups, ego_count=None):
 # ═════════════════════════════════════════════════════════════════════
 def fig14_ego_uniqueness(groups):
     """Ego-uniqueness violation rate vs ego count. SBA on/off overlaid.
-    Matches synthetic plot structure: LF, LF+SBA, Oracle."""
+    Overlays LF, LF+SBA, and Oracle on a single axis."""
     ego_counts = sorted(set(k[3] for k in groups if k[3] is not None))
     if len(ego_counts) < 2:
         print("  Skipping fig14 (need multi-ego data)")
@@ -739,7 +738,7 @@ def print_summary(groups):
 # MAIN
 # ═════════════════════════════════════════════════════════════════════
 if __name__ == '__main__':
-    EVAL_BASE = "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/opencda/scenario_testing/evaluation_outputs"
+    EVAL_BASE = "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/ecav/scenario_testing/evaluation_outputs"
 
     # Default sweep directories (March 2026 sweep)
     SWEEP_DIRS = [

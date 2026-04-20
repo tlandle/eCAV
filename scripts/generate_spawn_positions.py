@@ -3,7 +3,7 @@ import random
 import os
 from agents.navigation.global_route_planner import GlobalRoutePlanner
 from jinja2 import FileSystemLoader, Environment
-from opencda.scenario_testing.utils.yaml_utils import load_yaml
+from ecav.scenario_testing.utils.yaml_utils import load_yaml
 
 # Add a seed value for random number generation
 random.seed(42)
@@ -106,7 +106,7 @@ env = Environment(loader=FileSystemLoader(template_dir))
 template = env.get_template(template_file)
 output_yaml = template.render(vehicles=vehicles)
 
-output_file_name = f"./opencda/scenario_testing/config_yaml/ecloud_4lane_dist_{num_cars}_car.yaml"
+output_file_name = f"./ecav/scenario_testing/config_yaml/ecloud_4lane_dist_{num_cars}_car.yaml"
 with open(output_file_name, "w") as file:
     file.write(output_yaml)
 
@@ -114,7 +114,7 @@ print(f"Generated YAML file with {num_cars} vehicles: {output_file_name}")
 
 # Also create a copy of the chosen template
 template_python_file_name = f"{template_file.rsplit('.', 1)[0]}.py"
-output_py_file_name = f"./opencda/scenario_testing/ecloud_4lane_dist_{num_cars}_car.py"
+output_py_file_name = f"./ecav/scenario_testing/ecloud_4lane_dist_{num_cars}_car.py"
 with open(f'{template_dir}/{template_python_file_name}', 'r') as source:
     with open(output_py_file_name, 'w') as target:
         target.write(source.read())
