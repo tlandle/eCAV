@@ -126,18 +126,31 @@ class WorldFusionPerceptionManager(PerceptionManager):
             self.model = None
             print(f"[WorldFusion] Using LitServe endpoint: {self.litserve_endpoint}")
         else:
-            # Load the WorldFusion model locally for GPU feature extraction
-            ckpt_path = pathlib.Path(model_config['checkpoint'])
-            from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
-            self.model = PointPillarWorldFusion(self.hypes['model']['args']).to(self.device).eval()
-            print("[WorldFusion] Model created successfully.")
+            # Share model across perception managers via cav_world to avoid
+            # loading duplicate copies on GPU.
+            shared = None
+            if cav_world is not None:
+                shared = getattr(cav_world, '_worldfusion_shared_model', None)
 
-            epoch, self.model = train_utils.load_model(
-                str(ckpt_path.parent),
-                self.model,
-                epoch=int(str(ckpt_path.name).split('epoch')[-1].split('.')[0])
-            )
-            print(f"[WorldFusion] Loaded model weights from epoch {epoch}.")
+            if shared is not None:
+                self.model = shared
+                print("[WorldFusion] Reusing shared model from cav_world.")
+            else:
+                ckpt_path = pathlib.Path(model_config['checkpoint'])
+                from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
+                self.model = PointPillarWorldFusion(self.hypes['model']['args']).to(self.device).eval()
+                print("[WorldFusion] Model created successfully.")
+
+                epoch, self.model = train_utils.load_model(
+                    str(ckpt_path.parent),
+                    self.model,
+                    epoch=int(str(ckpt_path.name).split('epoch')[-1].split('.')[0])
+                )
+                print(f"[WorldFusion] Loaded model weights from epoch {epoch}.")
+
+                if cav_world is not None:
+                    cav_world._worldfusion_shared_model = self.model
+                    print("[WorldFusion] Model stored on cav_world for sharing.")
 
         # Feature dictionary - only stores spatial_features for edge transmission
         self.feature_dict = None
@@ -163,8 +176,9 @@ class WorldFusionPerceptionManager(PerceptionManager):
         """
         lidar_ready = self.lidar and self.lidar.data is not None
         cams_ready = self.rgb_camera and all(c.image is not None for c in self.rgb_camera)
+        has_cameras = self.rgb_camera and len(self.rgb_camera) > 0
 
-        if lidar_ready and cams_ready:
+        if lidar_ready and (cams_ready or not has_cameras):
             if self._features_extracted_this_tick:
                 # O5: features already set by apply_features() from the edge batch encoder
                 self._features_extracted_this_tick = False
@@ -601,8 +615,9 @@ class WorldFusionPerceptionManager(PerceptionManager):
         }
         bd = sensor.scatter(sensor.pillar_vfe(bd))
 
-        # Camera branch (if image_inputs available)
-        if 'image_inputs' in batch and batch['image_inputs'] is not None:
+        # Camera branch (if model supports it and image_inputs available)
+        if (sensor.use_camera and 'image_inputs' in batch
+                and batch['image_inputs'] is not None):
             from einops import rearrange
             imgs = batch['image_inputs']['imgs']
             B, N, C, imH, imW = imgs.shape
