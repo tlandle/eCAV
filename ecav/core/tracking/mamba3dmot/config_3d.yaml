@@ -1,0 +1,34 @@
+dataset:
+  anno_path: null  # set at runtime
+  window_size: 12
+  manner: 'diff'
+  skip_sample: 1
+  scale_factor: 1.0  # 3D coords in meters, no scaling needed
+  scale_factor_diff: 1.0
+
+train:
+  model: 'MambaTrack'
+  batch_size: 64
+  optimizer: 'adam'
+  lr0: 0.0
+  lr_scheduler: 'transformer'
+  epochs: 50
+  q: 10
+  d_m: 512
+  d_state: 16
+  L: 3
+  box_dim: 7  # 3D: [x, y, z, l, w, h, yaw]
+  avg_pool_out_dim:
+    - 1
+    - 128
+  pred_head_dims:
+    - 64
+    - 7  # 3D output
+  save_period: 5
+
+inference:
+  filter_thresh: 0.2
+  new_track_thresh: 0.6
+  enable_time_thresh: 5
+  max_window: 10
+  max_time_lost: 30
