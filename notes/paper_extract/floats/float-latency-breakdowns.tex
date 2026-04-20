@@ -1,0 +1,36 @@
+\begin{figure*}[t]
+    \centering
+\captionsetup[subfigure]{skip=-15pt}
+    % --- SUBFIGURE (a) ---
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/box_totals.png}
+        \caption{Overall Latency Breakdown.}
+        \label{fig:box_totals}
+    \end{subfigure}\hfill % NO blank line after this
+    % --- SUBFIGURE (b) ---
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/box_vehicle.png}
+        \caption{Vehicle-Side Components.}
+        \label{fig:box_vehicle}
+    \end{subfigure}\hfill % NO blank line after this
+    % --- SUBFIGURE (c) ---
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/box_edge.png}
+        \caption{Edge-Side Components.}
+        \label{fig:box_edge}
+    \end{subfigure}\hfill % NO blank line after this
+    % --- SUBFIGURE (d) ---
+    \begin{subfigure}[b]{0.24\textwidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/edge_latency_compare_box.png}
+        \caption{Edge Compute Cost.}
+        \label{fig:edge_compute_cost}
+    \end{subfigure}
+    % All subfigures are now on a "single line" in the code.
+    %\vspace{-3mm}
+    \caption{Processing-time breakdown of the end-to-end perception pipeline. (a) End-to-end latency is dominated by network and on-vehicle processing. (b) On-vehicle, perception (YOLOv5) is the main contributor. (c) On-edge, the tracker (AB3DMOT) is the main contributor. (d) The overhead of our proposed Beacon-Edge protocol is negligible ($\sim$0.2ms).}
+    \label{fig:latency_breakdown_combined}
+\end{figure*}

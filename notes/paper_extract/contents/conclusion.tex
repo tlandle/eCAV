@@ -1,0 +1,8 @@
+\section{Conclusion}
+\label{sec:conclusion}
+
+This paper provides a quantitative characterization of the safety envelope for edge-assisted autonomous driving. Using trace-driven, closed-loop experiments, we measure a sharp logic-induced failure threshold at \( \sim 100\text{--}150\,\mathrm{ms} \) end-to-end latency, and, once that confound is removed, we empirically expose the \emph{physical} boundary at \( \sim 300\text{--}400\,\mathrm{ms} \) where vehicle dynamics constrain avoidance. Thus, we distinguish the first safety limit (state-consistency cliff) from the ultimate limit (time-to-react), and we report both as concrete, reproducible operating boundaries.
+
+Self-beacon anchoring expands the envelope by enforcing an ego-uniqueness invariant at the edge. It eliminates self-ghosting, restores stable operation across moderate delays, and yields a ${>}\!2{\times}$ increase in the safe latency range. A single-source oracle baseline confirms the diagnosis: it produces zero self-ghost events at all tested latencies. Anchoring sustains this expanded envelope as the number of participating vehicles scales from 1 to 16. These measured boundaries provide a concrete basis for setting end-to-end latency targets for edge-assisted autonomy.
+
+\noindent\textbf{Key finding:} the primary safety boundary in edge-assisted autonomy is a logic-level consistency cliff at ${\sim}100\text{--}150\,\mathrm{ms}$. Enforcing identity consistency reveals a physics-bound limit at ${\sim}300\text{--}400\,\mathrm{ms}$ and extends the safe operating envelope by ${>}\!2{\times}$.

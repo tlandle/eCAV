@@ -1,0 +1,33 @@
+\section{Discussion}
+\label{sec:discussion}
+
+Our findings align with the end-to-end argument. The AV planner needs identity certainty, and that certainty can only be enforced where the relevant semantics are available. Improving motion models or fusion heuristics at lower layers yields probabilistic fixes. Self-beacon anchoring instead provides a deterministic identity signal at the protocol boundary, conditioned on beacon delivery and authentication. The results also show that latency and jitter manifest as state-consistency faults, not just degraded accuracy, and must be addressed in the architecture.
+
+\smallskip\noindent\textbf{Operational assumptions.}
+The ego-uniqueness invariant holds under three assumptions: (1)~the self-beacon is delivered to the edge within the reconciliation window $W$, (2)~the beacon carries an authenticated vehicle identity, and (3)~the edge processes the beacon before publishing that ego's object list. Our packet-loss evaluation (\S\ref{sec:eval:loss}) shows that anchoring tolerates up to 10\% beacon loss with a $2{\times}$ margin over measured field conditions. Authentication follows standard V2X PKI (IEEE~1609.2, SAE~J2945); certificate management is orthogonal to the anchoring logic. Under sustained beacon loss beyond holdover, the system degrades to the un-anchored baseline. The invariant is deterministic within these bounds, not unconditionally.
+
+\smallskip\noindent\textbf{Scope and scalability.}
+We evaluate a single focal ego under participant scaling ($N$ up to 16 connected vehicles sharing the same edge pipeline). Our multi-ego experiments show that self-ghosting pressure grows with $N$: duplicate clusters per tick increase, and without anchoring the ghost-free rate drops sharply for $N \geq 4$. Anchoring sustains high operational success across all tested $N$, confirming that the ego-uniqueness invariant is not specific to single-ego settings. We note that the reference tracker (AB3DMOT) incurs $O(N^2)$ association cost due to all-to-all matching. Standard spatial partitioning (k\hbox{-}d trees, uniform grids) and gating reduce this to $O(N \log N)$ expected complexity without changing the anchoring logic. Optimizing the tracker for high-density settings is an orthogonal engineering extension.
+
+\smallskip\noindent\textbf{SBA and temporal alignment are complementary.}
+Our VIPS baseline implements velocity-based temporal alignment at the edge, which compensates for inter-source time offsets and reduces spatial mismatch. Yet VIPS still exhibits the early logic-limited cliff because temporal alignment reduces duplicate probability but does not enforce ego uniqueness. SBA operates at a different layer: it provides a deterministic identity binding that prevents duplicate ego tracks from being published, regardless of temporal alignment quality. The two mechanisms are complementary. Temporal alignment improves fusion accuracy for all tracked objects. SBA enforces a per-ego identity invariant that no amount of temporal alignment can guarantee. A production system would benefit from both.
+
+\smallskip\noindent\textbf{Co-design application logic with network state.}
+Self-ghosting emerges from the interaction of application and network failure. A protocol-level change that carries application semantics (persistent identity) is required to prevent identity-level inconsistencies induced by network delay. Anticipating how latency profiles map to state-consistency risks should be a first-class concern in safety-critical edge systems.
+
+\smallskip\noindent\textbf{Leverage the edge for state reconciliation.}
+The edge maintains the only globally consistent timeline across participants and is thus the natural locus to reconcile identity and time. De-duplicating an ego's latent detections against its ground-truth beacon at the edge is more effective and verifiable than pushing incomplete, multi-source consistency checks to end agents.
+
+\smallskip\noindent\textbf{Embed application-specific primitives at the edge.}
+Self-beacon anchoring is an application-specific primitive. Effective edge platforms should be extensible to host domain-specific state-management logic (e.g., identity anchoring, admission gating) that enforces invariants required by real-time, safety-critical applications.
+
+\smallskip\noindent\textbf{Architectural resilience.}
+Our centralized design is efficient but introduces a single point of failure. A resilient deployment should support hybrid V2V–V2I operation and graceful degradation (e.g., falling back to systems such as AutoCast~\cite{Autocast}) when edge connectivity is impaired, while preserving identity and timing guarantees where possible.
+
+\smallskip\noindent\textbf{Why proximity heuristics cannot guarantee correctness.}
+
+~\emph{Proposition.} In an asynchronous V2X system with bounded vehicle speed/acceleration but unbounded network jitter, any tracker that lacks an authoritative identity signal cannot guarantee elimination of self-ghosting: there exists a feasible ego motion and latency realization under which a past self-observation is (i) outside any fixed spatial gate around the current pose yet (ii) within the planner's reachable set, birthing a duplicate track.
+~\emph{Example.} Consider two beacons at poses $P_0$ and $P_1$ generated at $t_0,t_1$ with $t_1-t_0=\Delta t$.
+Let the edge predict the $P_0$-born track to $P^\text{pred}_1$ via a constant-velocity model. Choose an admissible ego acceleration profile such that $\|P_1-P^\text{pred}_1\|>\tau$ (any fixed spatial gate), while the predicted ghost path intersects the ego’s near-horizon reachable set. Under a latency realization that delivers $P_0$ late and $P_1$ later (out-of-order by generation time but in-order by arrival), the tracker births two tracks. No choice of static spatial gate $\tau$ prevents this adversarial separation without also suppressing true positives in other scenes. An authoritative ID collapses the ambiguity by enforcing a one-to-one ego-track mapping irrespective of $\|P_1-P^\text{pred}_1\|$.
+
+

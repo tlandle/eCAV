@@ -1,0 +1,48 @@
+\section{Introduction}
+
+Edge-assisted autonomy is an emerging trend because roadside sensing and low-latency edge compute are now widely deployed. A single autonomous vehicle's (AV) perception is still limited by occlusion and limited line of sight: on-board sensors cannot reliably observe actors hidden behind buildings, trucks, or roadside infrastructure~\cite{tsukada_autoc2x_2020}. %\KR{@Tyler: Is occlusion the only problem we are addressing? What about limited line of sight and traffic conditions emerging BLOS?} 
+Furthermore, the line of sight for on-board sensors is physically bounded (e.g., around 300 meters), and traffic conditions emerging beyond line of sight (BLOS) can be critical for safety-oriented control actions. %\KR{@Tyler: Besides, the line of sight for on-board sensors in an AV is around 300 meters. Traffic conditions emerging beyond line of sight (BLOS) may be quite important to take into account for the control actions in an AV.}
+Roadside sensors plus a nearby Mobile Edge Compute (MEC) server can mitigate these problems %\KR{@Tyler: A roadside sensing site -> Roadside sensors plus a nearby Mobile Edge Compute (MEC) server can -> mitigate these problems} 
+by combining observations from multiple vantage points and publishing a local world model with object state and short-horizon motion. Compared to wide-area cloud services, MEC deployments for a small geographic area can often meet the latency needs of safety-critical driving tasks~\cite{edge_cloud_collab}.
+
+The networked nature of edge assistance raises a major challenge.
+%The hard part is that edge assistance is networked. 
+The ego receives edge-published state through a V2X pipeline with delay, jitter, loss, and occasional reordering. If the planner uses stale or inconsistent edge state, safety can degrade even when perception is accurate in isolation. This paper studies how network-induced inconsistency limits safe edge-assisted control. We define the \emph{operational safety envelope} as the set of network and compute conditions under which the ego can safely act on edge-published state. To index operating conditions at the planner boundary, we use \emph{age-at-use} $\Delta_{\mathrm{use}}$: the time between when an object state is generated and when the planner consumes it, and we focus on the $p99(\Delta_{\mathrm{use}})$ tail latency. We ask which boundary appears first as $p99(\Delta_{\mathrm{use}})$ grows: a \emph{physics-limited} boundary set by braking and dynamics, or a \emph{logic-limited} boundary caused by inconsistency in the edge world model.
+
+\paragraph{Scope and system model.}
+We evaluate a single \emph{focal} ego vehicle in occlusion-heavy intersection scenarios. We scale the number of additional connected ego vehicles ($N \in \{1,2,4,8,16\}$) that share the same edge perception and tracking pipeline.
+In all experiments we use one roadside sensing site (one RSU deployment) and one nearby MEC server. The RSU contributes infrastructure detections.
+Each connected vehicle contributes compact object detections from onboard perception and a self-beacon.
+The MEC server aggregates these updates into tracks and publishes the world model back to vehicles.
+We do not address fleet scheduling, intersection-wide resource allocation, or credential management.
+Our focus is a correctness question at the interface of mobile networking and closed-loop control: under realistic V2X variability, what fails first, and what guarantees prevent it?
+
+Prior work on cooperative perception has focused on perception quality and throughput. Systems such as EMP~\cite{EMP} and Harbor~\cite{harbor}, and learned fusion models such as V2X-ViT~\cite{v2xvit2022}, show accuracy gains under resource constraints. VIPS~\cite{vips2022} addresses temporal misalignment via matching and alignment under delay. However, these approaches do not characterize the safety envelope of a closed-loop planner that consumes edge-published tracks under delay variability. They also do not provide a deterministic guarantee that the ego cannot be reflected back as an obstacle.
+
+We find that the safety envelope can collapse at modest end-to-end delay, before a physics-based limit is reached. The first collapse is logic-limited and comes from a state-consistency failure in edge tracking.
+With multi-source sensing and asynchronous delivery, the edge can maintain multiple tracks for the same physical vehicle. If the edge cannot deterministically reconcile vehicle identity, it can publish duplicate ego tracks that the planner treats as external obstacles. 
+We call this failure symptom \emph{self-ghosting}.
+
+\begin{tcolorbox}[title=Research Questions]
+\begin{itemize}[noitemsep,topsep=0pt,leftmargin=2mm]
+  \item \textbf{RQ1:} Under realistic V2X variability, what operational safety envelope governs edge-assisted control for a focal ego?
+  \item \textbf{RQ2:} Does the envelope first collapse due to physics limits or due to logic-level inconsistency in the edge world model?
+  \item \textbf{RQ3:} Can an identity-level invariant at the edge prevent self-ghosting and shift the envelope toward the physics limit?
+\end{itemize}
+\end{tcolorbox}
+
+To answer these questions, we run closed-loop experiments in CARLA~\cite{dosovitskiy_carla_nodate} with the NVIDIA PhysX engine~\cite{NVIDIA_PhysX}, measuring collision and braking outcomes under realistic vehicle dynamics. We compare three edge perception architectures: a single-source oracle baseline, a multi-camera late-fusion pipeline, and an implementation of VIPS~\cite{vips2022}. Under both deterministic and trace-driven C-V2X network conditions, the multi-source stacks exhibit a sharp safety cliff at ${\sim}100\text{--}150\,\mathrm{ms}$, well before the physics-limited boundary at ${\sim}300\text{--}400\,\mathrm{ms}$.
+
+To prevent self-ghosting, we introduce \emph{self-beacon anchoring}.
+Anchoring enforces an \emph{ego-uniqueness invariant} at the edge publish boundary: the edge must not publish any obstacle attributable to the ego back to that ego.
+The mechanism binds tracks to authoritative self-beacons and excludes ego-associated tracks from collision candidates even when upstream sensing produces duplicates.
+Across trace-driven simulations with realistic delay, jitter, and loss, anchoring prevents self-ghosting and expands the safe operating region with low compute and communication overhead.
+
+In summary, we make the following contributions:
+\begin{enumerate}[label=\arabic*.,noitemsep,topsep=0pt,leftmargin=1.2\parindent]
+    \item We characterize an operational safety envelope for edge-assisted AV control under V2X variability, indexed by tail age-at-use at the planner boundary ($p99(\Delta_{\mathrm{use}})$).
+    \item We show that the first envelope collapse is logic-limited: multi-source tracking under delay can publish duplicate ego tracks, causing self-ghost braking. A single-source oracle baseline produces zero self-ghost events at all latencies, confirming that the first failure boundary arises from multi-source identity ambiguity rather than staleness alone.
+    \item We design and evaluate self-beacon anchoring, which enforces an ego-uniqueness invariant at the edge and eliminates self-ghosting under trace-driven network conditions.
+\end{enumerate}
+
+The rest of the paper reviews related work (Section~\ref{sec:related}), describes the architecture and protocol (Sections~\ref{sec:architecture} and~\ref{sec:beacon}), presents evaluation results (Section~\ref{sec:eval}), and discusses deployment considerations and limitations (Section~\ref{sec:discussion}).
