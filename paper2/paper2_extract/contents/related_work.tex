@@ -1,0 +1,73 @@
+\section{Related Work}
+\label{sec:related}
+
+\subsection{Cooperative Perception}
+
+Cooperative perception architectures trade off bandwidth against
+perceptual fidelity.  Early fusion (raw data exchange) is
+bandwidth-prohibitive.  Late fusion (object-level sharing) discards
+spatial context needed for occluded-object detection.  Intermediate
+fusion dominates recent work: Where2Comm~\cite{hu2022where2comm}
+uses spatial-confidence attention maps,
+V2X-ViT~\cite{v2xvit2022} applies vision transformers to BEV
+features, and CoBEVT~\cite{xu2022cobevt} fuses multi-scale BEV
+representations with axial attention.
+
+CMP~\cite{cmp2024,cmp_ieee_2023} is the only prior system that
+unifies cooperative perception, multi-object tracking (AB3DMOT), and
+trajectory prediction (MTR) into a single evaluated pipeline.  CMP
+reports results at 2--7 agents on OPV2V and V2V4Real, with no
+deadline constraint.  Our work extends the same pipeline family to
+4--64 agents, characterizes the resulting deadline cliff, and
+introduces adaptation mechanisms that maintain feasibility at dense
+scale.
+
+\subsection{Edge-Hosted Perception Systems}
+
+EMP~\cite{EMP} demonstrated edge-hosted LiDAR fusion at 93\,ms
+end-to-end on a real intersection, but evaluates detection only (no
+tracking or prediction).  Harbor~\cite{harbor} tests a hybrid
+V2I/V2V architecture on a 3-vehicle Mcity deployment, using frame
+timeouts rather than a compute-budget controller.
+F-Cooper~\cite{fcooper} evaluates point-cloud feature sharing
+at the edge but does not address the computational scaling problem.
+EdgeCooper~\cite{edgecooper2023} considers communication-aware
+scheduling for edge cooperative perception but evaluates at
+$N \leq 5$.
+
+None of these systems evaluate the full pipeline (fusion + tracking +
+prediction) at $N > 10$, nor do they model the joint-pipeline deadline
+cliff that emerges from cross-stage compute coupling.
+
+\subsection{Adaptive Compute for Autonomous Vehicles}
+
+Single-vehicle adaptive compute has been studied in the context of
+streaming perception~\cite{li2020streaming} and modular
+self-driving platforms~\cite{gog2022pylot}.  These approaches
+adjust model complexity or scheduling policy per frame based on
+deadline proximity.  They operate within a single vehicle's compute
+budget and do not address the multi-agent cooperative setting where
+$N$ agents share one edge deadline.
+
+\subsection{Multi-Object Tracking}
+
+Classical multi-object tracking uses Kalman filtering with Hungarian
+association (SORT~\cite{Bewley2016_sort},
+AB3DMOT~\cite{ab3dmotTracker2020}).  Recent work explores learned
+association and state-space models for temporal
+dynamics~\cite{mambatrack2024, trackssm2024}.
+We use AB3DMOT with vectorized Kalman operations (1.8$\times$ speedup
+over the original per-track loop), which provides sufficient tracking
+quality while remaining the cheapest pipeline stage.
+
+\subsection{Trajectory Prediction}
+
+MTR~\cite{shi2022mtr} and MTR++~\cite{shi2023mtrpp} use transformer
+decoders with motion-query attention to produce multi-modal trajectory
+forecasts.
+SMART~\cite{wu2024smart} tokenizes trajectories for autoregressive
+generation.  We evaluated both on OPV2V data: MTR achieves 4.5\,m ADE
+at 57\,ms, while SMART yields 42.7\,m ADE at 137\,ms (reflecting a
+Waymo-to-CARLA domain gap and exceeding the 100\,ms deadline on its
+own).  MTR is the only viable option for deadline-constrained edge
+inference in our pipeline.

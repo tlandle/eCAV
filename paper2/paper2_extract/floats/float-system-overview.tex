@@ -1,0 +1,11 @@
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\columnwidth]{../docs/md_files/images/system_architecture.png}
+    \caption{Edge cooperative world-model pipeline.  Each CAV encodes
+      LiDAR into a compressed post-backbone BEV feature (17\,KB) and
+      uploads via 5G Uu.  The edge runs WorldFusion (Where2Comm)
+      attention fusion, AB3DMOT tracking, and MTR trajectory prediction.
+      The adaptive controller selects which agents and objects to
+      process within the 100\,ms planner deadline.}
+    \label{fig:system_overview}
+\end{figure}

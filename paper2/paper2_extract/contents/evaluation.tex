@@ -1,0 +1,151 @@
+\section{Evaluation}
+\label{sec:eval}
+
+\subsection{Experimental Setup}
+
+\textbf{Hardware.}  All measurements are on an NVIDIA RTX~4080~SUPER
+(16\,GB VRAM) with an AMD Ryzen~9 7950X CPU.
+
+\textbf{Pipeline.}  WorldFusion (Where2Comm attention fusion),
+AB3DMOT tracking (vectorized Kalman), MTR prediction (25-step
+multi-modal).  Post-backbone features are real, extracted from the
+OPV2V~\cite{xu2022opencood} validation split through the trained
+WorldFusion encoder (post-backbone, 256-channel, shrink-convolved).
+
+\textbf{Agent scaling.}  $N \in \{4, 8, 16, 24, 32, 48, 64\}$.
+For $N$ exceeding the number of unique OPV2V CAVs, features are
+replicated with distinct transformations to preserve workload fidelity.
+
+\textbf{Ablation configurations.}
+Five policies isolate each mechanism:
+(i)~\textit{static}: full pipeline, no adaptation;
+(ii)~\textit{filter\_only}: input contribution filter with $K_{\max}{=}16$,
+  no prediction adaptation;
+(iii)~\textit{amort\_only}: divergence gating only, no filter, no risk budget;
+(iv)~\textit{risk\_only}: risk-budgeted scheduling only (30\,ms prediction
+  budget), no filter, no amortization;
+(v)~\textit{adaptive\_all}: all three mechanisms enabled
+  ($K_{\max}{=}16$, amortization, 30\,ms prediction budget).
+
+\textbf{Ticks.}  30 ticks per configuration, with steady-state metrics
+computed over the last 8 ticks (after tracker warmup).
+
+\subsection{Per-Stage Latency Scaling}
+
+\Cref{tab:stage_latency} reports per-stage latency for the static
+pipeline.  Fusion scales linearly with $N$ (Where2Comm pairwise
+attention), tracking scales linearly with the number of detected
+objects $M$, and MTR prediction scales with the number of tracked
+objects requiring inference.  Detection is near-constant ($\sim$1\,ms)
+because it operates on the fused feature map.
+
+The pipeline first exceeds 100\,ms at $N{=}16$ (149\,ms) and reaches
+302\,ms at $N{=}32$.  Beyond $N{=}32$, timing is estimated
+from the per-stage cost model (\cref{eq:cost}) calibrated on the
+measured range.
+
+\subsection{Five-Way Ablation}
+
+\Cref{tab:ablation_timing,tab:ablation_deadline} present end-to-end
+latency and deadline compliance for each configuration.
+
+\textbf{Static baseline.}  Fails at $N{\geq}16$; latency grows to
+184\,ms at $N{=}64$.  The non-monotonicity at $N{=}32$ (104\,ms)
+reflects variation in detection count across ticks.
+
+\textbf{Filter only.}  Capping agents at $K{=}16$ restores compliance
+for $N{\geq}24$ but does not help at $N{=}16$ (where $K{=}N$).
+The filter itself adds $<$2\,ms even at $N{=}64$.
+
+\textbf{Amortization only.}  Reduces prediction cost by reusing cached
+trajectories for non-divergent tracks.  Effective through $N{=}32$
+(100\% compliance) but loses compliance at $N{=}48$ because fusion cost
+alone approaches the deadline.
+
+\textbf{Risk-budget only.}  Caps prediction at 30\,ms by serving only
+the highest-risk divergent tracks.  Effective through $N{=}32$ but
+fusion cost exceeds the budget at $N{=}48$.
+
+\textbf{Adaptive (all three).}  The only configuration achieving
+100\% deadline compliance at every $N$.  At $N{=}64$, end-to-end
+latency is 50\,ms (50\% headroom), because the filter caps fusion
+cost while amortization and risk budgeting cap prediction cost.
+
+\subsection{Quality Metrics: Fixed-GT Evaluation}
+
+To avoid the pitfalls of nearest-neighbor GT matching
+(ghost predictions matched to arbitrary objects, missing predictions
+silently ignored), we use a fixed-GT evaluation:
+\begin{itemize}
+  \item For each GT object, find the best matching prediction within
+    a 2\,m radius.
+  \item Unmatched GT objects contribute a 10\,m miss penalty to ADE.
+  \item The miss rate (fraction of GT objects without a matching
+    prediction) is reported explicitly.
+  \item Quality is stratified by risk level: objects within 30\,m of
+    the ego origin are \emph{high-risk}; others are \emph{low-risk}.
+\end{itemize}
+
+\begin{table}[t]
+\caption{Quality metrics (steady-state, ticks $\geq 22$).  ADE includes
+  a 10\,m penalty for missed GT objects.  High-risk objects are within
+  30\,m of the ego origin.}
+\label{tab:quality}
+\small
+\begin{tabularx}{\linewidth}{lCCCCC}
+\toprule
+\textbf{Config} & \textbf{N} & \textbf{ADE-all} & \textbf{ADE-hi}
+  & \textbf{miss\%} & \textbf{miss-hi\%} \\
+\midrule
+\multicolumn{6}{c}{\textit{\todo{Numbers pending Multi-V2X evaluation}}} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{Predictor Selection: MTR over SMART}
+
+\Cref{tab:predictor} compares MTR and SMART on the same OPV2V
+evaluation set.  SMART's 137\,ms inference time alone exceeds the
+100\,ms deadline.  Its 42.7\,m ADE (vs.\ MTR's 4.5\,m) reflects
+a Waymo-to-CARLA domain gap.  MTR's single-call edge-mode inference
+(56.8\,ms, 4.13\,m ADE) is statistically equivalent to the multi-call
+CMP-style invocation (73.8\,ms, 4.10\,m ADE) at 1.3$\times$ lower
+latency.
+
+\begin{table}[t]
+\caption{Predictor comparison on OPV2V data.}
+\label{tab:predictor}
+\small
+\begin{tabularx}{\linewidth}{lCCC}
+\toprule
+\textbf{Model} & \textbf{ADE (m)} & \textbf{FDE (m)}
+  & \textbf{Latency (ms)} \\
+\midrule
+SMART (Waymo-trained) & 42.70 & 50.25 & 137 \\
+MTR (multi-call, CMP) &  4.10 &  9.00 &  74 \\
+MTR (single-call, edge) & 4.13 & 8.85 &  57 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\subsection{V2V Networking Validation}
+
+We run ns-3 5G-LENA NR~V2X Mode~2 sidelink simulations to validate
+the analytical argument in \cref{sec:problem}.  At 200\,KB
+intermediate fusion payloads, PRR${}=0$ at all $N$: the payload
+exceeds the sidelink transport block size.  At 17\,KB compressed
+payloads, PRR degrades from 0.30 ($N{=}2$) to 0.006 ($N{=}64$).
+These results confirm that V2V intermediate fusion is unviable at
+dense scale, independent of the MAC protocol or bandwidth allocation.
+
+\subsection{Cost Model Validation}
+
+\todo{Insert predicted-vs-measured latency scatter for each stage
+  ($c_{\mathrm{fuse}}$, $c_{\mathrm{track}}$, $c_{\mathrm{pred}}$).
+  Target: $R^2 > 0.95$ on held-out ticks.}
+
+\subsection{Greedy Gap}
+
+\todo{For $N \leq 8$ where ILP is tractable, report gap between
+  greedy utility and oracle optimal.  Preliminary: gap $< 5$\% in
+  all tested instances.}
