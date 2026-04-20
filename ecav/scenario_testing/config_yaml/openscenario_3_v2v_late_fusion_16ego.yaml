@@ -1,0 +1,1515 @@
+description: "V2V late fusion (~5KB detected objects over NR V2X Mode 2 sidelink)\n  Generated from openscenario_3_edge_late_fusion_16ego\
+  \ by generate_v2v_scenarios.py.\n  Same vehicle positions and perception as the edge variant."
+scenario_name: openscenario_3_v2v_late_fusion_16ego
+distributed: false
+define: true
+perception_active: true
+ml_manager:
+  yolo_endpoint: http://localhost:18000
+world:
+  sync_mode: true
+  client_host: localhost
+  client_port: 2000
+  fixed_delta_seconds: 0.05
+  seed: 11
+  weather:
+    sun_altitude_angle: 15
+    cloudiness: 75
+    precipitation: 0
+    precipitation_deposits: 0
+    wind_intensity: 0
+    fog_density: 0
+    fog_distance: 0
+    fog_falloff: 0
+    wetness: 0
+carla_traffic_manager:
+  sync_mode: true
+  global_distance: 5.0
+  global_speed_perc: -50
+  set_osm_mode: true
+  auto_lane_change: false
+  random: false
+  ignore_lights_percentage: 0
+  vehicle_list: null
+  range: []
+ego_vehicle_max_speed: 70
+scenario_runner:
+  town: town03
+  scenario: Scenario_3
+  num_actors: 2
+  configFile: ecav/scenario_testing/scenarios/scenario_3.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_3.py
+  host: localhost
+  port: 2000
+  timeout: 60
+  debug: false
+  sync: false
+  repetitions: 1
+  agent: null
+  openscenario: null
+  route: null
+  reloadWorld: false
+  waitForEgo: false
+  trafficManagerPort: '8000'
+  trafficManagerSeed: '0'
+  record: ''
+  agentConfig: ''
+  file: false
+  json: false
+  junit: false
+  list: false
+  openscenarioparams:
+  - ego_vehicle_max_speed=50
+  - oncoming_vehicle_speed=51
+  output: false
+  outputDir: ''
+  randomize: false
+  vehicle_index: 0
+vehicle_base:
+  sensing:
+    perception:
+      activate: true
+      camera: &id002
+        visualize: 4
+        num: 4
+        positions:
+        - - 1.5
+          - 0.0
+          - 1.7
+          - 0
+        - - 0.0
+          - -1.5
+          - 1.7
+          - -90
+        - - 0.0
+          - 1.5
+          - 1.7
+          - 90
+        - - -1.5
+          - 0.0
+          - 1.7
+          - 180
+      lidar: &id003
+        visualize: false
+        channels: 64
+        range: 50
+        points_per_second: 1150000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -30.0
+        dropoff_general_rate: 0.0
+        dropoff_intensity_limit: 1.0
+        dropoff_zero_intensity: 0.0
+        noise_stddev: 0.0
+    localization: &id004
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss: &id005
+        noise_alt_stddev: 0.5
+        noise_lat_stddev: 1.5e-06
+        noise_lon_stddev: 1.5e-06
+        heading_direction_stddev: 1.0
+        speed_stddev: 0.5
+      debug_helper:
+        show_animation: false
+        x_scale: 1.0
+        y_scale: 1.0
+  behavior:
+    max_speed: 70
+    tailgate_speed: 121
+    speed_lim_dist: 3
+    speed_decrease: 15
+    safety_time: 4
+    emergency_param: 0.4
+    ignore_traffic_light: true
+    overtake_allowed: true
+    collision_time_ahead: 2
+    overtake_counter_recover: 35
+    sample_resolution: 4.5
+    local_planner:
+      buffer_size: 12
+      trajectory_update_freq: 15
+      waypoint_update_freq: 9
+      min_dist: 3
+      trajectory_dt: 0.2
+      debug: true
+      debug_trajectory: true
+  controller: &id006
+    type: pid_controller
+    args:
+      lat:
+        k_p: 0.75
+        k_d: 0.02
+        k_i: 0.4
+      lon:
+        k_p: 0.37
+        k_d: 0.024
+        k_i: 0.032
+      dynamic: false
+      dt: ${world.fixed_delta_seconds}
+      max_brake: 1.0
+      max_throttle: 1.0
+      max_steering: 0.3
+  v2x:
+    enabled: true
+    communication_range: 35
+    loc_noise: 0.0
+    yaw_noise: 0.0
+    speed_noise: 0.0
+    lag: 0
+  map_manager: &id007
+    pixels_per_meter: 2
+    raster_size:
+    - 224
+    - 224
+    lane_sample_resolution: 0.1
+    visualize: false
+    activate: true
+  safety_manager: &id008
+    print_message: true
+    collision_sensor:
+      history_size: 30
+      col_thresh: 1
+    stuck_dector:
+      len_thresh: 500
+      speed_thresh: 0.5
+    offroad_dector: []
+    traffic_light_detector:
+      light_dist_thresh: 20
+rsu_base:
+  sensing:
+    perception:
+      activate: true
+      camera:
+        visualize: 4
+        num: 4
+        positions:
+        - - 2.5
+          - 0
+          - 1.0
+          - 0
+        - - 0.0
+          - 0.3
+          - 1.8
+          - 100
+        - - 0.0
+          - -0.3
+          - 1.8
+          - -100
+        - - -2.0
+          - 0.0
+          - 1.5
+          - 180
+      lidar:
+        visualize: false
+        channels: 32
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -70.0
+        dropoff_general_rate: 0.0
+        dropoff_intensity_limit: 1.0
+        dropoff_zero_intensity: 0.0
+        noise_stddev: 0.0
+    localization:
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+ecloud:
+  num_servers: 2
+  server_ping_time_s: 0.005
+  client_world_time_factor: 0.9
+  client_ping_spawn_s: 0.05
+  client_ping_tick_s: 0.005
+edge_base:
+  max_capacity: 32
+  inter_gap: 0.6
+  open_gap: 1.2
+  warm_up_speed: 55
+  change_leader_speed: true
+  leader_speeds_profile: &id001
+  - 85
+  - 95
+  stage_duration: 10
+  target_speed: 100
+  edge_dt: 0.2
+  search_dt: 2
+  latency: 0.0
+  jitter_std: 0.0
+  latency_distribution: hybrid
+  edge_sets_destination: false
+  uplink_packet_loss_pct: 0.0
+  downlink_packet_loss_pct: 0.0
+  mode: PREDICTION
+scenario:
+  edge_list:
+  - max_capacity: 32
+    inter_gap: 0.6
+    open_gap: 1.2
+    warm_up_speed: 55
+    change_leader_speed: true
+    leader_speeds_profile: *id001
+    stage_duration: 10
+    target_speed: 100
+    edge_dt: 0.2
+    search_dt: 2
+    latency: 0.0
+    jitter_std: 0.0
+    latency_distribution: fixed
+    edge_sets_destination: false
+    uplink_packet_loss_pct: 0.0
+    downlink_packet_loss_pct: 0.0
+    mode: PREDICTION
+    manager_type: v2v_autocast
+    rsus:
+    - sensing:
+        perception:
+          activate: true
+          camera: *id002
+          lidar: *id003
+          backend: default
+        localization: *id004
+      name: rsu1
+      spawn_position:
+      - -82.0
+      - 126.0
+      - 7.0
+      id: -1
+    vehicles:
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 4
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 50
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav1
+      destination:
+      - -28.8
+      - 136.2
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav9
+      spawn_position:
+      - -84.8
+      - 65.0
+      - 1.0
+      - 0
+      - 90
+      - 0
+      destination:
+      - -84.8
+      - 200.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav5
+      spawn_position:
+      - -88.1
+      - 65.0
+      - 1.0
+      - 0
+      - 90
+      - 0
+      destination:
+      - -84.8
+      - 200.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav6
+      spawn_position:
+      - -84.6
+      - 57.0
+      - 1.0
+      - 0
+      - 90
+      - 0
+      destination:
+      - -84.8
+      - 200.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav7
+      spawn_position:
+      - -88.1
+      - 57.0
+      - 1.0
+      - 0
+      - 90
+      - 0
+      destination:
+      - -84.8
+      - 200.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav13
+      spawn_position:
+      - -84.6
+      - 49.0
+      - 1.0
+      - 0
+      - 90
+      - 0
+      destination:
+      - -84.8
+      - 200.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 50
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav2
+      spawn_position:
+      - -100.0
+      - 136.2
+      - 1.0
+      - 0
+      - 0
+      - 0
+      destination:
+      - -20.0
+      - 134.4
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 50
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav10
+      spawn_position:
+      - -106.0
+      - 136.2
+      - 1.0
+      - 0
+      - 0
+      - 0
+      destination:
+      - -20.0
+      - 134.4
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 50
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav14
+      spawn_position:
+      - -112.0
+      - 136.2
+      - 1.0
+      - 0
+      - 0
+      - 0
+      destination:
+      - -20.0
+      - 134.4
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 50
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav3
+      spawn_position:
+      - -20.0
+      - 130.9
+      - 1.0
+      - 0
+      - 180
+      - 0
+      destination:
+      - -150.0
+      - 132.7
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 50
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav11
+      spawn_position:
+      - -14.0
+      - 130.6
+      - 1.0
+      - 0
+      - 180
+      - 0
+      destination:
+      - -150.0
+      - 132.7
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 50
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav15
+      spawn_position:
+      - -8.0
+      - 130.4
+      - 1.0
+      - 0
+      - 180
+      - 0
+      destination:
+      - -150.0
+      - 132.7
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav4
+      spawn_position:
+      - -74.7
+      - 174.0
+      - 1.0
+      - 0
+      - 247
+      - 0
+      destination:
+      - -77.5
+      - 50.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav8
+      spawn_position:
+      - -71.5
+      - 173.0
+      - 1.0
+      - 0
+      - 247
+      - 0
+      destination:
+      - -77.5
+      - 50.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav12
+      spawn_position:
+      - -67.0
+      - 186.0
+      - 1.0
+      - 0
+      - 227
+      - 0
+      destination:
+      - -77.5
+      - 50.0
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+            backend: default
+          lidar: *id003
+          localization:
+            activate: true
+            dt: ${world.fixed_delta_seconds}
+            gnss: *id005
+            debug_helper:
+              show_animation: false
+              x_scale: 1.0
+              y_scale: 1.0
+        localization: *id004
+      behavior:
+        max_speed: 5
+        tailgate_speed: 121
+        speed_lim_dist: 0
+        speed_decrease: 0
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller: *id006
+      v2x:
+        enabled: false
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager: *id007
+      safety_manager: *id008
+      name: cav16
+      spawn_position:
+      - -64.0
+      - 184.0
+      - 1.0
+      - 0
+      - 227
+      - 0
+      destination:
+      - -77.5
+      - 50.0
+      - 0.5
+    v2v_channel:
+      carrier_ghz: 5.9
+      bandwidth_mhz: 40
+      tx_power_dbm: 23
+      sinr_threshold_db: 0.0
+      antenna_h: 1.5
+    mac:
+      M: 20
+      RC_min: 5
+      RC_max: 15
+      p_keep: 0.0
+    network:
+      network_engine: auto
+    payload_bytes: 5000
+    tracker: ab3dmot
+    tracker_cfg:
+      min_hits: 3
+      max_age: 6
+    bandwidth:
+      rate_mbps: 6.0
+      slot_ms: 100.0
+    feature_budget:
+      confidence_threshold: 0.1
+      max_bytes_per_tti: 5000

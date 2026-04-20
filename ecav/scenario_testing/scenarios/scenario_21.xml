@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<!-- Scenario 21: Fast Approach from RSU Blind Side
+     Ego waiting at or approaching an intersection.  A fast vehicle
+     approaches from behind a building on a side street that is
+     partially in the RSU's shadow.  Only CAVs positioned on that
+     side street can see the approaching vehicle early.
+     Town03.
+-->
+<scenarios>
+    <scenario name="Scenario_21" type="Scenario_21" town="Town03">
+        <!-- Ego: heading east, approaching intersection -->
+        <ego_vehicle x="-120.0" y="127.7" z="1.0" yaw="0" model="vehicle.nissan.patrol" />
+
+        <!-- Fast approaching vehicle from the south on side street -->
+        <other_actor x="-84.8" y="50.0" z="-500" yaw="90" model="vehicle.dodge.charger_2020" />
+
+        <!-- Occluders: parked vehicles blocking ego's southward view -->
+        <other_actor x="-88.0" y="120.0" z="-500" yaw="0" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-88.0" y="112.0" z="-500" yaw="0" model="vehicle.carlamotors.firetruck" />
+
+        <!-- CAVs on the side street (high value: see the fast approach) -->
+        <other_actor x="-84.8" y="75.0" z="-500" yaw="90" model="vehicle.audi.etron" />
+        <other_actor x="-84.8" y="85.0" z="-500" yaw="90" model="vehicle.audi.etron" />
+
+        <!-- CAVs behind the ego on the main road (low value: same view as ego) -->
+        <other_actor x="-140.0" y="127.7" z="-500" yaw="0" model="vehicle.audi.a2" />
+        <other_actor x="-150.0" y="127.7" z="-500" yaw="0" model="vehicle.audi.a2" />
+        <other_actor x="-160.0" y="127.7" z="-500" yaw="0" model="vehicle.audi.a2" />
+        <other_actor x="-170.0" y="127.7" z="-500" yaw="0" model="vehicle.audi.a2" />
+
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0"
+                 wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75"
+                 fog_density="0" />
+    </scenario>
+</scenarios>

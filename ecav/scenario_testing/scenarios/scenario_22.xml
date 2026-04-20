@@ -1,0 +1,43 @@
+<?xml version="1.0"?>
+<!-- Scenario 22: Dense Intersection with Conflicting Intents
+     16 vehicles converge on the intersection from all four approaches.
+     High N forces the static pipeline past deadline.  The adaptive
+     controller must select a subset that preserves the ego's ability
+     to detect conflicting trajectories.  Tests deadline compliance
+     under density rather than occlusion complementarity.
+     Town03.
+-->
+<scenarios>
+    <scenario name="Scenario_22" type="Scenario_22" town="Town03">
+        <!-- Ego: heading north -->
+        <ego_vehicle x="-84.8" y="60" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
+
+        <!-- North approach (heading south toward intersection) -->
+        <other_actor x="-88.0" y="170.0" z="-500" yaw="270" model="vehicle.audi.a2" />
+        <other_actor x="-88.0" y="180.0" z="-500" yaw="270" model="vehicle.audi.a2" />
+        <other_actor x="-88.0" y="190.0" z="-500" yaw="270" model="vehicle.audi.a2" />
+        <other_actor x="-88.0" y="200.0" z="-500" yaw="270" model="vehicle.tesla.model3" />
+
+        <!-- East approach (heading west) -->
+        <other_actor x="-20.0" y="127.7" z="-500" yaw="180" model="vehicle.lincoln.mkz_2017" />
+        <other_actor x="-10.0" y="127.7" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="0.0" y="127.7" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="10.0" y="131.0" z="-500" yaw="180" model="vehicle.dodge.charger_2020" />
+
+        <!-- South approach (heading north, behind ego) -->
+        <other_actor x="-84.8" y="40.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-84.8" y="30.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-84.8" y="20.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-84.8" y="10.0" z="-500" yaw="90" model="vehicle.tesla.model3" />
+
+        <!-- West approach (heading east) -->
+        <other_actor x="-150.0" y="131.0" z="-500" yaw="0" model="vehicle.audi.a2" />
+        <other_actor x="-160.0" y="131.0" z="-500" yaw="0" model="vehicle.audi.etron" />
+        <other_actor x="-170.0" y="131.0" z="-500" yaw="0" model="vehicle.lincoln.mkz_2017" />
+        <other_actor x="-180.0" y="131.0" z="-500" yaw="0" model="vehicle.dodge.charger_2020" />
+
+        <weather cloudiness="10" precipitation="0" precipitation_deposits="0"
+                 wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="60"
+                 fog_density="0" />
+    </scenario>
+</scenarios>
