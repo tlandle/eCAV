@@ -272,7 +272,7 @@ scenario:
       predictor_type: mtr
       mtr_predictor:
         cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
-        checkpoint: models/mtr/best_model.pth
+        checkpoint: ecav/ml_manager/models/mtr/best_model.pth
         device: cuda
         budget_ms: 50.0
         enable_amortization: true

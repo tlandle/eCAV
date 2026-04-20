@@ -61,7 +61,7 @@ def load_mtr():
         cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER = os.path.join(
             CMP_ABS, cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER)
     model = MotionTransformerWithMultiEgoAggregation(cfg.MODEL).to(DEVICE).eval()
-    state = torch.load(os.path.join(REPO, 'models/mtr/best_model.pth'), map_location=DEVICE)
+    state = torch.load(os.path.join(REPO, 'ecav/ml_manager/models/mtr/best_model.pth'), map_location=DEVICE)
     if 'model_state' in state:
         state = state['model_state']
     model.load_state_dict(state, strict=False)

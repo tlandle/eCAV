@@ -41,7 +41,7 @@ sys.path.insert(0, REPO)
 
 DEVICE = 'cuda:0'
 DEADLINE_MS = 100.0
-MTR_CKPT = os.path.join(REPO, 'models/mtr/best_model.pth')
+MTR_CKPT = os.path.join(REPO, 'ecav/ml_manager/models/mtr/best_model.pth')
 K_MAX = 16
 PRED_HORIZON_TICKS = 10
 
@@ -143,8 +143,8 @@ class OfflinePipelineV3:
 
         wf_dir = os.environ.get(
             'WF_CKPT_DIR',
-            os.path.join(REPO, 'models/worldfusion_multiv2x_caronly_ndm'))
-        wf_epoch = int(os.environ.get('WF_CKPT_EPOCH', '5'))
+            os.path.join(REPO, 'ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm'))
+        wf_epoch = int(os.environ.get('WF_CKPT_EPOCH', '16'))
         self.hypes = load_yaml(os.path.join(wf_dir, 'config.yaml'))
         self.model = PointPillarWorldFusion(
             self.hypes['model']['args']).to(DEVICE).eval()

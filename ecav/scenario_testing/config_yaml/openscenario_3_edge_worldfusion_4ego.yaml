@@ -236,13 +236,13 @@ scenario:
       manager_type: worldfusion_adaptive
 
       worldfusion_model:
-        hypes_yaml: models/worldfusion_multiv2x_caronly_ndm/config.yaml
-        checkpoint: models/worldfusion_multiv2x_caronly_ndm/net_epoch5.pth
+        hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/config.yaml
+        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/net_epoch16.pth
 
       predictor_type: mtr
       mtr_predictor:
         cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
-        checkpoint: models/mtr/best_model.pth
+        checkpoint: ecav/ml_manager/models/mtr/best_model.pth
         device: cuda
         budget_ms: 50.0
         enable_amortization: true
@@ -264,8 +264,8 @@ scenario:
               <<: *base_perception
               backend: worldfusion
               worldfusion_model:
-                hypes_yaml: models/worldfusion_multiv2x_caronly_ndm/config.yaml
-                checkpoint: models/worldfusion_multiv2x_caronly_ndm/net_epoch5.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/net_epoch16.pth
           id: -1
 
       vehicles:
@@ -289,8 +289,8 @@ scenario:
                   - [-1.5,  0.0, 1.7, 180]
                 backend: worldfusion
               worldfusion_model:
-                hypes_yaml: models/worldfusion_multiv2x_caronly_ndm/config.yaml
-                checkpoint: models/worldfusion_multiv2x_caronly_ndm/net_epoch5.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/net_epoch16.pth
               localization:
                 <<: *base_localize
                 debug_helper:
@@ -329,8 +329,8 @@ scenario:
                   - [-1.5,  0.0, 1.7, 180]
                 backend: worldfusion
               worldfusion_model:
-                hypes_yaml: models/worldfusion_multiv2x_caronly_ndm/config.yaml
-                checkpoint: models/worldfusion_multiv2x_caronly_ndm/net_epoch5.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/net_epoch16.pth
               localization:
                 <<: *base_localize
                 debug_helper:
@@ -369,8 +369,8 @@ scenario:
                   - [-1.5,  0.0, 1.7, 180]
                 backend: worldfusion
               worldfusion_model:
-                hypes_yaml: models/worldfusion_multiv2x_caronly_ndm/config.yaml
-                checkpoint: models/worldfusion_multiv2x_caronly_ndm/net_epoch5.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/net_epoch16.pth
               localization:
                 <<: *base_localize
                 debug_helper:
@@ -409,8 +409,8 @@ scenario:
                   - [-1.5,  0.0, 1.7, 180]
                 backend: worldfusion
               worldfusion_model:
-                hypes_yaml: models/worldfusion_multiv2x_caronly_ndm/config.yaml
-                checkpoint: models/worldfusion_multiv2x_caronly_ndm/net_epoch5.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/net_epoch16.pth
               localization:
                 <<: *base_localize
                 debug_helper:

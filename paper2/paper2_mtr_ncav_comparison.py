@@ -39,7 +39,7 @@ def load_model():
     model = MotionTransformerWithMultiEgoAggregation(cfg.MODEL)
     model.to(DEVICE).eval()
 
-    ckpt = 'models/mtr/best_model.pth'
+    ckpt = 'ecav/ml_manager/models/mtr/best_model.pth'
     state = torch.load(ckpt, map_location=DEVICE)
     if 'model_state' in state:
         state = state['model_state']
