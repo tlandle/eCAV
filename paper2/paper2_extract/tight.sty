@@ -1,0 +1,77 @@
+% The correct \baselinestretch needs to have been set already
+
+\newlength{\lineheight}
+\setlength{\lineheight}{\baselinestretch\baselineskip}
+\setlength{\parskip}{0.2\lineheight}
+\setlength{\parindent}{0.0in}
+\setlength{\floatsep}{0in}                % length between floats
+\setlength{\textfloatsep}{0.4\lineheight} % between float and text at top/bottom
+\setlength{\intextsep}{0.4\lineheight}    % between float and text on both sides
+
+\newcommand{\copyrightspace}{%
+ \renewcommand{\@makefnmark}{}%
+ \footnotetext{\mbox{}\vrule height 1in width 0pt}%
+ \renewcommand{\@makefnmark}{\mbox{$^{\@thefnmark}$}}%
+}
+
+\renewenvironment{itemize}{%
+ \begin{list}{\labelitemi}{%
+  \setlength{\partopsep}{0.2\baselineskip}%
+  \setlength{\parsep}{0pt}%
+  \setlength{\parskip}{0pt}%
+  \setlength{\topsep}{0.1\baselineskip}%
+  \setlength{\itemsep}{0.1\baselineskip}%
+  \setlength{\leftmargin}{0.25in}%
+ }%
+}{\end{list}}
+
+\renewenvironment{description}{%
+ \begin{list}{}{%
+  \setlength{\partopsep}{0.2\baselineskip}%
+  \setlength{\parsep}{0pt}%
+  \setlength{\parskip}{0pt}%
+  \setlength{\topsep}{0.1\baselineskip}%
+  \setlength{\itemsep}{0.1\baselineskip}%
+ }%
+}{\end{list}}
+
+\renewenvironment{enumerate}{%
+ \begin{list}{\labelenumi}{%
+  \usecounter{enumi}%
+  \setlength{\partopsep}{0.2\baselineskip}%
+  \setlength{\parsep}{0pt}%
+  \setlength{\parskip}{0pt}%
+  \setlength{\topsep}{0.1\baselineskip}%
+  \setlength{\itemsep}{0.1\baselineskip}%
+  \setlength{\leftmargin}{0.25in}%
+ }%
+}{\end{list}}
+
+\renewcommand{\section}{\@startsection
+ {section}%
+ {1}%
+ {0pt}%
+ {0.4\baselineskip}%
+ {0.3\baselineskip}%
+ {\rmfamily\bfseries\upshape\Large}%
+}
+
+\renewcommand{\subsection}{\@startsection
+ {subsection}%
+ {2}%
+ {0pt}%
+ {0.2\baselineskip}%
+ {0.1\baselineskip}%
+ {\rmfamily\bfseries\upshape\large}%
+}
+
+\renewcommand{\subsubsection}{\@startsection
+ {subsubsection}%
+ {3}%
+ {0pt}%
+ {0.1\baselineskip}%
+ {0.1\baselineskip}%
+ {\rmfamily\bfseries\upshape\normalsize}%
+}
+
+ 
