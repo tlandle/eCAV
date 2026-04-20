@@ -1,0 +1,37 @@
+<?xml version="1.0"?>
+<!-- Scenario 23: Stale Prediction Under Deadline Pressure
+     Ego heading north.  A vehicle ahead suddenly brakes hard.
+     With many background CAVs (N=12), the static pipeline
+     misses deadline, causing the edge prediction to go stale.
+     The ego's planner acts on an outdated trajectory that still
+     shows the vehicle moving forward, and rear-ends it.
+     The adaptive controller should cap fusion cost, leaving
+     budget for timely prediction of the braking vehicle.
+     Town03.
+-->
+<scenarios>
+    <scenario name="Scenario_23" type="Scenario_23" town="Town03">
+        <!-- Ego: heading north -->
+        <ego_vehicle x="-84.8" y="70" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
+
+        <!-- Lead vehicle that brakes hard -->
+        <other_actor x="-84.8" y="110.0" z="-500" yaw="90" model="vehicle.lincoln.mkz_2017" />
+
+        <!-- Background CAVs: many, creating high N to stress deadline -->
+        <other_actor x="-88.0" y="60.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-88.0" y="50.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-88.0" y="40.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-81.0" y="60.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-81.0" y="50.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-81.0" y="40.0" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-20.0" y="127.7" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="-10.0" y="127.7" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="0.0" y="131.0" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="-150.0" y="131.0" z="-500" yaw="0" model="vehicle.audi.etron" />
+        <other_actor x="-160.0" y="131.0" z="-500" yaw="0" model="vehicle.audi.etron" />
+
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0"
+                 wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75"
+                 fog_density="0" />
+    </scenario>
+</scenarios>
