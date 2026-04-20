@@ -13,7 +13,6 @@ Status of all implementation plans in [docs/agent_plans/](../../agent_plans/).
 | [edge_architecture_proposal.md](../../agent_plans/edge_architecture_proposal.md) | 🔄 In progress | **Yes — Phases 1+4 complete; others TBD** |
 | [distributed_actor_plan.md](../../agent_plans/distributed_actor_plan.md) | ⏳ Not started | No |
 | [hardcoded_paths_remediation.md](../../agent_plans/hardcoded_paths_remediation.md) | ⏳ Not started | No |
-| [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md) | 📐 Architecture plan | **Yes — active design** |
 
 ## Plan Summaries
 
