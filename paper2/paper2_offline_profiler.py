@@ -37,7 +37,7 @@ N_TICKS = 30
 DEADLINE_MS = 100.0
 FEAT_DIR = os.path.join(REPO, 'preprocessed_data/opv2v/fused_features_corpbevtlidar_delay_1_frame_aug_c256')
 TRACK_PKL = os.path.join(REPO, 'preprocessed_data/opv2v/corpbevtlidar_delay_1_frame_aug_c256_tracking_result_for_prediction_test.pkl')
-MTR_CKPT = os.path.join(REPO, 'models/mtr/best_model.pth')
+MTR_CKPT = os.path.join(REPO, 'ecav/ml_manager/models/mtr/best_model.pth')
 
 
 def load_opv2v_features(max_n=64, frame_idx=50):

@@ -39,7 +39,7 @@ DEVICE = 'cuda:0'
 N_AGENTS = [4, 8, 16, 24, 32, 48, 64]
 N_TICKS = 30
 DEADLINE_MS = 100.0
-MTR_CKPT = os.path.join(REPO, 'models/mtr/best_model.pth')
+MTR_CKPT = os.path.join(REPO, 'ecav/ml_manager/models/mtr/best_model.pth')
 FEAT_DIR = os.path.join(REPO,
     'preprocessed_data/opv2v/fused_features_corpbevtlidar_delay_1_frame_aug_c256')
 

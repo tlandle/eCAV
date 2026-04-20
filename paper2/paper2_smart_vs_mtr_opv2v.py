@@ -34,7 +34,7 @@ def main():
             CMP_ABS, cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER)
 
     mtr = MotionTransformerWithMultiEgoAggregation(cfg.MODEL).to(DEVICE).eval()
-    state = torch.load(os.path.join(REPO, 'models/mtr/best_model.pth'), map_location=DEVICE)
+    state = torch.load(os.path.join(REPO, 'ecav/ml_manager/models/mtr/best_model.pth'), map_location=DEVICE)
     if 'model_state' in state: state = state['model_state']
     mtr.load_state_dict(state, strict=False)
     print("MTR loaded")
