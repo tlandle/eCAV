@@ -1,0 +1,77 @@
+DATA_CONFIG:
+    DATASET: &dataset_type V2XSim2MultiEgoDataset
+    OBJECT_TYPE: &object_type ['TYPE_VEHICLE']
+    max_cav: &max_cav 7
+
+    # V2X-Sim 2.0 info pkl paths (preprocessed by opencood/worldfusion)
+    train_info_path: 'ecav/worldfusion/data/v2xsim2_info/v2xsim_infos_train.pkl'
+    val_info_path: 'ecav/worldfusion/data/v2xsim2_info/v2xsim_infos_val.pkl'
+    DATASET_CACHE_DIR: 'preprocessed_data/v2xsim2'
+
+    # Pretrained model (first train no_agg, then use as pretrain)
+    PRETRAINED_MOTION_TRANSFORMER: ''
+
+    PAST_FRAMES: 10
+    FUTURE_FRAMES: 50
+    MAX_OBJECTS: 64
+
+    CONVEX_HULL_THRESHOLD: -1
+
+    SAMPLE_INTERVAL: {
+        'train': 5,
+        'test': 1
+    }
+
+    # Communication simulation parameters
+    ASYNC: sim
+    ASYNC_OVERHEAD: 100
+    SEED: 20
+    LOC_ERR: false
+    XYZ_STD: 0.2
+    RYP_STD: 0.2
+    DATA_SIZE: 1.06
+    TRANSMISSION_SPEED: 27
+    BACKBONE_DELAY: 10
+
+    INFO_FILTER_DICT:
+        filter_info_by_object_type: *object_type
+
+    POINT_SAMPLED_INTERVAL: 1
+    NUM_POINTS_EACH_POLYLINE: 20
+    VECTOR_BREAK_DIST_THRESH: 1.0
+
+MODEL:
+    MODEL_TYPE: MultiEgoMTRModel
+    CONTEXT_ENCODER:
+        NUM_OF_ATTN_NEIGHBORS: 16
+        NUM_INPUT_ATTR_AGENT: 29
+        NUM_CHANNEL_IN_MLP_AGENT: 256
+        D_MODEL: 256
+        NUM_ATTN_LAYERS: 6
+        NUM_ATTN_HEAD: 8
+        DROPOUT_OF_ATTN: 0.1
+    MOTION_DECODER:
+        NUM_FUTURE_FRAMES: 50
+        NUM_MOTION_MODES: 6
+        D_MODEL: 512
+        NUM_ATTN_LAYERS: 1
+        NUM_ATTN_HEAD: 8
+        NUM_DECODER_LAYERS: 6
+        DROPOUT_OF_ATTN: 0.1
+        NUM_BASE_MAP_POLYLINES: 256
+        NUM_WAYPOINT_MAP_POLYLINES: 0
+        LOSS_WEIGHT_CLS: 1.0
+        LOSS_WEIGHT_REG: 1.0
+        CENTER_OFFSET_OF_MAP: [30.0, 0]
+    COOPERATIVE:
+        FUSED_FEATURES_DIR: ''  # not using cooperative features initially
+        USE_COOPERATIVE: false
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 16
+    NUM_EPOCHS: 30
+    LR: 0.0001
+    WEIGHT_DECAY: 0.01
+    SCHEDULER: cosine_warmup
+    WARMUP_EPOCH: 5
+    GRAD_NORM_CLIP: 1.0
