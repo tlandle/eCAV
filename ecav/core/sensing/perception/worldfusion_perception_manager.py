@@ -247,6 +247,13 @@ class WorldFusionPerceptionManager(PerceptionManager):
         lidar_data = self.lidar.data
         agent_type = "RSU" if self.vehicle is None else "Vehicle"
 
+        # Save all ticks for offline comparison
+        _save_tick = getattr(self, '_debug_save_tick', 0)
+        if lidar_data is not None:
+            save_path = f'/tmp/carla_lidar_{agent_type}_{_save_tick}.npy'
+            np.save(save_path, lidar_data)
+            self._debug_save_tick = _save_tick + 1
+
         # Quick periodic check for Lincoln's position (every 20 frames for RSU only)
         if agent_type == "RSU" and lidar_data is not None:
             frame_num = getattr(self, '_debug_frame', 0)
@@ -648,6 +655,9 @@ class WorldFusionPerceptionManager(PerceptionManager):
         Same as BM2CPPerceptionManager._build_batch().
         """
         # LiDAR processing
+        # Both Multi-V2X and CARLA use the same Z convention: negative = below
+        # sensor, positive = above. Multi-V2X clips Z > 0 during data generation.
+        # The voxel z-range [-6, 2] handles the clipping at inference.
         proc_lidar_np = self._vp.preprocess(
             np.ascontiguousarray(self.lidar.data, dtype=np.float32)
         )

@@ -13,7 +13,7 @@ class Box3D:
         self.w = w      # width
         self.l = l      # length
         self.ry = ry    # orientation
-        self.s = s      # detection score
+        self.s = s if s is not None else 0.0  # detection score (default 0)
         self.corners_3d_cam = None
 
     def __str__(self):
