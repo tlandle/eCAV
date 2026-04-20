@@ -1,0 +1,565 @@
+{
+  "target_speed_kmh": 70,
+  "vehicles": {
+    "2811": {
+      "actor_id": 2811,
+      "avg_speed_mps": 4.535660323639367,
+      "std_speed_mps": 2.5,
+      "avg_acceleration_mps2": 0.5,
+      "std_acceleration_mps2": 2.0,
+      "avg_jerk_mps3": 1.5,
+      "max_jerk_mps3": 15.0,
+      "avg_ttc_s": 1.0,
+      "total_brake_events": 12,
+      "ghost_brake_events": 12,
+      "false_brake_rate": 1.0,
+      "distance_traveled_m": 138.26957253881247,
+      "safety": {
+        "collision_count": 0,
+        "collision_history": [],
+        "stuck": true,
+        "offroad": false,
+        "red_light_violations": 0,
+        "total_traffic_lights": 3
+      },
+      "brake_attributions": [
+        {
+          "tick": 10,
+          "track_id": 9000,
+          "trigger_tick": 10,
+          "source_tick": 0,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 11,
+          "track_id": 9000,
+          "trigger_tick": 11,
+          "source_tick": 0,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 12,
+          "track_id": 9000,
+          "trigger_tick": 12,
+          "source_tick": 1,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 22,
+          "track_id": 9001,
+          "trigger_tick": 22,
+          "source_tick": 13,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 23,
+          "track_id": 9001,
+          "trigger_tick": 23,
+          "source_tick": 14,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 24,
+          "track_id": 9001,
+          "trigger_tick": 24,
+          "source_tick": 15,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 25,
+          "track_id": 9001,
+          "trigger_tick": 25,
+          "source_tick": 16,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 26,
+          "track_id": 9001,
+          "trigger_tick": 26,
+          "source_tick": 17,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 38,
+          "track_id": 9002,
+          "trigger_tick": 38,
+          "source_tick": 29,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 39,
+          "track_id": 9002,
+          "trigger_tick": 39,
+          "source_tick": 30,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 40,
+          "track_id": 9002,
+          "trigger_tick": 40,
+          "source_tick": 31,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 49,
+          "track_id": 9003,
+          "trigger_tick": 49,
+          "source_tick": 39,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 50,
+          "track_id": 9003,
+          "trigger_tick": 50,
+          "source_tick": 40,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 51,
+          "track_id": 9003,
+          "trigger_tick": 51,
+          "source_tick": 41,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 52,
+          "track_id": 9003,
+          "trigger_tick": 52,
+          "source_tick": 42,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 53,
+          "track_id": 9003,
+          "trigger_tick": 53,
+          "source_tick": 43,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 62,
+          "track_id": 9004,
+          "trigger_tick": 62,
+          "source_tick": 51,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 63,
+          "track_id": 9004,
+          "trigger_tick": 63,
+          "source_tick": 52,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 64,
+          "track_id": 9004,
+          "trigger_tick": 64,
+          "source_tick": 53,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 65,
+          "track_id": 9004,
+          "trigger_tick": 65,
+          "source_tick": 54,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 66,
+          "track_id": 9004,
+          "trigger_tick": 66,
+          "source_tick": 55,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 75,
+          "track_id": 9005,
+          "trigger_tick": 75,
+          "source_tick": 64,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 76,
+          "track_id": 9005,
+          "trigger_tick": 76,
+          "source_tick": 65,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 77,
+          "track_id": 9005,
+          "trigger_tick": 77,
+          "source_tick": 66,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 78,
+          "track_id": 9005,
+          "trigger_tick": 78,
+          "source_tick": 67,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 79,
+          "track_id": 9005,
+          "trigger_tick": 79,
+          "source_tick": 68,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 90,
+          "track_id": 9006,
+          "trigger_tick": 90,
+          "source_tick": 81,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 91,
+          "track_id": 9006,
+          "trigger_tick": 91,
+          "source_tick": 82,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 92,
+          "track_id": 9006,
+          "trigger_tick": 92,
+          "source_tick": 83,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 107,
+          "track_id": 9007,
+          "trigger_tick": 107,
+          "source_tick": 97,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 108,
+          "track_id": 9007,
+          "trigger_tick": 108,
+          "source_tick": 98,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 109,
+          "track_id": 9007,
+          "trigger_tick": 109,
+          "source_tick": 99,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 110,
+          "track_id": 9007,
+          "trigger_tick": 110,
+          "source_tick": 100,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 122,
+          "track_id": 9008,
+          "trigger_tick": 122,
+          "source_tick": 111,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 123,
+          "track_id": 9008,
+          "trigger_tick": 123,
+          "source_tick": 112,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 124,
+          "track_id": 9008,
+          "trigger_tick": 124,
+          "source_tick": 113,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 125,
+          "track_id": 9008,
+          "trigger_tick": 125,
+          "source_tick": 114,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 126,
+          "track_id": 9008,
+          "trigger_tick": 126,
+          "source_tick": 115,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 134,
+          "track_id": 9009,
+          "trigger_tick": 134,
+          "source_tick": 125,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 135,
+          "track_id": 9009,
+          "trigger_tick": 135,
+          "source_tick": 126,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 136,
+          "track_id": 9009,
+          "trigger_tick": 136,
+          "source_tick": 127,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 147,
+          "track_id": 9010,
+          "trigger_tick": 147,
+          "source_tick": 137,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 148,
+          "track_id": 9010,
+          "trigger_tick": 148,
+          "source_tick": 138,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 149,
+          "track_id": 9010,
+          "trigger_tick": 149,
+          "source_tick": 139,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 150,
+          "track_id": 9010,
+          "trigger_tick": 150,
+          "source_tick": 140,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 151,
+          "track_id": 9010,
+          "trigger_tick": 151,
+          "source_tick": 141,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 161,
+          "track_id": 9011,
+          "trigger_tick": 161,
+          "source_tick": 151,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 162,
+          "track_id": 9011,
+          "trigger_tick": 162,
+          "source_tick": 152,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 163,
+          "track_id": 9011,
+          "trigger_tick": 163,
+          "source_tick": 153,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        },
+        {
+          "tick": 164,
+          "track_id": 9011,
+          "trigger_tick": 164,
+          "source_tick": 154,
+          "gt_brake_class": "self_ghost",
+          "gt_provenance": "self",
+          "gt_matched_actor_id": 2811
+        }
+      ],
+      "perception_mean_ms": 43.0,
+      "tracking_mean_ms": 2.7
+    }
+  },
+  "safety_summary": {
+    "total_collisions": 0,
+    "total_red_light_violations": 0,
+    "stuck_vehicle_count": 1,
+    "offroad_vehicle_count": 0,
+    "stuck_vehicle_ids": [],
+    "offroad_vehicle_ids": []
+  },
+  "edge_config": {
+    "latency": 0.45
+  },
+  "edges": {
+    "vips_off_010": {
+      "intersection_id": "vips_openscenario_scp",
+      "total_frames": 609,
+      "duration_s": 30.484992850581545,
+      "frames_per_second": 20.0,
+      "timing_avg_ms": 28.437573381383217,
+      "timing_std_ms": 7.109393345345804,
+      "timing_p95_ms": 54.29742353929208,
+      "timing_p99_ms": 68.40087936189592,
+      "feature_collection_avg_ms": 0.5,
+      "fusion_avg_ms": 2.5,
+      "detection_avg_ms": 8.0,
+      "tracking_avg_ms": 4.3,
+      "prediction_avg_ms": 0.3,
+      "gpu_memory_peak_mb": 350.0,
+      "agents_per_frame_avg": 3.0,
+      "detections_per_frame_avg": 4.5,
+      "detection_total_tp": 510,
+      "detection_total_fp": 200,
+      "detection_total_fn": 400,
+      "detection_precision": 0.71,
+      "detection_recall": 0.56,
+      "detection_f1": 0.62,
+      "detection_ap_50": 0.42,
+      "detection_ap_75": 0.3,
+      "detection_map": 0.36,
+      "tracking_total_id_switches": 4,
+      "tracking_total_fragmentations": 20,
+      "tracking_avg_mota": 0.43,
+      "tracking_avg_motp": 1.9,
+      "tracking_avg_idf1": 0.6,
+      "prediction_ade_1s_m": 0.9,
+      "prediction_ade_2s_m": 1.8,
+      "prediction_ade_3s_m": 2.7,
+      "prediction_fde_m": 3.2,
+      "prediction_miss_rate": 0.15,
+      "aoi_mean_ticks": 9.979520583997692,
+      "aoi_p95_ticks": 10.948167871880838,
+      "aoi_p99_ticks": 11.251863130752234,
+      "aoi_hist_counts": [],
+      "aoi_hist_bin_edges_ticks": [],
+      "aoi_mean_ms": 498.9760291998846,
+      "aoi_p50_ms": 490.2343351806936,
+      "aoi_p99_ms": 562.5931565376117,
+      "aoi_gen_p50_ms": 45.23368442870299,
+      "aoi_gen_p99_ms": 99.64726328080641,
+      "ego_uniqueness_total_violations": 6,
+      "ego_uniqueness_total_ego_ghost_tracks": 12,
+      "ego_uniqueness": {
+        "total_violations": 6,
+        "ticks_with_violations": 4,
+        "violation_tick_fraction": 0.06666666666666667,
+        "duplicate_track_rate": 0.06666666666666667,
+        "ego_ghost_violation_count": 12
+      }
+    }
+  },
+  "simulation_timing": {
+    "world_tick_avg_ms": 1.9,
+    "world_tick_std_ms": 0.8,
+    "startup_time_ms": 0,
+    "shutdown_time_ms": 0
+  },
+  "collision_count": 0,
+  "success_rate": 0.0,
+  "config_latency_ms": 450.0,
+  "config_speed_kmh": 70,
+  "config_compute_budget_ms": null,
+  "config_manager_type": "vips",
+  "config_anchoring": false,
+  "config_ego_count": 1,
+  "config_scenario": "openscenario_scp"
+}
