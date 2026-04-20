@@ -228,18 +228,41 @@ class AB3DMOT(object):
 
 	def prediction(self):
 		# get predicted locations from existing tracks
+		# Batched Kalman predict across all trackers.  F and Q are identical
+		# across trackers (constant-velocity model in AB3DMOT), so we stack
+		# states and covariances and apply the predict step in one BLAS call.
 
 		trks = []
-		for t in range(len(self.trackers)):
-			
-			# propagate locations
-			kf_tmp = self.trackers[t]
+		n = len(self.trackers)
+		if n == 0:
+			return trks
+
+		F = self.trackers[0].kf.F
+		FT = F.T
+		Q = self.trackers[0].kf.Q
+
+		# Preallocate and fill via direct indexing (faster than np.stack
+		# for small N where Python overhead dominates)
+		X = np.empty((n, 10, 1), dtype=np.float64)
+		P = np.empty((n, 10, 10), dtype=np.float64)
+		for i in range(n):
+			kf = self.trackers[i].kf
+			X[i] = kf.x
+			P[i] = kf.P
+
+		# np.matmul with broadcasting is BLAS-accelerated
+		X_new = F @ X                                           # [N, 10, 1]
+		P_new = F @ P @ FT + Q                                  # [N, 10, 10]
+
+		for t_idx in range(n):
+			kf_tmp = self.trackers[t_idx]
 			if kf_tmp.id == self.debug_id:
 				print('\n before prediction')
 				print(kf_tmp.kf.x.reshape((-1)))
 				print('\n current velocity')
 				print(kf_tmp.get_velocity())
-			kf_tmp.kf.predict()
+			kf_tmp.kf.x = X_new[t_idx]
+			kf_tmp.kf.P = P_new[t_idx]
 			if kf_tmp.id == self.debug_id:
 				print('After prediction')
 				print(kf_tmp.kf.x.reshape((-1)))
@@ -272,59 +295,91 @@ class AB3DMOT(object):
 
 	def update(self, matched, unmatched_trks, dets, info):
 		# update matched trackers with assigned detections
-		
+		# Vectorized Kalman update across all matched trackers.
+		# H and R are identical across trackers; stack x, P, and z and
+		# compute innovation, gain, and covariance in batched BLAS calls.
+
 		dets = copy.copy(dets)
-		for t, trk in enumerate(self.trackers):
-			if t not in unmatched_trks:
-				d = matched[np.where(matched[:, 1] == t)[0], 0]     # a list of index
-				assert len(d) == 1, 'error'
+		unmatched_set = set(unmatched_trks) if not isinstance(unmatched_trks, set) else unmatched_trks
 
-				# update statistics
-				trk.time_since_update = 0		# reset because just updated
-				trk.hits += 1
+		# Build the list of matched (tracker_idx, detection_idx)
+		matched_pairs = []
+		for t in range(len(self.trackers)):
+			if t in unmatched_set:
+				continue
+			d = matched[np.where(matched[:, 1] == t)[0], 0]
+			assert len(d) == 1, 'error'
+			matched_pairs.append((t, int(d[0])))
 
-				# update orientation in propagated tracks and detected boxes so that they are within 90 degree
-				bbox3d = Box3D.bbox2array(dets[d[0]])[:7]
-				trk.kf.x[3], bbox3d[3] = self.orientation_correction(trk.kf.x[3], bbox3d[3])
+		M = len(matched_pairs)
+		if M == 0:
+			return
 
-				if trk.id == self.debug_id:
-					print('After ego-compoensation')
-					print(trk.kf.x.reshape((-1)))
-					print('matched measurement')
-					print(bbox3d.reshape((-1)))
-					# print('uncertainty')
-					# print(trk.kf.P)
-					# print('measurement noise')
-					# print(trk.kf.R)
+		H = self.trackers[matched_pairs[0][0]].kf.H
+		R = self.trackers[matched_pairs[0][0]].kf.R
+		HT = H.T
 
-				# kalman filter update with observation
-				trk.kf.update(bbox3d)
-				idx = d[0] if isinstance(d, np.ndarray) else d		# convert to scalar
+		# Stack matched state / covariance / measurement
+		X = np.empty((M, 10, 1), dtype=np.float64)
+		P = np.empty((M, 10, 10), dtype=np.float64)
+		Z = np.empty((M, 7, 1), dtype=np.float64)
+		bbox3d_store = [None] * M
+		for j, (t, d_idx) in enumerate(matched_pairs):
+			trk = self.trackers[t]
+			X[j] = trk.kf.x
+			P[j] = trk.kf.P
+			bbox3d = Box3D.bbox2array(dets[d_idx])[:7]
+			theta_pre, theta_obs = self.orientation_correction(float(X[j, 3, 0]), float(bbox3d[3]))
+			X[j, 3, 0] = theta_pre
+			bbox3d[3] = theta_obs
+			Z[j] = bbox3d.reshape(7, 1)
+			bbox3d_store[j] = bbox3d
 
-				cid_in = int(info[idx, CID])          # beacon's carla_id
-				if cid_in != -1:
-					# Reset anchoring age when beacon confirms the track
-					if trk.carla_id != -1 and cid_in == trk.carla_id:
+		# Batched Kalman update
+		HX = H @ X                                # (M, 7, 1)
+		Y = Z - HX                                # innovation
+		PHT = P @ HT                              # (M, 10, 7)
+		S = H @ PHT + R                           # (M, 7, 7)
+		Sinv = np.linalg.inv(S)                   # (M, 7, 7)
+		K = PHT @ Sinv                            # (M, 10, 7)
+		X_new = X + K @ Y                         # (M, 10, 1)
+		I10 = np.eye(10)
+		I_KH = I10 - K @ H                        # (M, 10, 10)
+		P_new = I_KH @ P                          # (M, 10, 10)
+
+		# Write back and apply per-tracker side effects
+		for j, (t, d_idx) in enumerate(matched_pairs):
+			trk = self.trackers[t]
+			trk.kf.x = X_new[j]
+			trk.kf.P = P_new[j]
+			trk.time_since_update = 0
+			trk.hits += 1
+
+			if trk.id == self.debug_id:
+				print('After ego-compoensation')
+				print(trk.kf.x.reshape((-1)))
+				print('matched measurement')
+				print(bbox3d_store[j].reshape((-1)))
+
+			cid_in = int(info[d_idx, CID])
+			if cid_in != -1:
+				if trk.carla_id != -1 and cid_in == trk.carla_id:
+					trk.anchoring_age = 0
+				if trk.carla_id == -1:
+					already = any((o is not trk) and (o.carla_id == cid_in)
+								  for o in self.trackers)
+					if not already:
+						trk.carla_id = cid_in
 						trk.anchoring_age = 0
-					if trk.carla_id == -1:
-						already = any((o is not trk) and (o.carla_id == cid_in)
-									  for o in self.trackers)
-						if not already:
-							trk.carla_id = cid_in
-							trk.anchoring_age = 0  # fresh anchor
 
-				if trk.id == self.debug_id:
-					print('after matching')
-					print(trk.kf.x.reshape((-1)))
-					print('\n current velocity')
-					print(trk.get_velocity())
+			if trk.id == self.debug_id:
+				print('after matching')
+				print(trk.kf.x.reshape((-1)))
+				print('\n current velocity')
+				print(trk.get_velocity())
 
-				trk.kf.x[3] = self.within_range(trk.kf.x[3])
-				trk.info = info[d, :][0]
-
-			# debug use only
-			# else:
-				# print('track ID %d is not matched' % trk.id)
+			trk.kf.x[3] = self.within_range(trk.kf.x[3])
+			trk.info = info[d_idx, :]
 
 	def _in_exclusion_zone(self, det_box):
 		"""Check if a CID=-1 detection falls in the anisotropic heading-
