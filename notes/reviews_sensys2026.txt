@@ -1,0 +1,199 @@
+SenSys 2026 Paper #74 Reviews and Comments
+===========================================================================
+Paper #74 Characterizing and Increasing the Safety Envelope for
+Edge-Assisted control of Autonomous Vehicles
+
+
+Review #74A
+===========================================================================
+
+Paper summary
+-------------
+This paper studies the safety limit of edge-assisted autonomous vehicles under network latency. The empirical measurements in the paper reveal a "safety cliff" at latency of 100–150ms. The paper attributes this to "self-ghosting", described as a latency-induced consistency failure in which an AV's own delayed state is misclassified as a false obstacle. To address this, the paper proposes the Self-Beacon Anchoring, a lightweight protocol that eliminates self-ghosting by enforcing unique vehicle identity at the edge. The system is evaluated using the CARLA simulator.
+
+Comments for authors
+--------------------
+Strengths:
++ The paper points out a valid safety concern caused by the temporal misalignment between the edge and the ego vehicle.
+
+Weaknesses:
+- Unrealistic assumption on a single edge-assisted ego vehicle.
+- Heuristic system design choices without sufficient justifications.
+- Lack of comparisons with existing cooperative perception systems.
+- Simulation-only evaluation.
+
+Detailed Comments:
+The "single edge-assisted ego vehicle" assumption is not realistic in practice. It is unclear whether the proposed tracking method can scale to multi-ego vehicle environments, where identity association can be much more complex.
+
+Some design decisions are heuristic and have insufficient justification. For instance, in Section 3.5.1, why reject " any 3D bounding box that is unrealistically thin (e.g., less than 0.6 m on any edge) or has a negligible volume (e.g., less than 1.0 m3)"? In real-world driving environments, real vehicles may produce such bounding due to factors like occlusions, long distance, or sensor noise. Simply eliminating these "less perfect" objects may increase the false negative detections in real-world driving, causing even greater dangers.
+
+The "self ghosting" happens because the data sent from the infrastructure is outdated by the time it reaches the car. If the car has moved, the infrastructure reports the car at a previous location. However, addressing the mismatch between the edge and ego vehicle's perception due to network latency has already been studied in the literature. The identified safety limit induced by the "self ghosting" can be addressed by existing method such as VIPS [20], which develops a graph matching algorithm aiming to align the infrastructure's perception with the vehicle's local view under unpredictable communication/compute delays.
+
+The proposed system is only compared with a naive baseline. There is no comparison with existing cooperative perception systems, such as VIPS [20], V2X-ViT [27]. Method like VIPS inherently handle temporal misalignment. The paper should compare the proposed Self-Beacon Anchoring with these state-of-the-art methods.
+
+The proposed system is only evaluated through trace-driven simulations. The derived "safety envelope" may not be useful in real-world driving environments with compute latency, GPS drifts, sensor noise, etc.
+
+Overall merit
+-------------
+2. Weak reject
+
+Reviewer expertise
+------------------
+2. Some familiarity
+
+
+
+Review #74B
+===========================================================================
+
+Paper summary
+-------------
+This paper proposes a solution to an important safety challenge in edge-assisted autonomous vehicle control by characterizing the "safety envelope" which is the latency boundary within which edge assistance remains safe. The authors present a previously unrecognized failure mode called "self-ghosting," where an Autonomous Vehicle's own delayed state data returns from the edge and is misperceived as a distinct obstacle, causing unnecessary braking. In this paper, they introduce a lightweight self-beacon anchoring protocol that enforces unique vehicle identity at the edge, expanding the safety envelope from ~100-150ms to 300-400ms. The work provides the first quantitative measurement distinguishing logic-induced consistency failures from physics-induced limitations in edge-assisted autonomy.
+
+Comments for authors
+--------------------
+===== Paper strengths =====
+•    The authors expose a critical and previously unreported challenge for latency-sensitive distributed cyber-physical systems.
+•    They use a physics-based simulator (CARLA/NVIDIA PhysX) to empirically identify the real-time effect of their proposed solution and go beyond theoretical calculations.
+•    The self-beacon anchoring protocol is lightweight and effective, doubling the safe operating region.
+
+===== Paper weaknesses =====
+•    The simulation model is good, but the paper could discuss practical deployment challenges: How would the system handle GPS dropouts? What happens during edge server handoff in cellular networks?
+
+•    The computational and communication energy cost of the protocol could be worth quantifying, especially for electric vehicles.
+
+•    Even though the work done in this paper addresses a safety issue for autonomous vehicles, I am not entirely convinced how impactful this could be for implementation in the real-world or the usability of edge-assisted autonomous vehicles.
+
+•    The paper states "Certificate and key management are out of scope" but in a safety-critical system, the vulnerability to spoofed beacons is a significant concern. Even a brief discussion of authentication requirements and potential attacks would be valuable.
+
+•    The system architecture uses simple baseline (late fusion, Kalman filtering) to isolate effects. However, it's unclear how representative this is of state-of-the-art systems. A clear discussion of how their findings work with systems advanced systems is needed.
+
+•    The paper focuses on a single edge-assisted vehicle. While the authors mention that this as a necessary first step, the complexity of a multi-vehicle system may introduce a lot of new issues that the current protocol does not address. The authors could mention what additional challenges this would introduce and offer briefly some possible solutions of how this work could be extended for these cases.
+
+Overall merit
+-------------
+2. Weak reject
+
+Reviewer expertise
+------------------
+3. Knowledgeable
+
+
+
+Review #74C
+===========================================================================
+
+Paper summary
+-------------
+This paper focuses on latency in vehicle-to-vehicle networks and vehicle-to-infrastructure networks. Communication latency in these networks is known to be a major source of problems. High latency causes data to arrive too late, making it unusable. When autonomous vehicles rely on data shared over the network to make safety-critical decisions, high network latency becomes a problem for safety.
+
+Comments for authors
+--------------------
+This is a well-written and easy-to-follow paper. I appreciate the fact that the authors lay out clear and focused research questions that are targeted toward just the network latency component of V2V communication systems.
+
+Overall merit
+-------------
+4. Accept
+
+Reviewer expertise
+------------------
+2. Some familiarity
+
+
+
+Review #74D
+===========================================================================
+
+Paper summary
+-------------
+The central problem considered by this paper is the so-called "self-ghosting" problem depicted in Figure 2, where the beacon from a vehicle doesn't carry the vehicle identity information or the naive-edge (a term used in Sec 5) doesn't utilize the vehicle identity information in the beacon, such that the long V2X delays lead to failure of associating the same vehicle. A straightforward solution to this problem is to (1) include vehicle identity information in the vehicle's beacons, (2) the edge server utilizes this vehicle identity as a priority when associating the vehicles in consecutive frames. With CARLA simulations, the paper compares the safety envelope (i.e., scenario success rate versus end-to-end pipeline delay) of the naive-edge and the straightforward solution and finds that the straightforward solution can increase the delay tolerance by about two times.
+
+Comments for authors
+--------------------
+It is good to quantitatively measure the safety implications of accounting for vehicle ID information in the association step of the vehicle tracking performed by the edge server. However, the idea of integrating the vehicle ID when available into the association step is quite natural. This limits the novelty and contributions of this paper.
+
+The basic safety message (BSM) standardized by SAE J2945 includes a temporary ID that is updated based on the time elapsed and distance traveled, for privacy reasons. Therefore, the BSM is more or less the essence of the proposed self-beacon anchoring protocol, but with a pitfall that the BSM's temporary ID changes during the reconciliation window considered in this paper. A simple mitigation/solution to this pitfall is to detect the temporary ID change based on the spatiotemporal data of the ego vehicle and its velocity information included in the BSM broadcasts.
+
+Overall merit
+-------------
+2. Weak reject
+
+Reviewer expertise
+------------------
+3. Knowledgeable
+
+
+
+Review #74E
+===========================================================================
+
+Paper summary
+-------------
+In this paper, the authors propose a way to address the self ghosting
+problem caused by latency in measurement reconciliation during data
+fusion. If the vehicle id is used to filter out the duplicate tracks,
+we can elimiate many spurious braking etc. that could have been
+triggered due to phantom vehicle tracks. The authors perform this
+study in a high fidelity physics simulator to tease out the relation
+to physics based safety envelope vs logic based (confusing the vehicle
+tracks).
+
+Comments for authors
+--------------------
+Strengths
+
+The authors show how to deterministically eliminate self ghosting by
+sending vehicle id with some authoritative information like current
+position.
+
+An interesting aspect of this study is looking at the safety envelope
+due to logical issues (confusing the tracks) vs physical limits
+(braking distances). Separating the two could be useful.
+
+ID-less system is clearly worse than the proposed system looking at
+the results.
+
+Weaknesses
+
+There is no evaluation of the robustness of the correlation of
+ID+ground truth (e.g. location).
+
+There is no evidence that the technique will scale nicely beyond a
+single ego vehicle. The authors discuss this a bit in the discussions
+section saying that is future work but there are question marks about
+scalability.
+
+The idea of adding a vehicle ID to its transmission of its location
+etc. is not novel by itself. Filtering out information based on
+vehicle ID is also not novel. The novely needs to be more precisely
+defined.
+
+Misc:
+
+In section 3.5, was not clear why we want to order messages by
+emission time.
+
+The writing is complex. Simpler terminology, words, and
+sentence will improve clarity.
+
+The evaluation for ID robustness will be useful for different location
+technologies and the factors that impact this accuracy. This is a
+critical information needed in the rest of the technology. Most likely
+in 3D driving environments there will be large errors?
+
+"Self-beacon anchoring is the mechanism that makes this science
+possible" -- what science?
+
+Overall merit
+-------------
+3. Weak accept
+
+Reviewer expertise
+------------------
+2. Some familiarity
+
+
+
+Comment @A1 by Reviewer E
+---------------------------------------------------------------------------
+The TPC discussed this paper. The conclusion is there is limited novelty because similar (but not exactly the same) ideas have been explored in the past, including in some standards. The missed potential here is a thorough evaluation in more complex scenarios. Also, the authors propose unjustified heuristics (e.g., artifact sizes to ignore) in a paper that is focused on safety. The writing is unnecessarily complex which makes it difficult to appreciate some neat ideas in the paper, e.g., about separating logic vs physical/mechanical limits that determine safety.
