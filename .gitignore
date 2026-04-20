@@ -145,6 +145,7 @@ cython_debug/
 .idea
 #*.json
 *.csv
+!paper2/reproduce/data/*.csv
 output/
 outputs
 *.pt
