@@ -17,7 +17,7 @@ TEST_STRING = '  logger.info(f"timestamps: overall_step_time_ms - {round(overall
 
 logging_re = re.compile(r'([# ]*)logger\.([a-z]+)\(f(.+)\)')
 
-# for (root,_,files) in os.walk('opencda', topdown=True):
+# for (root,_,files) in os.walk('ecav', topdown=True):
 #     for file in files:
 #         if file.endswith('.py'):
 file = 'vehiclesim.py'

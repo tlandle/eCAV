@@ -55,7 +55,7 @@ def _run(name, fn):
 # ═════════════════════════════════════════════════════════════════
 
 def mac_tests():
-    from opencda.core.application.edge.latency.mac_model import (
+    from ecav.core.application.edge.latency.mac_model import (
         SbSpsMac, NullMac, LegacyMacAdapter, MACMetrics,
         create_mac_model, reset_global_macs,
     )
