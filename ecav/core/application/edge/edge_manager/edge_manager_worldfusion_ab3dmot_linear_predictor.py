@@ -295,21 +295,10 @@ class WorldFusionEdge(_BaseEdgeManager):
         if excluded_vehicles_snapshot:
             print(f"[WorldFusion Edge] {len(excluded_vehicles_snapshot)} excluded vehicles (not in training data)")
 
-        # Collect from vehicles
-        for vm in self.vehicle_manager_list:
-            pm = vm.perception_manager
-            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
-                feature_dicts.append(pm.feature_dict)
-                pos = vm.localizer.get_ego_pos()
-                poses.append(pos)
-                # Debug: Print CARLA position AND offset from world anchor
-                dx = pos.location.x - self.world_anchor[0]
-                dy = pos.location.y - self.world_anchor[1]
-                # Model outputs in CARLA convention - detection coords should match (dx, dy)
-                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
-                print(f"[WorldFusion Edge]   Offset from anchor: dx={dx:.2f}, dy={dy:.2f} (detection LOCAL should match this)")
-
-        # Collect from RSUs
+        # RSUs collected first: WorldFusion expects agent 0 to be the RSU
+        # (the infrastructure node whose frame is used as the fusion reference).
+        # Collecting vehicles first inverts this, causing fused detections to be
+        # decoded in the vehicle's local frame instead of the RSU's.
         for rsu in self.rsu_manager_list:
             pm = rsu.perception_manager
             if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
@@ -322,10 +311,16 @@ class WorldFusionEdge(_BaseEdgeManager):
                         carla.Rotation()
                     )
                 poses.append(pos)
-                dx = pos.location.x - self.world_anchor[0]
-                dy = pos.location.y - self.world_anchor[1]
                 print(f"[WorldFusion Edge] RSU CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
-                print(f"[WorldFusion Edge]   CARLA offset from anchor: dx={dx:.2f}, dy={dy:.2f}")
+
+        # Vehicles collected after RSUs (agents 1..N)
+        for vm in self.vehicle_manager_list:
+            pm = vm.perception_manager
+            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
+                feature_dicts.append(pm.feature_dict)
+                pos = vm.localizer.get_ego_pos()
+                poses.append(pos)
+                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
 
         # Tick the BSM temp-ID rotation for every managed vehicle so that
         # time/distance thresholds are evaluated each frame.
@@ -404,8 +399,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 print(f"[WorldFusion Edge] Detection: {num_dets} objects found (before self-filter)")
 
                 # 5.5 Filter out self-detections using beacon positions of managed VEHICLES only
-                num_vehicles = len(self.vehicle_manager_list)
-                vehicle_poses = poses[:num_vehicles]
+                num_rsus = len(self.rsu_manager_list)
+                vehicle_poses = poses[num_rsus:]
                 det_results = self._filter_self_detections(det_results, vehicle_poses)
                 num_dets_after = len(det_results.get('dets', []))
                 print(f"[WorldFusion Edge] Detection: {num_dets_after} objects after self-beacon filter")

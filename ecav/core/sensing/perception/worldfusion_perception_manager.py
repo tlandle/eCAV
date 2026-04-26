@@ -623,7 +623,7 @@ class WorldFusionPerceptionManager(PerceptionManager):
         bd = sensor.scatter(sensor.pillar_vfe(bd))
 
         # Camera branch (if model supports it and image_inputs available)
-        if (sensor.use_camera and 'image_inputs' in batch
+        if (hasattr(sensor, 'camenc') and 'image_inputs' in batch
                 and batch['image_inputs'] is not None):
             from einops import rearrange
             imgs = batch['image_inputs']['imgs']
