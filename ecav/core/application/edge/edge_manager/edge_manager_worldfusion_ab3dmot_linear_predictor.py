@@ -52,6 +52,9 @@ from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
 from ecav.core.application.edge.latency import JitterBuffer
 from .edge_manager_base import _BaseEdgeManager
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 def _box_to_transform(box: np.ndarray):
     """Convert a detection box [x,y,z,h,w,l,yaw] to picklable Transform."""
@@ -376,6 +379,20 @@ class WorldFusionEdge(_BaseEdgeManager):
             frame.set_aoi_ticks(lag_steps)
             num_agents = len(feature_dicts)
 
+            # Log Lincoln's RSU-local position to track when it enters the voxel range (±40m).
+            # Lincoln is the only lincoln.mkz vehicle in scenario_3.
+            rsu_x, rsu_y = self.world_anchor[0], self.world_anchor[1]
+            for actor in self.world.get_actors():
+                if 'lincoln' in actor.type_id.lower():
+                    loc = actor.get_location()
+                    lx, ly = loc.x - rsu_x, loc.y - rsu_y
+                    in_range = abs(lx) <= 40.0 and abs(ly) <= 40.0
+                    logger.info(
+                        "tick=%d lincoln world=(%.1f, %.1f) rsu-local=(%.1f, %.1f) z=%.1f in_range=%s",
+                        tick, loc.x, loc.y, lx, ly, loc.z, in_range
+                    )
+                    break
+
             # 3. Stack features and compute pairwise transforms
             with frame.time("fusion"):
                 torch.cuda.empty_cache()
@@ -396,16 +413,25 @@ class WorldFusionEdge(_BaseEdgeManager):
             with frame.time("detection"):
                 det_results = self._to_ab3dmot_format(pred_dict, frame_id)
                 num_dets = len(det_results.get('dets', []))
-                print(f"[WorldFusion Edge] Detection: {num_dets} objects found (before self-filter)")
 
                 # 5.5 Filter out self-detections using beacon positions of managed VEHICLES only
                 num_rsus = len(self.rsu_manager_list)
                 vehicle_poses = poses[num_rsus:]
                 det_results = self._filter_self_detections(det_results, vehicle_poses)
                 num_dets_after = len(det_results.get('dets', []))
-                print(f"[WorldFusion Edge] Detection: {num_dets_after} objects after self-beacon filter")
-                if num_dets_after > 0:
-                    print(f"[WorldFusion Edge] First det: {det_results['dets'][0]}")
+
+                logger.info(
+                    "tick=%d dets before_filter=%d after_filter=%d",
+                    tick, num_dets, num_dets_after
+                )
+                for i, det in enumerate(det_results.get('dets', [])):
+                    # AB3DMOT format: [h,w,l,x,y,z,ry,score]; x/y are world coords
+                    wx, wy = det[3], det[4]
+                    lx, ly = wx - rsu_x, wy - rsu_y
+                    logger.info(
+                        "tick=%d det[%d] rsu-local=(%.1f, %.1f) world=(%.1f, %.1f) score=%.3f",
+                        tick, i, lx, ly, wx, wy, det[7]
+                    )
 
                 # 5.6 Compute detection metrics (TP/FP/FN) against ground truth
                 det_metrics = self._compute_detection_metrics(
@@ -584,7 +610,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 local_x = gx * (80.0 / w) - 40
                 local_y = gy * (80.0 / h) - 40
                 top_locs.append(f"({local_x:.1f},{local_y:.1f})={val:.3f}")
-            print(f"[AGENT PSM] Agent {agent_i} Lincoln@({lincoln_grid_x},{lincoln_grid_y})={max_val:.4f}, Top3: {', '.join(top_locs)}")
+            logger.debug("agent=%d psm_lincoln@(%d,%d)=%.4f top3=%s",
+                         agent_i, lincoln_grid_x, lincoln_grid_y, max_val, ', '.join(top_locs))
 
         # Run Where2comm fusion
         # Note: Where2comm expects spatial_features (before backbone) for multi-scale
@@ -631,18 +658,18 @@ class WorldFusionEdge(_BaseEdgeManager):
         lincoln_max, lincoln_argmax = get_local_max(psm, lincoln_grid_x, lincoln_grid_y)
         ego_max, ego_argmax = get_local_max(psm, ego_grid_x, ego_grid_y)
 
-        print(f"\n[PSM DEBUG] Ego expected at grid ({ego_grid_x}, {ego_grid_y}): max_psm={ego_max:.4f}")
-        print(f"[PSM DEBUG] Lincoln expected at grid ({lincoln_grid_x}, {lincoln_grid_y}): max_psm={lincoln_max:.4f}")
-        print(f"[PSM DEBUG] PSM shape: {psm.shape}, global max: {psm.max().item():.4f}")
-
-        # Find top 5 detection locations
-        psm_flat = psm[0].max(dim=0)[0]  # Max over anchors -> [H, W]
+        logger.debug("psm ego@(%d,%d)=%.4f lincoln@(%d,%d)=%.4f global_max=%.4f",
+                     ego_grid_x, ego_grid_y, ego_max,
+                     lincoln_grid_x, lincoln_grid_y, lincoln_max,
+                     psm.max().item())
+        psm_flat = psm[0].max(dim=0)[0]
         top_vals, top_idxs = psm_flat.flatten().topk(5)
         for i, (val, idx) in enumerate(zip(top_vals, top_idxs)):
             gy, gx = idx // w, idx % w
-            local_x = gx * (80.0 / w) - 40  # Convert grid to local coords
+            local_x = gx * (80.0 / w) - 40
             local_y = gy * (80.0 / h) - 40
-            print(f"[PSM DEBUG] Top {i+1}: grid=({gx}, {gy}), local=({local_x:.1f}, {local_y:.1f}), psm={val:.4f}")
+            logger.debug("psm top%d grid=(%d,%d) local=(%.1f, %.1f) val=%.4f",
+                         i + 1, gx, gy, local_x, local_y, val)
 
         return fused_feature, pred_dict
 
@@ -753,64 +780,6 @@ class WorldFusionEdge(_BaseEdgeManager):
         scores_np = pred_score_tensor.cpu().detach().numpy()
 
         boxes_7dof = box_utils.corner_to_center(box_corners_np, order='hwl')
-
-        # boxes_7dof format: [x, y, z, h, w, l, yaw] in local BEV grid frame
-        # Debug: print local coordinates BEFORE transform
-        print(f"\n[COORD DEBUG] World anchor: x={self.world_anchor[0]:.2f}, y={self.world_anchor[1]:.2f}")
-        for i in range(min(len(boxes_7dof), 3)):
-            local_x, local_y, local_yaw = boxes_7dof[i, 0], boxes_7dof[i, 1], boxes_7dof[i, 6]
-            print(f"[COORD DEBUG] Det {i} LOCAL: x={local_x:.2f}, y={local_y:.2f}, yaw={np.degrees(local_yaw):.1f}deg (should match vehicle offset from anchor)")
-
-        # DEBUG: Check what CARLA actors exist at detected positions vs actual vehicle positions
-        print(f"\n[CARLA ACTORS] Checking what's actually in the scene:")
-        try:
-            # Find all vehicles in CARLA
-            actors = self.world.get_actors()
-            vehicles_in_scene = []
-            for actor in actors:
-                if 'vehicle' in actor.type_id.lower():
-                    loc = actor.get_location()
-                    # Compute LOCAL position (relative to world anchor)
-                    local_x = loc.x - self.world_anchor[0]
-                    local_y = loc.y - self.world_anchor[1]
-                    vehicles_in_scene.append({
-                        'type': actor.type_id,
-                        'id': actor.id,
-                        'x': loc.x, 'y': loc.y, 'z': loc.z,
-                        'local_x': local_x, 'local_y': local_y
-                    })
-                    vname = actor.type_id.split('.')[-1]
-                    print(f"[CARLA ACTORS] {vname}: world=({loc.x:.1f}, {loc.y:.1f}), LOCAL=({local_x:.1f}, {local_y:.1f}), z={loc.z:.1f}")
-
-            # Compare detections with actual vehicles (using LOCAL coords)
-            print(f"\n[DETECTION VS REALITY] Comparing {len(boxes_7dof)} detections with {len(vehicles_in_scene)} vehicles:")
-            for i in range(len(boxes_7dof)):
-                det_local_x = boxes_7dof[i, 0]  # Already in LOCAL coords (before anchor offset)
-                det_local_y = boxes_7dof[i, 1]
-
-                # Find closest actual vehicle using LOCAL coordinates
-                min_dist = float('inf')
-                closest_vehicle = None
-                offset_x, offset_y = 0, 0
-                for v in vehicles_in_scene:
-                    dist = np.sqrt((v['local_x'] - det_local_x)**2 + (v['local_y'] - det_local_y)**2)
-                    if dist < min_dist:
-                        min_dist = dist
-                        closest_vehicle = v
-                        offset_x = det_local_x - v['local_x']
-                        offset_y = det_local_y - v['local_y']
-
-                if closest_vehicle:
-                    vname = closest_vehicle['type'].split('.')[-1]
-                    status = "MATCH" if min_dist < 5.0 else f"OFFSET {min_dist:.1f}m"
-                    print(f"[DETECTION VS REALITY] Det {i}: LOCAL=({det_local_x:.1f}, {det_local_y:.1f}), score={scores_np[i]:.3f}")
-                    print(f"[DETECTION VS REALITY]   -> Closest: {vname} at LOCAL=({closest_vehicle['local_x']:.1f}, {closest_vehicle['local_y']:.1f})")
-                    print(f"[DETECTION VS REALITY]   -> ERROR: dx={offset_x:+.1f}m, dy={offset_y:+.1f}m, dist={min_dist:.1f}m - {status}")
-
-        except Exception as e:
-            import traceback
-            print(f"[CARLA ACTORS] Error: {e}")
-            traceback.print_exc()
 
         # Detections are in the RSU's local frame (agent 0). To convert to
         # CARLA world coordinates, add the RSU's actual world position.
