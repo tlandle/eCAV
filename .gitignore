@@ -1,3 +1,6 @@
+# Runtime-generated feature cache — sparse files, not for git or Docker
+ecav/ml_manager/models/multiv2x_mtr/multiv2x_fused_features_placeholder/
+
 __pycache__/
 *.py[cod]
 *$py.class
