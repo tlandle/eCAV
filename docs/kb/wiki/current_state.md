@@ -43,7 +43,7 @@ Flags: `--apply_ml` enables ML; `-l` routes inference to external gRPC server; `
 | # | Fusion | `-l` | `-d` | Status |
 |---|---|---|---|---|
 | 1 | WorldFusion | no | no | ✓ 2026-04-26 |
-| 2 | WorldFusion | yes | no | — |
+| 2 | WorldFusion | yes | no | ✓ 2026-04-29 |
 | 3 | WorldFusion | no | yes | ✓ 2026-04-29 |
 | 4 | WorldFusion | yes | yes | — |
 | 5 | Late fusion | no | no | — |
