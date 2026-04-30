@@ -448,33 +448,6 @@ struct EmptyDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EmptyDefaultTypeInternal _Empty_default_instance_;
 
-inline constexpr EdgeTickComplete::Impl_::Impl_(
-    ::_pbi::ConstantInitialized) noexcept
-      : _cached_size_{0},
-        edge_index_{0},
-        tick_id_{0},
-        num_actors_processed_{0} {}
-
-template <typename>
-PROTOBUF_CONSTEXPR EdgeTickComplete::EdgeTickComplete(::_pbi::ConstantInitialized)
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-    : ::google::protobuf::Message(EdgeTickComplete_class_data_.base()),
-#else   // PROTOBUF_CUSTOM_VTABLE
-    : ::google::protobuf::Message(),
-#endif  // PROTOBUF_CUSTOM_VTABLE
-      _impl_(::_pbi::ConstantInitialized()) {
-}
-struct EdgeTickCompleteDefaultTypeInternal {
-  PROTOBUF_CONSTEXPR EdgeTickCompleteDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
-  ~EdgeTickCompleteDefaultTypeInternal() {}
-  union {
-    EdgeTickComplete _instance;
-  };
-};
-
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
-    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeTickCompleteDefaultTypeInternal _EdgeTickComplete_default_instance_;
-
 inline constexpr EdgeTick::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
@@ -1276,6 +1249,34 @@ struct EdgeWaypointsDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeWaypointsDefaultTypeInternal _EdgeWaypoints_default_instance_;
 
+inline constexpr EdgeTickComplete::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        vehicle_updates_{},
+        edge_index_{0},
+        tick_id_{0},
+        num_actors_processed_{0} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR EdgeTickComplete::EdgeTickComplete(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(EdgeTickComplete_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct EdgeTickCompleteDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR EdgeTickCompleteDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~EdgeTickCompleteDefaultTypeInternal() {}
+  union {
+    EdgeTickComplete _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeTickCompleteDefaultTypeInternal _EdgeTickComplete_default_instance_;
+
 inline constexpr EcloudResponse::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
@@ -1719,13 +1720,15 @@ const ::uint32_t
         3,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::ecloud::EdgeTickComplete, _impl_._has_bits_),
-        6, // hasbit index offset
+        7, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::ecloud::EdgeTickComplete, _impl_.edge_index_),
         PROTOBUF_FIELD_OFFSET(::ecloud::EdgeTickComplete, _impl_.tick_id_),
         PROTOBUF_FIELD_OFFSET(::ecloud::EdgeTickComplete, _impl_.num_actors_processed_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeTickComplete, _impl_.vehicle_updates_),
         0,
         1,
         2,
+        ~0u,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_._has_bits_),
         5, // hasbit index offset
@@ -1823,13 +1826,13 @@ static const ::_pbi::MigrationSchema
         {344, sizeof(::ecloud::EdgeRegistrationInfo)},
         {359, sizeof(::ecloud::EdgeScenarioConfig)},
         {382, sizeof(::ecloud::EdgeTickComplete)},
-        {391, sizeof(::ecloud::EdgeReadyNotification)},
-        {398, sizeof(::ecloud::EdgeTick)},
-        {405, sizeof(::ecloud::EdgeIndex)},
-        {410, sizeof(::ecloud::ActorConnectionInfo)},
-        {423, sizeof(::ecloud::ActorUpdateWithResponse)},
-        {430, sizeof(::ecloud::EdgeMapping)},
-        {439, sizeof(::ecloud::EdgeMappingSetup)},
+        {393, sizeof(::ecloud::EdgeReadyNotification)},
+        {400, sizeof(::ecloud::EdgeTick)},
+        {407, sizeof(::ecloud::EdgeIndex)},
+        {412, sizeof(::ecloud::ActorConnectionInfo)},
+        {425, sizeof(::ecloud::ActorUpdateWithResponse)},
+        {432, sizeof(::ecloud::EdgeMapping)},
+        {441, sizeof(::ecloud::EdgeMappingSetup)},
 };
 static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
     &::ecloud::_Empty_default_instance_._instance,
@@ -2002,72 +2005,73 @@ const char descriptor_table_protodef_ecloud_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "ehicles\030\003 \001(\005\022\020\n\010num_rsus\030\004 \001(\005\022\027\n\017vehic"
     "le_indices\030\005 \003(\005\022\023\n\013rsu_indices\030\006 \003(\005\022\020\n"
     "\010carla_ip\030\007 \001(\t\022\022\n\ncarla_port\030\010 \001(\005\022\023\n\013a"
-    "pplication\030\t \001(\t\022\017\n\007version\030\n \001(\t\"U\n\020Edg"
-    "eTickComplete\022\022\n\nedge_index\030\001 \001(\005\022\017\n\007tic"
-    "k_id\030\002 \001(\005\022\034\n\024num_actors_processed\030\003 \001(\005"
-    "\"\?\n\025EdgeReadyNotification\022\022\n\nedge_index\030"
-    "\001 \001(\005\022\022\n\nnum_actors\030\002 \001(\005\"=\n\010EdgeTick\022\017\n"
-    "\007tick_id\030\001 \001(\005\022 \n\007command\030\002 \001(\0162\017.ecloud"
-    ".Command\"\037\n\tEdgeIndex\022\022\n\nedge_index\030\001 \001("
-    "\005\"v\n\023ActorConnectionInfo\022\020\n\010has_edge\030\001 \001"
-    "(\010\022\017\n\007edge_ip\030\002 \001(\t\022\021\n\tedge_port\030\003 \001(\005\022\022"
-    "\n\nedge_index\030\004 \001(\005\022\025\n\rvehicle_index\030\005 \001("
-    "\005\"m\n\027ActorUpdateWithResponse\022%\n\006update\030\001"
-    " \001(\0132\025.ecloud.VehicleUpdate\022+\n\rfused_obj"
-    "ects\030\002 \001(\0132\024.ecloud.ObjectBuffer\"O\n\013Edge"
-    "Mapping\022\022\n\nedge_index\030\001 \001(\005\022\027\n\017vehicle_i"
-    "ndices\030\002 \003(\005\022\023\n\013rsu_indices\030\003 \003(\005\"L\n\020Edg"
-    "eMappingSetup\022\021\n\tnum_edges\030\001 \001(\005\022%\n\010mapp"
-    "ings\030\002 \003(\0132\023.ecloud.EdgeMapping*~\n\007Comma"
-    "nd\022\010\n\004TICK\020\000\022\007\n\003END\020\001\022\026\n\022REQUEST_DEBUG_I"
-    "NFO\020\002\022\033\n\027PULL_WAYPOINTS_AND_TICK\020\003\022\031\n\025PU"
-    "LL_OBJECTS_AND_TICK\020\004\022\020\n\014ACTORS_READY\020\005*"
-    "\240\001\n\014VehicleState\022\017\n\013REGISTERING\020\000\022\020\n\014CAR"
-    "LA_UPDATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002\022\023\n\017GET_D"
-    "ESTINATION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTICK_DONE\020\005"
-    "\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_INFO_UPDATE"
-    "\020\010*!\n\tActorType\022\013\n\007VEHICLE\020\000\022\007\n\003RSU\020\0012\271\014"
-    "\n\006Ecloud\022\'\n\010PushTick\022\014.ecloud.Tick\032\r.ecl"
-    "oud.Empty\0229\n\021Client_SendUpdate\022\025.ecloud."
-    "VehicleUpdate\032\r.ecloud.Empty\022J\n\026Client_R"
-    "egisterVehicle\022\030.ecloud.RegistrationInfo"
-    "\032\026.ecloud.SimulationInfo\022E\n\022Client_GetSc"
-    "enario\022\027.ecloud.ScenarioRequest\032\026.ecloud"
-    ".SimulationInfo\022F\n\023Client_GetWaypoints\022\027"
-    ".ecloud.WaypointRequest\032\026.ecloud.Waypoin"
-    "tBuffer\022@\n\021Client_GetObjects\022\025.ecloud.Ob"
-    "jectRequest\032\024.ecloud.ObjectBuffer\022Q\n\030Cli"
-    "ent_GetConnectionInfo\022\030.ecloud.Registrat"
-    "ionInfo\032\033.ecloud.ActorConnectionInfo\022,\n\r"
-    "Server_DoTick\022\014.ecloud.Tick\032\r.ecloud.Emp"
-    "ty\022=\n\024Server_StartScenario\022\026.ecloud.Simu"
-    "lationInfo\032\r.ecloud.Empty\0222\n\022Server_EndS"
-    "cenario\022\r.ecloud.Empty\032\r.ecloud.Empty\022A\n"
-    "\030Server_GetVehicleUpdates\022\r.ecloud.Empty"
-    "\032\026.ecloud.EcloudResponse\022@\n\030Server_PushE"
-    "dgeWaypoints\022\025.ecloud.EdgeWaypoints\032\r.ec"
-    "loud.Empty\022<\n\026Server_PushEdgeObjects\022\023.e"
-    "cloud.EdgeObjects\032\r.ecloud.Empty\022A\n\026Serv"
-    "er_SetEdgeMappings\022\030.ecloud.EdgeMappingS"
-    "etup\032\r.ecloud.Empty\022I\n\rEdge_Register\022\034.e"
-    "cloud.EdgeRegistrationInfo\032\032.ecloud.Edge"
-    "ScenarioConfig\022<\n\021Edge_TickComplete\022\030.ec"
-    "loud.EdgeTickComplete\032\r.ecloud.Empty\022@\n\020"
-    "Edge_ActorsReady\022\035.ecloud.EdgeReadyNotif"
-    "ication\032\r.ecloud.Empty\0220\n\rEdge_PushTick\022"
-    "\020.ecloud.EdgeTick\032\r.ecloud.Empty\022F\n\022Edge"
-    "_ActorRegister\022\030.ecloud.RegistrationInfo"
-    "\032\026.ecloud.SimulationInfo\022:\n\017Edge_ActorRe"
-    "ady\022\030.ecloud.RegistrationInfo\032\r.ecloud.E"
-    "mpty\022C\n\024Edge_ActorSendUpdate\022\025.ecloud.Ve"
-    "hicleUpdate\032\024.ecloud.ObjectBuffer\022L\n\035Edg"
-    "e_SendIntermediateFeatures\022\034.ecloud.Inte"
-    "rmediateFeatures\032\r.ecloud.Empty\022Q\n\024Edge_"
-    "GetFusionResult\022#.ecloud.IntermediateFea"
-    "turesRequest\032\024.ecloud.FusionResult\022M\n\022Ed"
-    "ge_PerformFusion\022!.ecloud.IntermediateFe"
-    "aturesBatch\032\024.ecloud.FusionResultb\006proto"
-    "3"
+    "pplication\030\t \001(\t\022\017\n\007version\030\n \001(\t\"\205\001\n\020Ed"
+    "geTickComplete\022\022\n\nedge_index\030\001 \001(\005\022\017\n\007ti"
+    "ck_id\030\002 \001(\005\022\034\n\024num_actors_processed\030\003 \001("
+    "\005\022.\n\017vehicle_updates\030\004 \003(\0132\025.ecloud.Vehi"
+    "cleUpdate\"\?\n\025EdgeReadyNotification\022\022\n\ned"
+    "ge_index\030\001 \001(\005\022\022\n\nnum_actors\030\002 \001(\005\"=\n\010Ed"
+    "geTick\022\017\n\007tick_id\030\001 \001(\005\022 \n\007command\030\002 \001(\016"
+    "2\017.ecloud.Command\"\037\n\tEdgeIndex\022\022\n\nedge_i"
+    "ndex\030\001 \001(\005\"v\n\023ActorConnectionInfo\022\020\n\010has"
+    "_edge\030\001 \001(\010\022\017\n\007edge_ip\030\002 \001(\t\022\021\n\tedge_por"
+    "t\030\003 \001(\005\022\022\n\nedge_index\030\004 \001(\005\022\025\n\rvehicle_i"
+    "ndex\030\005 \001(\005\"m\n\027ActorUpdateWithResponse\022%\n"
+    "\006update\030\001 \001(\0132\025.ecloud.VehicleUpdate\022+\n\r"
+    "fused_objects\030\002 \001(\0132\024.ecloud.ObjectBuffe"
+    "r\"O\n\013EdgeMapping\022\022\n\nedge_index\030\001 \001(\005\022\027\n\017"
+    "vehicle_indices\030\002 \003(\005\022\023\n\013rsu_indices\030\003 \003"
+    "(\005\"L\n\020EdgeMappingSetup\022\021\n\tnum_edges\030\001 \001("
+    "\005\022%\n\010mappings\030\002 \003(\0132\023.ecloud.EdgeMapping"
+    "*~\n\007Command\022\010\n\004TICK\020\000\022\007\n\003END\020\001\022\026\n\022REQUES"
+    "T_DEBUG_INFO\020\002\022\033\n\027PULL_WAYPOINTS_AND_TIC"
+    "K\020\003\022\031\n\025PULL_OBJECTS_AND_TICK\020\004\022\020\n\014ACTORS"
+    "_READY\020\005*\240\001\n\014VehicleState\022\017\n\013REGISTERING"
+    "\020\000\022\020\n\014CARLA_UPDATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002"
+    "\022\023\n\017GET_DESTINATION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTI"
+    "CK_DONE\020\005\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_IN"
+    "FO_UPDATE\020\010*!\n\tActorType\022\013\n\007VEHICLE\020\000\022\007\n"
+    "\003RSU\020\0012\271\014\n\006Ecloud\022\'\n\010PushTick\022\014.ecloud.T"
+    "ick\032\r.ecloud.Empty\0229\n\021Client_SendUpdate\022"
+    "\025.ecloud.VehicleUpdate\032\r.ecloud.Empty\022J\n"
+    "\026Client_RegisterVehicle\022\030.ecloud.Registr"
+    "ationInfo\032\026.ecloud.SimulationInfo\022E\n\022Cli"
+    "ent_GetScenario\022\027.ecloud.ScenarioRequest"
+    "\032\026.ecloud.SimulationInfo\022F\n\023Client_GetWa"
+    "ypoints\022\027.ecloud.WaypointRequest\032\026.eclou"
+    "d.WaypointBuffer\022@\n\021Client_GetObjects\022\025."
+    "ecloud.ObjectRequest\032\024.ecloud.ObjectBuff"
+    "er\022Q\n\030Client_GetConnectionInfo\022\030.ecloud."
+    "RegistrationInfo\032\033.ecloud.ActorConnectio"
+    "nInfo\022,\n\rServer_DoTick\022\014.ecloud.Tick\032\r.e"
+    "cloud.Empty\022=\n\024Server_StartScenario\022\026.ec"
+    "loud.SimulationInfo\032\r.ecloud.Empty\0222\n\022Se"
+    "rver_EndScenario\022\r.ecloud.Empty\032\r.ecloud"
+    ".Empty\022A\n\030Server_GetVehicleUpdates\022\r.ecl"
+    "oud.Empty\032\026.ecloud.EcloudResponse\022@\n\030Ser"
+    "ver_PushEdgeWaypoints\022\025.ecloud.EdgeWaypo"
+    "ints\032\r.ecloud.Empty\022<\n\026Server_PushEdgeOb"
+    "jects\022\023.ecloud.EdgeObjects\032\r.ecloud.Empt"
+    "y\022A\n\026Server_SetEdgeMappings\022\030.ecloud.Edg"
+    "eMappingSetup\032\r.ecloud.Empty\022I\n\rEdge_Reg"
+    "ister\022\034.ecloud.EdgeRegistrationInfo\032\032.ec"
+    "loud.EdgeScenarioConfig\022<\n\021Edge_TickComp"
+    "lete\022\030.ecloud.EdgeTickComplete\032\r.ecloud."
+    "Empty\022@\n\020Edge_ActorsReady\022\035.ecloud.EdgeR"
+    "eadyNotification\032\r.ecloud.Empty\0220\n\rEdge_"
+    "PushTick\022\020.ecloud.EdgeTick\032\r.ecloud.Empt"
+    "y\022F\n\022Edge_ActorRegister\022\030.ecloud.Registr"
+    "ationInfo\032\026.ecloud.SimulationInfo\022:\n\017Edg"
+    "e_ActorReady\022\030.ecloud.RegistrationInfo\032\r"
+    ".ecloud.Empty\022C\n\024Edge_ActorSendUpdate\022\025."
+    "ecloud.VehicleUpdate\032\024.ecloud.ObjectBuff"
+    "er\022L\n\035Edge_SendIntermediateFeatures\022\034.ec"
+    "loud.IntermediateFeatures\032\r.ecloud.Empty"
+    "\022Q\n\024Edge_GetFusionResult\022#.ecloud.Interm"
+    "ediateFeaturesRequest\032\024.ecloud.FusionRes"
+    "ult\022M\n\022Edge_PerformFusion\022!.ecloud.Inter"
+    "mediateFeaturesBatch\032\024.ecloud.FusionResu"
+    "ltb\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_ecloud_2eproto_deps[1] = {
@@ -2077,7 +2081,7 @@ static ::absl::once_flag descriptor_table_ecloud_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_ecloud_2eproto = {
     false,
     false,
-    7481,
+    7530,
     descriptor_table_protodef_ecloud_2eproto,
     "ecloud.proto",
     &descriptor_table_ecloud_2eproto_once,
@@ -15579,21 +15583,42 @@ EdgeTickComplete::EdgeTickComplete(::google::protobuf::Arena* PROTOBUF_NULLABLE 
   SharedCtor(arena);
   // @@protoc_insertion_point(arena_constructor:ecloud.EdgeTickComplete)
 }
+PROTOBUF_NDEBUG_INLINE EdgeTickComplete::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    const ::ecloud::EdgeTickComplete& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0},
+        vehicle_updates_{visibility, arena, from.vehicle_updates_} {}
+
 EdgeTickComplete::EdgeTickComplete(
-    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeTickComplete& from)
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const EdgeTickComplete& from)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
-    : ::google::protobuf::Message(arena, EdgeTickComplete_class_data_.base()),
+    : ::google::protobuf::Message(arena, EdgeTickComplete_class_data_.base()) {
 #else   // PROTOBUF_CUSTOM_VTABLE
-    : ::google::protobuf::Message(arena),
+    : ::google::protobuf::Message(arena) {
 #endif  // PROTOBUF_CUSTOM_VTABLE
-      _impl_(from._impl_) {
+  EdgeTickComplete* const _this = this;
+  (void)_this;
   _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
       from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::memcpy(reinterpret_cast<char *>(&_impl_) +
+               offsetof(Impl_, edge_index_),
+           reinterpret_cast<const char *>(&from._impl_) +
+               offsetof(Impl_, edge_index_),
+           offsetof(Impl_, num_actors_processed_) -
+               offsetof(Impl_, edge_index_) +
+               sizeof(Impl_::num_actors_processed_));
+
+  // @@protoc_insertion_point(copy_constructor:ecloud.EdgeTickComplete)
 }
 PROTOBUF_NDEBUG_INLINE EdgeTickComplete::Impl_::Impl_(
     ::google::protobuf::internal::InternalVisibility visibility,
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
-      : _cached_size_{0} {}
+      : _cached_size_{0},
+        vehicle_updates_{visibility, arena} {}
 
 inline void EdgeTickComplete::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -15621,8 +15646,20 @@ inline void* PROTOBUF_NONNULL EdgeTickComplete::PlacementNew_(
   return ::new (mem) EdgeTickComplete(arena);
 }
 constexpr auto EdgeTickComplete::InternalNewImpl_() {
-  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(EdgeTickComplete),
-                                            alignof(EdgeTickComplete));
+  constexpr auto arena_bits = ::google::protobuf::internal::EncodePlacementArenaOffsets({
+      PROTOBUF_FIELD_OFFSET(EdgeTickComplete, _impl_.vehicle_updates_) +
+          decltype(EdgeTickComplete::_impl_.vehicle_updates_)::
+              InternalGetArenaOffset(
+                  ::google::protobuf::Message::internal_visibility()),
+  });
+  if (arena_bits.has_value()) {
+    return ::google::protobuf::internal::MessageCreator::ZeroInit(
+        sizeof(EdgeTickComplete), alignof(EdgeTickComplete), *arena_bits);
+  } else {
+    return ::google::protobuf::internal::MessageCreator(&EdgeTickComplete::PlacementNew_,
+                                 sizeof(EdgeTickComplete),
+                                 alignof(EdgeTickComplete));
+  }
 }
 constexpr auto EdgeTickComplete::InternalGenerateClassData_() {
   return ::google::protobuf::internal::ClassDataFull{
@@ -15658,18 +15695,18 @@ EdgeTickComplete::GetClassData() const {
   return EdgeTickComplete_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<2, 3, 0, 0, 2>
+const ::_pbi::TcParseTable<2, 4, 1, 0, 2>
 EdgeTickComplete::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(EdgeTickComplete, _impl_._has_bits_),
     0, // no _extensions_
-    3, 24,  // max_field_number, fast_idx_mask
+    4, 24,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967288,  // skipmap
+    4294967280,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    3,  // num_field_entries
-    0,  // num_aux_entries
-    offsetof(decltype(_table_), field_names),  // no aux_entries
+    4,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
     EdgeTickComplete_class_data_.base(),
     nullptr,  // post_loop_handler
     ::_pbi::TcParser::GenericFallback,  // fallback
@@ -15677,7 +15714,9 @@ EdgeTickComplete::_table_ = {
     ::_pbi::TcParser::GetTable<::ecloud::EdgeTickComplete>(),  // to_prefetch
     #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
   }, {{
-    {::_pbi::TcParser::MiniParse, {}},
+    // repeated .ecloud.VehicleUpdate vehicle_updates = 4;
+    {::_pbi::TcParser::FastMtR1,
+     {34, 63, 0, PROTOBUF_FIELD_OFFSET(EdgeTickComplete, _impl_.vehicle_updates_)}},
     // int32 edge_index = 1;
     {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(EdgeTickComplete, _impl_.edge_index_), 0>(),
      {8, 0, 0, PROTOBUF_FIELD_OFFSET(EdgeTickComplete, _impl_.edge_index_)}},
@@ -15699,8 +15738,13 @@ EdgeTickComplete::_table_ = {
     // int32 num_actors_processed = 3;
     {PROTOBUF_FIELD_OFFSET(EdgeTickComplete, _impl_.num_actors_processed_), _Internal::kHasBitsOffset + 2, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    // repeated .ecloud.VehicleUpdate vehicle_updates = 4;
+    {PROTOBUF_FIELD_OFFSET(EdgeTickComplete, _impl_.vehicle_updates_), -1, 0,
+    (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
   }},
-  // no aux_entries
+  {{
+      {::_pbi::TcParser::GetTable<::ecloud::VehicleUpdate>()},
+  }},
   {{
   }},
 };
@@ -15711,6 +15755,7 @@ PROTOBUF_NOINLINE void EdgeTickComplete::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  _impl_.vehicle_updates_.Clear();
   cached_has_bits = _impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000007u) != 0) {
     ::memset(&_impl_.edge_index_, 0, static_cast<::size_t>(
@@ -15763,6 +15808,17 @@ PROTOBUF_NOINLINE void EdgeTickComplete::Clear() {
     }
   }
 
+  // repeated .ecloud.VehicleUpdate vehicle_updates = 4;
+  for (unsigned i = 0, n = static_cast<unsigned>(
+                           this_._internal_vehicle_updates_size());
+       i < n; i++) {
+    const auto& repfield = this_._internal_vehicle_updates().Get(i);
+    target =
+        ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+            4, repfield, repfield.GetCachedSize(),
+            target, stream);
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -15787,6 +15843,15 @@ PROTOBUF_NOINLINE void EdgeTickComplete::Clear() {
   (void)cached_has_bits;
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+   {
+    // repeated .ecloud.VehicleUpdate vehicle_updates = 4;
+    {
+      total_size += 1UL * this_._internal_vehicle_updates_size();
+      for (const auto& msg : this_._internal_vehicle_updates()) {
+        total_size += ::google::protobuf::internal::WireFormatLite::MessageSize(msg);
+      }
+    }
+  }
   cached_has_bits = this_._impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000007u) != 0) {
     // int32 edge_index = 1;
@@ -15823,6 +15888,8 @@ void EdgeTickComplete::MergeImpl(::google::protobuf::MessageLite& to_msg, const 
   ::uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
+  _this->_internal_mutable_vehicle_updates()->MergeFrom(
+      from._internal_vehicle_updates());
   cached_has_bits = from._impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000007u) != 0) {
     if ((cached_has_bits & 0x00000001u) != 0) {
@@ -15857,6 +15924,7 @@ void EdgeTickComplete::InternalSwap(EdgeTickComplete* PROTOBUF_RESTRICT PROTOBUF
   using ::std::swap;
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  _impl_.vehicle_updates_.InternalSwap(&other->_impl_.vehicle_updates_);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(EdgeTickComplete, _impl_.num_actors_processed_)
       + sizeof(EdgeTickComplete::_impl_.num_actors_processed_)

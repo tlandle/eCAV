@@ -58,6 +58,7 @@ class EdgeActorInfo:
         self.push_stub = None
         self.last_update = None
         self.reported_tick = False
+        self.is_done = False
 
 
 class EdgeServer(ecloud_rpc.EcloudServicer):
@@ -178,9 +179,14 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
         logger.debug("Actor %s sent update for tick %s", vehicle_index, request.tick_id)
 
         # Store the update
-        if f"{actor_type}_{vehicle_index}" in self.edge_process.actors:
-            self.edge_process.actors[f"{actor_type}_{vehicle_index}"].last_update = request
-            self.edge_process.actors[f"{actor_type}_{vehicle_index}"].reported_tick = True
+        key = f"{actor_type}_{vehicle_index}"
+        if key in self.edge_process.actors:
+            actor_info = self.edge_process.actors[key]
+            actor_info.last_update = request
+            actor_info.reported_tick = True
+            if request.vehicle_state == ecloud.VehicleState.TICK_DONE:
+                actor_info.is_done = True
+                logger.info("Actor %s reported TICK_DONE — excluding from future tick barriers", vehicle_index)
         else:
             logger.warning("Received update from unknown actor %s", vehicle_index)
 
@@ -335,7 +341,7 @@ class EdgeProcess:
         logger.info("Edge %s: notified orchestrator — %d actors ready",
                     self.edge_index, self.num_actors_ready)
 
-    async def report_tick_complete(self, tick_id):
+    async def report_tick_complete(self, tick_id, newly_done=None):
         """Report to orchestrator that this edge completed processing for the tick."""
         logger.info("Reporting tick %s complete to orchestrator", tick_id)
 
@@ -344,18 +350,24 @@ class EdgeProcess:
         request.tick_id = tick_id
         request.num_actors_processed = len(self.actors)
 
+        for actor in (newly_done or []):
+            if actor.actor_type == ecloud.ActorType.VEHICLE and actor.last_update is not None:
+                request.vehicle_updates.append(actor.last_update)
+                logger.info("Forwarding TICK_DONE for vehicle %s to orchestrator", actor.vehicle_index)
+
         await self.orchestrator_stub.Edge_TickComplete(request)
 
     async def push_tick_to_actors(self, tick_id, command):
-        """Push tick notification to all registered actors."""
-        logger.info("Pushing tick %s to %d actors", tick_id, len(self.actors))
+        """Push tick notification to all active (non-done) registered actors."""
+        active = {k: a for k, a in self.actors.items() if not a.is_done}
+        logger.info("Pushing tick %s to %d/%d actors", tick_id, len(active), len(self.actors))
 
         tick = ecloud.Tick()
         tick.tick_id = tick_id
         tick.command = command
 
         push_tasks = []
-        for vehicle_index, actor in self.actors.items():
+        for vehicle_index, actor in active.items():
             if actor.push_stub is not None:
                 push_tasks.append(self._push_tick_to_actor(actor, tick, vehicle_index))
 
@@ -384,12 +396,16 @@ class EdgeProcess:
             await self.push_tick_to_actors(tick_id, command)
             return False  # Signal to stop
 
-        # Push tick to all actors
+        # Snapshot done set before pushing so newly_done diff is clean
+        prior_done = {key for key, a in self.actors.items() if a.is_done}
+
+        # Push tick to all active (non-done) actors
         await self.push_tick_to_actors(tick_id, command)
 
-        # Wait for all actors to report
+        # Wait for all active (non-done) actors to report
+        expected = sum(1 for a in self.actors.values() if not a.is_done)
         actors_reported = 0
-        while actors_reported < len(self.actors):
+        while actors_reported < expected:
             try:
                 vehicle_index = await asyncio.wait_for(
                     self.actor_complete_queue.get(),
@@ -397,17 +413,21 @@ class EdgeProcess:
                 )
                 actors_reported += 1
                 logger.debug("Actor %s completed (%d/%d)",
-                           vehicle_index, actors_reported, len(self.actors))
+                           vehicle_index, actors_reported, expected)
             except asyncio.TimeoutError:
                 logger.warning("Timeout waiting for actors. Reported: %d/%d",
-                             actors_reported, len(self.actors))
+                             actors_reported, expected)
                 break
+
+        # Determine which actors became done this tick
+        newly_done = [a for key, a in self.actors.items()
+                      if a.is_done and key not in prior_done]
 
         # Fuse predictions (placeholder - just collect them for now)
         self.fuse_predictions()
 
-        # Report completion to orchestrator
-        await self.report_tick_complete(tick_id)
+        # Report completion to orchestrator, forwarding any newly-done vehicle state
+        await self.report_tick_complete(tick_id, newly_done)
 
         return True  # Continue processing
 
