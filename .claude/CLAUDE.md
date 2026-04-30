@@ -52,6 +52,10 @@ For simplicity in starting up multiple actors, use the shell script `start_actor
 
 This shell script will also start the CarlaUE4 instance that is required for world simulation. We typically run this in headless mode, but it can also run _"normally"_ for visual debugging - what are the cars actually doing?
 
+## Plans
+
+**Override**: Plans for this project live in `docs/agent_plans/` (not `~/Documents/agent_plans`). Use snake_case filenames as per global convention.
+
 ## Knowledge Base
 
 A Karpathy-style knowledge base lives at `docs/kb/`.
@@ -66,3 +70,17 @@ At the end of every conversation where meaningful work was done:
 The compaction scratch file (`YYYY-MM-DD_scratch.md`) has been removed as a directive — there is no reliable way to know when compaction is imminent, so it is not actionable. Keeping `current_state.md` up to date throughout the session is the mitigation.
 
 This is automatic; whomever is working with you in this workspace does not need to ask. See [docs/agent_plans/kb_plan.md](../docs/agent_plans/kb_plan.md) for full KB structure.
+
+## Code Quality: Progressive Cleanup Policy
+
+When editing any file for a functional reason (bug fix, feature, refactor), also sweep that file for:
+
+1. **`print` → `logger` conversion** — bare `print(...)` calls should become `logger.debug/info/warning/error(...)` at the appropriate level. Use an existing logger if the module already has one; add `logger = logging.getLogger(__name__)` if not. Don't convert prints that are intentional user-facing CLI output.
+
+2. **Debug cruft removal** — commented-out debug blocks, dead `if verbose:` branches, ad-hoc inline debug prints that predate the logger, and similar scaffolding.
+
+This is a driveby policy, not a standalone sweep. Don't open a file purely to clean it. Don't clean files adjacent to the one being edited. The scope is exactly: the file being modified for a functional reason.
+
+## Housekeeping
+
+At the close of sessions, run `docker system df` to check current container usage. If the size of `Images` is over 100GB, prompt whomever you're working with to run `docker system prune` to free up space.

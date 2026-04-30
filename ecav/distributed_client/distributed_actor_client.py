@@ -30,6 +30,7 @@ sys.path.insert(0, os.path.join(os.getcwd(), 'scenario_runner'))
 sys.path.insert(0, os.getcwd())
 
 from ecav.version import __version__
+from ecav.utils import find_unpicklable
 from ecav.core.common.cav_world import CavWorld
 from ecav.core.common.vehicle_manager import VehicleManager
 from ecav.core.common.rsu_manager import RSUManager
@@ -446,8 +447,14 @@ class DistributedActorClient:
                         self.rsu_manager.objects
                     )
             except Exception as e:
-                print(f"Error serializing objects: {e}", flush=True)
-                self._debug_unpicklable_objects(e)
+                logger.error("Error serializing objects: %s", e)
+                objects = (self.vehicle_manager.agent.objects
+                           if self.actor_type == ecloud.ActorType.VEHICLE
+                           else self.rsu_manager.objects)
+                for o in objects:
+                    bad = find_unpicklable(o, path=f"preds[{type(o).__name__}]")
+                    if bad is not None:
+                        logger.error("Unpicklable object: %s", bad)
 
             if self.actor_type == ecloud.ActorType.VEHICLE:
                 vehicle_update.vehicle_state = (
@@ -495,7 +502,6 @@ class DistributedActorClient:
                 object_proto = await self.ecloud_server.Client_GetObjects(obj_request)
                 preds = (pickle.loads(object_proto.pickled_edge_predictions)
                         if object_proto.pickled_edge_predictions else None)
-                print("Edge Predictions:")
                 if self.actor_type == ecloud.ActorType.VEHICLE:
                     self.vehicle_manager.agent.edge_predictions = preds
                 self.pong.command = ecloud.Command.TICK
@@ -508,28 +514,6 @@ class DistributedActorClient:
             logger.info("EXIT destroy-on-done vehicle actor")
 
         return self.pong
-
-    def _debug_unpicklable_objects(self, error):
-        """Helper to debug unpicklable objects."""
-        def find_unpicklable(obj, path=""):
-            try:
-                pickle.dumps(obj)
-                return None
-            except Exception as e:
-                print(f"Failed to pickle {path}: {e}")
-                if hasattr(obj, '__dict__'):
-                    for key, value in obj.__dict__.items():
-                        result = find_unpicklable(value, f"{path}.{key}")
-                        if result is not None:
-                            return result
-                return obj
-
-        if self.actor_type == ecloud.ActorType.VEHICLE:
-            for o in self.vehicle_manager.agent.objects:
-                print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
-        else:
-            for o in self.rsu_manager.objects:
-                print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
 
     async def end(self):
         """Clean up resources and end the simulation."""
