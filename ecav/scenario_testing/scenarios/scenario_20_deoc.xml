@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!-- Scenario 20 DE-OCCLUDED: LTAP without the firetruck occluders.
+     Ego heads north through a signalized intersection. Two Lincoln /
+     Tesla cross-traffic threats approach at speed from the east.
+     No occluders: ego has clear line-of-sight to the threats.
+     This is the negative-control / de-occluded cell of the 2x2
+     closed-loop matrix (visibility x load).
+     Town03, same intersection as scenario_3 / scenario_20.
+-->
+<scenarios>
+    <scenario name="Scenario_20" type="Scenario_20" town="Town03">
+        <ego_vehicle x="-84.8" y="70" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
+
+        <!-- Cross-traffic: two vehicles approaching from the east at speed -->
+        <other_actor x="-20.0" y="127.7" z="-500" yaw="180" model="vehicle.lincoln.mkz_2017" />
+        <other_actor x="-10.0" y="127.7" z="-500" yaw="180" model="vehicle.tesla.model3" />
+
+        <!-- No occluders. Ego has direct LOS to both threats. -->
+
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0"
+                 wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75"
+                 fog_density="0" />
+    </scenario>
+</scenarios>
