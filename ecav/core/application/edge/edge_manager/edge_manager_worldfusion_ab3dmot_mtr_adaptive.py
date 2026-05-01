@@ -251,6 +251,49 @@ class WorldFusionAdaptiveEdge(WorldFusionEdge):
             'rm': self.model.reg_head(fused_feature),
         }
 
+        # DEBUG: per-agent + fused PSM at expected Lincoln voxel.
+        # World anchor for scenario_3 LTAP is (-78, 128); Lincoln world is
+        # (-42.4, 127.7); so Lincoln in anchor frame is (35.6, -0.3).
+        # Canvas size = 140.8 m, half-extent = 70.4 m.
+        try:
+            CANVAS_M = 140.8
+            HALF_M = CANVAS_M / 2.0
+            LX_A, LY_A = 35.6, -0.3
+            h_p, w_p = psm_single.shape[2], psm_single.shape[3]
+            cx, cy = CANVAS_M / w_p, CANVAS_M / h_p
+            lgx = int((LX_A + HALF_M) / cx)
+            lgy = int((LY_A + HALF_M) / cy)
+            for ai in range(psm_single.shape[0]):
+                ap = psm_single[ai].sigmoid()
+                reg = ap[:, max(0, lgy-3):lgy+4, max(0, lgx-3):lgx+4]
+                mv = reg.max().item() if reg.numel() else 0
+                pf = ap.max(dim=0)[0]
+                tv, ti = pf.flatten().topk(3)
+                tl = []
+                for v, idx in zip(tv, ti):
+                    gy_, gx_ = idx // w_p, idx % w_p
+                    tl.append(f"({gx_*cx-HALF_M:.1f},{gy_*cy-HALF_M:.1f})={v:.3f}")
+                print(f"[AGENT PSM] a{ai} Lincoln_a=({LX_A},{LY_A}) "
+                      f"grid=({lgx},{lgy}) max3x3={mv:.4f} top3: {', '.join(tl)}",
+                      flush=True)
+            # Fused PSM at Lincoln voxel
+            fp = pred_dict['psm'][0].sigmoid()
+            h_f, w_f = fp.shape[1], fp.shape[2]
+            cx_f, cy_f = CANVAS_M / w_f, CANVAS_M / h_f
+            fgx = int((LX_A + HALF_M) / cx_f)
+            fgy = int((LY_A + HALF_M) / cy_f)
+            f_reg = fp[:, max(0, fgy-3):fgy+4, max(0, fgx-3):fgx+4]
+            f_mv = f_reg.max().item() if f_reg.numel() else 0
+            f_top_v, f_top_i = fp.max(dim=0)[0].flatten().topk(3)
+            f_tl = []
+            for v, idx in zip(f_top_v, f_top_i):
+                gy_, gx_ = idx // w_f, idx % w_f
+                f_tl.append(f"({gx_*cx_f-HALF_M:.1f},{gy_*cy_f-HALF_M:.1f})={v:.3f}")
+            print(f"[FUSED PSM] grid=({fgx},{fgy}) max3x3={f_mv:.4f} "
+                  f"top3: {', '.join(f_tl)}", flush=True)
+        except Exception as _e:
+            print(f"[PSM DEBUG] failed: {_e}", flush=True)
+
         # Update fusion cost estimator
         fusion_ms = (time.perf_counter() - t_filt) * 1000 - filter_ms
         self._fusion_history.append((N - 1, fusion_ms))

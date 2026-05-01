@@ -20,6 +20,7 @@ from typing import Dict, Any, Optional
 from opencood.hypes_yaml.yaml_utils import load_yaml
 import opencood.tools.train_utils as train_utils
 from opencood.data_utils.pre_processor.sp_voxel_preprocessor import SpVoxelPreprocessor
+from opencood.utils.pcd_utils import mask_ego_points, mask_points_by_range
 from ecav.core.sensing.perception.perception_manager import PerceptionManager
 from ecav.ml_manager.litserve_transport import make_session, TimingRecorder
 import ecav.core.sensing.perception.sensor_transformation as st
@@ -290,19 +291,40 @@ class WorldFusionPerceptionManager(PerceptionManager):
             print(f"[WorldFusion LIDAR DEBUG] Y range: [{lidar_data[:, 1].min():.1f}, {lidar_data[:, 1].max():.1f}]")
             print(f"[WorldFusion LIDAR DEBUG] Z range: [{lidar_data[:, 2].min():.1f}, {lidar_data[:, 2].max():.1f}]")
 
-            # For RSU: compute Lincoln's expected local position dynamically
-            # First, find Lincoln's ACTUAL position from CARLA actors
+            # For RSU: compute the cross-traffic actor's ACTUAL live position.
+            # In scenario_3 the cross-traffic actor is `vehicle.tesla.model3`,
+            # not a Lincoln, so the prior `lincoln`/`mkz` filter fell through.
+            # Match the broader set of cross-traffic blueprints we use, and
+            # disambiguate from the ego (nissan.patrol) by selecting the
+            # vehicle whose y is closest to the cross-traffic spawn lane
+            # (y ~ 127.7) and whose role_name is "scenario" or unset.
+            CROSS_BLUEPRINTS = ('tesla.model3', 'lincoln', 'mkz')
             lincoln_world_x, lincoln_world_y = -42.4, 127.7  # default from scenario
             try:
                 actors = self.carla_world.get_actors()
+                best = None
+                best_dy = 1e9
                 for actor in actors:
-                    if 'lincoln' in actor.type_id.lower() or 'mkz' in actor.type_id.lower():
-                        loc = actor.get_location()
-                        lincoln_world_x, lincoln_world_y = loc.x, loc.y
-                        print(f"[WorldFusion LIDAR DEBUG] Found Lincoln actor at ACTUAL world pos: ({loc.x:.2f}, {loc.y:.2f}, {loc.z:.2f})")
-                        break
+                    tid = actor.type_id.lower()
+                    if not any(b in tid for b in CROSS_BLUEPRINTS):
+                        continue
+                    loc = actor.get_location()
+                    dy = abs(loc.y - 127.7)
+                    if dy < best_dy:
+                        best_dy = dy
+                        best = (actor, loc)
+                if best is not None:
+                    actor, loc = best
+                    lincoln_world_x, lincoln_world_y = loc.x, loc.y
+                    print(f"[WorldFusion LIDAR DEBUG] Cross-traffic actor "
+                          f"({actor.type_id}) at world ({loc.x:.2f}, "
+                          f"{loc.y:.2f}, {loc.z:.2f})")
+                else:
+                    print(f"[WorldFusion LIDAR DEBUG] No cross-traffic actor "
+                          f"found, falling back to spawn pose "
+                          f"({lincoln_world_x}, {lincoln_world_y})")
             except Exception as e:
-                print(f"[WorldFusion LIDAR DEBUG] Could not get Lincoln actor: {e}")
+                print(f"[WorldFusion LIDAR DEBUG] Could not get cross-traffic actor: {e}")
             rsu_x, rsu_y = sensor_tf.location.x, sensor_tf.location.y
             rsu_yaw_rad = np.radians(sensor_tf.rotation.yaw)
 
@@ -654,13 +676,17 @@ class WorldFusionPerceptionManager(PerceptionManager):
         Build input batch from sensor data.
         Same as BM2CPPerceptionManager._build_batch().
         """
-        # LiDAR processing
-        # Both Multi-V2X and CARLA use the same Z convention: negative = below
-        # sensor, positive = above. Multi-V2X clips Z > 0 during data generation.
-        # The voxel z-range [-6, 2] handles the clipping at inference.
-        proc_lidar_np = self._vp.preprocess(
-            np.ascontiguousarray(self.lidar.data, dtype=np.float32)
-        )
+        # LiDAR processing — must match training preprocessing exactly.
+        # Multi-V2X intermediate_fusion_dataset._process_single_cav does:
+        #   shuffle -> mask_ego_points -> mask_points_by_range(cav_lidar_range)
+        # Use the configured cav_lidar_range as-is; offline standalone inference
+        # on /tmp/carla_lidar_RSU_*.npy dumps produced detections without an
+        # extra Z cap, so the live path matches that to avoid divergence.
+        lidar_np = np.ascontiguousarray(self.lidar.data, dtype=np.float32)
+        lidar_np = mask_ego_points(lidar_np)
+        cav_range = self.hypes['preprocess']['cav_lidar_range']
+        lidar_np = mask_points_by_range(lidar_np, cav_range)
+        proc_lidar_np = self._vp.preprocess(lidar_np)
         proc_lidar = {k: torch.from_numpy(v) for k, v in proc_lidar_np.items()}
         coords = proc_lidar['voxel_coords']
 

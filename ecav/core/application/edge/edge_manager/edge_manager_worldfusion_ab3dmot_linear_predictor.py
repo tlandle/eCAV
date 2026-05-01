@@ -50,6 +50,9 @@ from ecav.core.application.edge.edge_profiler import EdgeProfiler
 from ecav.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
 from ecav.core.application.edge.latency import JitterBuffer
+from ecav.core.application.edge.latency.ns3_lut_sampler import (
+    get_default as _get_lut_sampler,
+)
 from .edge_manager_base import _BaseEdgeManager
 
 
@@ -91,6 +94,20 @@ class WorldFusionEdge(_BaseEdgeManager):
         # Default to origin with world-aligned axes
         self.world_anchor = cfg.get('world_anchor', [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         print(f"[WorldFusion Edge] World anchor: {self.world_anchor}")
+
+        # Optional GT detection injection. When enabled, model.detect() still
+        # runs (its compute time and ns-3 payload contribute to AoI) but its
+        # output is replaced with simulator GT actor poses before the tracker.
+        # Used for paper closed-loop runs that isolate scheduler impact under
+        # realistic AoI without the perception backbone as a confound.
+        gt_cfg = cfg.get('gt_detection_injection', {}) or {}
+        self._gt_inject_enabled = bool(gt_cfg.get('enabled', False))
+        self._gt_max_range_m = float(gt_cfg.get('max_range_m', 70.0))
+        self._gt_exclude_managed = bool(gt_cfg.get('exclude_managed', True))
+        if self._gt_inject_enabled:
+            print(f"[WorldFusion Edge] GT detection injection ENABLED "
+                  f"(max_range={self._gt_max_range_m}m, "
+                  f"exclude_managed={self._gt_exclude_managed})")
 
         # Load WorldFusion model
         from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
@@ -161,6 +178,19 @@ class WorldFusionEdge(_BaseEdgeManager):
         # and drained in source-tick order (Apollo/Autoware pattern).
         # Payload: (feature_dicts, poses, carla_snapshot, excluded_vehicles)
         self._jitter_buffer: JitterBuffer = JitterBuffer(capacity=200)
+
+        # ns-3 LUT-based latency sampler for closed-loop AoI injection.
+        # Stamps UL packets per-CAV (max-of-N samples) and DL multicast per
+        # fusion event.  See ns3_lut_sampler.py.  Disable via
+        #   edge_list[*].use_ns3_lut: false
+        # to fall back to the legacy HybridModel UL stamping (no DL delay).
+        self._use_ns3_lut = bool(cfg.get("use_ns3_lut", True))
+        self._lut_sampler = _get_lut_sampler() if self._use_ns3_lut else None
+        self._sim_dt_ms = float(self.dt) * 1000.0
+        # Outbound delivery queue: list of (deliver_tick, predictions).
+        # Latest-wins: _drain_outbound_latest returns the freshest prediction
+        # whose delivery_tick has been reached and discards older entries.
+        self._outbound_queue: List[Tuple[int, List]] = []
 
         # GT snapshots indexed by source tick (for metrics evaluation)
         self._gt_snapshots: Dict[int, Dict] = {}
@@ -295,21 +325,12 @@ class WorldFusionEdge(_BaseEdgeManager):
         if excluded_vehicles_snapshot:
             print(f"[WorldFusion Edge] {len(excluded_vehicles_snapshot)} excluded vehicles (not in training data)")
 
-        # Collect from vehicles
-        for vm in self.vehicle_manager_list:
-            pm = vm.perception_manager
-            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
-                feature_dicts.append(pm.feature_dict)
-                pos = vm.localizer.get_ego_pos()
-                poses.append(pos)
-                # Debug: Print CARLA position AND offset from world anchor
-                dx = pos.location.x - self.world_anchor[0]
-                dy = pos.location.y - self.world_anchor[1]
-                # Model outputs in CARLA convention - detection coords should match (dx, dy)
-                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
-                print(f"[WorldFusion Edge]   Offset from anchor: dx={dx:.2f}, dy={dy:.2f} (detection LOCAL should match this)")
-
-        # Collect from RSUs
+        # Collect from RSUs FIRST. Where2Comm fusion treats agent index 0 as
+        # the ego/anchor frame (warps all other agents into agent 0's frame and
+        # produces detections in that frame). The post-processor expects the
+        # output to be in the world-anchor frame, so the anchor agent must be
+        # at index 0. Putting CAVs first silently rotates the output frame to
+        # the first CAV's pose, which destroys detection geometry at small N.
         for rsu in self.rsu_manager_list:
             pm = rsu.perception_manager
             if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
@@ -327,6 +348,18 @@ class WorldFusionEdge(_BaseEdgeManager):
                 print(f"[WorldFusion Edge] RSU CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
                 print(f"[WorldFusion Edge]   CARLA offset from anchor: dx={dx:.2f}, dy={dy:.2f}")
 
+        # Then collect from vehicles
+        for vm in self.vehicle_manager_list:
+            pm = vm.perception_manager
+            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
+                feature_dicts.append(pm.feature_dict)
+                pos = vm.localizer.get_ego_pos()
+                poses.append(pos)
+                dx = pos.location.x - self.world_anchor[0]
+                dy = pos.location.y - self.world_anchor[1]
+                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
+                print(f"[WorldFusion Edge]   Offset from anchor: dx={dx:.2f}, dy={dy:.2f} (detection LOCAL should match this)")
+
         # Tick the BSM temp-ID rotation for every managed vehicle so that
         # time/distance thresholds are evaluated each frame.
         for vm in self.vehicle_manager_list:
@@ -335,8 +368,27 @@ class WorldFusionEdge(_BaseEdgeManager):
 
         if feature_dicts:
             print(f"[WorldFusion Edge] Collected {len(feature_dicts)} feature_dicts from {len(self.vehicle_manager_list)} vehicles + {len(self.rsu_manager_list)} RSUs")
-            # Stamp with per-packet arrival time and push to jitter buffer
-            arrival = self.latency_model.stamp(frame_idx)
+            # Stamp with per-packet arrival time and push to jitter buffer.
+            # ns-3 LUT path: per-CAV UL packet, take MAX over N samples to
+            # model "wait for slowest CAV" semantics.  RSU is not over Uu so
+            # only N_cav uplink packets contend.
+            if self._lut_sampler is not None:
+                n_cav = max(1, len(feature_dicts) - 1)  # exclude RSU
+                # Per-CAV UL payload = bytes of one agent's spatial_features.
+                first_feat = feature_dicts[0].get('spatial_features')
+                if first_feat is not None and hasattr(first_feat, 'numel'):
+                    ul_bytes = int(first_feat.numel() * first_feat.element_size())
+                else:
+                    ul_bytes = 16896  # default WorldFusion compressed feature size
+                ul_samples_ms = [
+                    self._lut_sampler.sample_ms(n_cav, ul_bytes, 'ul')
+                    for _ in range(n_cav)
+                ]
+                ul_ms = max(ul_samples_ms) if ul_samples_ms else 0.0
+                ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
+                arrival = frame_idx + ul_ticks
+            else:
+                arrival = self.latency_model.stamp(frame_idx)
             payload = (feature_dicts, poses, carla_vehicles_snapshot, excluded_vehicles_snapshot)
             self._jitter_buffer.push(frame_idx, arrival, payload)
             # Store GT snapshots by source tick for metrics evaluation
@@ -370,7 +422,10 @@ class WorldFusionEdge(_BaseEdgeManager):
                 new_frames = self._jitter_buffer.drain(tick)
 
             if not new_frames:
-                serialized_preds = self._update_agents(tick, None)
+                # No fresh fusion this tick: deliver whatever's already
+                # ready in the outbound queue (latest-wins).
+                ready_preds = self._drain_outbound_latest(tick)
+                serialized_preds = self._update_agents(tick, ready_preds)
                 frame.set_counts(num_agents=0, num_detections=0, num_tracks=0, num_predictions=0)
                 return serialized_preds
 
@@ -380,6 +435,11 @@ class WorldFusionEdge(_BaseEdgeManager):
             lag_steps = tick - latest_source_tick
             frame.set_aoi_ticks(lag_steps)
             num_agents = len(feature_dicts)
+            # Wall-clock timer for the compute portion (fusion + tracker +
+            # predictor).  Used downstream to schedule prediction delivery
+            # via the outbound queue: deliver_tick = tick + ceil((compute_ms
+            # + dl_ms) / sim_dt_ms).  See _update_agents call below.
+            t_compute_start = time.perf_counter()
 
             # 3. Stack features and compute pairwise transforms
             with frame.time("fusion"):
@@ -403,9 +463,29 @@ class WorldFusionEdge(_BaseEdgeManager):
                 num_dets = len(det_results.get('dets', []))
                 print(f"[WorldFusion Edge] Detection: {num_dets} objects found (before self-filter)")
 
-                # 5.5 Filter out self-detections using beacon positions of managed VEHICLES only
-                num_vehicles = len(self.vehicle_manager_list)
-                vehicle_poses = poses[:num_vehicles]
+                # 5.1 Optional GT injection: replace model output with simulator
+                # GT actor poses. Model already ran above so its compute latency
+                # and any downstream payload are realistic.
+                if self._gt_inject_enabled:
+                    from ecav.core.application.edge.fusion.gt_injector import build_gt_dets
+                    excl_ids = ()
+                    if self._gt_exclude_managed:
+                        excl_ids = tuple(int(vm.vehicle.id)
+                                         for vm in self.vehicle_manager_list)
+                    det_results = build_gt_dets(
+                        self.world, self.world_anchor, frame_id,
+                        exclude_actor_ids=excl_ids,
+                        max_range_m=self._gt_max_range_m,
+                    )
+                    print(f"[WorldFusion Edge] GT INJECT: replaced {num_dets} model "
+                          f"dets with {len(det_results['dets'])} GT actor boxes")
+
+                # 5.5 Filter out self-detections using beacon positions of managed VEHICLES only.
+                # NOTE: update_information now collects RSUs FIRST, then vehicles
+                # (so feature_dicts[0] is the RSU/anchor for Where2Comm fusion).
+                # Vehicle poses live at the tail of `poses`.
+                num_rsus = len(self.rsu_manager_list)
+                vehicle_poses = poses[num_rsus:]
                 det_results = self._filter_self_detections(det_results, vehicle_poses)
                 num_dets_after = len(det_results.get('dets', []))
                 print(f"[WorldFusion Edge] Detection: {num_dets_after} objects after self-beacon filter")
@@ -428,7 +508,24 @@ class WorldFusionEdge(_BaseEdgeManager):
             # 6. Track with AB3DMOT using persistent tracker
             with frame.time("tracking"):
                 self.track_history.appendleft(det_results)
+                _n_in = len(det_results.get('dets', []))
+                _n_trks_before = len(self.tracker.trackers)
                 tracks, _ = self.tracker.track(det_results, frame_id)
+                _n_out = len(tracks[0]) if tracks and len(tracks) > 0 and len(tracks[0]) > 0 else 0
+                _n_trks_after = len(self.tracker.trackers)
+                print(f"[TRACKER DBG] tick={frame_id} dets_in={_n_in} "
+                      f"trackers_before={_n_trks_before} trackers_after={_n_trks_after} "
+                      f"output_rows={_n_out}")
+
+                # Per-tick KF dump for every tracker, so we can see which
+                # one carries the cross-traffic Tesla (CARLA id changes per run).
+                for _trk in self.tracker.trackers:
+                    _kfx = _trk.kf.x.reshape(-1)
+                    print(f"[TRACKER DBG] tid={_trk.id} cid={getattr(_trk, 'carla_id', -1)} "
+                          f"hits={_trk.hits} tsu={_trk.time_since_update} "
+                          f"kf_pos=({_kfx[0]:.2f},{_kfx[1]:.2f},{_kfx[2]:.2f}) "
+                          f"theta={_kfx[3]:.3f} "
+                          f"kf_vel=({_kfx[7]:.4f},{_kfx[8]:.4f},{_kfx[9]:.4f})")
 
                 # Reconcile any pending BSM temp-ID rotations
                 for evt in self.beacon_id_mgr.pop_pending_rotations():
@@ -520,9 +617,35 @@ class WorldFusionEdge(_BaseEdgeManager):
                 miss_rate=pred_metrics.get('miss_rate', 0.0)
             )
 
-            # 9. Distribute predictions to vehicles
+            # 9. Schedule prediction delivery via outbound queue.
+            # In sync sim mode the world is paused during compute so the
+            # planner cannot otherwise see compute cost.  We map measured
+            # compute_ms + sampled DL multicast latency into sim-tick delay
+            # and queue the prediction; subsequent ticks drain the latest
+            # ready entry to the planner.
+            compute_ms = (time.perf_counter() - t_compute_start) * 1000.0
+            if self._lut_sampler is not None:
+                n_cav_for_dl = max(1, num_agents - 1)  # exclude RSU
+                try:
+                    import pickle as _pkl
+                    dl_bytes = (len(_pkl.dumps(predictions))
+                                if predictions else 1000)
+                except Exception:
+                    dl_bytes = 1000
+                dl_ms = self._lut_sampler.sample_ms(
+                    n_cav_for_dl, dl_bytes, 'dl')
+            else:
+                dl_ms = 0.0
+            deliver_tick = tick + int(math.ceil(
+                (compute_ms + dl_ms) / self._sim_dt_ms))
+            self._outbound_queue.append((deliver_tick, predictions))
+            if hasattr(frame, 'set_compute_dl'):
+                frame.set_compute_dl(compute_ms=compute_ms, dl_ms=dl_ms,
+                                    deliver_tick=deliver_tick)
+
             with frame.time("distribution"):
-                serialized_preds = self._update_agents(tick, predictions)
+                ready_preds = self._drain_outbound_latest(tick)
+                serialized_preds = self._update_agents(tick, ready_preds)
 
             # Record counts for this frame
             frame.set_counts(
@@ -568,28 +691,41 @@ class WorldFusionEdge(_BaseEdgeManager):
         spatial_2d = torch.cat(bev_features, dim=0)  # [N, C, H, W]
         psm_single = torch.cat(psm_single_list, dim=0)  # [N, anchor_num, H, W]
 
-        # DEBUG: Check per-agent PSM at Lincoln's expected position
-        # Lincoln at LOCAL (21.2, 13.7) from world anchor
-        # But RSU is AT the anchor, so Lincoln is at (21.2, 13.7) in RSU's frame too
+        # DEBUG: Check per-agent PSM at Lincoln's expected position in the
+        # world-anchor frame. Constants come from the training config:
+        #   canvas_size_m = 140.8 (so half-extent = 70.4 m)
+        #   canvas_res    = 0.4 m/cell at the input grid (psm grid cell
+        #                   size = canvas_size_m / psm.shape[-1] after the
+        #                   backbone's stride collapses 352 -> w cells).
+        # Lincoln expected position in anchor frame (set per-scenario):
+        # scenario_3 LTAP -> world anchor (-78, 128), Lincoln (-42.4, 127.7)
+        # so Lincoln in anchor frame = (35.6, -0.3).
+        CANVAS_M = 140.8
+        HALF_M = CANVAS_M / 2.0
+        LINCOLN_AX, LINCOLN_AY = 35.6, -0.3  # anchor-frame, scenario_3
         h, w = psm_single.shape[2], psm_single.shape[3]
-        lincoln_grid_x = int((21.2 + 40) / (80.0 / w))
-        lincoln_grid_y = int((13.7 + 40) / (80.0 / h))
+        cell_x = CANVAS_M / w
+        cell_y = CANVAS_M / h
+        lincoln_grid_x = int((LINCOLN_AX + HALF_M) / cell_x)
+        lincoln_grid_y = int((LINCOLN_AY + HALF_M) / cell_y)
         for agent_i in range(N):
-            agent_psm = psm_single[agent_i].sigmoid()  # [anchors, H, W]
+            agent_psm = psm_single[agent_i].sigmoid()
             region = agent_psm[:, max(0,lincoln_grid_y-3):lincoln_grid_y+4,
                                  max(0,lincoln_grid_x-3):lincoln_grid_x+4]
             max_val = region.max().item() if region.numel() > 0 else 0
-
-            # Find top 3 detection locations for this agent
-            psm_flat = agent_psm.max(dim=0)[0]  # Max over anchors -> [H, W]
+            psm_flat = agent_psm.max(dim=0)[0]
             top_vals, top_idxs = psm_flat.flatten().topk(3)
             top_locs = []
             for val, idx in zip(top_vals, top_idxs):
                 gy, gx = idx // w, idx % w
-                local_x = gx * (80.0 / w) - 40
-                local_y = gy * (80.0 / h) - 40
-                top_locs.append(f"({local_x:.1f},{local_y:.1f})={val:.3f}")
-            print(f"[AGENT PSM] Agent {agent_i} Lincoln@({lincoln_grid_x},{lincoln_grid_y})={max_val:.4f}, Top3: {', '.join(top_locs)}")
+                ax = gx * cell_x - HALF_M
+                ay = gy * cell_y - HALF_M
+                top_locs.append(f"({ax:.1f},{ay:.1f})={val:.3f}")
+            print(f"[AGENT PSM] Agent {agent_i} "
+                  f"Lincoln_anchor=({LINCOLN_AX},{LINCOLN_AY})"
+                  f" grid=({lincoln_grid_x},{lincoln_grid_y}) "
+                  f"max_in_3x3={max_val:.4f}  "
+                  f"top3: {', '.join(top_locs)}", flush=True)
 
         # Run Where2comm fusion
         # Note: Where2comm expects spatial_features (before backbone) for multi-scale
@@ -831,10 +967,18 @@ class WorldFusionEdge(_BaseEdgeManager):
         boxes_7dof[:, 1] += rsu_pose[1]
         boxes_7dof[:, 2] += rsu_pose[2]
 
-        # Reorder columns for AB3DMOT's required format (h,w,l,x,y,z,ry,score)
+        # Reorder columns to AB3DMOT KITTI-swap convention: [h, w, l, x, height, y, ry, score]
+        # AB3DMOT NMS / dup-detection use bbox.x and bbox.z (= dets cols 3 and 5)
+        # as the ground plane (KITTI: y is vertical). To make AB3DMOT's
+        # association work correctly in CARLA world frame, we put CARLA z
+        # (height) in col 4 and CARLA y (ground) in col 5. This matches
+        # late_fusion_backend (cols [3, 5] = CARLA x, y) and
+        # IntermediateFusionBackend._to_ab3dmot_format. Downstream consumers
+        # in this file read col 5 as world_y; see _filter_self_detections,
+        # _compute_detection_metrics, _ab3d_history_to_trajs.
         # Score is appended as column 8 so Box3D.array2bbox_raw sets bbox.s correctly;
         # without it, bbox.s stays None and np.argsort in nms() raises TypeError.
-        ab3d_boxes = np.column_stack([boxes_7dof[:, [3, 4, 5, 0, 1, 2, 6]], scores_np])
+        ab3d_boxes = np.column_stack([boxes_7dof[:, [3, 4, 5, 0, 2, 1, 6]], scores_np])
         info = np.array([[frame_id, i, -1] for i in range(len(scores_np))])
 
         return {
@@ -880,7 +1024,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         # Filter detections
         keep_mask = []
         for i in range(len(dets)):
-            det_x, det_y = dets[i, 3], dets[i, 4]  # x, y from [h,w,l,x,y,z,ry]
+            # KITTI-swap layout: [h,w,l,x,height,y,ry,score] (col 5 = world_y)
+            det_x, det_y = dets[i, 3], dets[i, 5]
 
             is_self = False
             for bx, by in beacon_positions:
@@ -949,7 +1094,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         if len(dets) > 0 and excluded_positions:
             keep_mask = []
             for det_idx in range(len(dets)):
-                det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]
+                # KITTI-swap layout: col 5 = world_y
+                det_x, det_y = dets[det_idx, 3], dets[det_idx, 5]
                 near_excluded = False
                 for ex, ey in excluded_positions:
                     if np.sqrt((det_x - ex)**2 + (det_y - ey)**2) < EXCLUSION_RADIUS:
@@ -1000,7 +1146,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         motp_errors = []  # For MOTP calculation
 
         for det_idx in range(len(dets)):
-            det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]  # x, y from [h,w,l,x,y,z,ry]
+            # KITTI-swap layout: col 5 = world_y
+            det_x, det_y = dets[det_idx, 3], dets[det_idx, 5]
 
             best_dist = float('inf')
             best_gt_idx = -1
@@ -1028,17 +1175,28 @@ class WorldFusionEdge(_BaseEdgeManager):
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         print(f"\n[DET DEBUG] GT={len(gt_positions)}, Dets={len(dets)}, TP={tp}, FP={fp}, FN={fn}, P={precision:.2f}, R={recall:.2f}")
 
-        # Print each GT position (non-managed vehicles)
+        # Print each GT position (non-managed vehicles). For MISSED GTs, also
+        # report the distance to the nearest detection — this separates "model
+        # produced nothing near it" from "model produced something close but
+        # outside the match threshold".
         for i, (v_id, gx, gy) in enumerate(gt_positions):
             v_data = gt_vehicles.get(v_id, {})
             v_type = v_data.get('type', 'unknown')
             matched = i in gt_matched
             status = "MATCHED" if matched else "MISSED"
-            print(f"[DET DEBUG]   GT[{i}]: {v_type} id={v_id} at ({gx:.1f}, {gy:.1f}) - {status}")
+            nearest_info = ""
+            if not matched and len(dets) > 0:
+                # KITTI-swap layout: col 5 = world_y
+                dxs = dets[:, 3] - gx
+                dys = dets[:, 5] - gy
+                nearest_dist = float(np.sqrt(dxs * dxs + dys * dys).min())
+                nearest_info = f"  nearest_det={nearest_dist:.1f}m"
+            print(f"[DET DEBUG]   GT[{i}]: {v_type} id={v_id} at ({gx:.1f}, {gy:.1f}) - {status}{nearest_info}")
 
         # Print each detection and what it matched
         for det_idx in range(len(dets)):
-            det_x, det_y = dets[det_idx, 3], dets[det_idx, 4]
+            # KITTI-swap layout: col 5 = world_y
+            det_x, det_y = dets[det_idx, 3], dets[det_idx, 5]
             matched = det_idx in det_matched
             status = "TP" if matched else "FP"
             print(f"[DET DEBUG]   DET[{det_idx}]: ({det_x:.1f}, {det_y:.1f}) - {status}")
@@ -1065,7 +1223,7 @@ class WorldFusionEdge(_BaseEdgeManager):
         if gt_vehicles is None or not tracks or len(tracks[0]) == 0:
             return {'id_switches': 0, 'fragmentations': 0, 'mota': 0.0, 'motp': 0.0}
 
-        track_array = tracks[0]  # Shape: (N, 8) - [h,w,l,x,y,z,ry,track_id]
+        track_array = tracks[0]  # Shape: (N, 8+) KITTI-swap: [h,w,l,x,height,y,ry,track_id,...]
 
         # Get managed positions
         managed_positions = [(p.location.x, p.location.y) for p in managed_poses]
@@ -1093,7 +1251,8 @@ class WorldFusionEdge(_BaseEdgeManager):
 
         for i in range(track_array.shape[0]):
             track_id = int(track_array[i, 7])
-            tx, ty = track_array[i, 3], track_array[i, 4]
+            # KITTI-swap layout: col 5 = world_y
+            tx, ty = track_array[i, 3], track_array[i, 5]
             current_track_ids.add(track_id)
 
             # Find closest GT
@@ -1228,7 +1387,7 @@ class WorldFusionEdge(_BaseEdgeManager):
             if frame is None or len(frame) == 0:
                 continue
             for trk in frame:
-                # Track format: [h,w,l,x,y,z,ry,track_id,carla_id,...]
+                # Track format (KITTI-swap): [h,w,l,x,height,y,ry,track_id,carla_id,...]
                 tid = int(trk[7])
                 cid_raw = int(trk[8]) if len(trk) > 8 else -1
                 if self.anchoring:
@@ -1237,8 +1396,10 @@ class WorldFusionEdge(_BaseEdgeManager):
                 else:
                     cid = cid_raw
 
-                # Convert to [x,y,z,h,w,l,yaw] for transform
-                box_7dof = np.array([trk[3], trk[4], trk[5], trk[0], trk[1], trk[2], trk[6]])
+                # Convert to [x,y,z,h,w,l,yaw] for transform.
+                # AB3DMOT cols: [3]=x, [4]=height (KITTI y), [5]=world_y (KITTI z),
+                # so map [3]->x, [5]->y_world, [4]->z_height.
+                box_7dof = np.array([trk[3], trk[5], trk[4], trk[0], trk[1], trk[2], trk[6]])
                 tf = _box_to_transform(box_7dof)
 
                 updated.add(tid)
@@ -1274,12 +1435,19 @@ class WorldFusionEdge(_BaseEdgeManager):
                 traj.obstacle.location = tf.location
                 traj.obstacle.carla_id = cid
                 self.track_to_carla[tid] = cid
-                # KF velocity (m/tick) for prediction
+                # KF velocity for prediction.  AB3DMOT KF state stores
+                # velocity in m per AB3DMOT internal step (= 0.1 s, not the
+                # sim dt 0.05 s).  Verified against Tesla cross-traffic at
+                # 12 m/s appearing as kf_vel=-1.22 in the tracker dump
+                # (-1.22 / 0.1 = 12.2 m/s).  Dividing by sim dt 0.05 here
+                # double-counts and pushes parked-car jitter velocities
+                # (~0.05 m/step → true 0.5 m/s) above the predictor's
+                # 1 m/s stationary gate, causing MTR to hallucinate motion.
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy
                 if len(trk) > 12:
                     kf_vx, kf_vy = float(trk[10]), float(trk[12])
                     traj.obstacle.kf_speed_mps = (
-                        (kf_vx**2 + kf_vy**2)**0.5) / 0.05
+                        (kf_vx**2 + kf_vy**2)**0.5) / 0.1
                     traj.obstacle.kf_vx = kf_vx
                     traj.obstacle.kf_vy = kf_vy
 
@@ -1290,6 +1458,27 @@ class WorldFusionEdge(_BaseEdgeManager):
                 if tid not in updated:
                     del self.tracked_trajectories[tid]
         print(f"[WorldFusion Edge] {len(updated)} tracks updated, {len(self.tracked_trajectories)} total trajectories")
+
+        # MTR cadence diagnostic: pick the highest-|kf_vel| track this fusion
+        # event and log its source_tick + position so we can read off the
+        # actual gap between trajectory entries.  Should be 4 sim-ticks at
+        # edge_dt=0.2s; if so, MTR's _SUBSAMPLE=2 is wrong (it assumes
+        # trajectories at sim_dt=0.05s = 20 Hz).
+        src_tick_dbg = getattr(self, '_latest_source_tick', None)
+        if src_tick_dbg is not None and self.tracked_trajectories:
+            fast_tid, fast_speed = None, -1.0
+            for tid, traj in self.tracked_trajectories.items():
+                kfs = getattr(traj.obstacle, 'kf_speed_mps', 0.0) or 0.0
+                if kfs > fast_speed:
+                    fast_speed = kfs
+                    fast_tid = tid
+            if fast_tid is not None:
+                t = self.tracked_trajectories[fast_tid]
+                loc = t.trajectory[0].location if len(t.trajectory) else None
+                pos = f"({loc.x:.2f},{loc.y:.2f})" if loc else "n/a"
+                print(f"[MTR CADENCE DBG] src_tick={src_tick_dbg} "
+                      f"fastest_tid={fast_tid} kf_speed={fast_speed:.2f}m/s "
+                      f"len_traj={len(t.trajectory)} pos={pos}")
 
         # Spatial self-identification (anchoring OFF only)
         # Time-aligned (used) + naive (logged). See oracle for docstring.
@@ -1320,47 +1509,48 @@ class WorldFusionEdge(_BaseEdgeManager):
                         vm.vehicle.id
                     self.track_to_carla[best_tid] = vm.vehicle.id
 
-    def _filter_ghost_tracks(self, min_speed_threshold: float = 0.3, static_frames_to_remove: int = 5):
+    def _filter_ghost_tracks(self, min_speed_mps: float = 0.5, static_frames_to_remove: int = 4):
         """
-        Filter out ghost/static tracks that haven't moved for several frames.
+        Filter out ghost/static tracks that the predictor would otherwise
+        hallucinate motion for (MTR was trained on cars in motion; given a
+        parked car it can output a 5-7 m/s "drive forward" trajectory).
 
-        Ghost tracks typically occur from:
-        - False positive detections at fixed locations
-        - Detections on static objects (parked cars, buildings)
-        - Stale tracks that lost their association
+        Uses the AB3DMOT Kalman velocity (state indices 7,8,9) directly
+        rather than position-difference, because raw detection centers
+        jitter ~0.3-0.5 m frame-to-frame for stationary objects and the
+        position-diff signal looks like 1-2 m/s of motion.
 
         Args:
-            min_speed_threshold: Minimum speed (m/frame) to consider a track moving
+            min_speed_mps: Minimum speed (m/s) to consider a track moving
             static_frames_to_remove: Number of consecutive static frames before removal
         """
         tracks_to_remove = []
+
+        # Index live trackers by id for quick kf_vel lookup.
+        kf_vel_by_tid: Dict[int, float] = {}
+        for trk in getattr(self.tracker, 'trackers', []):
+            kfx = trk.kf.x.reshape(-1)
+            # State layout (AB3DMOT): pos[0..2], theta[3], dim[4..6], vel[7..9]
+            vx, vy = float(kfx[7]), float(kfx[9])
+            kf_vel_by_tid[int(trk.id)] = float(np.hypot(vx, vy))
 
         for tid, traj in self.tracked_trajectories.items():
             # Initialize velocity history for this track if needed
             if tid not in self.track_velocities:
                 self.track_velocities[tid] = deque(maxlen=static_frames_to_remove + 2)
 
-            # Compute velocity from recent trajectory
-            if len(traj.trajectory) >= 2:
-                pos_new = traj.trajectory[0].location
-                pos_old = traj.trajectory[1].location
-                dx = pos_new.x - pos_old.x
-                dy = pos_new.y - pos_old.y
-                speed = np.sqrt(dx*dx + dy*dy)
-            else:
-                speed = 0.0
-
+            speed = kf_vel_by_tid.get(int(tid), 0.0)
             self.track_velocities[tid].append(speed)
 
             # Check if track has been static for too long
             if len(self.track_velocities[tid]) >= static_frames_to_remove:
                 recent_speeds = list(self.track_velocities[tid])[-static_frames_to_remove:]
-                if all(s < min_speed_threshold for s in recent_speeds):
+                if all(s < min_speed_mps for s in recent_speeds):
                     tracks_to_remove.append(tid)
                     pos = traj.trajectory[0].location if traj.trajectory else None
                     pos_str = f"({pos.x:.1f}, {pos.y:.1f})" if pos else "unknown"
                     print(f"[GHOST FILTER] Removing static track {tid} at {pos_str} "
-                          f"(speeds: {[f'{s:.2f}' for s in recent_speeds]})")
+                          f"(kf_speeds: {[f'{s:.2f}' for s in recent_speeds]})")
 
         # Remove ghost tracks
         for tid in tracks_to_remove:
@@ -1529,6 +1719,23 @@ class WorldFusionEdge(_BaseEdgeManager):
             pm.apply_features({'spatial_features': spatial_features[i:i+1].cpu()}, timing)
 
         return True
+
+    def _drain_outbound_latest(self, tick: int) -> Optional[List]:
+        """Return the freshest queued prediction whose deliver_tick has been
+        reached, and discard older ready entries (latest-wins).  Predictions
+        with deliver_tick > tick stay in the queue for future ticks.
+        Returns None if nothing is ready.
+        """
+        if not self._outbound_queue:
+            return None
+        ready = [(dt, p) for dt, p in self._outbound_queue if dt <= tick]
+        if not ready:
+            return None
+        # Keep only entries that are still in flight (deliver_tick > tick).
+        self._outbound_queue = [(dt, p) for dt, p in self._outbound_queue
+                                if dt > tick]
+        ready.sort(key=lambda x: x[0])
+        return ready[-1][1]
 
     def _update_agents(self, tick: int, predictions: Optional[List]):
         """
