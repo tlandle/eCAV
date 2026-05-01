@@ -33,8 +33,23 @@ _PAST_FRAMES = 10       # 10 past frames at 10Hz
 _TIME_INTERVAL = 0.1    # 10Hz
 _FUTURE_FRAMES = 50     # 5s at 10Hz
 _MIN_HIST_TICKS = 5     # lowered from 22 for compatibility with sparse detections
-_SUBSAMPLE = 2          # 20Hz -> 10Hz
-_MIN_SPEED_MPS = 1.0    # stationary gate
+# tracked_trajectories is appended on every fusion event; the cadence-debug
+# trace shows fusion fires every 2 sim-ticks (= 0.1 s = 10 Hz) on the
+# WorldFusion adaptive edge, which already matches MTR's trained
+# _TIME_INTERVAL.  Striding over this signal feeds MTR positions 2× too far
+# apart, making it interpret all motion as ~2× the true speed (and pushing
+# it out of training distribution → it falls back to mean predictions).
+_SUBSAMPLE = 1
+# Stationary gate: parked cars exhibit Kalman-velocity noise around
+# 0.5-1.2 m/s due to detection-center jitter (~0.3 m frame-to-frame).
+# A 1.0 m/s gate lets transient noise spikes route a parked track to
+# MTR, which then hallucinates 5-8 m/s motion (far enough above
+# cross-traffic acceleration profiles in training that the model
+# defaults to "drive forward"). Raising the gate to 2.0 m/s keeps
+# truly stationary tracks on the static-prediction path while still
+# catching real moving obstacles (cars: 5+ m/s, pedestrians: 1.4 m/s
+# walking, but pedestrians not in scope for SEC paper scenarios).
+_MIN_SPEED_MPS = 2.0
 
 # Adaptation defaults
 _TAU_POS = 0.1          # seconds: time-domain divergence tolerance
@@ -208,7 +223,12 @@ class MTREdgePredictor:
         if not tracked_obstacles_trajectories or self.model is None:
             return []
 
-        # Classify tracks
+        # Classify tracks. The stationary-skip is engineering common sense
+        # (constant-position fallback for parked cars), not part of the
+        # adaptive controller's amortization. Apply it universally regardless
+        # of policy. The amortization mechanism (cross-cycle cache reuse for
+        # non-divergent moving tracks) lives further down and is gated on
+        # enable_amortization separately.
         mature_tracks = {}
         immature_tracks = {}
         stationary_tracks = {}
@@ -227,7 +247,9 @@ class MTREdgePredictor:
 
         # Stationary: constant position prediction
         for tid, ot in stationary_tracks.items():
-            predictions.append(self._static_prediction(ot, source_tick, publish_tick))
+            p = self._static_prediction(ot, source_tick, publish_tick)
+            p.source = 'static'
+            predictions.append(p)
 
         if not mature_tracks:
             return predictions
@@ -243,7 +265,9 @@ class MTREdgePredictor:
         for tid, ot in fresh.items():
             cached = self._cache[tid]
             cached.age += 1
-            predictions.append(cached.prediction)
+            p = cached.prediction
+            p.source = 'cache'
+            predictions.append(p)
             self._stats['cache_hits'] += 1
 
         if not divergent:
@@ -259,6 +283,7 @@ class MTREdgePredictor:
         # Linear fallback for pruned tracks
         for tid, ot in pruned.items():
             pred = self._linear_prediction(ot, source_tick, publish_tick)
+            pred.source = 'linear'
             predictions.append(pred)
             self._stats['linear_fallback'] += 1
             self._stats['risk_pruned'] += 1
@@ -266,6 +291,8 @@ class MTREdgePredictor:
         # MTR prediction on selected subset
         if selected:
             mtr_preds = self._run_mtr(selected, source_tick, publish_tick)
+            for p in mtr_preds:
+                p.source = 'mtr'
             predictions.extend(mtr_preds)
             self._stats['mtr_predicted'] += len(mtr_preds)
 
@@ -535,19 +562,65 @@ class MTREdgePredictor:
         pred_scores = output['pred_scores'].cpu().numpy()  # (N, modes)
         best_mode = pred_scores.argmax(axis=1)
 
-        predictions = []
-        for i, (tid, ot) in enumerate(zip(track_ids, otrajs)):
-            best = pred_trajs[i, best_mode[i], :, :2]  # (T, 2)
+        # Diagnostic: dump MTR raw output for the fastest input track
+        # (proxy for Tesla cross-traffic). best[i, t, :2] is in the
+        # center-object's local frame; +x = forward.  Per-step displacement
+        # *should* match the model's _TIME_INTERVAL = 0.1 s, so a Tesla at
+        # ~13 m/s should show first-step (0.1 s ahead) ~(1.3, 0.0).
+        if n > 0:
+            speeds = []
+            for ii, ot_dbg in enumerate(otrajs):
+                kfs = getattr(ot_dbg.obstacle, 'kf_speed_mps', 0.0) or 0.0
+                speeds.append((kfs, ii))
+            speeds.sort(reverse=True)
+            kfs_dbg, i_dbg = speeds[0]
+            best_dbg = pred_trajs[i_dbg, best_mode[i_dbg], :, :2]
+            ch_dbg = float(center_objects[i_dbg, 6])
+            dump = ", ".join(
+                f"({float(best_dbg[s,0]):+.2f},{float(best_dbg[s,1]):+.2f})"
+                for s in [0, 1, 2, 5, 10, 20])
+            logger.info(
+                "[MTR RAW] tid=%s kf_speed=%.2fm/s ch=%.2frad mode=%d/%d "
+                "best[0,1,2,5,10,20]=%s",
+                track_ids[i_dbg], kfs_dbg, ch_dbg, int(best_mode[i_dbg]),
+                pred_scores.shape[1], dump)
 
-            # Subsample to simulation rate (10Hz -> 20Hz via interpolation)
-            pred_tfs = []
+        predictions = []
+        n_modes = pred_trajs.shape[1]
+        for i, (tid, ot) in enumerate(zip(track_ids, otrajs)):
+            best = pred_trajs[i, best_mode[i], :, :2]  # (T, 2) in center frame
+
+            # MTR output is in the center-object's local frame
+            # (translated by -center_xyz, rotated by -center_heading; see
+            # OPV2VMultiEgoDataset.transform_trajs_to_center_coords). Invert
+            # back to world: rotate by +heading then translate by +center_xy.
+            # Stationary tracks output ~(0, 0) in this frame, which is why
+            # they look fine without the inverse — the bug only surfaces on
+            # moving tracks (e.g. cross-traffic Tesla had future at (4.4, 0.3)
+            # instead of world (-55.9, 127.4)).
+            cx = float(center_objects[i, 0])
+            cy = float(center_objects[i, 1])
+            ch = float(center_objects[i, 6])
+            cos_h, sin_h = math.cos(ch), math.sin(ch)
             cur_z = ot.trajectory[0].location.z
-            for step in range(min(self.num_output_steps, len(best))):
-                pred_tfs.append(Transform(
-                    location=Location(x=float(best[step, 0]),
-                                      y=float(best[step, 1]),
-                                      z=float(cur_z)),
-                    rotation=Rotation(yaw=0.0)))
+
+            def _to_world(local_traj):
+                out = []
+                for step in range(min(self.num_output_steps, len(local_traj))):
+                    lx, ly = float(local_traj[step, 0]), float(local_traj[step, 1])
+                    wx = cx + lx * cos_h - ly * sin_h
+                    wy = cy + lx * sin_h + ly * cos_h
+                    out.append(Transform(
+                        location=Location(x=wx, y=wy, z=float(cur_z)),
+                        rotation=Rotation(yaw=0.0)))
+                return out
+
+            pred_tfs = _to_world(best)
+
+            # All 6 modes for minFDE6 / minADE6 evaluation per CMP's protocol.
+            all_modes_world = [_to_world(pred_trajs[i, m, :, :2])
+                               for m in range(n_modes)]
+            mode_scores = [float(pred_scores[i, m]) for m in range(n_modes)]
 
             cur_tf = Transform(
                 location=Location(x=ot.trajectory[0].location.x,
@@ -559,6 +632,8 @@ class MTREdgePredictor:
                 ot, cur_tf, probability=float(pred_scores[i, best_mode[i]]),
                 predicted_trajectory=pred_tfs,
                 source_tick=source_tick, publish_tick=publish_tick)
+            pred.predicted_trajectories_all = all_modes_world
+            pred.mode_scores = mode_scores
             predictions.append(pred)
 
             # Update cache
