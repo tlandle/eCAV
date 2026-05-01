@@ -265,8 +265,8 @@ scenario:
 
       # WorldFusion model configuration
       worldfusion_model:
-        hypes_yaml: ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/config.yaml
-        checkpoint: ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/net_epoch50.pth
+        hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
+        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch27.pth
 
       # Trajectory predictor: "mtr" (adaptive), "smart", or "linear"
       predictor_type: mtr
@@ -306,8 +306,8 @@ scenario:
               <<: *base_perception
               backend: worldfusion
               worldfusion_model:
-                hypes_yaml: ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/config.yaml
-                checkpoint: ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/net_epoch50.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch27.pth
             # RSU LiDAR config - at 1.5m height like V2X-Sim, use vehicle-like FOV
             lidar:
               visualize: false
@@ -342,8 +342,8 @@ scenario:
                   - [-1.5,  0.0, 1.7, 180]
               type: worldfusion
               worldfusion_model:
-                hypes_yaml: ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/config.yaml
-                checkpoint: ecav/worldfusion/opencood/logs/worldfusion_v2xsim_det_2026_01_19_21_00_10/net_epoch50.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch27.pth
             localization:
               <<: *base_localize
               debug_helper:

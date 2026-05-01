@@ -142,6 +142,13 @@ def run_scenario(opt, scenario_params):
                 ego_vehicle=ego_vehicle,
                 other_vehicles=other_vehicles,
             )
+
+            # Background traffic at near-zero speed to match Multi-V2X scene density.
+            # Spawn positions are waypoint-snapped by sim_api.spawn_vehicle_by_range
+            # using the `carla_traffic_manager.range` config.
+            tm_config = scenario_params.get('carla_traffic_manager', {})
+            if tm_config.get('range'):
+                scenario_manager.create_traffic_carla()
         except AssertionError as err:
             import traceback, sys
             print("\n\n>>> ASSERTION INSIDE create_edge_manager_from_scenario_runner <<<")
