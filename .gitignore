@@ -203,3 +203,8 @@ archive/
 # Training scratch we don't need in git
 ecav/ml_manager/models/**/*.pth.bak
 ecav/ml_manager/models/**/events.out.tfevents.*
+
+# Training/eval data artifacts (large; archive separately)
+preprocessed_data/
+# Paper1 figure outputs (paper1 lives outside this repo)
+scripts/paper1_figures_real_aligned/
