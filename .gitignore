@@ -199,5 +199,7 @@ paper2/
 # Large training artifacts and run scratch
 lightning_logs/
 archive/
-ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/
-ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/
+
+# Training scratch we don't need in git
+ecav/ml_manager/models/**/*.pth.bak
+ecav/ml_manager/models/**/events.out.tfevents.*
