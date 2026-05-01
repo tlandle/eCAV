@@ -28,12 +28,14 @@ Layout:
         uint8   tx_flag         offset 16  (1=transmitting this tick)
         uint8   padding[3]      offset 17
 
-    Link results (max_vehicles * max_vehicles * 8 bytes each):
+    Link results (max_vehicles * max_vehicles * 10 bytes each):
         uint16  tx_id           offset 0
         uint16  rx_id           offset 2
         uint8   delivered       offset 4
         uint8   padding         offset 5
         int16   sinr_db_x10     offset 6  (SINR * 10 for 0.1dB resolution)
+        uint16  delay_ms_x10    offset 8  (one-way delay * 10 for 0.1ms resolution,
+                                           max 6553.5 ms; 0 if undelivered)
 
     Result header (16 bytes, after link results):
         uint32  n_results       offset 0
@@ -48,7 +50,7 @@ import struct
 # Size constants
 HEADER_SIZE = 64
 VEHICLE_ENTRY_SIZE = 20
-LINK_RESULT_SIZE = 8
+LINK_RESULT_SIZE = 10
 RESULT_HEADER_SIZE = 16
 
 MAX_VEHICLES_DEFAULT = 128
@@ -116,6 +118,7 @@ class LinkResult(ctypes.LittleEndianStructure):
         ("delivered", ctypes.c_uint8),
         ("_pad", ctypes.c_uint8),
         ("sinr_db_x10", ctypes.c_int16),
+        ("delay_ms_x10", ctypes.c_uint16),
     ]
 
 

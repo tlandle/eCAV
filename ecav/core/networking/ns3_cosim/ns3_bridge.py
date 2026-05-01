@@ -267,9 +267,14 @@ class NS3Bridge:
         # triggers NR V2X topology setup (node creation, bearer activation).
         # With 128 max_vehicles, setup takes ~30s.
         if not hasattr(self, '_first_tick_done'):
-            timeout = 60.0
+            # First tick does RRC/bearer bring-up for all UEs. With
+            # max_vehicles=32 this takes ~75 s wall on the dev box;
+            # scale generously.
+            timeout = 180.0
         else:
-            timeout = 5.0
+            # Subsequent ticks still scale with UE count via NR control
+            # plane events. Give 30 s headroom for N~=31 at 17 KB payload.
+            timeout = 30.0
         self._first_tick_done = True
         t0 = time.time()
         while time.time() - t0 < timeout:
@@ -293,18 +298,21 @@ class NS3Bridge:
         self._last_channel_ms = channel_ms
         self._last_prr = prr
 
-        # Read link results
+        # Read link results. For Uu (mode=1) n_results = N (one packet per UE
+        # to the edge). For sidelink n_results = N*(N-1) (all pairs).
         lr_offset = link_results_offset(self.max_vehicles)
+        max_entries = N if self.mode == 1 else (N * (N - 1))
         results = []
-        for i in range(min(n_results, N * (N - 1))):
+        for i in range(min(n_results, max_entries)):
             off = lr_offset + i * LINK_RESULT_SIZE
-            tx_id, rx_id, delivered, _, sinr_x10 = struct.unpack_from(
-                '<HHBBh', buf, off)
+            tx_id, rx_id, delivered, _, sinr_x10, delay_x10 = struct.unpack_from(
+                '<HHBBhH', buf, off)
             results.append(LinkResult(
                 tx_id=tx_id,
                 rx_id=rx_id,
                 delivered=bool(delivered),
                 sinr_db=sinr_x10 / 10.0,
+                delay_ms=delay_x10 / 10.0,
             ))
 
         # Reset state
