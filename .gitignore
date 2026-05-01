@@ -195,3 +195,9 @@ ecav/ml_manager/models/mtr/best_model.pth
 # Paper drafts excluded from this repo to keep authorship out of git history
 safety_envelope_paper/
 paper2/
+
+# Large training artifacts and run scratch
+lightning_logs/
+archive/
+ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/
+ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/
