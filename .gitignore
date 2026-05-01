@@ -191,3 +191,7 @@ local.env
 logs/
 # Pretrained MTR checkpoint: too large for LFS, download separately
 ecav/ml_manager/models/mtr/best_model.pth
+
+# Paper drafts excluded from this repo to keep authorship out of git history
+safety_envelope_paper/
+paper2/
