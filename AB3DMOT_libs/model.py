@@ -345,7 +345,14 @@ class AB3DMOT(object):
 		X_new = X + K @ Y                         # (M, 10, 1)
 		I10 = np.eye(10)
 		I_KH = I10 - K @ H                        # (M, 10, 10)
-		P_new = I_KH @ P                          # (M, 10, 10)
+		# Joseph form: P = (I-KH)P(I-KH)^T + KRK^T
+		# The simple form P = (I-KH)P is only numerically stable for the
+		# exact optimal gain; with floating-point K the missing KRK^T term
+		# causes P to collapse toward zero after one update, driving K→0
+		# and making the filter ignore subsequent measurements.
+		KT = K.transpose(0, 2, 1)                 # (M, 7, 10)
+		I_KHT = I_KH.transpose(0, 2, 1)          # (M, 10, 10)
+		P_new = I_KH @ P @ I_KHT + K @ R @ KT    # (M, 10, 10)
 
 		# Write back and apply per-tracker side effects
 		for j, (t, d_idx) in enumerate(matched_pairs):
