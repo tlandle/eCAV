@@ -207,8 +207,10 @@ if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
 fi
 
 litserve_flag=""
+wf_grpc_env=""
 if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     litserve_flag="-l"
+    wf_grpc_env="-e WF_GRPC_ENDPOINT=localhost:18002"
 fi
 
 echo ""
@@ -363,6 +365,7 @@ do
         --name="$container_name" \
         -e "HOSTNAME=$container_name" \
         -e IS_DOCKER=1 \
+        $wf_grpc_env \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
         -e DISPLAY=$DISPLAY \
@@ -389,6 +392,7 @@ if [[ $num_rsu -gt 0 ]]; then
             --name="$container_name" \
             -e "HOSTNAME=$container_name" \
             -e IS_DOCKER=1 \
+            $wf_grpc_env \
             -v /tmp/.X11-unix:/tmp/.X11-unix \
             -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \

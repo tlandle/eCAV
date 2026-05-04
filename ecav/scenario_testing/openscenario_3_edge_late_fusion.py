@@ -185,6 +185,9 @@ def run_scenario(opt, scenario_params):
             print("ego_cav.get_transform().location: %s" % ego_cav.get_transform().location)
             if ego_cav.get_transform().location.x == 0 and ego_cav.get_transform().location.y == 0:
                 break
+            if opt.distributed and scenario_manager is not None and scenario_manager.all_vehicles_done:
+                print(f"All vehicles reported done ({scenario_manager.num_completed_vehicles}/{scenario_manager.vehicle_count}), ending simulation")
+                break
             view_transform.location.z = view_transform.location.z + spectator_altitude
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)

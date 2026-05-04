@@ -190,6 +190,9 @@ def run_scenario(opt, scenario_params):
             loc = ego_cav.get_transform().location
             if loc.x == 0 and loc.y == 0:
                 break
+            if opt.distributed and scenario_manager is not None and scenario_manager.all_vehicles_done:
+                print(f"All vehicles reported done ({scenario_manager.num_completed_vehicles}/{scenario_manager.vehicle_count}), ending simulation")
+                break
 
             # Bird view following
             view_transform = carla.Transform()

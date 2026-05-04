@@ -330,6 +330,7 @@ message EdgeTickComplete {
   int32 edge_index = 1;
   int32 tick_id = 2;
   int32 num_actors_processed = 3;  // How many actors this edge processed
+  repeated VehicleUpdate vehicle_updates = 4;  // state-change events only (e.g. TICK_DONE)
 }
 
 // Edge notifies orchestrator all its actors have registered and are ready for ticks

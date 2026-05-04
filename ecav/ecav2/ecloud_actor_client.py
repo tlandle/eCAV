@@ -25,6 +25,7 @@ sys.path.insert(0, os.getcwd())
 
 from ecav.version import __version__
 from ecav.ecav2.arg_utils import build_arg_parser
+from ecav.utils import find_unpicklable
 from ecav.core.common.cav_world import CavWorld
 from ecav.core.common.vehicle_manager import VehicleManager
 from ecav.core.common.rsu_manager import RSUManager
@@ -449,25 +450,14 @@ class Ecav2ActorClient:
                     self.rsu_manager.objects["traffic_lights"] = []
                     vehicle_update.pickled_agent_objects = pickle.dumps(self.rsu_manager.objects)
             except Exception as e:
-                print(f"Error serializing objects: {e}", flush=True)
-                def find_unpicklable(obj, path=""):
-                    try:
-                        pickle.dumps(obj)
-                        return None  # Object is picklable
-                    except Exception as e:
-                        print(f"Failed to pickle {path}: {e}")
-                        if hasattr(obj, '__dict__'):
-                            for key, value in obj.__dict__.items():
-                                result = find_unpicklable(value, f"{path}.{key}")
-                                if result is not None:
-                                    return result  # Found the unpicklable item
-                        return obj  # This object itself is unpicklable
-                if self.actor_type == ecloud.ActorType.VEHICLE:
-                    for o in self.vehicle_manager.agent.objects:
-                        print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
-                else:
-                    for o in self.rsu_manager.objects:
-                        print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
+                logger.error("Error serializing objects: %s", e)
+                objects = (self.vehicle_manager.agent.objects
+                           if self.actor_type == ecloud.ActorType.VEHICLE
+                           else self.rsu_manager.objects)
+                for o in objects:
+                    bad = find_unpicklable(o, path=f"preds[{type(o).__name__}]")
+                    if bad is not None:
+                        logger.error("Unpicklable object: %s", bad)
             t_pickle_objects = time.time()
 
             # Send intermediate features for WorldFusion/BM2CP

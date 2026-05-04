@@ -275,6 +275,11 @@ class ScenarioManager:
     vehicles = {} # vehicle_index -> tuple (actor_id, vid)
     vehicle_count = 0
     rsu_count = 0
+    num_completed_vehicles = 0
+
+    @property
+    def all_vehicles_done(self):
+        return self.vehicle_count > 0 and self.num_completed_vehicles >= self.vehicle_count
 
     rsu_managers = {}
 
@@ -335,6 +340,9 @@ class ScenarioManager:
         logger.debug("unpacking vehicle updates")
         try:
             for vehicle_update in ecloud_update.vehicle_update:
+                if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE:
+                    self.num_completed_vehicles += 1
+
                 if not ( self.is_edge or self.verbose_updates ) and vehicle_update.vehicle_index != ScenarioManager.SPECTATOR_INDEX:
                     continue
 

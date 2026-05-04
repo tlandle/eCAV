@@ -3794,221 +3794,6 @@ class Empty final : public ::google::protobuf::internal::ZeroFieldsBase
 extern const ::google::protobuf::internal::ClassDataFull Empty_class_data_;
 // -------------------------------------------------------------------
 
-class EdgeTickComplete final : public ::google::protobuf::Message
-/* @@protoc_insertion_point(class_definition:ecloud.EdgeTickComplete) */ {
- public:
-  inline EdgeTickComplete() : EdgeTickComplete(nullptr) {}
-  ~EdgeTickComplete() PROTOBUF_FINAL;
-
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-  void operator delete(EdgeTickComplete* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
-    SharedDtor(*msg);
-    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeTickComplete));
-  }
-#endif
-
-  template <typename = void>
-  explicit PROTOBUF_CONSTEXPR EdgeTickComplete(::google::protobuf::internal::ConstantInitialized);
-
-  inline EdgeTickComplete(const EdgeTickComplete& from) : EdgeTickComplete(nullptr, from) {}
-  inline EdgeTickComplete(EdgeTickComplete&& from) noexcept
-      : EdgeTickComplete(nullptr, ::std::move(from)) {}
-  inline EdgeTickComplete& operator=(const EdgeTickComplete& from) {
-    CopyFrom(from);
-    return *this;
-  }
-  inline EdgeTickComplete& operator=(EdgeTickComplete&& from) noexcept {
-    if (this == &from) return *this;
-    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
-      InternalSwap(&from);
-    } else {
-      CopyFrom(from);
-    }
-    return *this;
-  }
-
-  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
-  }
-  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
-      ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
-  }
-
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
-    return GetDescriptor();
-  }
-  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
-    return default_instance().GetMetadata().descriptor;
-  }
-  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
-    return default_instance().GetMetadata().reflection;
-  }
-  static const EdgeTickComplete& default_instance() {
-    return *reinterpret_cast<const EdgeTickComplete*>(
-        &_EdgeTickComplete_default_instance_);
-  }
-  static constexpr int kIndexInFileMessages = 37;
-  friend void swap(EdgeTickComplete& a, EdgeTickComplete& b) { a.Swap(&b); }
-  inline void Swap(EdgeTickComplete* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
-      InternalSwap(other);
-    } else {
-      ::google::protobuf::internal::GenericSwap(this, other);
-    }
-  }
-  void UnsafeArenaSwap(EdgeTickComplete* PROTOBUF_NONNULL other) {
-    if (other == this) return;
-    ABSL_DCHECK(GetArena() == other->GetArena());
-    InternalSwap(other);
-  }
-
-  // implements Message ----------------------------------------------
-
-  EdgeTickComplete* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
-    return ::google::protobuf::Message::DefaultConstruct<EdgeTickComplete>(arena);
-  }
-  using ::google::protobuf::Message::CopyFrom;
-  void CopyFrom(const EdgeTickComplete& from);
-  using ::google::protobuf::Message::MergeFrom;
-  void MergeFrom(const EdgeTickComplete& from) { EdgeTickComplete::MergeImpl(*this, from); }
-
-  private:
-  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
-                        const ::google::protobuf::MessageLite& from_msg);
-
-  public:
-  bool IsInitialized() const {
-    return true;
-  }
-  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
-  #if defined(PROTOBUF_CUSTOM_VTABLE)
-  private:
-  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
-  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
-
-  public:
-  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
-    return _InternalSerialize(*this, target, stream);
-  }
-  #else   // PROTOBUF_CUSTOM_VTABLE
-  ::size_t ByteSizeLong() const final;
-  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
-      ::uint8_t* PROTOBUF_NONNULL target,
-      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
-  #endif  // PROTOBUF_CUSTOM_VTABLE
-  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
-
-  private:
-  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static void SharedDtor(MessageLite& self);
-  void InternalSwap(EdgeTickComplete* PROTOBUF_NONNULL other);
- private:
-  template <typename T>
-  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
-  static ::absl::string_view FullMessageName() { return "ecloud.EdgeTickComplete"; }
-
- protected:
-  explicit EdgeTickComplete(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  EdgeTickComplete(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeTickComplete& from);
-  EdgeTickComplete(
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeTickComplete&& from) noexcept
-      : EdgeTickComplete(arena) {
-    *this = ::std::move(from);
-  }
-  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
-  static void* PROTOBUF_NONNULL PlacementNew_(
-      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
-      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-  static constexpr auto InternalNewImpl_();
-
- public:
-  static constexpr auto InternalGenerateClassData_();
-
-  ::google::protobuf::Metadata GetMetadata() const;
-  // nested types ----------------------------------------------------
-
-  // accessors -------------------------------------------------------
-  enum : int {
-    kEdgeIndexFieldNumber = 1,
-    kTickIdFieldNumber = 2,
-    kNumActorsProcessedFieldNumber = 3,
-  };
-  // int32 edge_index = 1;
-  void clear_edge_index() ;
-  ::int32_t edge_index() const;
-  void set_edge_index(::int32_t value);
-
-  private:
-  ::int32_t _internal_edge_index() const;
-  void _internal_set_edge_index(::int32_t value);
-
-  public:
-  // int32 tick_id = 2;
-  void clear_tick_id() ;
-  ::int32_t tick_id() const;
-  void set_tick_id(::int32_t value);
-
-  private:
-  ::int32_t _internal_tick_id() const;
-  void _internal_set_tick_id(::int32_t value);
-
-  public:
-  // int32 num_actors_processed = 3;
-  void clear_num_actors_processed() ;
-  ::int32_t num_actors_processed() const;
-  void set_num_actors_processed(::int32_t value);
-
-  private:
-  ::int32_t _internal_num_actors_processed() const;
-  void _internal_set_num_actors_processed(::int32_t value);
-
-  public:
-  // @@protoc_insertion_point(class_scope:ecloud.EdgeTickComplete)
- private:
-  class _Internal;
-  friend class ::google::protobuf::internal::TcParser;
-  static const ::google::protobuf::internal::TcParseTable<2, 3,
-                                   0, 0,
-                                   2>
-      _table_;
-
-  friend class ::google::protobuf::MessageLite;
-  friend class ::google::protobuf::Arena;
-  template <typename T>
-  friend class ::google::protobuf::Arena::InternalHelper;
-  using InternalArenaConstructable_ = void;
-  using DestructorSkippable_ = void;
-  struct Impl_ {
-    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
-    inline explicit Impl_(
-        ::google::protobuf::internal::InternalVisibility visibility,
-        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
-        const EdgeTickComplete& from_msg);
-    ::google::protobuf::internal::HasBits<1> _has_bits_;
-    ::google::protobuf::internal::CachedSize _cached_size_;
-    ::int32_t edge_index_;
-    ::int32_t tick_id_;
-    ::int32_t num_actors_processed_;
-    PROTOBUF_TSAN_DECLARE_MEMBER
-  };
-  union { Impl_ _impl_; };
-  friend struct ::TableStruct_ecloud_2eproto;
-};
-
-extern const ::google::protobuf::internal::ClassDataFull EdgeTickComplete_class_data_;
-// -------------------------------------------------------------------
-
 class EdgeTick final : public ::google::protobuf::Message
 /* @@protoc_insertion_point(class_definition:ecloud.EdgeTick) */ {
  public:
@@ -10702,6 +10487,240 @@ class EdgeWaypoints final : public ::google::protobuf::Message
 };
 
 extern const ::google::protobuf::internal::ClassDataFull EdgeWaypoints_class_data_;
+// -------------------------------------------------------------------
+
+class EdgeTickComplete final : public ::google::protobuf::Message
+/* @@protoc_insertion_point(class_definition:ecloud.EdgeTickComplete) */ {
+ public:
+  inline EdgeTickComplete() : EdgeTickComplete(nullptr) {}
+  ~EdgeTickComplete() PROTOBUF_FINAL;
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+  void operator delete(EdgeTickComplete* PROTOBUF_NONNULL msg, std::destroying_delete_t) {
+    SharedDtor(*msg);
+    ::google::protobuf::internal::SizedDelete(msg, sizeof(EdgeTickComplete));
+  }
+#endif
+
+  template <typename = void>
+  explicit PROTOBUF_CONSTEXPR EdgeTickComplete(::google::protobuf::internal::ConstantInitialized);
+
+  inline EdgeTickComplete(const EdgeTickComplete& from) : EdgeTickComplete(nullptr, from) {}
+  inline EdgeTickComplete(EdgeTickComplete&& from) noexcept
+      : EdgeTickComplete(nullptr, ::std::move(from)) {}
+  inline EdgeTickComplete& operator=(const EdgeTickComplete& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline EdgeTickComplete& operator=(EdgeTickComplete&& from) noexcept {
+    if (this == &from) return *this;
+    if (::google::protobuf::internal::CanMoveWithInternalSwap(GetArena(), from.GetArena())) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance);
+  }
+  inline ::google::protobuf::UnknownFieldSet* PROTOBUF_NONNULL mutable_unknown_fields()
+      ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return _internal_metadata_.mutable_unknown_fields<::google::protobuf::UnknownFieldSet>();
+  }
+
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL descriptor() {
+    return GetDescriptor();
+  }
+  static const ::google::protobuf::Descriptor* PROTOBUF_NONNULL GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::google::protobuf::Reflection* PROTOBUF_NONNULL GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const EdgeTickComplete& default_instance() {
+    return *reinterpret_cast<const EdgeTickComplete*>(
+        &_EdgeTickComplete_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages = 37;
+  friend void swap(EdgeTickComplete& a, EdgeTickComplete& b) { a.Swap(&b); }
+  inline void Swap(EdgeTickComplete* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    if (::google::protobuf::internal::CanUseInternalSwap(GetArena(), other->GetArena())) {
+      InternalSwap(other);
+    } else {
+      ::google::protobuf::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(EdgeTickComplete* PROTOBUF_NONNULL other) {
+    if (other == this) return;
+    ABSL_DCHECK(GetArena() == other->GetArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  EdgeTickComplete* PROTOBUF_NONNULL New(::google::protobuf::Arena* PROTOBUF_NULLABLE arena = nullptr) const {
+    return ::google::protobuf::Message::DefaultConstruct<EdgeTickComplete>(arena);
+  }
+  using ::google::protobuf::Message::CopyFrom;
+  void CopyFrom(const EdgeTickComplete& from);
+  using ::google::protobuf::Message::MergeFrom;
+  void MergeFrom(const EdgeTickComplete& from) { EdgeTickComplete::MergeImpl(*this, from); }
+
+  private:
+  static void MergeImpl(::google::protobuf::MessageLite& to_msg,
+                        const ::google::protobuf::MessageLite& from_msg);
+
+  public:
+  bool IsInitialized() const {
+    return true;
+  }
+  ABSL_ATTRIBUTE_REINITIALIZES void Clear() PROTOBUF_FINAL;
+  #if defined(PROTOBUF_CUSTOM_VTABLE)
+  private:
+  static ::size_t ByteSizeLong(const ::google::protobuf::MessageLite& msg);
+  static ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      const ::google::protobuf::MessageLite& msg, ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream);
+
+  public:
+  ::size_t ByteSizeLong() const { return ByteSizeLong(*this); }
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+    return _InternalSerialize(*this, target, stream);
+  }
+  #else   // PROTOBUF_CUSTOM_VTABLE
+  ::size_t ByteSizeLong() const final;
+  ::uint8_t* PROTOBUF_NONNULL _InternalSerialize(
+      ::uint8_t* PROTOBUF_NONNULL target,
+      ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const final;
+  #endif  // PROTOBUF_CUSTOM_VTABLE
+  int GetCachedSize() const { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static void SharedDtor(MessageLite& self);
+  void InternalSwap(EdgeTickComplete* PROTOBUF_NONNULL other);
+ private:
+  template <typename T>
+  friend ::absl::string_view(::google::protobuf::internal::GetAnyMessageName)();
+  static ::absl::string_view FullMessageName() { return "ecloud.EdgeTickComplete"; }
+
+ protected:
+  explicit EdgeTickComplete(::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  EdgeTickComplete(::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeTickComplete& from);
+  EdgeTickComplete(
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, EdgeTickComplete&& from) noexcept
+      : EdgeTickComplete(arena) {
+    *this = ::std::move(from);
+  }
+  const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL GetClassData() const PROTOBUF_FINAL;
+  static void* PROTOBUF_NONNULL PlacementNew_(
+      const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+      ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+  static constexpr auto InternalNewImpl_();
+
+ public:
+  static constexpr auto InternalGenerateClassData_();
+
+  ::google::protobuf::Metadata GetMetadata() const;
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+  enum : int {
+    kVehicleUpdatesFieldNumber = 4,
+    kEdgeIndexFieldNumber = 1,
+    kTickIdFieldNumber = 2,
+    kNumActorsProcessedFieldNumber = 3,
+  };
+  // repeated .ecloud.VehicleUpdate vehicle_updates = 4;
+  int vehicle_updates_size() const;
+  private:
+  int _internal_vehicle_updates_size() const;
+
+  public:
+  void clear_vehicle_updates() ;
+  ::ecloud::VehicleUpdate* PROTOBUF_NONNULL mutable_vehicle_updates(int index);
+  ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>* PROTOBUF_NONNULL mutable_vehicle_updates();
+
+  private:
+  const ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>& _internal_vehicle_updates() const;
+  ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>* PROTOBUF_NONNULL _internal_mutable_vehicle_updates();
+  public:
+  const ::ecloud::VehicleUpdate& vehicle_updates(int index) const;
+  ::ecloud::VehicleUpdate* PROTOBUF_NONNULL add_vehicle_updates();
+  const ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>& vehicle_updates() const;
+  // int32 edge_index = 1;
+  void clear_edge_index() ;
+  ::int32_t edge_index() const;
+  void set_edge_index(::int32_t value);
+
+  private:
+  ::int32_t _internal_edge_index() const;
+  void _internal_set_edge_index(::int32_t value);
+
+  public:
+  // int32 tick_id = 2;
+  void clear_tick_id() ;
+  ::int32_t tick_id() const;
+  void set_tick_id(::int32_t value);
+
+  private:
+  ::int32_t _internal_tick_id() const;
+  void _internal_set_tick_id(::int32_t value);
+
+  public:
+  // int32 num_actors_processed = 3;
+  void clear_num_actors_processed() ;
+  ::int32_t num_actors_processed() const;
+  void set_num_actors_processed(::int32_t value);
+
+  private:
+  ::int32_t _internal_num_actors_processed() const;
+  void _internal_set_num_actors_processed(::int32_t value);
+
+  public:
+  // @@protoc_insertion_point(class_scope:ecloud.EdgeTickComplete)
+ private:
+  class _Internal;
+  friend class ::google::protobuf::internal::TcParser;
+  static const ::google::protobuf::internal::TcParseTable<2, 4,
+                                   1, 0,
+                                   2>
+      _table_;
+
+  friend class ::google::protobuf::MessageLite;
+  friend class ::google::protobuf::Arena;
+  template <typename T>
+  friend class ::google::protobuf::Arena::InternalHelper;
+  using InternalArenaConstructable_ = void;
+  using DestructorSkippable_ = void;
+  struct Impl_ {
+    inline explicit constexpr Impl_(::google::protobuf::internal::ConstantInitialized) noexcept;
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena);
+    inline explicit Impl_(
+        ::google::protobuf::internal::InternalVisibility visibility,
+        ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+        const EdgeTickComplete& from_msg);
+    ::google::protobuf::internal::HasBits<1> _has_bits_;
+    ::google::protobuf::internal::CachedSize _cached_size_;
+    ::google::protobuf::RepeatedPtrField< ::ecloud::VehicleUpdate > vehicle_updates_;
+    ::int32_t edge_index_;
+    ::int32_t tick_id_;
+    ::int32_t num_actors_processed_;
+    PROTOBUF_TSAN_DECLARE_MEMBER
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_ecloud_2eproto;
+};
+
+extern const ::google::protobuf::internal::ClassDataFull EdgeTickComplete_class_data_;
 // -------------------------------------------------------------------
 
 class EcloudResponse final : public ::google::protobuf::Message
@@ -18621,6 +18640,56 @@ inline ::int32_t EdgeTickComplete::_internal_num_actors_processed() const {
 inline void EdgeTickComplete::_internal_set_num_actors_processed(::int32_t value) {
   ::google::protobuf::internal::TSanWrite(&_impl_);
   _impl_.num_actors_processed_ = value;
+}
+
+// repeated .ecloud.VehicleUpdate vehicle_updates = 4;
+inline int EdgeTickComplete::_internal_vehicle_updates_size() const {
+  return _internal_vehicle_updates().size();
+}
+inline int EdgeTickComplete::vehicle_updates_size() const {
+  return _internal_vehicle_updates_size();
+}
+inline void EdgeTickComplete::clear_vehicle_updates() {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  _impl_.vehicle_updates_.Clear();
+}
+inline ::ecloud::VehicleUpdate* PROTOBUF_NONNULL EdgeTickComplete::mutable_vehicle_updates(int index)
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable:ecloud.EdgeTickComplete.vehicle_updates)
+  return _internal_mutable_vehicle_updates()->Mutable(index);
+}
+inline ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>* PROTOBUF_NONNULL EdgeTickComplete::mutable_vehicle_updates()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_mutable_list:ecloud.EdgeTickComplete.vehicle_updates)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  return _internal_mutable_vehicle_updates();
+}
+inline const ::ecloud::VehicleUpdate& EdgeTickComplete::vehicle_updates(int index) const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_get:ecloud.EdgeTickComplete.vehicle_updates)
+  return _internal_vehicle_updates().Get(index);
+}
+inline ::ecloud::VehicleUpdate* PROTOBUF_NONNULL EdgeTickComplete::add_vehicle_updates()
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::ecloud::VehicleUpdate* _add = _internal_mutable_vehicle_updates()->Add();
+  // @@protoc_insertion_point(field_add:ecloud.EdgeTickComplete.vehicle_updates)
+  return _add;
+}
+inline const ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>& EdgeTickComplete::vehicle_updates() const
+    ABSL_ATTRIBUTE_LIFETIME_BOUND {
+  // @@protoc_insertion_point(field_list:ecloud.EdgeTickComplete.vehicle_updates)
+  return _internal_vehicle_updates();
+}
+inline const ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>&
+EdgeTickComplete::_internal_vehicle_updates() const {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return _impl_.vehicle_updates_;
+}
+inline ::google::protobuf::RepeatedPtrField<::ecloud::VehicleUpdate>* PROTOBUF_NONNULL
+EdgeTickComplete::_internal_mutable_vehicle_updates() {
+  ::google::protobuf::internal::TSanRead(&_impl_);
+  return &_impl_.vehicle_updates_;
 }
 
 // -------------------------------------------------------------------

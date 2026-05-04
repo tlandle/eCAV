@@ -144,6 +144,10 @@ def run_scenario(opt, scenario_params):
             else:
                 scenario_manager.tick()
 
+            if scenario_manager.all_vehicles_done:
+                print(f"All vehicles reported done ({scenario_manager.num_completed_vehicles}/{scenario_manager.vehicle_count}), ending simulation")
+                break
+
             # Bird view centered on intersection
             view_transform = carla.Transform()
             view_transform.location = carla.Location(

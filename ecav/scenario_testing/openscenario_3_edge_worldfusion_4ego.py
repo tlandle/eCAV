@@ -25,7 +25,7 @@ from ecav.scenario_testing.utils.yaml_utils import add_current_time
 import ecloud_pb2 as ecloud
 
 MAX_STEP = 300
-SCENARIO_NAME = 'openscenario_3_edge_late_fusion_4ego'
+SCENARIO_NAME = 'openscenario_3_edge_worldfusion_4ego'
 scenario_runner = None
 
 
@@ -143,6 +143,10 @@ def run_scenario(opt, scenario_params):
                 scenario_manager.tick_world()
             else:
                 scenario_manager.tick()
+
+            if scenario_manager.all_vehicles_done:
+                print(f"All vehicles reported done ({scenario_manager.num_completed_vehicles}/{scenario_manager.vehicle_count}), ending simulation")
+                break
 
             # Bird view centered on intersection
             view_transform = carla.Transform()

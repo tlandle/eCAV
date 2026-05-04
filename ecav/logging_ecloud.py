@@ -108,6 +108,7 @@ _SHORT_TO_FULL = {
     "EdgeManager":              "EdgeManager",
     "networking":               "ecav.core.application.edge.networking",
     "astar_edge_manager":       "ecav.core.application.edge.a_star_algorithm.astar_edge_manager",
+    "worldfusion_edge":         "ecav.core.application.edge.edge_manager.edge_manager_worldfusion_ab3dmot_linear_predictor",
     "ecloud_comms":             "ecav.ecloud_server.ecloud_comms",
     "ecloud_actor_client":      "ecav.ecav2.ecloud_actor_client",
     "distributed_actor_client": "ecav.distributed_client.distributed_actor_client",
