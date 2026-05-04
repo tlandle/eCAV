@@ -189,8 +189,9 @@ ecav/ecloud_server/Makefile
 # Local environment configuration (user-specific paths)
 local.env
 
-.claude/
-
 logs/
+
 # Pretrained MTR checkpoint: too large for LFS, download separately
 ecav/ml_manager/models/mtr/best_model.pth
+
+.obsidian/workspace.json
