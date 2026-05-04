@@ -198,6 +198,13 @@ ecav/ml_manager/models/mtr/best_model.pth
 # Paper drafts excluded from this repo to keep authorship out of git history
 safety_envelope_paper/
 paper2/
+paper2_figures/
+paper2_contributions_summary.md
+paper2_implementation_status.md
+paper2_optimization.md
+paper2_state.md
+notes/paper_extract/
+notes/paper_network_slides.md
 
 # Large training artifacts and run scratch
 lightning_logs/
