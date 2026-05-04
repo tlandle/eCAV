@@ -155,10 +155,9 @@ def run_scenario(opt, scenario_params):
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
 
-            for edge in edge_list:
-                serialized_predictions = edge.run_step(step)
-                if opt.distributed and serialized_predictions is not None:
-                    scenario_manager.push_edge_objects(serialized_predictions)
+            if not opt.distributed:
+                for edge in edge_list:
+                    edge.run_step(step)
 
             step += 1
             if step >= MAX_STEP:

@@ -194,9 +194,10 @@ def run_scenario(opt, scenario_params):
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
 
-            # Run edge processing step (update_information is called internally)
-            for edge in edge_list:
-                edge.run_step(step)
+            # In distributed mode fusion runs in edge_process; skip here
+            if not opt.distributed:
+                for edge in edge_list:
+                    edge.run_step(step)
 
             step = step + 1
             if step >= MAX_STEP:

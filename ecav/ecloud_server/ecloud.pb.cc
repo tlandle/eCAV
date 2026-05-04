@@ -552,32 +552,6 @@ struct EdgeRegistrationInfoDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeRegistrationInfoDefaultTypeInternal _EdgeRegistrationInfo_default_instance_;
 
-inline constexpr EdgeReadyNotification::Impl_::Impl_(
-    ::_pbi::ConstantInitialized) noexcept
-      : _cached_size_{0},
-        edge_index_{0},
-        num_actors_{0} {}
-
-template <typename>
-PROTOBUF_CONSTEXPR EdgeReadyNotification::EdgeReadyNotification(::_pbi::ConstantInitialized)
-#if defined(PROTOBUF_CUSTOM_VTABLE)
-    : ::google::protobuf::Message(EdgeReadyNotification_class_data_.base()),
-#else   // PROTOBUF_CUSTOM_VTABLE
-    : ::google::protobuf::Message(),
-#endif  // PROTOBUF_CUSTOM_VTABLE
-      _impl_(::_pbi::ConstantInitialized()) {
-}
-struct EdgeReadyNotificationDefaultTypeInternal {
-  PROTOBUF_CONSTEXPR EdgeReadyNotificationDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
-  ~EdgeReadyNotificationDefaultTypeInternal() {}
-  union {
-    EdgeReadyNotification _instance;
-  };
-};
-
-PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
-    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeReadyNotificationDefaultTypeInternal _EdgeReadyNotification_default_instance_;
-
 inline constexpr EdgeMapping::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
@@ -631,6 +605,34 @@ struct EdgeIndexDefaultTypeInternal {
 
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeIndexDefaultTypeInternal _EdgeIndex_default_instance_;
+
+inline constexpr EdgeEvaluationResult::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        pickled_edge_profiler_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
+        edge_index_{0} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR EdgeEvaluationResult::EdgeEvaluationResult(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(EdgeEvaluationResult_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct EdgeEvaluationResultDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR EdgeEvaluationResultDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~EdgeEvaluationResultDefaultTypeInternal() {}
+  union {
+    EdgeEvaluationResult _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeEvaluationResultDefaultTypeInternal _EdgeEvaluationResult_default_instance_;
 
 inline constexpr CompressedTensor::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
@@ -750,6 +752,33 @@ struct ActorConnectionInfoDefaultTypeInternal {
 
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ActorConnectionInfoDefaultTypeInternal _ActorConnectionInfo_default_instance_;
+
+inline constexpr ActorCarlaInfo::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        vehicle_index_{0},
+        actor_type_{static_cast< ::ecloud::ActorType >(0)},
+        carla_actor_id_{0} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR ActorCarlaInfo::ActorCarlaInfo(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(ActorCarlaInfo_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct ActorCarlaInfoDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ActorCarlaInfoDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ActorCarlaInfoDefaultTypeInternal() {}
+  union {
+    ActorCarlaInfo _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ActorCarlaInfoDefaultTypeInternal _ActorCarlaInfo_default_instance_;
 
 inline constexpr Transform::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
@@ -891,6 +920,33 @@ struct IntermediateFeaturesDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 IntermediateFeaturesDefaultTypeInternal _IntermediateFeatures_default_instance_;
 
+inline constexpr EdgeReadyNotification::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : _cached_size_{0},
+        actor_infos_{},
+        edge_index_{0},
+        num_actors_{0} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR EdgeReadyNotification::EdgeReadyNotification(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(EdgeReadyNotification_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct EdgeReadyNotificationDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR EdgeReadyNotificationDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~EdgeReadyNotificationDefaultTypeInternal() {}
+  union {
+    EdgeReadyNotification _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeReadyNotificationDefaultTypeInternal _EdgeReadyNotification_default_instance_;
+
 inline constexpr EdgeObstacleObject::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
@@ -970,6 +1026,31 @@ struct EdgeMappingSetupDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeMappingSetupDefaultTypeInternal _EdgeMappingSetup_default_instance_;
 
+inline constexpr EdgeEvaluationResultList::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : results_{},
+        _cached_size_{0} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR EdgeEvaluationResultList::EdgeEvaluationResultList(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(EdgeEvaluationResultList_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct EdgeEvaluationResultListDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR EdgeEvaluationResultListDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~EdgeEvaluationResultListDefaultTypeInternal() {}
+  union {
+    EdgeEvaluationResultList _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 EdgeEvaluationResultListDefaultTypeInternal _EdgeEvaluationResultList_default_instance_;
+
 inline constexpr CollisionEvent::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
       : _cached_size_{0},
@@ -998,6 +1079,31 @@ struct CollisionEventDefaultTypeInternal {
 
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
     PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 CollisionEventDefaultTypeInternal _CollisionEvent_default_instance_;
+
+inline constexpr ActorCarlaInfoResponse::Impl_::Impl_(
+    ::_pbi::ConstantInitialized) noexcept
+      : actor_infos_{},
+        _cached_size_{0} {}
+
+template <typename>
+PROTOBUF_CONSTEXPR ActorCarlaInfoResponse::ActorCarlaInfoResponse(::_pbi::ConstantInitialized)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(ActorCarlaInfoResponse_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(::_pbi::ConstantInitialized()) {
+}
+struct ActorCarlaInfoResponseDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR ActorCarlaInfoResponseDefaultTypeInternal() : _instance(::_pbi::ConstantInitialized{}) {}
+  ~ActorCarlaInfoResponseDefaultTypeInternal() {}
+  union {
+    ActorCarlaInfoResponse _instance;
+  };
+};
+
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT
+    PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 ActorCarlaInfoResponseDefaultTypeInternal _ActorCarlaInfoResponse_default_instance_;
 
 inline constexpr Waypoint::Impl_::Impl_(
     ::_pbi::ConstantInitialized) noexcept
@@ -1193,6 +1299,9 @@ inline constexpr VehicleUpdate::Impl_::Impl_(
         pickled_features_(
             &::google::protobuf::internal::fixed_address_empty_string,
             ::_pbi::ConstantInitialized()),
+        pickled_actor_metrics_(
+            &::google::protobuf::internal::fixed_address_empty_string,
+            ::_pbi::ConstantInitialized()),
         loc_debug_helper_{nullptr},
         planer_debug_helper_{nullptr},
         client_debug_helper_{nullptr},
@@ -1202,7 +1311,8 @@ inline constexpr VehicleUpdate::Impl_::Impl_(
         vehicle_index_{0},
         vehicle_state_{static_cast< ::ecloud::VehicleState >(0)},
         actor_type_{static_cast< ::ecloud::ActorType >(0)},
-        duration_ns_{::int64_t{0}} {}
+        duration_ns_{::int64_t{0}},
+        carla_actor_id_{0} {}
 
 template <typename>
 PROTOBUF_CONSTEXPR VehicleUpdate::VehicleUpdate(::_pbi::ConstantInitialized)
@@ -1518,7 +1628,7 @@ const ::uint32_t
         7,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_._has_bits_),
-        15, // hasbit index offset
+        17, // hasbit index offset
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.tick_id_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.vehicle_index_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.vehicle_state_),
@@ -1531,18 +1641,22 @@ const ::uint32_t
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.pickled_agent_objects_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.actor_type_),
         PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.pickled_features_),
-        7,
+        PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.pickled_actor_metrics_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::VehicleUpdate, _impl_.carla_actor_id_),
         8,
         9,
-        2,
+        10,
         3,
         4,
         5,
         6,
-        11,
+        7,
+        12,
         0,
-        10,
+        11,
         1,
+        2,
+        13,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::ecloud::EcloudResponse, _impl_._has_bits_),
         5, // hasbit index offset
@@ -1730,12 +1844,34 @@ const ::uint32_t
         2,
         ~0u,
         0x081, // bitmap
-        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_._has_bits_),
-        5, // hasbit index offset
-        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_.edge_index_),
-        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_.num_actors_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::ActorCarlaInfo, _impl_._has_bits_),
+        6, // hasbit index offset
+        PROTOBUF_FIELD_OFFSET(::ecloud::ActorCarlaInfo, _impl_.vehicle_index_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::ActorCarlaInfo, _impl_.actor_type_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::ActorCarlaInfo, _impl_.carla_actor_id_),
         0,
         1,
+        2,
+        0x000, // bitmap
+        PROTOBUF_FIELD_OFFSET(::ecloud::ActorCarlaInfoResponse, _impl_.actor_infos_),
+        0x081, // bitmap
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeEvaluationResult, _impl_._has_bits_),
+        5, // hasbit index offset
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeEvaluationResult, _impl_.edge_index_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeEvaluationResult, _impl_.pickled_edge_profiler_),
+        1,
+        0,
+        0x000, // bitmap
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeEvaluationResultList, _impl_.results_),
+        0x081, // bitmap
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_._has_bits_),
+        6, // hasbit index offset
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_.edge_index_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_.num_actors_),
+        PROTOBUF_FIELD_OFFSET(::ecloud::EdgeReadyNotification, _impl_.actor_infos_),
+        0,
+        1,
+        ~0u,
         0x081, // bitmap
         PROTOBUF_FIELD_OFFSET(::ecloud::EdgeTick, _impl_._has_bits_),
         5, // hasbit index offset
@@ -1809,30 +1945,34 @@ static const ::_pbi::MigrationSchema
         {148, sizeof(::ecloud::ClientDebugHelper)},
         {161, sizeof(::ecloud::RegistrationInfo)},
         {180, sizeof(::ecloud::VehicleUpdate)},
-        {207, sizeof(::ecloud::EcloudResponse)},
-        {214, sizeof(::ecloud::ObstacleVehicle)},
-        {219, sizeof(::ecloud::GeneratedTrajectory)},
-        {228, sizeof(::ecloud::ObstacleBoundingBox)},
-        {243, sizeof(::ecloud::ObjectBuffer)},
-        {250, sizeof(::ecloud::EdgeObstacleObject)},
-        {261, sizeof(::ecloud::ObjectRequest)},
-        {266, sizeof(::ecloud::EdgeObjects)},
-        {268, sizeof(::ecloud::CompressedTensor)},
-        {281, sizeof(::ecloud::AgentPose)},
-        {290, sizeof(::ecloud::IntermediateFeatures)},
-        {313, sizeof(::ecloud::IntermediateFeaturesRequest)},
-        {320, sizeof(::ecloud::FusionResult)},
-        {331, sizeof(::ecloud::IntermediateFeaturesBatch)},
-        {344, sizeof(::ecloud::EdgeRegistrationInfo)},
-        {359, sizeof(::ecloud::EdgeScenarioConfig)},
-        {382, sizeof(::ecloud::EdgeTickComplete)},
-        {393, sizeof(::ecloud::EdgeReadyNotification)},
-        {400, sizeof(::ecloud::EdgeTick)},
-        {407, sizeof(::ecloud::EdgeIndex)},
-        {412, sizeof(::ecloud::ActorConnectionInfo)},
-        {425, sizeof(::ecloud::ActorUpdateWithResponse)},
-        {432, sizeof(::ecloud::EdgeMapping)},
-        {441, sizeof(::ecloud::EdgeMappingSetup)},
+        {211, sizeof(::ecloud::EcloudResponse)},
+        {218, sizeof(::ecloud::ObstacleVehicle)},
+        {223, sizeof(::ecloud::GeneratedTrajectory)},
+        {232, sizeof(::ecloud::ObstacleBoundingBox)},
+        {247, sizeof(::ecloud::ObjectBuffer)},
+        {254, sizeof(::ecloud::EdgeObstacleObject)},
+        {265, sizeof(::ecloud::ObjectRequest)},
+        {270, sizeof(::ecloud::EdgeObjects)},
+        {272, sizeof(::ecloud::CompressedTensor)},
+        {285, sizeof(::ecloud::AgentPose)},
+        {294, sizeof(::ecloud::IntermediateFeatures)},
+        {317, sizeof(::ecloud::IntermediateFeaturesRequest)},
+        {324, sizeof(::ecloud::FusionResult)},
+        {335, sizeof(::ecloud::IntermediateFeaturesBatch)},
+        {348, sizeof(::ecloud::EdgeRegistrationInfo)},
+        {363, sizeof(::ecloud::EdgeScenarioConfig)},
+        {386, sizeof(::ecloud::EdgeTickComplete)},
+        {397, sizeof(::ecloud::ActorCarlaInfo)},
+        {406, sizeof(::ecloud::ActorCarlaInfoResponse)},
+        {408, sizeof(::ecloud::EdgeEvaluationResult)},
+        {415, sizeof(::ecloud::EdgeEvaluationResultList)},
+        {417, sizeof(::ecloud::EdgeReadyNotification)},
+        {426, sizeof(::ecloud::EdgeTick)},
+        {433, sizeof(::ecloud::EdgeIndex)},
+        {438, sizeof(::ecloud::ActorConnectionInfo)},
+        {451, sizeof(::ecloud::ActorUpdateWithResponse)},
+        {458, sizeof(::ecloud::EdgeMapping)},
+        {467, sizeof(::ecloud::EdgeMappingSetup)},
 };
 static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
     &::ecloud::_Empty_default_instance_._instance,
@@ -1873,6 +2013,10 @@ static const ::_pb::Message* PROTOBUF_NONNULL const file_default_instances[] = {
     &::ecloud::_EdgeRegistrationInfo_default_instance_._instance,
     &::ecloud::_EdgeScenarioConfig_default_instance_._instance,
     &::ecloud::_EdgeTickComplete_default_instance_._instance,
+    &::ecloud::_ActorCarlaInfo_default_instance_._instance,
+    &::ecloud::_ActorCarlaInfoResponse_default_instance_._instance,
+    &::ecloud::_EdgeEvaluationResult_default_instance_._instance,
+    &::ecloud::_EdgeEvaluationResultList_default_instance_._instance,
     &::ecloud::_EdgeReadyNotification_default_instance_._instance,
     &::ecloud::_EdgeTick_default_instance_._instance,
     &::ecloud::_EdgeIndex_default_instance_._instance,
@@ -1943,7 +2087,7 @@ const char descriptor_table_protodef_ecloud_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "id\030\003 \001(\t\022\020\n\010actor_id\030\004 \001(\005\022\026\n\016container_"
     "name\030\005 \001(\t\022\022\n\nvehicle_ip\030\006 \001(\t\022\024\n\014vehicl"
     "e_port\030\007 \001(\005\022%\n\nactor_type\030\010 \001(\0162\021.eclou"
-    "d.ActorType\"\305\003\n\rVehicleUpdate\022\017\n\007tick_id"
+    "d.ActorType\"\374\003\n\rVehicleUpdate\022\017\n\007tick_id"
     "\030\001 \001(\005\022\025\n\rvehicle_index\030\002 \001(\005\022+\n\rvehicle"
     "_state\030\003 \001(\0162\024.ecloud.VehicleState\0220\n\020lo"
     "c_debug_helper\030\004 \001(\0132\026.ecloud.LocDebugHe"
@@ -1954,124 +2098,140 @@ const char descriptor_table_protodef_ecloud_2eproto[] ABSL_ATTRIBUTE_SECTION_VAR
     "locity\030\010 \001(\0132\020.ecloud.Velocity\022\023\n\013durati"
     "on_ns\030\t \001(\003\022\035\n\025pickled_agent_objects\030\n \001"
     "(\014\022%\n\nactor_type\030\013 \001(\0162\021.ecloud.ActorTyp"
-    "e\022\030\n\020pickled_features\030\014 \001(\014\"P\n\016EcloudRes"
-    "ponse\022\017\n\007tick_id\030\001 \001(\005\022-\n\016vehicle_update"
-    "\030\002 \003(\0132\025.ecloud.VehicleUpdate\"#\n\017Obstacl"
-    "eVehicle\022\020\n\010carla_id\030\001 \001(\005\"\206\001\n\023Generated"
-    "Trajectory\022)\n\010obstacle\030\001 \001(\0132\027.ecloud.Ob"
-    "stacleVehicle\022\023\n\013probability\030\002 \001(\002\022/\n\024pr"
-    "edicted_trajectory\030\003 \003(\0132\021.ecloud.Transf"
-    "orm\"\201\001\n\023ObstacleBoundingBox\022\020\n\010center_x\030"
-    "\001 \001(\005\022\020\n\010center_y\030\002 \001(\005\022\020\n\010center_z\030\003 \001("
-    "\005\022\020\n\010extent_x\030\004 \001(\005\022\020\n\010extent_y\030\005 \001(\005\022\020\n"
-    "\010extent_z\030\006 \001(\005\"D\n\014ObjectBuffer\022\022\n\nvehic"
-    "le_id\030\001 \001(\005\022 \n\030pickled_edge_predictions\030"
-    "\002 \001(\014\"\241\001\n\022EdgeObstacleObject\0221\n\014bounding"
-    "_box\030\001 \001(\0132\033.ecloud.ObstacleBoundingBox\022"
-    "\"\n\010location\030\002 \001(\0132\020.ecloud.Location\022\020\n\010c"
-    "arla_id\030\003 \001(\005\022\"\n\010velocity\030\004 \001(\0132\020.ecloud"
-    ".Velocity\"&\n\rObjectRequest\022\025\n\rvehicle_in"
-    "dex\030\001 \001(\005\"\?\n\013EdgeObjects\0220\n\022all_object_b"
-    "uffers\030\001 \003(\0132\024.ecloud.ObjectBuffer\"j\n\020Co"
-    "mpressedTensor\022\014\n\004data\030\001 \001(\014\022\r\n\005shape\030\002 "
-    "\003(\005\022\r\n\005dtype\030\003 \001(\t\022\023\n\013compression\030\004 \001(\t\022"
-    "\025\n\roriginal_size\030\005 \001(\005\"\?\n\tAgentPose\022\020\n\010a"
-    "gent_id\030\001 \001(\005\022\014\n\004pose\030\002 \003(\002\022\022\n\nlidar_pos"
-    "e\030\003 \003(\002\"\203\003\n\024IntermediateFeatures\022\020\n\010agen"
-    "t_id\030\001 \001(\005\022%\n\nagent_type\030\002 \001(\0162\021.ecloud."
-    "ActorType\022\037\n\004pose\030\003 \001(\0132\021.ecloud.AgentPo"
-    "se\0222\n\020spatial_features\030\004 \001(\0132\030.ecloud.Co"
-    "mpressedTensor\022%\n\003psm\030\005 \001(\0132\030.ecloud.Com"
-    "pressedTensor\022$\n\002rm\030\006 \001(\0132\030.ecloud.Compr"
-    "essedTensor\022+\n\tthres_map\030\007 \001(\0132\030.ecloud."
-    "CompressedTensor\0221\n\017camera_features\030\010 \001("
-    "\0132\030.ecloud.CompressedTensor\022\024\n\014timestamp"
-    "_ns\030\t \001(\003\022\032\n\022communication_rate\030\n \001(\002\"E\n"
-    "\033IntermediateFeaturesRequest\022\025\n\rvehicle_"
-    "index\030\001 \001(\005\022\017\n\007tick_id\030\002 \001(\005\"\203\001\n\014FusionR"
-    "esult\022\017\n\007tick_id\030\001 \001(\005\022.\n\ndetections\030\002 \003"
-    "(\0132\032.ecloud.EdgeObstacleObject\022\032\n\022commun"
-    "ication_rate\030\003 \001(\002\022\026\n\016fusion_time_ns\030\004 \001"
-    "(\003\"\254\001\n\031IntermediateFeaturesBatch\022\017\n\007tick"
-    "_id\030\001 \001(\005\022.\n\010features\030\002 \003(\0132\034.ecloud.Int"
-    "ermediateFeatures\022\031\n\021pairwise_t_matrix\030\003"
-    " \003(\002\022\037\n\027pairwise_t_matrix_shape\030\004 \003(\005\022\022\n"
-    "\nrecord_len\030\005 \001(\005\"\216\001\n\024EdgeRegistrationIn"
-    "fo\022\022\n\nedge_index\030\001 \001(\005\022\017\n\007edge_ip\030\002 \001(\t\022"
-    "\021\n\tedge_port\030\003 \001(\005\022\024\n\014num_vehicles\030\004 \001(\005"
-    "\022\020\n\010num_rsus\030\005 \001(\005\022\026\n\016container_name\030\006 \001"
-    "(\t\"\344\001\n\022EdgeScenarioConfig\022\022\n\nedge_index\030"
-    "\001 \001(\005\022\030\n\020edge_config_yaml\030\002 \001(\t\022\024\n\014num_v"
-    "ehicles\030\003 \001(\005\022\020\n\010num_rsus\030\004 \001(\005\022\027\n\017vehic"
-    "le_indices\030\005 \003(\005\022\023\n\013rsu_indices\030\006 \003(\005\022\020\n"
-    "\010carla_ip\030\007 \001(\t\022\022\n\ncarla_port\030\010 \001(\005\022\023\n\013a"
-    "pplication\030\t \001(\t\022\017\n\007version\030\n \001(\t\"\205\001\n\020Ed"
-    "geTickComplete\022\022\n\nedge_index\030\001 \001(\005\022\017\n\007ti"
-    "ck_id\030\002 \001(\005\022\034\n\024num_actors_processed\030\003 \001("
-    "\005\022.\n\017vehicle_updates\030\004 \003(\0132\025.ecloud.Vehi"
-    "cleUpdate\"\?\n\025EdgeReadyNotification\022\022\n\ned"
-    "ge_index\030\001 \001(\005\022\022\n\nnum_actors\030\002 \001(\005\"=\n\010Ed"
-    "geTick\022\017\n\007tick_id\030\001 \001(\005\022 \n\007command\030\002 \001(\016"
-    "2\017.ecloud.Command\"\037\n\tEdgeIndex\022\022\n\nedge_i"
-    "ndex\030\001 \001(\005\"v\n\023ActorConnectionInfo\022\020\n\010has"
-    "_edge\030\001 \001(\010\022\017\n\007edge_ip\030\002 \001(\t\022\021\n\tedge_por"
-    "t\030\003 \001(\005\022\022\n\nedge_index\030\004 \001(\005\022\025\n\rvehicle_i"
-    "ndex\030\005 \001(\005\"m\n\027ActorUpdateWithResponse\022%\n"
-    "\006update\030\001 \001(\0132\025.ecloud.VehicleUpdate\022+\n\r"
-    "fused_objects\030\002 \001(\0132\024.ecloud.ObjectBuffe"
-    "r\"O\n\013EdgeMapping\022\022\n\nedge_index\030\001 \001(\005\022\027\n\017"
-    "vehicle_indices\030\002 \003(\005\022\023\n\013rsu_indices\030\003 \003"
-    "(\005\"L\n\020EdgeMappingSetup\022\021\n\tnum_edges\030\001 \001("
-    "\005\022%\n\010mappings\030\002 \003(\0132\023.ecloud.EdgeMapping"
-    "*~\n\007Command\022\010\n\004TICK\020\000\022\007\n\003END\020\001\022\026\n\022REQUES"
-    "T_DEBUG_INFO\020\002\022\033\n\027PULL_WAYPOINTS_AND_TIC"
-    "K\020\003\022\031\n\025PULL_OBJECTS_AND_TICK\020\004\022\020\n\014ACTORS"
-    "_READY\020\005*\240\001\n\014VehicleState\022\017\n\013REGISTERING"
-    "\020\000\022\020\n\014CARLA_UPDATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002"
-    "\022\023\n\017GET_DESTINATION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTI"
-    "CK_DONE\020\005\022\006\n\002OK\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_IN"
-    "FO_UPDATE\020\010*!\n\tActorType\022\013\n\007VEHICLE\020\000\022\007\n"
-    "\003RSU\020\0012\271\014\n\006Ecloud\022\'\n\010PushTick\022\014.ecloud.T"
-    "ick\032\r.ecloud.Empty\0229\n\021Client_SendUpdate\022"
-    "\025.ecloud.VehicleUpdate\032\r.ecloud.Empty\022J\n"
-    "\026Client_RegisterVehicle\022\030.ecloud.Registr"
-    "ationInfo\032\026.ecloud.SimulationInfo\022E\n\022Cli"
-    "ent_GetScenario\022\027.ecloud.ScenarioRequest"
-    "\032\026.ecloud.SimulationInfo\022F\n\023Client_GetWa"
-    "ypoints\022\027.ecloud.WaypointRequest\032\026.eclou"
-    "d.WaypointBuffer\022@\n\021Client_GetObjects\022\025."
-    "ecloud.ObjectRequest\032\024.ecloud.ObjectBuff"
-    "er\022Q\n\030Client_GetConnectionInfo\022\030.ecloud."
-    "RegistrationInfo\032\033.ecloud.ActorConnectio"
-    "nInfo\022,\n\rServer_DoTick\022\014.ecloud.Tick\032\r.e"
-    "cloud.Empty\022=\n\024Server_StartScenario\022\026.ec"
-    "loud.SimulationInfo\032\r.ecloud.Empty\0222\n\022Se"
-    "rver_EndScenario\022\r.ecloud.Empty\032\r.ecloud"
-    ".Empty\022A\n\030Server_GetVehicleUpdates\022\r.ecl"
-    "oud.Empty\032\026.ecloud.EcloudResponse\022@\n\030Ser"
-    "ver_PushEdgeWaypoints\022\025.ecloud.EdgeWaypo"
-    "ints\032\r.ecloud.Empty\022<\n\026Server_PushEdgeOb"
-    "jects\022\023.ecloud.EdgeObjects\032\r.ecloud.Empt"
-    "y\022A\n\026Server_SetEdgeMappings\022\030.ecloud.Edg"
-    "eMappingSetup\032\r.ecloud.Empty\022I\n\rEdge_Reg"
-    "ister\022\034.ecloud.EdgeRegistrationInfo\032\032.ec"
-    "loud.EdgeScenarioConfig\022<\n\021Edge_TickComp"
-    "lete\022\030.ecloud.EdgeTickComplete\032\r.ecloud."
-    "Empty\022@\n\020Edge_ActorsReady\022\035.ecloud.EdgeR"
-    "eadyNotification\032\r.ecloud.Empty\0220\n\rEdge_"
-    "PushTick\022\020.ecloud.EdgeTick\032\r.ecloud.Empt"
-    "y\022F\n\022Edge_ActorRegister\022\030.ecloud.Registr"
-    "ationInfo\032\026.ecloud.SimulationInfo\022:\n\017Edg"
-    "e_ActorReady\022\030.ecloud.RegistrationInfo\032\r"
-    ".ecloud.Empty\022C\n\024Edge_ActorSendUpdate\022\025."
-    "ecloud.VehicleUpdate\032\024.ecloud.ObjectBuff"
-    "er\022L\n\035Edge_SendIntermediateFeatures\022\034.ec"
-    "loud.IntermediateFeatures\032\r.ecloud.Empty"
-    "\022Q\n\024Edge_GetFusionResult\022#.ecloud.Interm"
-    "ediateFeaturesRequest\032\024.ecloud.FusionRes"
-    "ult\022M\n\022Edge_PerformFusion\022!.ecloud.Inter"
-    "mediateFeaturesBatch\032\024.ecloud.FusionResu"
-    "ltb\006proto3"
+    "e\022\030\n\020pickled_features\030\014 \001(\014\022\035\n\025pickled_a"
+    "ctor_metrics\030\r \001(\014\022\026\n\016carla_actor_id\030\016 \001"
+    "(\005\"P\n\016EcloudResponse\022\017\n\007tick_id\030\001 \001(\005\022-\n"
+    "\016vehicle_update\030\002 \003(\0132\025.ecloud.VehicleUp"
+    "date\"#\n\017ObstacleVehicle\022\020\n\010carla_id\030\001 \001("
+    "\005\"\206\001\n\023GeneratedTrajectory\022)\n\010obstacle\030\001 "
+    "\001(\0132\027.ecloud.ObstacleVehicle\022\023\n\013probabil"
+    "ity\030\002 \001(\002\022/\n\024predicted_trajectory\030\003 \003(\0132"
+    "\021.ecloud.Transform\"\201\001\n\023ObstacleBoundingB"
+    "ox\022\020\n\010center_x\030\001 \001(\005\022\020\n\010center_y\030\002 \001(\005\022\020"
+    "\n\010center_z\030\003 \001(\005\022\020\n\010extent_x\030\004 \001(\005\022\020\n\010ex"
+    "tent_y\030\005 \001(\005\022\020\n\010extent_z\030\006 \001(\005\"D\n\014Object"
+    "Buffer\022\022\n\nvehicle_id\030\001 \001(\005\022 \n\030pickled_ed"
+    "ge_predictions\030\002 \001(\014\"\241\001\n\022EdgeObstacleObj"
+    "ect\0221\n\014bounding_box\030\001 \001(\0132\033.ecloud.Obsta"
+    "cleBoundingBox\022\"\n\010location\030\002 \001(\0132\020.eclou"
+    "d.Location\022\020\n\010carla_id\030\003 \001(\005\022\"\n\010velocity"
+    "\030\004 \001(\0132\020.ecloud.Velocity\"&\n\rObjectReques"
+    "t\022\025\n\rvehicle_index\030\001 \001(\005\"\?\n\013EdgeObjects\022"
+    "0\n\022all_object_buffers\030\001 \003(\0132\024.ecloud.Obj"
+    "ectBuffer\"j\n\020CompressedTensor\022\014\n\004data\030\001 "
+    "\001(\014\022\r\n\005shape\030\002 \003(\005\022\r\n\005dtype\030\003 \001(\t\022\023\n\013com"
+    "pression\030\004 \001(\t\022\025\n\roriginal_size\030\005 \001(\005\"\?\n"
+    "\tAgentPose\022\020\n\010agent_id\030\001 \001(\005\022\014\n\004pose\030\002 \003"
+    "(\002\022\022\n\nlidar_pose\030\003 \003(\002\"\203\003\n\024IntermediateF"
+    "eatures\022\020\n\010agent_id\030\001 \001(\005\022%\n\nagent_type\030"
+    "\002 \001(\0162\021.ecloud.ActorType\022\037\n\004pose\030\003 \001(\0132\021"
+    ".ecloud.AgentPose\0222\n\020spatial_features\030\004 "
+    "\001(\0132\030.ecloud.CompressedTensor\022%\n\003psm\030\005 \001"
+    "(\0132\030.ecloud.CompressedTensor\022$\n\002rm\030\006 \001(\013"
+    "2\030.ecloud.CompressedTensor\022+\n\tthres_map\030"
+    "\007 \001(\0132\030.ecloud.CompressedTensor\0221\n\017camer"
+    "a_features\030\010 \001(\0132\030.ecloud.CompressedTens"
+    "or\022\024\n\014timestamp_ns\030\t \001(\003\022\032\n\022communicatio"
+    "n_rate\030\n \001(\002\"E\n\033IntermediateFeaturesRequ"
+    "est\022\025\n\rvehicle_index\030\001 \001(\005\022\017\n\007tick_id\030\002 "
+    "\001(\005\"\203\001\n\014FusionResult\022\017\n\007tick_id\030\001 \001(\005\022.\n"
+    "\ndetections\030\002 \003(\0132\032.ecloud.EdgeObstacleO"
+    "bject\022\032\n\022communication_rate\030\003 \001(\002\022\026\n\016fus"
+    "ion_time_ns\030\004 \001(\003\"\254\001\n\031IntermediateFeatur"
+    "esBatch\022\017\n\007tick_id\030\001 \001(\005\022.\n\010features\030\002 \003"
+    "(\0132\034.ecloud.IntermediateFeatures\022\031\n\021pair"
+    "wise_t_matrix\030\003 \003(\002\022\037\n\027pairwise_t_matrix"
+    "_shape\030\004 \003(\005\022\022\n\nrecord_len\030\005 \001(\005\"\216\001\n\024Edg"
+    "eRegistrationInfo\022\022\n\nedge_index\030\001 \001(\005\022\017\n"
+    "\007edge_ip\030\002 \001(\t\022\021\n\tedge_port\030\003 \001(\005\022\024\n\014num"
+    "_vehicles\030\004 \001(\005\022\020\n\010num_rsus\030\005 \001(\005\022\026\n\016con"
+    "tainer_name\030\006 \001(\t\"\344\001\n\022EdgeScenarioConfig"
+    "\022\022\n\nedge_index\030\001 \001(\005\022\030\n\020edge_config_yaml"
+    "\030\002 \001(\t\022\024\n\014num_vehicles\030\003 \001(\005\022\020\n\010num_rsus"
+    "\030\004 \001(\005\022\027\n\017vehicle_indices\030\005 \003(\005\022\023\n\013rsu_i"
+    "ndices\030\006 \003(\005\022\020\n\010carla_ip\030\007 \001(\t\022\022\n\ncarla_"
+    "port\030\010 \001(\005\022\023\n\013application\030\t \001(\t\022\017\n\007versi"
+    "on\030\n \001(\t\"\205\001\n\020EdgeTickComplete\022\022\n\nedge_in"
+    "dex\030\001 \001(\005\022\017\n\007tick_id\030\002 \001(\005\022\034\n\024num_actors"
+    "_processed\030\003 \001(\005\022.\n\017vehicle_updates\030\004 \003("
+    "\0132\025.ecloud.VehicleUpdate\"f\n\016ActorCarlaIn"
+    "fo\022\025\n\rvehicle_index\030\001 \001(\005\022%\n\nactor_type\030"
+    "\002 \001(\0162\021.ecloud.ActorType\022\026\n\016carla_actor_"
+    "id\030\003 \001(\005\"E\n\026ActorCarlaInfoResponse\022+\n\013ac"
+    "tor_infos\030\001 \003(\0132\026.ecloud.ActorCarlaInfo\""
+    "I\n\024EdgeEvaluationResult\022\022\n\nedge_index\030\001 "
+    "\001(\005\022\035\n\025pickled_edge_profiler\030\002 \001(\014\"I\n\030Ed"
+    "geEvaluationResultList\022-\n\007results\030\001 \003(\0132"
+    "\034.ecloud.EdgeEvaluationResult\"l\n\025EdgeRea"
+    "dyNotification\022\022\n\nedge_index\030\001 \001(\005\022\022\n\nnu"
+    "m_actors\030\002 \001(\005\022+\n\013actor_infos\030\003 \003(\0132\026.ec"
+    "loud.ActorCarlaInfo\"=\n\010EdgeTick\022\017\n\007tick_"
+    "id\030\001 \001(\005\022 \n\007command\030\002 \001(\0162\017.ecloud.Comma"
+    "nd\"\037\n\tEdgeIndex\022\022\n\nedge_index\030\001 \001(\005\"v\n\023A"
+    "ctorConnectionInfo\022\020\n\010has_edge\030\001 \001(\010\022\017\n\007"
+    "edge_ip\030\002 \001(\t\022\021\n\tedge_port\030\003 \001(\005\022\022\n\nedge"
+    "_index\030\004 \001(\005\022\025\n\rvehicle_index\030\005 \001(\005\"m\n\027A"
+    "ctorUpdateWithResponse\022%\n\006update\030\001 \001(\0132\025"
+    ".ecloud.VehicleUpdate\022+\n\rfused_objects\030\002"
+    " \001(\0132\024.ecloud.ObjectBuffer\"O\n\013EdgeMappin"
+    "g\022\022\n\nedge_index\030\001 \001(\005\022\027\n\017vehicle_indices"
+    "\030\002 \003(\005\022\023\n\013rsu_indices\030\003 \003(\005\"L\n\020EdgeMappi"
+    "ngSetup\022\021\n\tnum_edges\030\001 \001(\005\022%\n\010mappings\030\002"
+    " \003(\0132\023.ecloud.EdgeMapping*~\n\007Command\022\010\n\004"
+    "TICK\020\000\022\007\n\003END\020\001\022\026\n\022REQUEST_DEBUG_INFO\020\002\022"
+    "\033\n\027PULL_WAYPOINTS_AND_TICK\020\003\022\031\n\025PULL_OBJ"
+    "ECTS_AND_TICK\020\004\022\020\n\014ACTORS_READY\020\005*\240\001\n\014Ve"
+    "hicleState\022\017\n\013REGISTERING\020\000\022\020\n\014CARLA_UPD"
+    "ATE\020\001\022\022\n\016UPDATE_INFO_OK\020\002\022\023\n\017GET_DESTINA"
+    "TION\020\003\022\013\n\007TICK_OK\020\004\022\r\n\tTICK_DONE\020\005\022\006\n\002OK"
+    "\020\006\022\t\n\005ERROR\020\007\022\025\n\021DEBUG_INFO_UPDATE\020\010*!\n\t"
+    "ActorType\022\013\n\007VEHICLE\020\000\022\007\n\003RSU\020\0012\241\016\n\006Eclo"
+    "ud\022\'\n\010PushTick\022\014.ecloud.Tick\032\r.ecloud.Em"
+    "pty\0229\n\021Client_SendUpdate\022\025.ecloud.Vehicl"
+    "eUpdate\032\r.ecloud.Empty\022J\n\026Client_Registe"
+    "rVehicle\022\030.ecloud.RegistrationInfo\032\026.ecl"
+    "oud.SimulationInfo\022E\n\022Client_GetScenario"
+    "\022\027.ecloud.ScenarioRequest\032\026.ecloud.Simul"
+    "ationInfo\022F\n\023Client_GetWaypoints\022\027.eclou"
+    "d.WaypointRequest\032\026.ecloud.WaypointBuffe"
+    "r\022@\n\021Client_GetObjects\022\025.ecloud.ObjectRe"
+    "quest\032\024.ecloud.ObjectBuffer\022Q\n\030Client_Ge"
+    "tConnectionInfo\022\030.ecloud.RegistrationInf"
+    "o\032\033.ecloud.ActorConnectionInfo\022,\n\rServer"
+    "_DoTick\022\014.ecloud.Tick\032\r.ecloud.Empty\022=\n\024"
+    "Server_StartScenario\022\026.ecloud.Simulation"
+    "Info\032\r.ecloud.Empty\0222\n\022Server_EndScenari"
+    "o\022\r.ecloud.Empty\032\r.ecloud.Empty\022A\n\030Serve"
+    "r_GetVehicleUpdates\022\r.ecloud.Empty\032\026.ecl"
+    "oud.EcloudResponse\022M\n\034Server_GetAllActor"
+    "CarlaInfos\022\r.ecloud.Empty\032\036.ecloud.Actor"
+    "CarlaInfoResponse\022O\n\034Server_GetAllEdgeEv"
+    "aluations\022\r.ecloud.Empty\032 .ecloud.EdgeEv"
+    "aluationResultList\022@\n\030Server_PushEdgeWay"
+    "points\022\025.ecloud.EdgeWaypoints\032\r.ecloud.E"
+    "mpty\022<\n\026Server_PushEdgeObjects\022\023.ecloud."
+    "EdgeObjects\032\r.ecloud.Empty\022A\n\026Server_Set"
+    "EdgeMappings\022\030.ecloud.EdgeMappingSetup\032\r"
+    ".ecloud.Empty\022I\n\rEdge_Register\022\034.ecloud."
+    "EdgeRegistrationInfo\032\032.ecloud.EdgeScenar"
+    "ioConfig\022<\n\021Edge_TickComplete\022\030.ecloud.E"
+    "dgeTickComplete\032\r.ecloud.Empty\022@\n\020Edge_A"
+    "ctorsReady\022\035.ecloud.EdgeReadyNotificatio"
+    "n\032\r.ecloud.Empty\022F\n\027Edge_SendEvaluationD"
+    "ata\022\034.ecloud.EdgeEvaluationResult\032\r.eclo"
+    "ud.Empty\0220\n\rEdge_PushTick\022\020.ecloud.EdgeT"
+    "ick\032\r.ecloud.Empty\022F\n\022Edge_ActorRegister"
+    "\022\030.ecloud.RegistrationInfo\032\026.ecloud.Simu"
+    "lationInfo\022:\n\017Edge_ActorReady\022\030.ecloud.R"
+    "egistrationInfo\032\r.ecloud.Empty\022C\n\024Edge_A"
+    "ctorSendUpdate\022\025.ecloud.VehicleUpdate\032\024."
+    "ecloud.ObjectBuffer\022L\n\035Edge_SendIntermed"
+    "iateFeatures\022\034.ecloud.IntermediateFeatur"
+    "es\032\r.ecloud.Empty\022Q\n\024Edge_GetFusionResul"
+    "t\022#.ecloud.IntermediateFeaturesRequest\032\024"
+    ".ecloud.FusionResult\022M\n\022Edge_PerformFusi"
+    "on\022!.ecloud.IntermediateFeaturesBatch\032\024."
+    "ecloud.FusionResultb\006proto3"
 };
 static const ::_pbi::DescriptorTable* PROTOBUF_NONNULL const
     descriptor_table_ecloud_2eproto_deps[1] = {
@@ -2081,13 +2241,13 @@ static ::absl::once_flag descriptor_table_ecloud_2eproto_once;
 PROTOBUF_CONSTINIT const ::_pbi::DescriptorTable descriptor_table_ecloud_2eproto = {
     false,
     false,
-    7530,
+    8187,
     descriptor_table_protodef_ecloud_2eproto,
     "ecloud.proto",
     &descriptor_table_ecloud_2eproto_once,
     descriptor_table_ecloud_2eproto_deps,
     1,
-    45,
+    49,
     schemas,
     file_default_instances,
     TableStruct_ecloud_2eproto::offsets,
@@ -9099,7 +9259,8 @@ PROTOBUF_NDEBUG_INLINE VehicleUpdate::Impl_::Impl_(
       : _has_bits_{from._has_bits_},
         _cached_size_{0},
         pickled_agent_objects_(arena, from.pickled_agent_objects_),
-        pickled_features_(arena, from.pickled_features_) {}
+        pickled_features_(arena, from.pickled_features_),
+        pickled_actor_metrics_(arena, from.pickled_actor_metrics_) {}
 
 VehicleUpdate::VehicleUpdate(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
@@ -9115,28 +9276,28 @@ VehicleUpdate::VehicleUpdate(
       from._internal_metadata_);
   new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
   ::uint32_t cached_has_bits = _impl_._has_bits_[0];
-  _impl_.loc_debug_helper_ = ((cached_has_bits & 0x00000004u) != 0)
+  _impl_.loc_debug_helper_ = ((cached_has_bits & 0x00000008u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.loc_debug_helper_)
                 : nullptr;
-  _impl_.planer_debug_helper_ = ((cached_has_bits & 0x00000008u) != 0)
+  _impl_.planer_debug_helper_ = ((cached_has_bits & 0x00000010u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.planer_debug_helper_)
                 : nullptr;
-  _impl_.client_debug_helper_ = ((cached_has_bits & 0x00000010u) != 0)
+  _impl_.client_debug_helper_ = ((cached_has_bits & 0x00000020u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.client_debug_helper_)
                 : nullptr;
-  _impl_.transform_ = ((cached_has_bits & 0x00000020u) != 0)
+  _impl_.transform_ = ((cached_has_bits & 0x00000040u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.transform_)
                 : nullptr;
-  _impl_.velocity_ = ((cached_has_bits & 0x00000040u) != 0)
+  _impl_.velocity_ = ((cached_has_bits & 0x00000080u) != 0)
                 ? ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.velocity_)
                 : nullptr;
   ::memcpy(reinterpret_cast<char *>(&_impl_) +
                offsetof(Impl_, tick_id_),
            reinterpret_cast<const char *>(&from._impl_) +
                offsetof(Impl_, tick_id_),
-           offsetof(Impl_, duration_ns_) -
+           offsetof(Impl_, carla_actor_id_) -
                offsetof(Impl_, tick_id_) +
-               sizeof(Impl_::duration_ns_));
+               sizeof(Impl_::carla_actor_id_));
 
   // @@protoc_insertion_point(copy_constructor:ecloud.VehicleUpdate)
 }
@@ -9145,16 +9306,17 @@ PROTOBUF_NDEBUG_INLINE VehicleUpdate::Impl_::Impl_(
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
       : _cached_size_{0},
         pickled_agent_objects_(arena),
-        pickled_features_(arena) {}
+        pickled_features_(arena),
+        pickled_actor_metrics_(arena) {}
 
 inline void VehicleUpdate::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
   ::memset(reinterpret_cast<char *>(&_impl_) +
                offsetof(Impl_, loc_debug_helper_),
            0,
-           offsetof(Impl_, duration_ns_) -
+           offsetof(Impl_, carla_actor_id_) -
                offsetof(Impl_, loc_debug_helper_) +
-               sizeof(Impl_::duration_ns_));
+               sizeof(Impl_::carla_actor_id_));
 }
 VehicleUpdate::~VehicleUpdate() {
   // @@protoc_insertion_point(destructor:ecloud.VehicleUpdate)
@@ -9166,6 +9328,7 @@ inline void VehicleUpdate::SharedDtor(MessageLite& self) {
   ABSL_DCHECK(this_.GetArena() == nullptr);
   this_._impl_.pickled_agent_objects_.Destroy();
   this_._impl_.pickled_features_.Destroy();
+  this_._impl_.pickled_actor_metrics_.Destroy();
   delete this_._impl_.loc_debug_helper_;
   delete this_._impl_.planer_debug_helper_;
   delete this_._impl_.client_debug_helper_;
@@ -9217,16 +9380,16 @@ VehicleUpdate::GetClassData() const {
   return VehicleUpdate_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<4, 12, 5, 0, 2>
+const ::_pbi::TcParseTable<4, 14, 5, 0, 2>
 VehicleUpdate::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_._has_bits_),
     0, // no _extensions_
-    12, 120,  // max_field_number, fast_idx_mask
+    14, 120,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294963200,  // skipmap
+    4294950912,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    12,  // num_field_entries
+    14,  // num_field_entries
     5,  // num_aux_entries
     offsetof(decltype(_table_), aux_entries),
     VehicleUpdate_class_data_.base(),
@@ -9238,83 +9401,93 @@ VehicleUpdate::_table_ = {
   }, {{
     {::_pbi::TcParser::MiniParse, {}},
     // int32 tick_id = 1;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.tick_id_), 7>(),
-     {8, 7, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.tick_id_), 8>(),
+     {8, 8, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_)}},
     // int32 vehicle_index = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_index_), 8>(),
-     {16, 8, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_index_), 9>(),
+     {16, 9, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_)}},
     // .ecloud.VehicleState vehicle_state = 3;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_state_), 9>(),
-     {24, 9, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.vehicle_state_), 10>(),
+     {24, 10, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_)}},
     // .ecloud.LocDebugHelper loc_debug_helper = 4;
     {::_pbi::TcParser::FastMtS1,
-     {34, 2, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_)}},
+     {34, 3, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_)}},
     // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
     {::_pbi::TcParser::FastMtS1,
-     {42, 3, 1, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_)}},
+     {42, 4, 1, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_)}},
     // .ecloud.ClientDebugHelper client_debug_helper = 6;
     {::_pbi::TcParser::FastMtS1,
-     {50, 4, 2, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_)}},
+     {50, 5, 2, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_)}},
     // .ecloud.Transform transform = 7;
     {::_pbi::TcParser::FastMtS1,
-     {58, 5, 3, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_)}},
+     {58, 6, 3, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_)}},
     // .ecloud.Velocity velocity = 8;
     {::_pbi::TcParser::FastMtS1,
-     {66, 6, 4, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_)}},
+     {66, 7, 4, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_)}},
     // int64 duration_ns = 9;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(VehicleUpdate, _impl_.duration_ns_), 11>(),
-     {72, 11, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint64_t, offsetof(VehicleUpdate, _impl_.duration_ns_), 12>(),
+     {72, 12, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_)}},
     // bytes pickled_agent_objects = 10;
     {::_pbi::TcParser::FastBS1,
      {82, 0, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_agent_objects_)}},
     // .ecloud.ActorType actor_type = 11;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.actor_type_), 10>(),
-     {88, 10, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_)}},
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.actor_type_), 11>(),
+     {88, 11, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_)}},
     // bytes pickled_features = 12;
     {::_pbi::TcParser::FastBS1,
      {98, 1, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_features_)}},
-    {::_pbi::TcParser::MiniParse, {}},
-    {::_pbi::TcParser::MiniParse, {}},
+    // bytes pickled_actor_metrics = 13;
+    {::_pbi::TcParser::FastBS1,
+     {106, 2, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_actor_metrics_)}},
+    // int32 carla_actor_id = 14;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(VehicleUpdate, _impl_.carla_actor_id_), 13>(),
+     {112, 13, 0, PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.carla_actor_id_)}},
     {::_pbi::TcParser::MiniParse, {}},
   }}, {{
     65535, 65535
   }}, {{
     // int32 tick_id = 1;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_), _Internal::kHasBitsOffset + 7, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.tick_id_), _Internal::kHasBitsOffset + 8, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
     // int32 vehicle_index = 2;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_), _Internal::kHasBitsOffset + 8, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_index_), _Internal::kHasBitsOffset + 9, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
     // .ecloud.VehicleState vehicle_state = 3;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_), _Internal::kHasBitsOffset + 9, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.vehicle_state_), _Internal::kHasBitsOffset + 10, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     // .ecloud.LocDebugHelper loc_debug_helper = 4;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_), _Internal::kHasBitsOffset + 2, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_), _Internal::kHasBitsOffset + 3, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_), _Internal::kHasBitsOffset + 3, 1,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.planer_debug_helper_), _Internal::kHasBitsOffset + 4, 1,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.ClientDebugHelper client_debug_helper = 6;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_), _Internal::kHasBitsOffset + 4, 2,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.client_debug_helper_), _Internal::kHasBitsOffset + 5, 2,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.Transform transform = 7;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_), _Internal::kHasBitsOffset + 5, 3,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.transform_), _Internal::kHasBitsOffset + 6, 3,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // .ecloud.Velocity velocity = 8;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_), _Internal::kHasBitsOffset + 6, 4,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.velocity_), _Internal::kHasBitsOffset + 7, 4,
     (0 | ::_fl::kFcOptional | ::_fl::kMessage | ::_fl::kTvTable)},
     // int64 duration_ns = 9;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_), _Internal::kHasBitsOffset + 11, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_), _Internal::kHasBitsOffset + 12, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt64)},
     // bytes pickled_agent_objects = 10;
     {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_agent_objects_), _Internal::kHasBitsOffset + 0, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
     // .ecloud.ActorType actor_type = 11;
-    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_), _Internal::kHasBitsOffset + 10, 0,
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.actor_type_), _Internal::kHasBitsOffset + 11, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
     // bytes pickled_features = 12;
     {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_features_), _Internal::kHasBitsOffset + 1, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
+    // bytes pickled_actor_metrics = 13;
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.pickled_actor_metrics_), _Internal::kHasBitsOffset + 2, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
+    // int32 carla_actor_id = 14;
+    {PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.carla_actor_id_), _Internal::kHasBitsOffset + 13, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
   }},
   {{
       {::_pbi::TcParser::GetTable<::ecloud::LocDebugHelper>()},
@@ -9334,7 +9507,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   (void) cached_has_bits;
 
   cached_has_bits = _impl_._has_bits_[0];
-  if ((cached_has_bits & 0x0000007fu) != 0) {
+  if ((cached_has_bits & 0x000000ffu) != 0) {
     if ((cached_has_bits & 0x00000001u) != 0) {
       _impl_.pickled_agent_objects_.ClearNonDefaultToEmpty();
     }
@@ -9342,31 +9515,33 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
       _impl_.pickled_features_.ClearNonDefaultToEmpty();
     }
     if ((cached_has_bits & 0x00000004u) != 0) {
+      _impl_.pickled_actor_metrics_.ClearNonDefaultToEmpty();
+    }
+    if ((cached_has_bits & 0x00000008u) != 0) {
       ABSL_DCHECK(_impl_.loc_debug_helper_ != nullptr);
       _impl_.loc_debug_helper_->Clear();
     }
-    if ((cached_has_bits & 0x00000008u) != 0) {
+    if ((cached_has_bits & 0x00000010u) != 0) {
       ABSL_DCHECK(_impl_.planer_debug_helper_ != nullptr);
       _impl_.planer_debug_helper_->Clear();
     }
-    if ((cached_has_bits & 0x00000010u) != 0) {
+    if ((cached_has_bits & 0x00000020u) != 0) {
       ABSL_DCHECK(_impl_.client_debug_helper_ != nullptr);
       _impl_.client_debug_helper_->Clear();
     }
-    if ((cached_has_bits & 0x00000020u) != 0) {
+    if ((cached_has_bits & 0x00000040u) != 0) {
       ABSL_DCHECK(_impl_.transform_ != nullptr);
       _impl_.transform_->Clear();
     }
-    if ((cached_has_bits & 0x00000040u) != 0) {
+    if ((cached_has_bits & 0x00000080u) != 0) {
       ABSL_DCHECK(_impl_.velocity_ != nullptr);
       _impl_.velocity_->Clear();
     }
   }
-  _impl_.tick_id_ = 0;
-  if ((cached_has_bits & 0x00000f00u) != 0) {
-    ::memset(&_impl_.vehicle_index_, 0, static_cast<::size_t>(
-        reinterpret_cast<char*>(&_impl_.duration_ns_) -
-        reinterpret_cast<char*>(&_impl_.vehicle_index_)) + sizeof(_impl_.duration_ns_));
+  if ((cached_has_bits & 0x00003f00u) != 0) {
+    ::memset(&_impl_.tick_id_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.carla_actor_id_) -
+        reinterpret_cast<char*>(&_impl_.tick_id_)) + sizeof(_impl_.carla_actor_id_));
   }
   _impl_._has_bits_.Clear();
   _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
@@ -9388,7 +9563,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   (void)cached_has_bits;
 
   // int32 tick_id = 1;
-  if ((this_._impl_._has_bits_[0] & 0x00000080u) != 0) {
+  if ((this_._impl_._has_bits_[0] & 0x00000100u) != 0) {
     if (this_._internal_tick_id() != 0) {
       target =
           ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<1>(
@@ -9397,7 +9572,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   }
 
   // int32 vehicle_index = 2;
-  if ((this_._impl_._has_bits_[0] & 0x00000100u) != 0) {
+  if ((this_._impl_._has_bits_[0] & 0x00000200u) != 0) {
     if (this_._internal_vehicle_index() != 0) {
       target =
           ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<2>(
@@ -9406,7 +9581,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   }
 
   // .ecloud.VehicleState vehicle_state = 3;
-  if ((this_._impl_._has_bits_[0] & 0x00000200u) != 0) {
+  if ((this_._impl_._has_bits_[0] & 0x00000400u) != 0) {
     if (this_._internal_vehicle_state() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -9416,42 +9591,42 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
 
   cached_has_bits = this_._impl_._has_bits_[0];
   // .ecloud.LocDebugHelper loc_debug_helper = 4;
-  if ((cached_has_bits & 0x00000004u) != 0) {
+  if ((cached_has_bits & 0x00000008u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         4, *this_._impl_.loc_debug_helper_, this_._impl_.loc_debug_helper_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
-  if ((cached_has_bits & 0x00000008u) != 0) {
+  if ((cached_has_bits & 0x00000010u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         5, *this_._impl_.planer_debug_helper_, this_._impl_.planer_debug_helper_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.ClientDebugHelper client_debug_helper = 6;
-  if ((cached_has_bits & 0x00000010u) != 0) {
+  if ((cached_has_bits & 0x00000020u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         6, *this_._impl_.client_debug_helper_, this_._impl_.client_debug_helper_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.Transform transform = 7;
-  if ((cached_has_bits & 0x00000020u) != 0) {
+  if ((cached_has_bits & 0x00000040u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         7, *this_._impl_.transform_, this_._impl_.transform_->GetCachedSize(), target,
         stream);
   }
 
   // .ecloud.Velocity velocity = 8;
-  if ((cached_has_bits & 0x00000040u) != 0) {
+  if ((cached_has_bits & 0x00000080u) != 0) {
     target = ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
         8, *this_._impl_.velocity_, this_._impl_.velocity_->GetCachedSize(), target,
         stream);
   }
 
   // int64 duration_ns = 9;
-  if ((cached_has_bits & 0x00000800u) != 0) {
+  if ((cached_has_bits & 0x00001000u) != 0) {
     if (this_._internal_duration_ns() != 0) {
       target =
           ::google::protobuf::internal::WireFormatLite::WriteInt64ToArrayWithField<9>(
@@ -9468,7 +9643,7 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
   }
 
   // .ecloud.ActorType actor_type = 11;
-  if ((cached_has_bits & 0x00000400u) != 0) {
+  if ((cached_has_bits & 0x00000800u) != 0) {
     if (this_._internal_actor_type() != 0) {
       target = stream->EnsureSpace(target);
       target = ::_pbi::WireFormatLite::WriteEnumToArray(
@@ -9481,6 +9656,23 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
     if (!this_._internal_pickled_features().empty()) {
       const ::std::string& _s = this_._internal_pickled_features();
       target = stream->WriteBytesMaybeAliased(12, _s, target);
+    }
+  }
+
+  // bytes pickled_actor_metrics = 13;
+  if ((cached_has_bits & 0x00000004u) != 0) {
+    if (!this_._internal_pickled_actor_metrics().empty()) {
+      const ::std::string& _s = this_._internal_pickled_actor_metrics();
+      target = stream->WriteBytesMaybeAliased(13, _s, target);
+    }
+  }
+
+  // int32 carla_actor_id = 14;
+  if ((cached_has_bits & 0x00002000u) != 0) {
+    if (this_._internal_carla_actor_id() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<14>(
+              stream, this_._internal_carla_actor_id(), target);
     }
   }
 
@@ -9524,66 +9716,80 @@ PROTOBUF_NOINLINE void VehicleUpdate::Clear() {
                                         this_._internal_pickled_features());
       }
     }
-    // .ecloud.LocDebugHelper loc_debug_helper = 4;
+    // bytes pickled_actor_metrics = 13;
     if ((cached_has_bits & 0x00000004u) != 0) {
+      if (!this_._internal_pickled_actor_metrics().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::BytesSize(
+                                        this_._internal_pickled_actor_metrics());
+      }
+    }
+    // .ecloud.LocDebugHelper loc_debug_helper = 4;
+    if ((cached_has_bits & 0x00000008u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.loc_debug_helper_);
     }
     // .ecloud.PlanerDebugHelper planer_debug_helper = 5;
-    if ((cached_has_bits & 0x00000008u) != 0) {
+    if ((cached_has_bits & 0x00000010u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.planer_debug_helper_);
     }
     // .ecloud.ClientDebugHelper client_debug_helper = 6;
-    if ((cached_has_bits & 0x00000010u) != 0) {
+    if ((cached_has_bits & 0x00000020u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.client_debug_helper_);
     }
     // .ecloud.Transform transform = 7;
-    if ((cached_has_bits & 0x00000020u) != 0) {
+    if ((cached_has_bits & 0x00000040u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.transform_);
     }
     // .ecloud.Velocity velocity = 8;
-    if ((cached_has_bits & 0x00000040u) != 0) {
+    if ((cached_has_bits & 0x00000080u) != 0) {
       total_size += 1 +
                     ::google::protobuf::internal::WireFormatLite::MessageSize(*this_._impl_.velocity_);
     }
+  }
+  if ((cached_has_bits & 0x00003f00u) != 0) {
     // int32 tick_id = 1;
-    if ((cached_has_bits & 0x00000080u) != 0) {
+    if ((cached_has_bits & 0x00000100u) != 0) {
       if (this_._internal_tick_id() != 0) {
         total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
             this_._internal_tick_id());
       }
     }
-  }
-  if ((cached_has_bits & 0x00000f00u) != 0) {
     // int32 vehicle_index = 2;
-    if ((cached_has_bits & 0x00000100u) != 0) {
+    if ((cached_has_bits & 0x00000200u) != 0) {
       if (this_._internal_vehicle_index() != 0) {
         total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
             this_._internal_vehicle_index());
       }
     }
     // .ecloud.VehicleState vehicle_state = 3;
-    if ((cached_has_bits & 0x00000200u) != 0) {
+    if ((cached_has_bits & 0x00000400u) != 0) {
       if (this_._internal_vehicle_state() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_vehicle_state());
       }
     }
     // .ecloud.ActorType actor_type = 11;
-    if ((cached_has_bits & 0x00000400u) != 0) {
+    if ((cached_has_bits & 0x00000800u) != 0) {
       if (this_._internal_actor_type() != 0) {
         total_size += 1 +
                       ::_pbi::WireFormatLite::EnumSize(this_._internal_actor_type());
       }
     }
     // int64 duration_ns = 9;
-    if ((cached_has_bits & 0x00000800u) != 0) {
+    if ((cached_has_bits & 0x00001000u) != 0) {
       if (this_._internal_duration_ns() != 0) {
         total_size += ::_pbi::WireFormatLite::Int64SizePlusOne(
             this_._internal_duration_ns());
+      }
+    }
+    // int32 carla_actor_id = 14;
+    if ((cached_has_bits & 0x00002000u) != 0) {
+      if (this_._internal_carla_actor_id() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_carla_actor_id());
       }
     }
   }
@@ -9621,6 +9827,15 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
       }
     }
     if ((cached_has_bits & 0x00000004u) != 0) {
+      if (!from._internal_pickled_actor_metrics().empty()) {
+        _this->_internal_set_pickled_actor_metrics(from._internal_pickled_actor_metrics());
+      } else {
+        if (_this->_impl_.pickled_actor_metrics_.IsDefault()) {
+          _this->_internal_set_pickled_actor_metrics("");
+        }
+      }
+    }
+    if ((cached_has_bits & 0x00000008u) != 0) {
       ABSL_DCHECK(from._impl_.loc_debug_helper_ != nullptr);
       if (_this->_impl_.loc_debug_helper_ == nullptr) {
         _this->_impl_.loc_debug_helper_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.loc_debug_helper_);
@@ -9628,7 +9843,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.loc_debug_helper_->MergeFrom(*from._impl_.loc_debug_helper_);
       }
     }
-    if ((cached_has_bits & 0x00000008u) != 0) {
+    if ((cached_has_bits & 0x00000010u) != 0) {
       ABSL_DCHECK(from._impl_.planer_debug_helper_ != nullptr);
       if (_this->_impl_.planer_debug_helper_ == nullptr) {
         _this->_impl_.planer_debug_helper_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.planer_debug_helper_);
@@ -9636,7 +9851,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.planer_debug_helper_->MergeFrom(*from._impl_.planer_debug_helper_);
       }
     }
-    if ((cached_has_bits & 0x00000010u) != 0) {
+    if ((cached_has_bits & 0x00000020u) != 0) {
       ABSL_DCHECK(from._impl_.client_debug_helper_ != nullptr);
       if (_this->_impl_.client_debug_helper_ == nullptr) {
         _this->_impl_.client_debug_helper_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.client_debug_helper_);
@@ -9644,7 +9859,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.client_debug_helper_->MergeFrom(*from._impl_.client_debug_helper_);
       }
     }
-    if ((cached_has_bits & 0x00000020u) != 0) {
+    if ((cached_has_bits & 0x00000040u) != 0) {
       ABSL_DCHECK(from._impl_.transform_ != nullptr);
       if (_this->_impl_.transform_ == nullptr) {
         _this->_impl_.transform_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.transform_);
@@ -9652,7 +9867,7 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.transform_->MergeFrom(*from._impl_.transform_);
       }
     }
-    if ((cached_has_bits & 0x00000040u) != 0) {
+    if ((cached_has_bits & 0x00000080u) != 0) {
       ABSL_DCHECK(from._impl_.velocity_ != nullptr);
       if (_this->_impl_.velocity_ == nullptr) {
         _this->_impl_.velocity_ = ::google::protobuf::Message::CopyConstruct(arena, *from._impl_.velocity_);
@@ -9660,31 +9875,36 @@ void VehicleUpdate::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::g
         _this->_impl_.velocity_->MergeFrom(*from._impl_.velocity_);
       }
     }
-    if ((cached_has_bits & 0x00000080u) != 0) {
+  }
+  if ((cached_has_bits & 0x00003f00u) != 0) {
+    if ((cached_has_bits & 0x00000100u) != 0) {
       if (from._internal_tick_id() != 0) {
         _this->_impl_.tick_id_ = from._impl_.tick_id_;
       }
     }
-  }
-  if ((cached_has_bits & 0x00000f00u) != 0) {
-    if ((cached_has_bits & 0x00000100u) != 0) {
+    if ((cached_has_bits & 0x00000200u) != 0) {
       if (from._internal_vehicle_index() != 0) {
         _this->_impl_.vehicle_index_ = from._impl_.vehicle_index_;
       }
     }
-    if ((cached_has_bits & 0x00000200u) != 0) {
+    if ((cached_has_bits & 0x00000400u) != 0) {
       if (from._internal_vehicle_state() != 0) {
         _this->_impl_.vehicle_state_ = from._impl_.vehicle_state_;
       }
     }
-    if ((cached_has_bits & 0x00000400u) != 0) {
+    if ((cached_has_bits & 0x00000800u) != 0) {
       if (from._internal_actor_type() != 0) {
         _this->_impl_.actor_type_ = from._impl_.actor_type_;
       }
     }
-    if ((cached_has_bits & 0x00000800u) != 0) {
+    if ((cached_has_bits & 0x00001000u) != 0) {
       if (from._internal_duration_ns() != 0) {
         _this->_impl_.duration_ns_ = from._impl_.duration_ns_;
+      }
+    }
+    if ((cached_has_bits & 0x00002000u) != 0) {
+      if (from._internal_carla_actor_id() != 0) {
+        _this->_impl_.carla_actor_id_ = from._impl_.carla_actor_id_;
       }
     }
   }
@@ -9708,9 +9928,10 @@ void VehicleUpdate::InternalSwap(VehicleUpdate* PROTOBUF_RESTRICT PROTOBUF_NONNU
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pickled_agent_objects_, &other->_impl_.pickled_agent_objects_, arena);
   ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pickled_features_, &other->_impl_.pickled_features_, arena);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pickled_actor_metrics_, &other->_impl_.pickled_actor_metrics_, arena);
   ::google::protobuf::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.duration_ns_)
-      + sizeof(VehicleUpdate::_impl_.duration_ns_)
+      PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.carla_actor_id_)
+      + sizeof(VehicleUpdate::_impl_.carla_actor_id_)
       - PROTOBUF_FIELD_OFFSET(VehicleUpdate, _impl_.loc_debug_helper_)>(
           reinterpret_cast<char*>(&_impl_.loc_debug_helper_),
           reinterpret_cast<char*>(&other->_impl_.loc_debug_helper_));
@@ -15938,6 +16159,1109 @@ void EdgeTickComplete::InternalSwap(EdgeTickComplete* PROTOBUF_RESTRICT PROTOBUF
 }
 // ===================================================================
 
+class ActorCarlaInfo::_Internal {
+ public:
+  using HasBits =
+      decltype(::std::declval<ActorCarlaInfo>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_._has_bits_);
+};
+
+ActorCarlaInfo::ActorCarlaInfo(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ActorCarlaInfo_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.ActorCarlaInfo)
+}
+ActorCarlaInfo::ActorCarlaInfo(
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const ActorCarlaInfo& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ActorCarlaInfo_class_data_.base()),
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena),
+#endif  // PROTOBUF_CUSTOM_VTABLE
+      _impl_(from._impl_) {
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+}
+PROTOBUF_NDEBUG_INLINE ActorCarlaInfo::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+      : _cached_size_{0} {}
+
+inline void ActorCarlaInfo::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  ::memset(reinterpret_cast<char *>(&_impl_) +
+               offsetof(Impl_, vehicle_index_),
+           0,
+           offsetof(Impl_, carla_actor_id_) -
+               offsetof(Impl_, vehicle_index_) +
+               sizeof(Impl_::carla_actor_id_));
+}
+ActorCarlaInfo::~ActorCarlaInfo() {
+  // @@protoc_insertion_point(destructor:ecloud.ActorCarlaInfo)
+  SharedDtor(*this);
+}
+inline void ActorCarlaInfo::SharedDtor(MessageLite& self) {
+  ActorCarlaInfo& this_ = static_cast<ActorCarlaInfo&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.~Impl_();
+}
+
+inline void* PROTOBUF_NONNULL ActorCarlaInfo::PlacementNew_(
+    const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena) {
+  return ::new (mem) ActorCarlaInfo(arena);
+}
+constexpr auto ActorCarlaInfo::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(ActorCarlaInfo),
+                                            alignof(ActorCarlaInfo));
+}
+constexpr auto ActorCarlaInfo::InternalGenerateClassData_() {
+  return ::google::protobuf::internal::ClassDataFull{
+      ::google::protobuf::internal::ClassData{
+          &_ActorCarlaInfo_default_instance_._instance,
+          &_table_.header,
+          nullptr,  // OnDemandRegisterArenaDtor
+          nullptr,  // IsInitialized
+          &ActorCarlaInfo::MergeImpl,
+          ::google::protobuf::Message::GetNewImpl<ActorCarlaInfo>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          &ActorCarlaInfo::SharedDtor,
+          ::google::protobuf::Message::GetClearImpl<ActorCarlaInfo>(), &ActorCarlaInfo::ByteSizeLong,
+              &ActorCarlaInfo::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_._cached_size_),
+          false,
+      },
+      &ActorCarlaInfo::kDescriptorMethods,
+      &descriptor_table_ecloud_2eproto,
+      nullptr,  // tracker
+  };
+}
+
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const
+    ::google::protobuf::internal::ClassDataFull ActorCarlaInfo_class_data_ =
+        ActorCarlaInfo::InternalGenerateClassData_();
+
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+ActorCarlaInfo::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&ActorCarlaInfo_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(ActorCarlaInfo_class_data_.tc_table);
+  return ActorCarlaInfo_class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<2, 3, 0, 0, 2>
+ActorCarlaInfo::_table_ = {
+  {
+    PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_._has_bits_),
+    0, // no _extensions_
+    3, 24,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967288,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    3,  // num_field_entries
+    0,  // num_aux_entries
+    offsetof(decltype(_table_), field_names),  // no aux_entries
+    ActorCarlaInfo_class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::ecloud::ActorCarlaInfo>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    {::_pbi::TcParser::MiniParse, {}},
+    // int32 vehicle_index = 1;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ActorCarlaInfo, _impl_.vehicle_index_), 0>(),
+     {8, 0, 0, PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.vehicle_index_)}},
+    // .ecloud.ActorType actor_type = 2;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ActorCarlaInfo, _impl_.actor_type_), 1>(),
+     {16, 1, 0, PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.actor_type_)}},
+    // int32 carla_actor_id = 3;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(ActorCarlaInfo, _impl_.carla_actor_id_), 2>(),
+     {24, 2, 0, PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.carla_actor_id_)}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // int32 vehicle_index = 1;
+    {PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.vehicle_index_), _Internal::kHasBitsOffset + 0, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    // .ecloud.ActorType actor_type = 2;
+    {PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.actor_type_), _Internal::kHasBitsOffset + 1, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kOpenEnum)},
+    // int32 carla_actor_id = 3;
+    {PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.carla_actor_id_), _Internal::kHasBitsOffset + 2, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+  }},
+  // no aux_entries
+  {{
+  }},
+};
+PROTOBUF_NOINLINE void ActorCarlaInfo::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.ActorCarlaInfo)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000007u) != 0) {
+    ::memset(&_impl_.vehicle_index_, 0, static_cast<::size_t>(
+        reinterpret_cast<char*>(&_impl_.carla_actor_id_) -
+        reinterpret_cast<char*>(&_impl_.vehicle_index_)) + sizeof(_impl_.carla_actor_id_));
+  }
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::uint8_t* PROTOBUF_NONNULL ActorCarlaInfo::_InternalSerialize(
+    const ::google::protobuf::MessageLite& base, ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) {
+  const ActorCarlaInfo& this_ = static_cast<const ActorCarlaInfo&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::uint8_t* PROTOBUF_NONNULL ActorCarlaInfo::_InternalSerialize(
+    ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+  const ActorCarlaInfo& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.ActorCarlaInfo)
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  // int32 vehicle_index = 1;
+  if ((this_._impl_._has_bits_[0] & 0x00000001u) != 0) {
+    if (this_._internal_vehicle_index() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<1>(
+              stream, this_._internal_vehicle_index(), target);
+    }
+  }
+
+  // .ecloud.ActorType actor_type = 2;
+  if ((this_._impl_._has_bits_[0] & 0x00000002u) != 0) {
+    if (this_._internal_actor_type() != 0) {
+      target = stream->EnsureSpace(target);
+      target = ::_pbi::WireFormatLite::WriteEnumToArray(
+          2, this_._internal_actor_type(), target);
+    }
+  }
+
+  // int32 carla_actor_id = 3;
+  if ((this_._impl_._has_bits_[0] & 0x00000004u) != 0) {
+    if (this_._internal_carla_actor_id() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<3>(
+              stream, this_._internal_carla_actor_id(), target);
+    }
+  }
+
+  if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+    target =
+        ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+            this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.ActorCarlaInfo)
+  return target;
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::size_t ActorCarlaInfo::ByteSizeLong(const MessageLite& base) {
+  const ActorCarlaInfo& this_ = static_cast<const ActorCarlaInfo&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::size_t ActorCarlaInfo::ByteSizeLong() const {
+  const ActorCarlaInfo& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(message_byte_size_start:ecloud.ActorCarlaInfo)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void)cached_has_bits;
+
+  ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+  cached_has_bits = this_._impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000007u) != 0) {
+    // int32 vehicle_index = 1;
+    if ((cached_has_bits & 0x00000001u) != 0) {
+      if (this_._internal_vehicle_index() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_vehicle_index());
+      }
+    }
+    // .ecloud.ActorType actor_type = 2;
+    if ((cached_has_bits & 0x00000002u) != 0) {
+      if (this_._internal_actor_type() != 0) {
+        total_size += 1 +
+                      ::_pbi::WireFormatLite::EnumSize(this_._internal_actor_type());
+      }
+    }
+    // int32 carla_actor_id = 3;
+    if ((cached_has_bits & 0x00000004u) != 0) {
+      if (this_._internal_carla_actor_id() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_carla_actor_id());
+      }
+    }
+  }
+  return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                             &this_._impl_._cached_size_);
+}
+
+void ActorCarlaInfo::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<ActorCarlaInfo*>(&to_msg);
+  auto& from = static_cast<const ActorCarlaInfo&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.ActorCarlaInfo)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000007u) != 0) {
+    if ((cached_has_bits & 0x00000001u) != 0) {
+      if (from._internal_vehicle_index() != 0) {
+        _this->_impl_.vehicle_index_ = from._impl_.vehicle_index_;
+      }
+    }
+    if ((cached_has_bits & 0x00000002u) != 0) {
+      if (from._internal_actor_type() != 0) {
+        _this->_impl_.actor_type_ = from._impl_.actor_type_;
+      }
+    }
+    if ((cached_has_bits & 0x00000004u) != 0) {
+      if (from._internal_carla_actor_id() != 0) {
+        _this->_impl_.carla_actor_id_ = from._impl_.carla_actor_id_;
+      }
+    }
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ActorCarlaInfo::CopyFrom(const ActorCarlaInfo& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.ActorCarlaInfo)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void ActorCarlaInfo::InternalSwap(ActorCarlaInfo* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
+  using ::std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::google::protobuf::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.carla_actor_id_)
+      + sizeof(ActorCarlaInfo::_impl_.carla_actor_id_)
+      - PROTOBUF_FIELD_OFFSET(ActorCarlaInfo, _impl_.vehicle_index_)>(
+          reinterpret_cast<char*>(&_impl_.vehicle_index_),
+          reinterpret_cast<char*>(&other->_impl_.vehicle_index_));
+}
+
+::google::protobuf::Metadata ActorCarlaInfo::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class ActorCarlaInfoResponse::_Internal {
+ public:
+};
+
+ActorCarlaInfoResponse::ActorCarlaInfoResponse(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ActorCarlaInfoResponse_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.ActorCarlaInfoResponse)
+}
+PROTOBUF_NDEBUG_INLINE ActorCarlaInfoResponse::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    const ::ecloud::ActorCarlaInfoResponse& from_msg)
+      : actor_infos_{visibility, arena, from.actor_infos_},
+        _cached_size_{0} {}
+
+ActorCarlaInfoResponse::ActorCarlaInfoResponse(
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const ActorCarlaInfoResponse& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, ActorCarlaInfoResponse_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  ActorCarlaInfoResponse* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+
+  // @@protoc_insertion_point(copy_constructor:ecloud.ActorCarlaInfoResponse)
+}
+PROTOBUF_NDEBUG_INLINE ActorCarlaInfoResponse::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+      : actor_infos_{visibility, arena},
+        _cached_size_{0} {}
+
+inline void ActorCarlaInfoResponse::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+}
+ActorCarlaInfoResponse::~ActorCarlaInfoResponse() {
+  // @@protoc_insertion_point(destructor:ecloud.ActorCarlaInfoResponse)
+  SharedDtor(*this);
+}
+inline void ActorCarlaInfoResponse::SharedDtor(MessageLite& self) {
+  ActorCarlaInfoResponse& this_ = static_cast<ActorCarlaInfoResponse&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.~Impl_();
+}
+
+inline void* PROTOBUF_NONNULL ActorCarlaInfoResponse::PlacementNew_(
+    const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena) {
+  return ::new (mem) ActorCarlaInfoResponse(arena);
+}
+constexpr auto ActorCarlaInfoResponse::InternalNewImpl_() {
+  constexpr auto arena_bits = ::google::protobuf::internal::EncodePlacementArenaOffsets({
+      PROTOBUF_FIELD_OFFSET(ActorCarlaInfoResponse, _impl_.actor_infos_) +
+          decltype(ActorCarlaInfoResponse::_impl_.actor_infos_)::
+              InternalGetArenaOffset(
+                  ::google::protobuf::Message::internal_visibility()),
+  });
+  if (arena_bits.has_value()) {
+    return ::google::protobuf::internal::MessageCreator::ZeroInit(
+        sizeof(ActorCarlaInfoResponse), alignof(ActorCarlaInfoResponse), *arena_bits);
+  } else {
+    return ::google::protobuf::internal::MessageCreator(&ActorCarlaInfoResponse::PlacementNew_,
+                                 sizeof(ActorCarlaInfoResponse),
+                                 alignof(ActorCarlaInfoResponse));
+  }
+}
+constexpr auto ActorCarlaInfoResponse::InternalGenerateClassData_() {
+  return ::google::protobuf::internal::ClassDataFull{
+      ::google::protobuf::internal::ClassData{
+          &_ActorCarlaInfoResponse_default_instance_._instance,
+          &_table_.header,
+          nullptr,  // OnDemandRegisterArenaDtor
+          nullptr,  // IsInitialized
+          &ActorCarlaInfoResponse::MergeImpl,
+          ::google::protobuf::Message::GetNewImpl<ActorCarlaInfoResponse>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          &ActorCarlaInfoResponse::SharedDtor,
+          ::google::protobuf::Message::GetClearImpl<ActorCarlaInfoResponse>(), &ActorCarlaInfoResponse::ByteSizeLong,
+              &ActorCarlaInfoResponse::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          PROTOBUF_FIELD_OFFSET(ActorCarlaInfoResponse, _impl_._cached_size_),
+          false,
+      },
+      &ActorCarlaInfoResponse::kDescriptorMethods,
+      &descriptor_table_ecloud_2eproto,
+      nullptr,  // tracker
+  };
+}
+
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const
+    ::google::protobuf::internal::ClassDataFull ActorCarlaInfoResponse_class_data_ =
+        ActorCarlaInfoResponse::InternalGenerateClassData_();
+
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+ActorCarlaInfoResponse::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&ActorCarlaInfoResponse_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(ActorCarlaInfoResponse_class_data_.tc_table);
+  return ActorCarlaInfoResponse_class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<0, 1, 1, 0, 2>
+ActorCarlaInfoResponse::_table_ = {
+  {
+    0,  // no _has_bits_
+    0, // no _extensions_
+    1, 0,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967294,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    1,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
+    ActorCarlaInfoResponse_class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::ecloud::ActorCarlaInfoResponse>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // repeated .ecloud.ActorCarlaInfo actor_infos = 1;
+    {::_pbi::TcParser::FastMtR1,
+     {10, 63, 0, PROTOBUF_FIELD_OFFSET(ActorCarlaInfoResponse, _impl_.actor_infos_)}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // repeated .ecloud.ActorCarlaInfo actor_infos = 1;
+    {PROTOBUF_FIELD_OFFSET(ActorCarlaInfoResponse, _impl_.actor_infos_), 0, 0,
+    (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
+  }},
+  {{
+      {::_pbi::TcParser::GetTable<::ecloud::ActorCarlaInfo>()},
+  }},
+  {{
+  }},
+};
+PROTOBUF_NOINLINE void ActorCarlaInfoResponse::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.ActorCarlaInfoResponse)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.actor_infos_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::uint8_t* PROTOBUF_NONNULL ActorCarlaInfoResponse::_InternalSerialize(
+    const ::google::protobuf::MessageLite& base, ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) {
+  const ActorCarlaInfoResponse& this_ = static_cast<const ActorCarlaInfoResponse&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::uint8_t* PROTOBUF_NONNULL ActorCarlaInfoResponse::_InternalSerialize(
+    ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+  const ActorCarlaInfoResponse& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.ActorCarlaInfoResponse)
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  // repeated .ecloud.ActorCarlaInfo actor_infos = 1;
+  for (unsigned i = 0, n = static_cast<unsigned>(
+                           this_._internal_actor_infos_size());
+       i < n; i++) {
+    const auto& repfield = this_._internal_actor_infos().Get(i);
+    target =
+        ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+            1, repfield, repfield.GetCachedSize(),
+            target, stream);
+  }
+
+  if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+    target =
+        ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+            this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.ActorCarlaInfoResponse)
+  return target;
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::size_t ActorCarlaInfoResponse::ByteSizeLong(const MessageLite& base) {
+  const ActorCarlaInfoResponse& this_ = static_cast<const ActorCarlaInfoResponse&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::size_t ActorCarlaInfoResponse::ByteSizeLong() const {
+  const ActorCarlaInfoResponse& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(message_byte_size_start:ecloud.ActorCarlaInfoResponse)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void)cached_has_bits;
+
+  ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+   {
+    // repeated .ecloud.ActorCarlaInfo actor_infos = 1;
+    {
+      total_size += 1UL * this_._internal_actor_infos_size();
+      for (const auto& msg : this_._internal_actor_infos()) {
+        total_size += ::google::protobuf::internal::WireFormatLite::MessageSize(msg);
+      }
+    }
+  }
+  return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                             &this_._impl_._cached_size_);
+}
+
+void ActorCarlaInfoResponse::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<ActorCarlaInfoResponse*>(&to_msg);
+  auto& from = static_cast<const ActorCarlaInfoResponse&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.ActorCarlaInfoResponse)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  _this->_internal_mutable_actor_infos()->MergeFrom(
+      from._internal_actor_infos());
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void ActorCarlaInfoResponse::CopyFrom(const ActorCarlaInfoResponse& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.ActorCarlaInfoResponse)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void ActorCarlaInfoResponse::InternalSwap(ActorCarlaInfoResponse* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
+  using ::std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  _impl_.actor_infos_.InternalSwap(&other->_impl_.actor_infos_);
+}
+
+::google::protobuf::Metadata ActorCarlaInfoResponse::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class EdgeEvaluationResult::_Internal {
+ public:
+  using HasBits =
+      decltype(::std::declval<EdgeEvaluationResult>()._impl_._has_bits_);
+  static constexpr ::int32_t kHasBitsOffset =
+      8 * PROTOBUF_FIELD_OFFSET(EdgeEvaluationResult, _impl_._has_bits_);
+};
+
+EdgeEvaluationResult::EdgeEvaluationResult(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, EdgeEvaluationResult_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.EdgeEvaluationResult)
+}
+PROTOBUF_NDEBUG_INLINE EdgeEvaluationResult::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    const ::ecloud::EdgeEvaluationResult& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0},
+        pickled_edge_profiler_(arena, from.pickled_edge_profiler_) {}
+
+EdgeEvaluationResult::EdgeEvaluationResult(
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const EdgeEvaluationResult& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, EdgeEvaluationResult_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  EdgeEvaluationResult* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  _impl_.edge_index_ = from._impl_.edge_index_;
+
+  // @@protoc_insertion_point(copy_constructor:ecloud.EdgeEvaluationResult)
+}
+PROTOBUF_NDEBUG_INLINE EdgeEvaluationResult::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+      : _cached_size_{0},
+        pickled_edge_profiler_(arena) {}
+
+inline void EdgeEvaluationResult::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+  _impl_.edge_index_ = {};
+}
+EdgeEvaluationResult::~EdgeEvaluationResult() {
+  // @@protoc_insertion_point(destructor:ecloud.EdgeEvaluationResult)
+  SharedDtor(*this);
+}
+inline void EdgeEvaluationResult::SharedDtor(MessageLite& self) {
+  EdgeEvaluationResult& this_ = static_cast<EdgeEvaluationResult&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.pickled_edge_profiler_.Destroy();
+  this_._impl_.~Impl_();
+}
+
+inline void* PROTOBUF_NONNULL EdgeEvaluationResult::PlacementNew_(
+    const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena) {
+  return ::new (mem) EdgeEvaluationResult(arena);
+}
+constexpr auto EdgeEvaluationResult::InternalNewImpl_() {
+  return ::google::protobuf::internal::MessageCreator::CopyInit(sizeof(EdgeEvaluationResult),
+                                            alignof(EdgeEvaluationResult));
+}
+constexpr auto EdgeEvaluationResult::InternalGenerateClassData_() {
+  return ::google::protobuf::internal::ClassDataFull{
+      ::google::protobuf::internal::ClassData{
+          &_EdgeEvaluationResult_default_instance_._instance,
+          &_table_.header,
+          nullptr,  // OnDemandRegisterArenaDtor
+          nullptr,  // IsInitialized
+          &EdgeEvaluationResult::MergeImpl,
+          ::google::protobuf::Message::GetNewImpl<EdgeEvaluationResult>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          &EdgeEvaluationResult::SharedDtor,
+          ::google::protobuf::Message::GetClearImpl<EdgeEvaluationResult>(), &EdgeEvaluationResult::ByteSizeLong,
+              &EdgeEvaluationResult::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          PROTOBUF_FIELD_OFFSET(EdgeEvaluationResult, _impl_._cached_size_),
+          false,
+      },
+      &EdgeEvaluationResult::kDescriptorMethods,
+      &descriptor_table_ecloud_2eproto,
+      nullptr,  // tracker
+  };
+}
+
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const
+    ::google::protobuf::internal::ClassDataFull EdgeEvaluationResult_class_data_ =
+        EdgeEvaluationResult::InternalGenerateClassData_();
+
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+EdgeEvaluationResult::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&EdgeEvaluationResult_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(EdgeEvaluationResult_class_data_.tc_table);
+  return EdgeEvaluationResult_class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<1, 2, 0, 0, 2>
+EdgeEvaluationResult::_table_ = {
+  {
+    PROTOBUF_FIELD_OFFSET(EdgeEvaluationResult, _impl_._has_bits_),
+    0, // no _extensions_
+    2, 8,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967292,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    2,  // num_field_entries
+    0,  // num_aux_entries
+    offsetof(decltype(_table_), field_names),  // no aux_entries
+    EdgeEvaluationResult_class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::ecloud::EdgeEvaluationResult>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // bytes pickled_edge_profiler = 2;
+    {::_pbi::TcParser::FastBS1,
+     {18, 0, 0, PROTOBUF_FIELD_OFFSET(EdgeEvaluationResult, _impl_.pickled_edge_profiler_)}},
+    // int32 edge_index = 1;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(EdgeEvaluationResult, _impl_.edge_index_), 1>(),
+     {8, 1, 0, PROTOBUF_FIELD_OFFSET(EdgeEvaluationResult, _impl_.edge_index_)}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // int32 edge_index = 1;
+    {PROTOBUF_FIELD_OFFSET(EdgeEvaluationResult, _impl_.edge_index_), _Internal::kHasBitsOffset + 1, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    // bytes pickled_edge_profiler = 2;
+    {PROTOBUF_FIELD_OFFSET(EdgeEvaluationResult, _impl_.pickled_edge_profiler_), _Internal::kHasBitsOffset + 0, 0,
+    (0 | ::_fl::kFcOptional | ::_fl::kBytes | ::_fl::kRepAString)},
+  }},
+  // no aux_entries
+  {{
+  }},
+};
+PROTOBUF_NOINLINE void EdgeEvaluationResult::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.EdgeEvaluationResult)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  cached_has_bits = _impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000001u) != 0) {
+    _impl_.pickled_edge_profiler_.ClearNonDefaultToEmpty();
+  }
+  _impl_.edge_index_ = 0;
+  _impl_._has_bits_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::uint8_t* PROTOBUF_NONNULL EdgeEvaluationResult::_InternalSerialize(
+    const ::google::protobuf::MessageLite& base, ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) {
+  const EdgeEvaluationResult& this_ = static_cast<const EdgeEvaluationResult&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::uint8_t* PROTOBUF_NONNULL EdgeEvaluationResult::_InternalSerialize(
+    ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+  const EdgeEvaluationResult& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.EdgeEvaluationResult)
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  // int32 edge_index = 1;
+  if ((this_._impl_._has_bits_[0] & 0x00000002u) != 0) {
+    if (this_._internal_edge_index() != 0) {
+      target =
+          ::google::protobuf::internal::WireFormatLite::WriteInt32ToArrayWithField<1>(
+              stream, this_._internal_edge_index(), target);
+    }
+  }
+
+  // bytes pickled_edge_profiler = 2;
+  if ((this_._impl_._has_bits_[0] & 0x00000001u) != 0) {
+    if (!this_._internal_pickled_edge_profiler().empty()) {
+      const ::std::string& _s = this_._internal_pickled_edge_profiler();
+      target = stream->WriteBytesMaybeAliased(2, _s, target);
+    }
+  }
+
+  if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+    target =
+        ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+            this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.EdgeEvaluationResult)
+  return target;
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::size_t EdgeEvaluationResult::ByteSizeLong(const MessageLite& base) {
+  const EdgeEvaluationResult& this_ = static_cast<const EdgeEvaluationResult&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::size_t EdgeEvaluationResult::ByteSizeLong() const {
+  const EdgeEvaluationResult& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(message_byte_size_start:ecloud.EdgeEvaluationResult)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void)cached_has_bits;
+
+  ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+  cached_has_bits = this_._impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000003u) != 0) {
+    // bytes pickled_edge_profiler = 2;
+    if ((cached_has_bits & 0x00000001u) != 0) {
+      if (!this_._internal_pickled_edge_profiler().empty()) {
+        total_size += 1 + ::google::protobuf::internal::WireFormatLite::BytesSize(
+                                        this_._internal_pickled_edge_profiler());
+      }
+    }
+    // int32 edge_index = 1;
+    if ((cached_has_bits & 0x00000002u) != 0) {
+      if (this_._internal_edge_index() != 0) {
+        total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(
+            this_._internal_edge_index());
+      }
+    }
+  }
+  return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                             &this_._impl_._cached_size_);
+}
+
+void EdgeEvaluationResult::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<EdgeEvaluationResult*>(&to_msg);
+  auto& from = static_cast<const EdgeEvaluationResult&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.EdgeEvaluationResult)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  cached_has_bits = from._impl_._has_bits_[0];
+  if ((cached_has_bits & 0x00000003u) != 0) {
+    if ((cached_has_bits & 0x00000001u) != 0) {
+      if (!from._internal_pickled_edge_profiler().empty()) {
+        _this->_internal_set_pickled_edge_profiler(from._internal_pickled_edge_profiler());
+      } else {
+        if (_this->_impl_.pickled_edge_profiler_.IsDefault()) {
+          _this->_internal_set_pickled_edge_profiler("");
+        }
+      }
+    }
+    if ((cached_has_bits & 0x00000002u) != 0) {
+      if (from._internal_edge_index() != 0) {
+        _this->_impl_.edge_index_ = from._impl_.edge_index_;
+      }
+    }
+  }
+  _this->_impl_._has_bits_[0] |= cached_has_bits;
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void EdgeEvaluationResult::CopyFrom(const EdgeEvaluationResult& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.EdgeEvaluationResult)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void EdgeEvaluationResult::InternalSwap(EdgeEvaluationResult* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
+  using ::std::swap;
+  auto* arena = GetArena();
+  ABSL_DCHECK_EQ(arena, other->GetArena());
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  ::_pbi::ArenaStringPtr::InternalSwap(&_impl_.pickled_edge_profiler_, &other->_impl_.pickled_edge_profiler_, arena);
+  swap(_impl_.edge_index_, other->_impl_.edge_index_);
+}
+
+::google::protobuf::Metadata EdgeEvaluationResult::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
+class EdgeEvaluationResultList::_Internal {
+ public:
+};
+
+EdgeEvaluationResultList::EdgeEvaluationResultList(::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, EdgeEvaluationResultList_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  SharedCtor(arena);
+  // @@protoc_insertion_point(arena_constructor:ecloud.EdgeEvaluationResultList)
+}
+PROTOBUF_NDEBUG_INLINE EdgeEvaluationResultList::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    const ::ecloud::EdgeEvaluationResultList& from_msg)
+      : results_{visibility, arena, from.results_},
+        _cached_size_{0} {}
+
+EdgeEvaluationResultList::EdgeEvaluationResultList(
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const EdgeEvaluationResultList& from)
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+    : ::google::protobuf::Message(arena, EdgeEvaluationResultList_class_data_.base()) {
+#else   // PROTOBUF_CUSTOM_VTABLE
+    : ::google::protobuf::Message(arena) {
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  EdgeEvaluationResultList* const _this = this;
+  (void)_this;
+  _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
+      from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+
+  // @@protoc_insertion_point(copy_constructor:ecloud.EdgeEvaluationResultList)
+}
+PROTOBUF_NDEBUG_INLINE EdgeEvaluationResultList::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
+      : results_{visibility, arena},
+        _cached_size_{0} {}
+
+inline void EdgeEvaluationResultList::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
+  new (&_impl_) Impl_(internal_visibility(), arena);
+}
+EdgeEvaluationResultList::~EdgeEvaluationResultList() {
+  // @@protoc_insertion_point(destructor:ecloud.EdgeEvaluationResultList)
+  SharedDtor(*this);
+}
+inline void EdgeEvaluationResultList::SharedDtor(MessageLite& self) {
+  EdgeEvaluationResultList& this_ = static_cast<EdgeEvaluationResultList&>(self);
+  this_._internal_metadata_.Delete<::google::protobuf::UnknownFieldSet>();
+  ABSL_DCHECK(this_.GetArena() == nullptr);
+  this_._impl_.~Impl_();
+}
+
+inline void* PROTOBUF_NONNULL EdgeEvaluationResultList::PlacementNew_(
+    const void* PROTOBUF_NONNULL, void* PROTOBUF_NONNULL mem,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena) {
+  return ::new (mem) EdgeEvaluationResultList(arena);
+}
+constexpr auto EdgeEvaluationResultList::InternalNewImpl_() {
+  constexpr auto arena_bits = ::google::protobuf::internal::EncodePlacementArenaOffsets({
+      PROTOBUF_FIELD_OFFSET(EdgeEvaluationResultList, _impl_.results_) +
+          decltype(EdgeEvaluationResultList::_impl_.results_)::
+              InternalGetArenaOffset(
+                  ::google::protobuf::Message::internal_visibility()),
+  });
+  if (arena_bits.has_value()) {
+    return ::google::protobuf::internal::MessageCreator::ZeroInit(
+        sizeof(EdgeEvaluationResultList), alignof(EdgeEvaluationResultList), *arena_bits);
+  } else {
+    return ::google::protobuf::internal::MessageCreator(&EdgeEvaluationResultList::PlacementNew_,
+                                 sizeof(EdgeEvaluationResultList),
+                                 alignof(EdgeEvaluationResultList));
+  }
+}
+constexpr auto EdgeEvaluationResultList::InternalGenerateClassData_() {
+  return ::google::protobuf::internal::ClassDataFull{
+      ::google::protobuf::internal::ClassData{
+          &_EdgeEvaluationResultList_default_instance_._instance,
+          &_table_.header,
+          nullptr,  // OnDemandRegisterArenaDtor
+          nullptr,  // IsInitialized
+          &EdgeEvaluationResultList::MergeImpl,
+          ::google::protobuf::Message::GetNewImpl<EdgeEvaluationResultList>(),
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+          &EdgeEvaluationResultList::SharedDtor,
+          ::google::protobuf::Message::GetClearImpl<EdgeEvaluationResultList>(), &EdgeEvaluationResultList::ByteSizeLong,
+              &EdgeEvaluationResultList::_InternalSerialize,
+#endif  // PROTOBUF_CUSTOM_VTABLE
+          PROTOBUF_FIELD_OFFSET(EdgeEvaluationResultList, _impl_._cached_size_),
+          false,
+      },
+      &EdgeEvaluationResultList::kDescriptorMethods,
+      &descriptor_table_ecloud_2eproto,
+      nullptr,  // tracker
+  };
+}
+
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 const
+    ::google::protobuf::internal::ClassDataFull EdgeEvaluationResultList_class_data_ =
+        EdgeEvaluationResultList::InternalGenerateClassData_();
+
+PROTOBUF_ATTRIBUTE_WEAK const ::google::protobuf::internal::ClassData* PROTOBUF_NONNULL
+EdgeEvaluationResultList::GetClassData() const {
+  ::google::protobuf::internal::PrefetchToLocalCache(&EdgeEvaluationResultList_class_data_);
+  ::google::protobuf::internal::PrefetchToLocalCache(EdgeEvaluationResultList_class_data_.tc_table);
+  return EdgeEvaluationResultList_class_data_.base();
+}
+PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
+const ::_pbi::TcParseTable<0, 1, 1, 0, 2>
+EdgeEvaluationResultList::_table_ = {
+  {
+    0,  // no _has_bits_
+    0, // no _extensions_
+    1, 0,  // max_field_number, fast_idx_mask
+    offsetof(decltype(_table_), field_lookup_table),
+    4294967294,  // skipmap
+    offsetof(decltype(_table_), field_entries),
+    1,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
+    EdgeEvaluationResultList_class_data_.base(),
+    nullptr,  // post_loop_handler
+    ::_pbi::TcParser::GenericFallback,  // fallback
+    #ifdef PROTOBUF_PREFETCH_PARSE_TABLE
+    ::_pbi::TcParser::GetTable<::ecloud::EdgeEvaluationResultList>(),  // to_prefetch
+    #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
+  }, {{
+    // repeated .ecloud.EdgeEvaluationResult results = 1;
+    {::_pbi::TcParser::FastMtR1,
+     {10, 63, 0, PROTOBUF_FIELD_OFFSET(EdgeEvaluationResultList, _impl_.results_)}},
+  }}, {{
+    65535, 65535
+  }}, {{
+    // repeated .ecloud.EdgeEvaluationResult results = 1;
+    {PROTOBUF_FIELD_OFFSET(EdgeEvaluationResultList, _impl_.results_), 0, 0,
+    (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
+  }},
+  {{
+      {::_pbi::TcParser::GetTable<::ecloud::EdgeEvaluationResult>()},
+  }},
+  {{
+  }},
+};
+PROTOBUF_NOINLINE void EdgeEvaluationResultList::Clear() {
+// @@protoc_insertion_point(message_clear_start:ecloud.EdgeEvaluationResultList)
+  ::google::protobuf::internal::TSanWrite(&_impl_);
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.results_.Clear();
+  _internal_metadata_.Clear<::google::protobuf::UnknownFieldSet>();
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::uint8_t* PROTOBUF_NONNULL EdgeEvaluationResultList::_InternalSerialize(
+    const ::google::protobuf::MessageLite& base, ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) {
+  const EdgeEvaluationResultList& this_ = static_cast<const EdgeEvaluationResultList&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::uint8_t* PROTOBUF_NONNULL EdgeEvaluationResultList::_InternalSerialize(
+    ::uint8_t* PROTOBUF_NONNULL target,
+    ::google::protobuf::io::EpsCopyOutputStream* PROTOBUF_NONNULL stream) const {
+  const EdgeEvaluationResultList& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(serialize_to_array_start:ecloud.EdgeEvaluationResultList)
+  ::uint32_t cached_has_bits = 0;
+  (void)cached_has_bits;
+
+  // repeated .ecloud.EdgeEvaluationResult results = 1;
+  for (unsigned i = 0, n = static_cast<unsigned>(
+                           this_._internal_results_size());
+       i < n; i++) {
+    const auto& repfield = this_._internal_results().Get(i);
+    target =
+        ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+            1, repfield, repfield.GetCachedSize(),
+            target, stream);
+  }
+
+  if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
+    target =
+        ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+            this_._internal_metadata_.unknown_fields<::google::protobuf::UnknownFieldSet>(::google::protobuf::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:ecloud.EdgeEvaluationResultList)
+  return target;
+}
+
+#if defined(PROTOBUF_CUSTOM_VTABLE)
+::size_t EdgeEvaluationResultList::ByteSizeLong(const MessageLite& base) {
+  const EdgeEvaluationResultList& this_ = static_cast<const EdgeEvaluationResultList&>(base);
+#else   // PROTOBUF_CUSTOM_VTABLE
+::size_t EdgeEvaluationResultList::ByteSizeLong() const {
+  const EdgeEvaluationResultList& this_ = *this;
+#endif  // PROTOBUF_CUSTOM_VTABLE
+  // @@protoc_insertion_point(message_byte_size_start:ecloud.EdgeEvaluationResultList)
+  ::size_t total_size = 0;
+
+  ::uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void)cached_has_bits;
+
+  ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+   {
+    // repeated .ecloud.EdgeEvaluationResult results = 1;
+    {
+      total_size += 1UL * this_._internal_results_size();
+      for (const auto& msg : this_._internal_results()) {
+        total_size += ::google::protobuf::internal::WireFormatLite::MessageSize(msg);
+      }
+    }
+  }
+  return this_.MaybeComputeUnknownFieldsSize(total_size,
+                                             &this_._impl_._cached_size_);
+}
+
+void EdgeEvaluationResultList::MergeImpl(::google::protobuf::MessageLite& to_msg, const ::google::protobuf::MessageLite& from_msg) {
+  auto* const _this = static_cast<EdgeEvaluationResultList*>(&to_msg);
+  auto& from = static_cast<const EdgeEvaluationResultList&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:ecloud.EdgeEvaluationResultList)
+  ABSL_DCHECK_NE(&from, _this);
+  ::uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  _this->_internal_mutable_results()->MergeFrom(
+      from._internal_results());
+  _this->_internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void EdgeEvaluationResultList::CopyFrom(const EdgeEvaluationResultList& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:ecloud.EdgeEvaluationResultList)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+
+void EdgeEvaluationResultList::InternalSwap(EdgeEvaluationResultList* PROTOBUF_RESTRICT PROTOBUF_NONNULL other) {
+  using ::std::swap;
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  _impl_.results_.InternalSwap(&other->_impl_.results_);
+}
+
+::google::protobuf::Metadata EdgeEvaluationResultList::GetMetadata() const {
+  return ::google::protobuf::Message::GetMetadataImpl(GetClassData()->full());
+}
+// ===================================================================
+
 class EdgeReadyNotification::_Internal {
  public:
   using HasBits =
@@ -15955,21 +17279,42 @@ EdgeReadyNotification::EdgeReadyNotification(::google::protobuf::Arena* PROTOBUF
   SharedCtor(arena);
   // @@protoc_insertion_point(arena_constructor:ecloud.EdgeReadyNotification)
 }
+PROTOBUF_NDEBUG_INLINE EdgeReadyNotification::Impl_::Impl_(
+    ::google::protobuf::internal::InternalVisibility visibility,
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const Impl_& from,
+    const ::ecloud::EdgeReadyNotification& from_msg)
+      : _has_bits_{from._has_bits_},
+        _cached_size_{0},
+        actor_infos_{visibility, arena, from.actor_infos_} {}
+
 EdgeReadyNotification::EdgeReadyNotification(
-    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena, const EdgeReadyNotification& from)
+    ::google::protobuf::Arena* PROTOBUF_NULLABLE arena,
+    const EdgeReadyNotification& from)
 #if defined(PROTOBUF_CUSTOM_VTABLE)
-    : ::google::protobuf::Message(arena, EdgeReadyNotification_class_data_.base()),
+    : ::google::protobuf::Message(arena, EdgeReadyNotification_class_data_.base()) {
 #else   // PROTOBUF_CUSTOM_VTABLE
-    : ::google::protobuf::Message(arena),
+    : ::google::protobuf::Message(arena) {
 #endif  // PROTOBUF_CUSTOM_VTABLE
-      _impl_(from._impl_) {
+  EdgeReadyNotification* const _this = this;
+  (void)_this;
   _internal_metadata_.MergeFrom<::google::protobuf::UnknownFieldSet>(
       from._internal_metadata_);
+  new (&_impl_) Impl_(internal_visibility(), arena, from._impl_, from);
+  ::memcpy(reinterpret_cast<char *>(&_impl_) +
+               offsetof(Impl_, edge_index_),
+           reinterpret_cast<const char *>(&from._impl_) +
+               offsetof(Impl_, edge_index_),
+           offsetof(Impl_, num_actors_) -
+               offsetof(Impl_, edge_index_) +
+               sizeof(Impl_::num_actors_));
+
+  // @@protoc_insertion_point(copy_constructor:ecloud.EdgeReadyNotification)
 }
 PROTOBUF_NDEBUG_INLINE EdgeReadyNotification::Impl_::Impl_(
     ::google::protobuf::internal::InternalVisibility visibility,
     ::google::protobuf::Arena* PROTOBUF_NULLABLE arena)
-      : _cached_size_{0} {}
+      : _cached_size_{0},
+        actor_infos_{visibility, arena} {}
 
 inline void EdgeReadyNotification::SharedCtor(::_pb::Arena* PROTOBUF_NULLABLE arena) {
   new (&_impl_) Impl_(internal_visibility(), arena);
@@ -15997,8 +17342,20 @@ inline void* PROTOBUF_NONNULL EdgeReadyNotification::PlacementNew_(
   return ::new (mem) EdgeReadyNotification(arena);
 }
 constexpr auto EdgeReadyNotification::InternalNewImpl_() {
-  return ::google::protobuf::internal::MessageCreator::ZeroInit(sizeof(EdgeReadyNotification),
-                                            alignof(EdgeReadyNotification));
+  constexpr auto arena_bits = ::google::protobuf::internal::EncodePlacementArenaOffsets({
+      PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.actor_infos_) +
+          decltype(EdgeReadyNotification::_impl_.actor_infos_)::
+              InternalGetArenaOffset(
+                  ::google::protobuf::Message::internal_visibility()),
+  });
+  if (arena_bits.has_value()) {
+    return ::google::protobuf::internal::MessageCreator::ZeroInit(
+        sizeof(EdgeReadyNotification), alignof(EdgeReadyNotification), *arena_bits);
+  } else {
+    return ::google::protobuf::internal::MessageCreator(&EdgeReadyNotification::PlacementNew_,
+                                 sizeof(EdgeReadyNotification),
+                                 alignof(EdgeReadyNotification));
+  }
 }
 constexpr auto EdgeReadyNotification::InternalGenerateClassData_() {
   return ::google::protobuf::internal::ClassDataFull{
@@ -16034,18 +17391,18 @@ EdgeReadyNotification::GetClassData() const {
   return EdgeReadyNotification_class_data_.base();
 }
 PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1
-const ::_pbi::TcParseTable<1, 2, 0, 0, 2>
+const ::_pbi::TcParseTable<2, 3, 1, 0, 2>
 EdgeReadyNotification::_table_ = {
   {
     PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_._has_bits_),
     0, // no _extensions_
-    2, 8,  // max_field_number, fast_idx_mask
+    3, 24,  // max_field_number, fast_idx_mask
     offsetof(decltype(_table_), field_lookup_table),
-    4294967292,  // skipmap
+    4294967288,  // skipmap
     offsetof(decltype(_table_), field_entries),
-    2,  // num_field_entries
-    0,  // num_aux_entries
-    offsetof(decltype(_table_), field_names),  // no aux_entries
+    3,  // num_field_entries
+    1,  // num_aux_entries
+    offsetof(decltype(_table_), aux_entries),
     EdgeReadyNotification_class_data_.base(),
     nullptr,  // post_loop_handler
     ::_pbi::TcParser::GenericFallback,  // fallback
@@ -16053,12 +17410,16 @@ EdgeReadyNotification::_table_ = {
     ::_pbi::TcParser::GetTable<::ecloud::EdgeReadyNotification>(),  // to_prefetch
     #endif  // PROTOBUF_PREFETCH_PARSE_TABLE
   }, {{
-    // int32 num_actors = 2;
-    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(EdgeReadyNotification, _impl_.num_actors_), 1>(),
-     {16, 1, 0, PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.num_actors_)}},
+    {::_pbi::TcParser::MiniParse, {}},
     // int32 edge_index = 1;
     {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(EdgeReadyNotification, _impl_.edge_index_), 0>(),
      {8, 0, 0, PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.edge_index_)}},
+    // int32 num_actors = 2;
+    {::_pbi::TcParser::SingularVarintNoZag1<::uint32_t, offsetof(EdgeReadyNotification, _impl_.num_actors_), 1>(),
+     {16, 1, 0, PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.num_actors_)}},
+    // repeated .ecloud.ActorCarlaInfo actor_infos = 3;
+    {::_pbi::TcParser::FastMtR1,
+     {26, 63, 0, PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.actor_infos_)}},
   }}, {{
     65535, 65535
   }}, {{
@@ -16068,8 +17429,13 @@ EdgeReadyNotification::_table_ = {
     // int32 num_actors = 2;
     {PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.num_actors_), _Internal::kHasBitsOffset + 1, 0,
     (0 | ::_fl::kFcOptional | ::_fl::kInt32)},
+    // repeated .ecloud.ActorCarlaInfo actor_infos = 3;
+    {PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.actor_infos_), -1, 0,
+    (0 | ::_fl::kFcRepeated | ::_fl::kMessage | ::_fl::kTvTable)},
   }},
-  // no aux_entries
+  {{
+      {::_pbi::TcParser::GetTable<::ecloud::ActorCarlaInfo>()},
+  }},
   {{
   }},
 };
@@ -16080,6 +17446,7 @@ PROTOBUF_NOINLINE void EdgeReadyNotification::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  _impl_.actor_infos_.Clear();
   cached_has_bits = _impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000003u) != 0) {
     ::memset(&_impl_.edge_index_, 0, static_cast<::size_t>(
@@ -16123,6 +17490,17 @@ PROTOBUF_NOINLINE void EdgeReadyNotification::Clear() {
     }
   }
 
+  // repeated .ecloud.ActorCarlaInfo actor_infos = 3;
+  for (unsigned i = 0, n = static_cast<unsigned>(
+                           this_._internal_actor_infos_size());
+       i < n; i++) {
+    const auto& repfield = this_._internal_actor_infos().Get(i);
+    target =
+        ::google::protobuf::internal::WireFormatLite::InternalWriteMessage(
+            3, repfield, repfield.GetCachedSize(),
+            target, stream);
+  }
+
   if (ABSL_PREDICT_FALSE(this_._internal_metadata_.have_unknown_fields())) {
     target =
         ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
@@ -16147,6 +17525,15 @@ PROTOBUF_NOINLINE void EdgeReadyNotification::Clear() {
   (void)cached_has_bits;
 
   ::_pbi::Prefetch5LinesFrom7Lines(&this_);
+   {
+    // repeated .ecloud.ActorCarlaInfo actor_infos = 3;
+    {
+      total_size += 1UL * this_._internal_actor_infos_size();
+      for (const auto& msg : this_._internal_actor_infos()) {
+        total_size += ::google::protobuf::internal::WireFormatLite::MessageSize(msg);
+      }
+    }
+  }
   cached_has_bits = this_._impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000003u) != 0) {
     // int32 edge_index = 1;
@@ -16176,6 +17563,8 @@ void EdgeReadyNotification::MergeImpl(::google::protobuf::MessageLite& to_msg, c
   ::uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
+  _this->_internal_mutable_actor_infos()->MergeFrom(
+      from._internal_actor_infos());
   cached_has_bits = from._impl_._has_bits_[0];
   if ((cached_has_bits & 0x00000003u) != 0) {
     if ((cached_has_bits & 0x00000001u) != 0) {
@@ -16205,6 +17594,7 @@ void EdgeReadyNotification::InternalSwap(EdgeReadyNotification* PROTOBUF_RESTRIC
   using ::std::swap;
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   swap(_impl_._has_bits_[0], other->_impl_._has_bits_[0]);
+  _impl_.actor_infos_.InternalSwap(&other->_impl_.actor_infos_);
   ::google::protobuf::internal::memswap<
       PROTOBUF_FIELD_OFFSET(EdgeReadyNotification, _impl_.num_actors_)
       + sizeof(EdgeReadyNotification::_impl_.num_actors_)

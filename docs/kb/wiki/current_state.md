@@ -1,5 +1,5 @@
 ---
-updated: 2026-04-27
+updated: 2026-05-03
 ---
 # Current State
 
@@ -34,19 +34,61 @@ Commits: `2a9db949` (fix), `647733e4` (logging + KB). Not pushed.
 
 ---
 
+## Distributed Instrumentation and Evaluation — Implemented (2026-05-03), Not Yet Verified
+
+All 9 sections of [distributed_instrumentation_and_evaluation.md](../../agent_plans/distributed_instrumentation_and_evaluation.md) implemented in this session. Summary:
+
+**CARLA actor ID passthrough (§1)**: `ActorCarlaInfo` message + `EdgeReadyNotification.actor_infos`; `VehicleUpdate.carla_actor_id = 14`; C++ stores per-edge; proxy VM CARLA linkage happens per-tick in `server_unpack_vehicle_updates()`.
+
+**DATA_FLOW instrumentation (§2)**: `[DATA_FLOW]` prefix logs at all data boundaries — per-actor DEBUG, per-tick INFO summary in `run_edge_step()`; `FUSION_WARMUP_TICKS=3` gates warnings/assertion; actor client logs outgoing features, incoming predictions; WARNING if predictions empty after warmup; `--verbose` assertion in edge.
+
+**Metrics serialization chain (§§3–6)**: `VehicleUpdate.pickled_actor_metrics = 13`; actor serializes `{planning_metrics, client_metrics, vehicles_detected}` on TICK_DONE; edge unpacks into proxy VM; flows through `EdgeTickComplete.vehicle_updates`; orchestrator's `server_unpack_vehicle_updates()` populates proxy VM agent/client metrics.
+
+**is_proxy on edge managers (§7)**: `BaseEdgeManager.__init__(is_proxy=False)` — guards `create_latency_model()`, `create_mac_model()`, `EdgeMetrics`, `LinearPredictorManager`; proxy `start_edge()` no-ops; proxy `run_step()` returns None; proxy `evaluate()` returns `(None, "", self._proxy_metrics)`. Both `LateFusionEdge` and `WorldFusionEdge` updated. `create_edge_manager_from_scenario_runner()` and `create_edge_manager()` both pass `is_proxy=self.run_distributed`.
+
+**Edge evaluation forwarding (§8)**: `EdgeEvaluationResult` + `EdgeEvaluationResultList` messages; `Edge_SendEvaluationData` RPC (edge→C++); `Server_GetAllEdgeEvaluations` RPC (sim_api→C++). Edge sends profiler metrics in `process_tick(END)` (before returning False — ensures C++ server is still alive). `sim_api.end()` polls `Server_GetAllEdgeEvaluations` (30s timeout) before killing C++ server; populates `proxy_edge._proxy_metrics`. C++ rebuilt cleanly.
+
+**start_actors.sh verbose flag (§9)**: `read -p "Enable verbose/debug logging?"` prompt added; `verbose_flag=""` / `--verbose` set; threaded to all 4 spawn sites (orchestrator, edge container, vehicle actor, non-ego/edge-less). Echo summary prints `Verbose: $use_verbose`.
+
+**Status**: All changes uncommitted. Next: run regression matrix starting with test 3 (`openscenario_3_edge_worldfusion --apply_ml -d`).
+
+---
+
+## Edge Process Fusion — Implemented (2026-05-03), Not Yet Verified
+
+**Root cause chain (confirmed by static analysis):** `edge_process.py` was a NOP relay — no edge manager was ever instantiated. Four bugs compounded:
+1. `fuse_predictions()` placeholder — no fusion, just passthrough of raw actor detections
+2. `fused_predictions` key type mismatch — stored as string `"2_0"`, looked up as int → predictions never reached actors
+3. Orchestrator called `edge.run_step()` in distributed mode — proxy VMs have no data, produces nothing
+4. `PULL_OBJECTS_AND_TICK` caused actor to call `Client_GetObjects` from C++ orchestrator, which overwrites edge-provided predictions with empty
+
+**What was fixed:**
+- `ecav/ecav2/edge_process.py`: Added `setup_edge_manager()` (instantiates real VehicleManager/RSUManager proxies, calls `edge_manager.start_edge()`); added `run_edge_step()` (refreshes localizer, pushes feature_dict/objects into proxy managers, calls `edge_manager.run_step()`); fixed `fused_predictions` key lookup in `Edge_ActorSendUpdate`; removed placeholder `fuse_predictions()`
+- `ecav/core/common/vehicle_manager.py`: Added `is_proxy=False` parameter — skips `initialize_process()` and sensor spawning when True; uses provided `carla_world` directly
+- `ecav/core/common/rsu_manager.py`: Added `is_proxy=False` parameter — `is_server_proxy = is_proxy or run_distributed`
+- `ecav/ecav2/ecloud_actor_client.py`: Fixed `PULL_OBJECTS_AND_TICK` handler — when `connected_to_edge`, skips `Client_GetObjects` (predictions already came inline via `Edge_ActorSendUpdate` response); only calls C++ orchestrator when NOT in edge mode
+- All 9 `openscenario_3_edge_*.py` scenario files: `edge.run_step()` guarded with `if not opt.distributed:` — fusion now belongs to edge_process
+
+**Key design decisions:**
+- `is_proxy` flag on existing manager classes rather than new proxy classes (interface compatibility guaranteed; experience showed proxy classes harder to maintain)
+- Localizer refresh via `mgr.localizer.localize()` — with `activate=False`, reads `vehicle.get_transform()` directly from live CARLA actor; no `set_proxy_pos()` needed
+- `PULL_OBJECTS_AND_TICK` command preserved (semantically correct); actor client now routes to the right source
+
+**Status:** Implementation complete. Not yet run. Next: restore original vehicle speeds in the scenario (Tyler changed them, masking fusion failure), run `openscenario_3_edge_worldfusion --apply_ml -d`, confirm `[WorldFusion Edge] Collected N feature_dicts` in edge container logs.
+
+**Regression matrix — tests 3 and 4 were false positives** — Tyler's vehicle speed change meant ego cleared the intersection before the oncoming vehicle arrived. Fusion was never actually exercised.
+
 ## Next: Full Regression Matrix
 
-All 8 permutations must pass before moving to multi-ego (`openscenario_3_edge_worldfusion_4ego`). Cannot assume prior results hold — agent-ordering fix touches the edge manager in every mode.
-
-Flags: `--apply_ml` enables ML; `-l` routes inference to external gRPC server; `-d` distributed actors.
+All 8 permutations must pass. Flags: `--apply_ml` enables ML; `-l` routes inference to external gRPC server; `-d` distributed actors.
 
 | # | Fusion | `-l` | `-d` | Status |
 |---|---|---|---|---|
 | 1 | WorldFusion | no | no | ✓ 2026-04-26 |
 | 2 | WorldFusion | yes | no | ✓ 2026-04-29 |
-| 3 | WorldFusion | no | yes | ✓ 2026-04-29 |
-| 4 | WorldFusion | yes | yes | — |
-| 5 | Late fusion | no | no | — |
+| 3 | WorldFusion | no | yes | false positive — edge fusion was NOP |
+| 4 | WorldFusion | yes | yes | false positive — edge fusion was NOP |
+| 5 | Late fusion | no | no | FAIL — self-detection regression (see below) |
 | 6 | Late fusion | yes | no | — |
 | 7 | Late fusion | no | yes | — |
 | 8 | Late fusion | yes | yes | — |
@@ -93,6 +135,42 @@ Run in order 1→8: sequential before distributed, WorldFusion before late fusio
 - `ecav/ecav2/edge_process.py`: `push_tick_to_actors` skips done actors; `process_tick` snapshots `prior_done` before tick, computes `newly_done` after wait loop; `report_tick_complete` populates `vehicle_updates` for newly-done VEHICLE actors
 
 **Next**: commit, then continue regression matrix (tests 3–8)
+
+---
+
+## WF_GRPC_ENDPOINT Fix for Distributed Containers (2026-04-29) — Committed
+
+**Problem**: `-l -d` (WorldFusion + distributed actors) tried `localhost:18000` (HTTP LitServe) instead of `localhost:18002` (gRPC). Root cause: `CavWorld` is initialized `config=None` in the distributed actor container, so `ml_manager` gets an empty config dict and `worldfusion_grpc_endpoint` defaults to `None`. gRPC path skipped; HTTP fallback fires.
+
+**Fix**: `start_actors.sh` — set `wf_grpc_env="-e WF_GRPC_ENDPOINT=localhost:18002"` when `-l` active; pass to ego and RSU `docker run` commands. This is the first-checked path in `worldfusion_perception_manager.py`.
+
+**Late fusion unaffected**: `ml_manager._init_distributed()` creates YOLO gRPC channel directly to `yolo_endpoint` (default `localhost:18001`); `perception_manager.py` calls `ml_manager.detect()` which uses the pre-initialized stub. No env var needed.
+
+All 4 WorldFusion tests now passing (2026-04-29).
+
+---
+
+## Late Fusion Self-Detection Regression (2026-04-29) — Under Investigation
+
+**Symptom**: `openscenario_3_edge_late_fusion --apply_ml` — ego detects itself as an obstacle the entire run. 86 brakes, all GT-labeled ghost, `distance_traveled_m=17.6m` in 10s (ego should reach destination). `carla_id=0, track_id=0, obs_speed=20 m/s` — RSU YOLO detects approaching ego and tracks it; KF assigns ~20 m/s.
+
+**This is a regression from the big merge** (`c0b2baee` opencda→ecav rename). Commit `55cf8a44` ("self-ID refactor") is the last known-working state: removed edge-side spatial self-ID, added vehicle-side proximity suppression (`8d6ee41b`).
+
+**What the fix was**: `behavior_agent.py` proximity self-suppression (anchoring OFF): find nearest prediction within 5m of ego GPS fix, suppress it. The edge's own-beacon suppression handles named (beacon) tracks; proximity handles anonymous `carla_id=0` tracks.
+
+**Investigation so far**:
+- `anchoring=False` (default, no YAML override) → vehicle-side suppression should be active
+- `behavior_agent.py` has the code intact, no changes since rename commit
+- `_SELF_SUPPRESS_RADIUS_M = 5.0` — self-detection is at ~1m, well within radius
+- Suppression only fires when it identifies the single nearest prediction as the self-track → could fail if a second prediction is closer
+- The late fusion edge manager `.bak` file vs current shows additions post-merge: `_cross_source_nms`, source tagging in `_build_detections_dict`, SMART predictor support — investigating whether these affect suppression
+
+**Key open question**: Why does the suppression correctly fire in some ticks (POTENTIAL GHOST only, no collision) but not others (PRED COLLISION)?  `[VEHICLE SELF-SUPPRESS]` is logged at `debug` level — need to re-run with debug logging to confirm whether suppression actually fired on the PRED COLLISION ticks.
+
+**Next steps**:
+1. Re-run with `DEBUG` log level to see `[VEHICLE SELF-SUPPRESS]` and `[DET]` lines
+2. If suppression is firing but collision still triggers, something else is publishing predictions
+3. Diff `.bak` fully against current to find what was lost in the merge
 
 ---
 

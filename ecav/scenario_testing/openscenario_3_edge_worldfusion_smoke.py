@@ -197,12 +197,10 @@ def run_scenario(opt, scenario_params):
             spectator.set_transform(view_transform)
             t_spectator = time.time()
 
-            # Run edge processing step (update_information is called internally)
-            for edge in edge_list:
-                serialized_predictions = edge.run_step(step)
-
-                if opt.distributed and serialized_predictions is not None:
-                    scenario_manager.push_edge_objects(serialized_predictions)
+            # In distributed mode fusion runs in edge_process; skip here
+            if not opt.distributed:
+                for edge in edge_list:
+                    edge.run_step(step)
             t_edge = time.time()
 
             t_total = time.time() - t_step_start

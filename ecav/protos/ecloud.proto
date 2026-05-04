@@ -184,6 +184,8 @@ message VehicleUpdate {
   bytes pickled_agent_objects = 10;
   ActorType actor_type = 11;
   bytes pickled_features = 12;  // Compressed intermediate features (WorldFusion/BM2CP)
+  bytes pickled_actor_metrics = 13;  // Serialized planning/client metrics, populated on TICK_DONE (VEHICLE only)
+  int32 carla_actor_id = 14;         // CARLA actor ID; populated in every update for proxy VM linkage
 }
 
 message EcloudResponse {
@@ -333,10 +335,34 @@ message EdgeTickComplete {
   repeated VehicleUpdate vehicle_updates = 4;  // state-change events only (e.g. TICK_DONE)
 }
 
+// Per-actor CARLA ID record; carried in EdgeReadyNotification and fetchable by orchestrator
+message ActorCarlaInfo {
+  int32 vehicle_index = 1;
+  ActorType actor_type = 2;
+  int32 carla_actor_id = 3;
+}
+
+// All actor CARLA infos across all edges; returned by Server_GetAllActorCarlaInfos
+message ActorCarlaInfoResponse {
+  repeated ActorCarlaInfo actor_infos = 1;
+}
+
+// Edge serialized profiler/metrics sent to orchestrator after scenario ends
+message EdgeEvaluationResult {
+  int32 edge_index = 1;
+  bytes pickled_edge_profiler = 2;  // serialized EdgeMetrics / profiler dict
+}
+
+// All edge evaluation results, returned by Server_GetAllEdgeEvaluations
+message EdgeEvaluationResultList {
+  repeated EdgeEvaluationResult results = 1;
+}
+
 // Edge notifies orchestrator all its actors have registered and are ready for ticks
 message EdgeReadyNotification {
   int32 edge_index = 1;
   int32 num_actors = 2;
+  repeated ActorCarlaInfo actor_infos = 3;
 }
 
 // Tick notification to edge (orchestrator -> edge)
@@ -400,6 +426,8 @@ service Ecloud {
   rpc Server_StartScenario(SimulationInfo) returns (Empty);
   rpc Server_EndScenario(Empty) returns (Empty);
   rpc Server_GetVehicleUpdates(Empty) returns (EcloudResponse);
+  rpc Server_GetAllActorCarlaInfos(Empty) returns (ActorCarlaInfoResponse);
+  rpc Server_GetAllEdgeEvaluations(Empty) returns (EdgeEvaluationResultList);
   rpc Server_PushEdgeWaypoints(EdgeWaypoints) returns (Empty);
   rpc Server_PushEdgeObjects(EdgeObjects) returns (Empty);
   // Set up edge mappings before edges/actors start
@@ -416,6 +444,8 @@ service Ecloud {
   rpc Edge_TickComplete(EdgeTickComplete) returns (Empty);
   // Edge notifies orchestrator all its actors have completed init and are ready for ticks
   rpc Edge_ActorsReady(EdgeReadyNotification) returns (Empty);
+  // Edge sends serialized profiler data to orchestrator after scenario ends
+  rpc Edge_SendEvaluationData(EdgeEvaluationResult) returns (Empty);
 
   // ORCHESTRATOR -> EDGE (push)
   // Orchestrator pushes tick to edge (reuses PushTick with EdgeTick semantics)

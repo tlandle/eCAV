@@ -59,6 +59,7 @@ class EdgeActorInfo:
         self.last_update = None
         self.reported_tick = False
         self.is_done = False
+        self.manager = None
 
 
 class EdgeServer(ecloud_rpc.EcloudServicer):
@@ -187,6 +188,17 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
             if request.vehicle_state == ecloud.VehicleState.TICK_DONE:
                 actor_info.is_done = True
                 logger.info("Actor %s reported TICK_DONE — excluding from future tick barriers", vehicle_index)
+                if (request.actor_type == ecloud.ActorType.VEHICLE
+                        and request.pickled_actor_metrics
+                        and actor_info.manager is not None):
+                    try:
+                        m = pickle.loads(request.pickled_actor_metrics)
+                        actor_info.manager.agent.planning_metrics = m['planning_metrics']
+                        actor_info.manager.client_metrics = m['client_metrics']
+                        actor_info.manager.vehicles_detected = m['vehicles_detected']
+                        logger.info("[DATA_FLOW] Edge stored actor metrics for vehicle %s from TICK_DONE", vehicle_index)
+                    except Exception as e:
+                        logger.warning("Failed to unpack actor metrics for vehicle %s: %s", vehicle_index, e)
         else:
             logger.warning("Received update from unknown actor %s", vehicle_index)
 
@@ -198,8 +210,9 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
         reply = ecloud.ObjectBuffer()
         reply.vehicle_id = vehicle_index
 
-        if vehicle_index in self.edge_process.fused_predictions:
-            reply.pickled_edge_predictions = self.edge_process.fused_predictions[vehicle_index]
+        actor_key = f"{actor_type}_{vehicle_index}"
+        if actor_key in self.edge_process.fused_predictions:
+            reply.pickled_edge_predictions = self.edge_process.fused_predictions[actor_key]
 
         return reply
 
@@ -234,6 +247,15 @@ class EdgeProcess:
         self.current_command = ecloud.Command.TICK
         self.tick_queue = asyncio.Queue(maxsize=1)
         self.actor_complete_queue = asyncio.Queue()
+
+        # Edge manager (instantiated in setup_edge_manager after all actors ready)
+        self.edge_manager = None
+        self._edge_manager_cls = None
+        self._edge_manager_cfg = None
+        self._edge_manager_args = {}
+        self._cav_world = None
+        self._init_task = None          # asyncio.Task for _init_edge_manager_model (phase A)
+        self._vm_list_to_actor_key = []  # position in vm_list -> actor key
 
         # gRPC connections
         self.orchestrator_channel = None
@@ -307,6 +329,9 @@ class EdgeProcess:
         logger.info("Assigned vehicle indices: %s", list(config.vehicle_indices))
         logger.info("Assigned RSU indices: %s", list(config.rsu_indices))
 
+        # Phase A: resolve edge manager class while actors are registering
+        self._init_task = asyncio.create_task(self._init_edge_manager_model())
+
         return config
 
     async def run_server(self):
@@ -332,14 +357,116 @@ class EdgeProcess:
 
         logger.info("All %d actors registered", self.expected_num_actors)
 
+    async def _init_edge_manager_model(self):
+        """Phase A: resolve edge manager class and store config. Runs while actors register."""
+        try:
+            from ecav.core.common.cav_world import CavWorld
+            from ecav.core.application.edge.edge_manager import get_edge_class
+
+            scenario = json.loads(self.scenario_yaml_str)
+            edge_cfg = scenario['scenario']['edge_list'][self.edge_index]
+            world_dt = scenario.get('world', {}).get('fixed_delta_seconds', 0.05)
+            edge_dt = scenario.get('edge_base', {}).get('edge_dt', 0.2)
+
+            self._edge_manager_cls = get_edge_class(edge_cfg.get('manager_type', 'late_fusion'))
+            self._edge_manager_cfg = edge_cfg
+            self._edge_manager_args = dict(world_dt=world_dt, edge_dt=edge_dt, run_distributed=True)
+            logger.info("Edge manager class resolved: %s", self._edge_manager_cls.__name__)
+            logger.info("Phase A: creating CavWorld (apply_ml=False — edge loads WF model directly)...")
+            self._cav_world = CavWorld(apply_ml=False, config={'distributed': True})
+            logger.info("Phase A: CavWorld created successfully")
+        except Exception as exc:
+            logger.error("Phase A (_init_edge_manager_model) failed: %s: %s", type(exc).__name__, exc, exc_info=True)
+            raise
+
+    async def setup_edge_manager(self):
+        """Phase B: connect to CARLA, instantiate proxy managers, start edge manager."""
+        if self._init_task is not None:
+            if not self._init_task.done():
+                logger.info("Waiting for edge manager model init (phase A) to complete...")
+            await self._init_task  # always await — re-raises exception if phase A failed
+
+        import carla as _carla
+        from ecav.core.common.vehicle_manager import VehicleManager
+        from ecav.core.common.rsu_manager import RSUManager
+
+        scenario = json.loads(self.scenario_yaml_str)
+        client = _carla.Client(self.carla_ip, 2000)
+        client.set_timeout(10.0)
+        world = client.get_world()
+        carla_map = world.get_map()
+        edge_cfg = self._edge_manager_cfg
+        current_time = scenario.get('current_time', '')
+
+        self.edge_manager = self._edge_manager_cls(
+            world, edge_cfg, self._cav_world,
+            carla_client=client,
+            **self._edge_manager_args
+        )
+
+        # RSUs first — WorldFusion requires agent 0 to be the RSU
+        rsu_cfgs = edge_cfg.get('rsus', [])
+        rsu_keys = sorted(
+            (k for k, a in self.actors.items() if a.actor_type == ecloud.ActorType.RSU),
+            key=lambda k: self.actors[k].vehicle_index
+        )
+        for idx, key in enumerate(rsu_keys):
+            info = self.actors[key]
+            rsu_manager = RSUManager(
+                world, rsu_cfgs[idx], carla_map, self._cav_world,
+                current_time, is_proxy=True, run_distributed=True
+            )
+            if info.actor_id >= 0:
+                rsu_manager.rsu = world.get_actor(info.actor_id)
+            info.manager = rsu_manager
+            self.edge_manager.add_rsu(rsu_manager)
+
+        vehicle_keys = sorted(
+            (k for k, a in self.actors.items() if a.actor_type == ecloud.ActorType.VEHICLE),
+            key=lambda k: self.actors[k].vehicle_index
+        )
+        for idx, key in enumerate(vehicle_keys):
+            info = self.actors[key]
+            carla_actor = world.get_actor(info.actor_id)
+            vm = VehicleManager(
+                vehicle=carla_actor,
+                vehicle_index=info.vehicle_index,
+                config_yaml=scenario,
+                application=self.application,
+                carla_world=world,
+                carla_map=carla_map,
+                cav_world=self._cav_world,
+                current_time=current_time,
+                is_proxy=True,
+                is_edge=True,
+                run_distributed=True,
+                perception_active=False,
+            )
+            info.manager = vm
+            self.edge_manager.add_member(vm)
+            self._vm_list_to_actor_key.append(key)
+
+        self.edge_manager.start_edge()
+        logger.info("Edge manager ready: %s, %d vehicles, %d RSUs",
+                    type(self.edge_manager).__name__,
+                    len(self.edge_manager.vehicle_manager_list),
+                    len(self.edge_manager.rsu_manager_list))
+
     async def notify_actors_ready(self):
         """Notify orchestrator that all actors have completed initialization."""
+        await self.setup_edge_manager()
         request = ecloud.EdgeReadyNotification()
         request.edge_index = self.edge_index
         request.num_actors = self.num_actors_ready
+        for info in self.actors.values():
+            ai = ecloud.ActorCarlaInfo()
+            ai.vehicle_index = info.vehicle_index
+            ai.actor_type = info.actor_type
+            ai.carla_actor_id = info.actor_id
+            request.actor_infos.append(ai)
         await self.orchestrator_stub.Edge_ActorsReady(request)
-        logger.info("Edge %s: notified orchestrator — %d actors ready",
-                    self.edge_index, self.num_actors_ready)
+        logger.info("Edge %s: notified orchestrator — %d actors ready, %d carla IDs sent",
+                    self.edge_index, self.num_actors_ready, len(request.actor_infos))
 
     async def report_tick_complete(self, tick_id, newly_done=None):
         """Report to orchestrator that this edge completed processing for the tick."""
@@ -392,8 +519,8 @@ class EdgeProcess:
 
         if command == ecloud.Command.END:
             logger.info("END command received")
-            # Push END to actors before stopping
             await self.push_tick_to_actors(tick_id, command)
+            await self._send_evaluation_data()
             return False  # Signal to stop
 
         # Snapshot done set before pushing so newly_done diff is clean
@@ -423,29 +550,99 @@ class EdgeProcess:
         newly_done = [a for key, a in self.actors.items()
                       if a.is_done and key not in prior_done]
 
-        # Fuse predictions (placeholder - just collect them for now)
-        self.fuse_predictions()
+        self.run_edge_step(tick_id)
 
         # Report completion to orchestrator, forwarding any newly-done vehicle state
         await self.report_tick_complete(tick_id, newly_done)
 
         return True  # Continue processing
 
-    def fuse_predictions(self):
-        """
-        Fuse predictions from all actors.
+    FUSION_WARMUP_TICKS = 3
 
-        This is a placeholder implementation. In a full implementation, this would:
-        - Collect perception data from all actors
-        - Fuse overlapping detections
-        - Generate unified predictions
-        - Distribute back to actors
-        """
-        for vehicle_index, actor in self.actors.items():
-            if actor.last_update and actor.last_update.pickled_agent_objects:
-                # For now, just pass through the predictions
-                # In a full implementation, this would fuse data from multiple sources
-                self.fused_predictions[vehicle_index] = actor.last_update.pickled_agent_objects
+    def run_edge_step(self, tick_id: int):
+        """Push actor data into proxy managers then run the edge manager step."""
+        if self.edge_manager is None:
+            logger.warning("run_edge_step called before edge_manager ready")
+            return
+
+        import zlib
+        import msgpack
+        import msgpack_numpy as m_np
+        import torch
+        m_np.patch()
+
+        actors_with_features = 0
+        actors_with_objects = 0
+        total_actors = sum(1 for info in self.actors.values() if not info.is_done)
+
+        for key, info in self.actors.items():
+            if info.last_update is None or info.manager is None:
+                continue
+            upd = info.last_update
+            mgr = info.manager
+
+            # Refresh localizer so get_ego_pos() returns current CARLA position
+            mgr.localizer.localize()
+
+            has_features = bool(upd.pickled_features)
+            has_objects = bool(upd.pickled_agent_objects)
+            logger.debug("[DATA_FLOW] tick=%d actor=%s features=%s(%db) objects=%s(%db)",
+                         tick_id, key,
+                         "yes" if has_features else "no", len(upd.pickled_features),
+                         "yes" if has_objects else "no", len(upd.pickled_agent_objects))
+
+            # Intermediate features (WorldFusion)
+            if has_features:
+                actors_with_features += 1
+                try:
+                    feat_np = msgpack.unpackb(
+                        zlib.decompress(upd.pickled_features), raw=False)
+                    mgr.perception_manager.feature_dict = {
+                        k: torch.from_numpy(v) for k, v in feat_np.items()
+                    }
+                except Exception as e:
+                    logger.warning("Feature unpack failed for %s: %s", key, e)
+
+            # Detection objects (late fusion)
+            if has_objects:
+                actors_with_objects += 1
+                try:
+                    objects = pickle.loads(upd.pickled_agent_objects)
+                    if info.actor_type == ecloud.ActorType.RSU:
+                        mgr.objects = objects
+                    else:
+                        mgr.agent.objects = objects
+                except Exception as e:
+                    logger.warning("Objects unpack failed for %s: %s", key, e)
+
+        try:
+            serialized_preds = self.edge_manager.run_step(tick_id)
+            n_preds = 0
+            vehicles_updated = 0
+            if serialized_preds is not None:
+                for obj_buf in serialized_preds.all_object_buffers:
+                    vm_list_idx = obj_buf.vehicle_id
+                    if vm_list_idx < len(self._vm_list_to_actor_key):
+                        actor_key = self._vm_list_to_actor_key[vm_list_idx]
+                        self.fused_predictions[actor_key] = obj_buf.pickled_edge_predictions
+                        n_preds += len(pickle.loads(obj_buf.pickled_edge_predictions).get('vehicles', [])) if obj_buf.pickled_edge_predictions else 0
+                        vehicles_updated += 1
+
+            logger.info("[DATA_FLOW] tick=%d features=%d/%d objects=%d/%d predictions=%d vehicles_updated=%d",
+                        tick_id, actors_with_features, total_actors,
+                        actors_with_objects, total_actors, n_preds, vehicles_updated)
+
+            if tick_id > self.FUSION_WARMUP_TICKS and not self.fused_predictions:
+                logger.warning("[DATA_FLOW] tick=%d: edge_manager produced no fused predictions after warmup", tick_id)
+            if actors_with_features == 0 and total_actors > 0 and tick_id > self.FUSION_WARMUP_TICKS:
+                logger.warning("[DATA_FLOW] tick=%d: zero actors sent features (total_actors=%d)", tick_id, total_actors)
+
+            if self.opt.verbose and tick_id > self.FUSION_WARMUP_TICKS:
+                assert actors_with_features > 0 or actors_with_objects > 0, \
+                    f"[DATA_FLOW] tick={tick_id}: no actor data received after warmup (verbose assertion)"
+
+        except Exception as e:
+            logger.exception("edge_manager.run_step failed at tick %s: %s", tick_id, e)
 
     async def run(self):
         """Main entry point for the edge process."""
@@ -480,6 +677,20 @@ class EdgeProcess:
             raise
         finally:
             await self.cleanup()
+
+    async def _send_evaluation_data(self):
+        """Serialize edge profiler and push to orchestrator at END time (while C++ server is still alive)."""
+        if self.edge_manager is None or self.orchestrator_stub is None:
+            return
+        try:
+            _, _, metrics = self.edge_manager.evaluate()
+            request = ecloud.EdgeEvaluationResult()
+            request.edge_index = self.edge_index
+            request.pickled_edge_profiler = pickle.dumps(metrics)
+            await self.orchestrator_stub.Edge_SendEvaluationData(request)
+            logger.info("[DATA_FLOW] Sent edge profiler metrics to orchestrator: %d keys", len(metrics))
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("Failed to send edge evaluation data: %s", exc)
 
     async def cleanup(self):
         """Clean up resources."""

@@ -356,6 +356,19 @@ class ScenarioManager:
                 else:
                     manager_proxy = self.vehicle_managers[vehicle_update.vehicle_index]
 
+                # Link proxy VM to its live CARLA actor on first occurrence of carla_actor_id
+                if not is_rsu and vehicle_update.carla_actor_id:
+                    if not hasattr(manager_proxy, '_carla_actor_linked') or not manager_proxy._carla_actor_linked:
+                        actor = self.world.get_actor(vehicle_update.carla_actor_id)
+                        if actor is not None:
+                            manager_proxy.vehicle = actor
+                            manager_proxy._carla_actor_linked = True
+                            logger.info("[DATA_FLOW] Proxy VM vehicle_index=%d linked to CARLA actor %d",
+                                        vehicle_update.vehicle_index, vehicle_update.carla_actor_id)
+                        else:
+                            logger.warning("[DATA_FLOW] CARLA actor %d not found for vehicle_index=%d",
+                                           vehicle_update.carla_actor_id, vehicle_update.vehicle_index)
+
                 # Unpack detection objects from distributed actors for edge processing
                 if vehicle_update.pickled_agent_objects:
                     try:
@@ -389,6 +402,19 @@ class ScenarioManager:
                               f"{len(vehicle_update.pickled_features)} bytes")
                     except Exception as e:
                         print(f"[UNPACK FEATURES] FAILED index {vehicle_update.vehicle_index}: {e}")
+
+                # Unpack actor metrics (populated on TICK_DONE by VEHICLE actors)
+                if not is_rsu and vehicle_update.pickled_actor_metrics:
+                    try:
+                        m = pickle.loads(vehicle_update.pickled_actor_metrics)
+                        manager_proxy.agent.planning_metrics = m['planning_metrics']
+                        manager_proxy.client_metrics = m['client_metrics']
+                        manager_proxy.vehicles_detected = m['vehicles_detected']
+                        logger.info("[DATA_FLOW] Populated proxy VM metrics for vehicle %d",
+                                    vehicle_update.vehicle_index)
+                    except Exception as e:
+                        logger.warning("Failed to unpack actor metrics for vehicle %d: %s",
+                                       vehicle_update.vehicle_index, e)
 
                 if not vehicle_update.HasField('transform'):
                     continue
@@ -745,6 +771,13 @@ class ScenarioManager:
               await self.push_q.get()
               self.push_q.task_done()
               logger.info("All edges actor-ready — proceeding to tick loop")
+              try:
+                  carla_info = await self.ecloud_server.Server_GetAllActorCarlaInfos(ecloud.Empty())
+                  for ai in carla_info.actor_infos:
+                      logger.info("[DATA_FLOW] Actor-ready: vehicle_index=%d actor_type=%s carla_actor_id=%d",
+                                  ai.vehicle_index, ai.actor_type, ai.carla_actor_id)
+              except Exception as e:
+                  logger.warning("[DATA_FLOW] Server_GetAllActorCarlaInfos failed: %s", e)
 
           self.world.tick()
         except Exception as e:
@@ -1384,7 +1417,8 @@ class ScenarioManager:
                 carla_client=self.client,
                 world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt,
                 mode=config_yaml['edge_base']['mode'],
-                other_vehicles=other_vehicles if 'other_vehicles' in locals() else None
+                other_vehicles=other_vehicles if 'other_vehicles' in locals() else None,
+                is_proxy=self.run_distributed
             )
             #edge_manager = EdgeManager(edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'])
             if 'rsus' in edge:
@@ -1490,16 +1524,16 @@ class ScenarioManager:
         # create edges
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
-                
+
             manager_cls  = _select_edge_manager(edge)
             edge_manager = manager_cls(
                 self.world, edge, self.cav_world,
                 carla_client=self.client,
                 world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt,
                 mode=config_yaml['edge_base']['mode'],
-                other_vehicles=other_vehicles if 'other_vehicles' in locals() else None
+                other_vehicles=other_vehicles if 'other_vehicles' in locals() else None,
+                is_proxy=self.run_distributed,
             )
-            #edge_manager = EdgeManager(self.world, edge, self.cav_world, carla_client=self.client, world_dt=world_dt, edge_dt=edge_dt, search_dt=search_dt, mode=config_yaml['edge_base']['mode'], other_vehicles=other_vehicles)
             if 'rsus' in edge:
                 for index, cav in enumerate(edge['rsus']):
                     rsu_manager = RSUManager(self.world, cav,
@@ -1689,10 +1723,54 @@ class ScenarioManager:
 
         logger.info("pushed END")
 
+        if self.run_distributed:
+            asyncio.get_event_loop().run_until_complete(
+                self._retrieve_edge_evaluations())
+
         if self.run_distributed and ( ECLOUD_IP == 'localhost' or ECLOUD_IP == CARLA_IP ):
             os.kill(self.ecloud_server_process.pid, signal.SIGTERM)
 
         self.sim_metrics.shutdown_time_ms = time.time() - start_time
+
+    async def _retrieve_edge_evaluations(self):
+        """Poll Server_GetAllEdgeEvaluations until all edges report (or timeout), then populate proxy edge managers."""
+        num_edges = len(self.scenario_params['scenario'].get('edge_list', []))
+        if num_edges == 0:
+            return
+
+        deadline = time.time() + 30.0
+        result_list = None
+        while time.time() < deadline:
+            try:
+                result_list = await self.ecloud_server.Server_GetAllEdgeEvaluations(ecloud.Empty())
+                if len(result_list.results) >= num_edges:
+                    break
+                logger.debug("[DATA_FLOW] Waiting for edge evaluations: %d/%d received",
+                             len(result_list.results), num_edges)
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("[DATA_FLOW] Server_GetAllEdgeEvaluations failed: %s", exc)
+                return
+            await asyncio.sleep(0.5)
+
+        if result_list is None or len(result_list.results) == 0:
+            logger.warning("[DATA_FLOW] No edge evaluation results received before timeout")
+            return
+
+        edge_dict = self.cav_world.get_edge_dict() if self.cav_world else {}
+        for result in result_list.results:
+            if not result.pickled_edge_profiler:
+                continue
+            try:
+                metrics = pickle.loads(result.pickled_edge_profiler)
+                for pm in edge_dict.values():
+                    if getattr(pm, 'is_proxy', False):
+                        pm._proxy_metrics = metrics
+                        logger.info("[DATA_FLOW] Populated proxy edge %d _proxy_metrics: %d keys",
+                                    result.edge_index, len(metrics))
+                        break
+            except Exception as exc:  # pylint: disable=broad-except
+                logger.warning("[DATA_FLOW] Failed to unpack edge %d profiler: %s",
+                               result.edge_index, exc)
 
     def do_pickling(self, column_key, flat_list, file_path):
         logger.info("run stats for %s:\nmean %s: %s \nmedian %s: %s \n95th percentile %s %s",

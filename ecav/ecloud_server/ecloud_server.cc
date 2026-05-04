@@ -119,6 +119,10 @@ using ecloud::ActorConnectionInfo;
 using ecloud::EdgeMapping;
 using ecloud::EdgeMappingSetup;
 using ecloud::EdgeReadyNotification;
+using ecloud::ActorCarlaInfo;
+using ecloud::ActorCarlaInfoResponse;
+using ecloud::EdgeEvaluationResult;
+using ecloud::EdgeEvaluationResultList;
 
 std::atomic<int16_t> numCompletedVehicles_;
 std::atomic<int16_t> numRepliedVehicles_;
@@ -155,6 +159,8 @@ struct EdgeInfo {
     std::string edge_config_yaml;  // JSON of edge-specific YAML section
     std::vector<int32_t> vehicle_indices;  // Global vehicle indices owned by this edge
     std::vector<int32_t> rsu_indices;      // Global RSU indices owned by this edge
+    std::vector<ActorCarlaInfo> actor_carla_infos;  // CARLA actor IDs reported at actor-ready time
+    std::string pickled_edge_profiler;              // serialized EdgeMetrics sent at end-of-scenario
 };
 
 std::vector<EdgeInfo> edgeInfos_;  // Registered edges
@@ -801,7 +807,21 @@ public:
                                Empty* reply) override {
 
         LOG(INFO) << "Edge_ActorsReady - edge " << request->edge_index()
-                  << " (" << request->num_actors() << " actors)";
+                  << " (" << request->num_actors() << " actors, "
+                  << request->actor_infos_size() << " carla IDs)";
+
+        // Store actor CARLA IDs for this edge so sim_api can fetch them via Server_GetAllActorCarlaInfos
+        {
+            absl::MutexLock lock(&mu_);
+            for (auto& info : edgeInfos_) {
+                if (info.edge_index == request->edge_index()) {
+                    for (const auto& ai : request->actor_infos()) {
+                        info.actor_carla_infos.push_back(ai);
+                    }
+                    break;
+                }
+            }
+        }
 
         numEdgesActorReady_++;
 
@@ -810,6 +830,57 @@ public:
             simAPIClient_->PushTick(TICK_ID_INVALID, Command::ACTORS_READY, INVALID_TIME);
         }
 
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Server_GetAllActorCarlaInfos(CallbackServerContext* context,
+                                                     const Empty* request,
+                                                     ActorCarlaInfoResponse* reply) override {
+        absl::MutexLock lock(&mu_);
+        for (const auto& edge : edgeInfos_) {
+            for (const auto& ai : edge.actor_carla_infos) {
+                *reply->add_actor_infos() = ai;
+            }
+        }
+        LOG(INFO) << "Server_GetAllActorCarlaInfos - returning " << reply->actor_infos_size() << " entries";
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Edge_SendEvaluationData(CallbackServerContext* context,
+                                                const EdgeEvaluationResult* request,
+                                                Empty* reply) override {
+        LOG(INFO) << "Edge_SendEvaluationData - edge " << request->edge_index()
+                  << " profiler bytes=" << request->pickled_edge_profiler().size();
+        {
+            absl::MutexLock lock(&mu_);
+            for (auto& info : edgeInfos_) {
+                if (info.edge_index == request->edge_index()) {
+                    info.pickled_edge_profiler = request->pickled_edge_profiler();
+                    break;
+                }
+            }
+        }
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Server_GetAllEdgeEvaluations(CallbackServerContext* context,
+                                                     const Empty* request,
+                                                     EdgeEvaluationResultList* reply) override {
+        absl::MutexLock lock(&mu_);
+        for (const auto& info : edgeInfos_) {
+            if (!info.pickled_edge_profiler.empty()) {
+                EdgeEvaluationResult* r = reply->add_results();
+                r->set_edge_index(info.edge_index);
+                r->set_pickled_edge_profiler(info.pickled_edge_profiler);
+            }
+        }
+        LOG(INFO) << "Server_GetAllEdgeEvaluations - returning " << reply->results_size() << " edge results";
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;
