@@ -252,8 +252,17 @@ class EdgeProfiler:
     ):
         self.intersection_id = intersection_id
         self.history_size = history_size
-        self.sample_gpu_utilization = sample_gpu_utilization
         self.gpu_device = gpu_device
+
+        # Probe the device once; disable GPU memory sampling if no CUDA context exists
+        # (e.g., edge containers whose models load on CPU or haven't initialized CUDA yet).
+        self.sample_gpu_utilization = False
+        if sample_gpu_utilization and torch.cuda.is_available() and torch.cuda.device_count() > gpu_device:
+            try:
+                torch.cuda.reset_peak_memory_stats(gpu_device)
+                self.sample_gpu_utilization = True
+            except RuntimeError:
+                pass
 
         self.frame_history: Deque[FrameMetrics] = deque(maxlen=history_size)
         self.start_time = time.time()
@@ -280,8 +289,7 @@ class EdgeProfiler:
 
     def _start_frame(self, tick: int):
         """Internal: start frame profiling"""
-        # Reset GPU peak memory tracking
-        if torch.cuda.is_available():
+        if self.sample_gpu_utilization:
             torch.cuda.reset_peak_memory_stats(self.gpu_device)
 
         self._frame_start_time = time.perf_counter()
@@ -300,7 +308,7 @@ class EdgeProfiler:
         self._current_frame.total_ms = (time.perf_counter() - self._frame_start_time) * 1000.0
 
         # GPU memory
-        if torch.cuda.is_available():
+        if self.sample_gpu_utilization:
             self._current_frame.gpu_memory_allocated_mb = (
                 torch.cuda.memory_allocated(self.gpu_device) / 1024 / 1024
             )

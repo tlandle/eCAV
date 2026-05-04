@@ -258,7 +258,8 @@ def run_scenario(opt, scenario_params):
                 pm = getattr(rsu, 'perception_manager', None)
                 if pm is not None and hasattr(pm, 'close'):
                     pm.close()
-            edge.profiler.save_report(os.path.join('logs', f'edge_profiler_{ts}.json'))
+            if edge.profiler is not None:
+                edge.profiler.save_report(os.path.join('logs', f'edge_profiler_{ts}.json'))
 
         if opt.distributed and scenario_manager is not None:
             scenario_manager.end()

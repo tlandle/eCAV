@@ -625,7 +625,9 @@ class EdgeProcess:
                     if vm_list_idx < len(self._vm_list_to_actor_key):
                         actor_key = self._vm_list_to_actor_key[vm_list_idx]
                         self.fused_predictions[actor_key] = obj_buf.pickled_edge_predictions
-                        n_preds += len(pickle.loads(obj_buf.pickled_edge_predictions).get('vehicles', [])) if obj_buf.pickled_edge_predictions else 0
+                        if obj_buf.pickled_edge_predictions:
+                            _p = pickle.loads(obj_buf.pickled_edge_predictions)
+                            n_preds += len(_p) if isinstance(_p, list) else len(_p.get('vehicles', []))
                         vehicles_updated += 1
 
             logger.info("[DATA_FLOW] tick=%d features=%d/%d objects=%d/%d predictions=%d vehicles_updated=%d",
@@ -634,8 +636,8 @@ class EdgeProcess:
 
             if tick_id > self.FUSION_WARMUP_TICKS and not self.fused_predictions:
                 logger.warning("[DATA_FLOW] tick=%d: edge_manager produced no fused predictions after warmup", tick_id)
-            if actors_with_features == 0 and total_actors > 0 and tick_id > self.FUSION_WARMUP_TICKS:
-                logger.warning("[DATA_FLOW] tick=%d: zero actors sent features (total_actors=%d)", tick_id, total_actors)
+            if actors_with_features == 0 and actors_with_objects == 0 and total_actors > 0 and tick_id > self.FUSION_WARMUP_TICKS:
+                logger.warning("[DATA_FLOW] tick=%d: zero actors sent any data (total_actors=%d)", tick_id, total_actors)
 
             if self.opt.verbose and tick_id > self.FUSION_WARMUP_TICKS:
                 assert actors_with_features > 0 or actors_with_objects > 0, \
