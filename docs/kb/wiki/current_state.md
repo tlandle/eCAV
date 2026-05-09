@@ -1,5 +1,5 @@
 ---
-updated: 2026-04-06
+updated: 2026-05-09
 ---
 # Current State
 
@@ -48,6 +48,28 @@ Both fusion modes confirmed working end-to-end in distributed mode, with product
 ---
 
 ## WIP / Exploratory
+
+### Edge-Only Distributed Mode (2026-05-09)
+
+Architecture plan written. See [edge_only_distributed_mode.md](../../agent_plans/edge_only_distributed_mode.md).
+
+**Motivation:** Research focus is the edge node itself (fusion pipeline, latency, handoff). Fully-distributed mode buries the edge in actor-protocol overhead. Edge-only mode runs edges in Docker (isolated, profilable) while vehicle + RSU stay in the base process (sequential-style, zero gRPC overhead).
+
+**Architecture decision:** Direct fusion interface, not actor protocol. The edge exposes `Edge_PerformFusion(IntermediateFeaturesBatch) → FusionResult` as a per-tick RPC. Base process calls it directly after local perception, gets predictions back, injects into planning. No C++ orchestrator, no actor registration, no push servers in this mode.
+
+**Key finding:** `Edge_PerformFusion` is defined in `ecav/protos/ecloud.proto:445` and has generated stubs, but is NOT implemented in `ecav/ecav2/edge_process.py`. Primary gap is implementing this handler and the real fusion pipeline behind it.
+
+**Implementation scope:**
+
+- `edge_process.py`: `--standalone` flag + `Edge_PerformFusion` handler
+- New `ecav/scenario_testing/utils/edge_fusion_client.py`: gRPC client with retry-connect
+- `ecav.py`: `-eo` flag, skip C++ server in this mode
+- `EdgeManager.run_step()` split: `collect_features()` + `apply_predictions()`
+- `start_actors.sh`: skip vehicle containers in edge-only mode
+
+**Handoff relationship:** `EdgeFusionClient` is the exact primitive Model C handoff (orchestrator-driven) builds on — handoff = route to a different client. No additional infrastructure needed at handoff time.
+
+**Status:** Plan approved; Phase 0 exploration (EdgeManager `run_step()` internals + WorldFusion feature extraction) is next.
 
 ### Multi-Edge Locale & Handoff Architecture (2026-04-18)
 

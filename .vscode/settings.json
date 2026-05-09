@@ -1,3 +1,4 @@
 {
-    "cmake.sourceDirectory": "/home/jordan/eCAV/ecav/ecloud_server"
+    "cmake.sourceDirectory": "/home/jordan/eCAV/ecav/ecloud_server",
+    "cmake.ignoreCMakeListsMissing": true
 }

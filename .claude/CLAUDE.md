@@ -75,10 +75,14 @@ The compaction scratch file (`YYYY-MM-DD_scratch.md`) has been removed as a dire
 
 This is automatic; jrapp does not need to ask. See [docs/agent_plans/kb_plan.md](../docs/agent_plans/kb_plan.md) for full KB structure.
 
+### Code Search
+
+Use the Semble MCP tools (`mcp__semble__search`, `mcp__semble__find_related`) for all codebase searches instead of Grep, Glob, or Read for exploratory queries. Always pass `repo` as `C:\Users\jorda\eCAV` on the first search of a session to build the index — subsequent searches in the same session are cached and fast. Fall back to Grep/Glob only for exact literal matches where Semble would be overkill (e.g. finding a specific known file path).
+
 ### Planning — Project Override
 
 Standard planning workflow and format is defined in the user-level `CLAUDE.md`. Override for this repo:
 
-- Plans for this project live in `/docs/` (not `H:\agent_plans`).
-- You have explicit permission to read and write `.md` files under `/docs/`.
-- Do not delete any file from `/docs/` without asking.
+- Plans for this project live in `/docs/agent_plans` (not `~/agent_plans`).
+- You have explicit permission to read and write `.md` files under `/docs/` and all subfolders.
+- Do not delete any file or folder from `/docs/` without asking.

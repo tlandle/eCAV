@@ -1,35 +1,67 @@
 #!/bin/bash
 
-# Prompt for scenario configuration
+# Prompt for scenario name
 read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
-read -p "Enter number of ego vehicles: " num_ego
-read -p "Enter number of RSUs: " num_rsu
-read -p "Enter number of edges (0 if edge-less scenario): " num_edges
-read -p "Use ML (Y/n)? " use_ml
-read -p "Use WorldFusion gRPC server for distributed ML inference (Y/n)? " use_litserve
-read -p "Use YOLO gRPC server for distributed YOLO inference / late fusion (Y/n)? " use_yolo_grpc
-read -p "Rebuild containers (Y/n)? " rebuild
 
-# Validate inputs
 if [[ -z "$scenario_name" ]]; then
     echo "Error: Scenario name cannot be empty"
     exit 1
 fi
 
-if ! [[ "$num_ego" =~ ^[0-9]+$ ]] || [[ "$num_ego" -lt 1 ]]; then
-    echo "Error: Number of ego vehicles must be a positive integer"
+# Parse scenario configuration from YAML
+yaml_file="ecav/scenario_testing/config_yaml/${scenario_name}.yaml"
+if [[ ! -f "$yaml_file" ]]; then
+    echo "Error: Scenario YAML not found: $yaml_file"
     exit 1
 fi
 
-if ! [[ "$num_rsu" =~ ^[0-9]+$ ]] || [[ "$num_rsu" -lt 0 ]]; then
-    echo "Error: Number of RSUs must be a non-negative integer"
+echo "Parsing scenario configuration from $yaml_file..."
+
+# Count via anchor references — one per actor type in scenario.edge_list
+num_edges=$(grep 'manager_type:' "$yaml_file" | wc -l | tr -d ' ')
+num_rsu=$(grep '\- <<: \*rsu_base' "$yaml_file" | wc -l | tr -d ' ')
+num_ego=$(grep '\- <<: \*vehicle_base' "$yaml_file" | wc -l | tr -d ' ')
+
+# Detect fusion type from edge manager_type field
+if grep -q 'manager_type: worldfusion' "$yaml_file"; then
+    fusion_type="worldfusion"
+elif grep -q 'manager_type: late_fusion' "$yaml_file"; then
+    fusion_type="late_fusion"
+else
+    fusion_type="none"
+fi
+
+echo ""
+echo "Detected configuration:"
+echo "  Ego vehicles : $num_ego"
+echo "  RSUs         : $num_rsu"
+echo "  Edges        : $num_edges"
+echo "  Fusion type  : $fusion_type"
+echo ""
+
+if [[ "$num_ego" -lt 1 ]]; then
+    echo "Error: No ego vehicles detected in YAML — check scenario.edge_list[].vehicles"
     exit 1
 fi
 
-if ! [[ "$num_edges" =~ ^[0-9]+$ ]] || [[ "$num_edges" -lt 0 ]]; then
-    echo "Error: Number of edges must be a non-negative integer"
-    exit 1
+# Determine ML usage and which fusion server to start
+use_ml="n"
+use_litserve="n"
+use_yolo_grpc="n"
+
+if [[ "$fusion_type" == "worldfusion" ]]; then
+    use_ml="Y"
+    echo "WorldFusion scenario — ML is required."
+    read -p "Use WorldFusion gRPC server for distributed inference (Y/n)? " use_litserve
+elif [[ "$fusion_type" == "late_fusion" ]]; then
+    use_ml="Y"
+    echo "Late Fusion scenario — ML is required."
+    read -p "Use YOLO gRPC server for distributed inference (Y/n)? " use_yolo_grpc
+else
+    read -p "Use ML (Y/n)? " use_ml
 fi
+
+read -p "Rebuild containers (Y/n)? " rebuild
 
 # Check and clean up any existing containers
 running_containers=$(docker ps -a -q | wc -l)
