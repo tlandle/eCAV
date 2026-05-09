@@ -9,10 +9,14 @@ Loads either the classic eCAV perception pipeline, BM2CP, or
 WorldFusion, depending on the YAML sensing.perception.backend entry.
 """
 
+import logging
+
 from ecav.core.common.data_dumper import DataDumper
 from ecav.core.sensing.localization.rsu_localization_manager import \
     LocalizationManager
 from ecav.core.sensing.tracking.tracking_manager import TrackingManager
+
+logger = logging.getLogger(__name__)
 
 # ------------------------------------------------------------------ #
 #  Runtime backend selector
@@ -50,6 +54,7 @@ class RSUManager:
         current_time="",
         data_dumping=False,
         run_distributed=False,
+        is_proxy=False,
     ):
         self.rid = -abs(config_yaml.get("id", -1))
 
@@ -84,7 +89,7 @@ class RSUManager:
         # and skip local perception. run_distributed is passed explicitly by the caller
         # (same pattern as VehicleManager) — do NOT read cav_world.run_distributed,
         # which reflects the YAML 'distributed' key and stays False even with -d active.
-        is_server_proxy = run_distributed
+        is_server_proxy = is_proxy or run_distributed
 
         if is_server_proxy:
             from ecav.core.sensing.perception.perception_manager import PerceptionManager
@@ -95,7 +100,7 @@ class RSUManager:
             sensing_cfg["perception"]["activate"] = False
             sensing_cfg["perception"]["camera"]["visualize"] = 0
             sensing_cfg["perception"]["lidar"]["visualize"] = False
-            print(f"[RSUManager] Distributed proxy — using base PerceptionManager")
+            logger.info("[RSUManager] Distributed proxy — using base PerceptionManager")
         else:
             PercepCls = _pick_perception_class(sensing_cfg["perception"])
 
@@ -128,9 +133,8 @@ class RSUManager:
         ego_pos = self.localizer.get_ego_pos()
         self.objects = self.perception_manager.detect(ego_pos)
         t_det = _t.time()
-        print(f"[RSU update_info] localize={(t_loc-t0)*1000:.0f}ms | "
-              f"detect={(t_det-t_loc)*1000:.0f}ms | "
-              f"total={(t_det-t0)*1000:.0f}ms", flush=True)
+        logger.debug("[RSU update_info] localize=%.0fms | detect=%.0fms | total=%.0fms",
+                     (t_loc - t0) * 1000, (t_det - t_loc) * 1000, (t_det - t0) * 1000)
 
     def run_step(self):
         if self.data_dumper:

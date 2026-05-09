@@ -190,6 +190,9 @@ def run_scenario(opt, scenario_params):
             loc = ego_cav.get_transform().location
             if loc.x == 0 and loc.y == 0:
                 break
+            if opt.distributed and scenario_manager is not None and scenario_manager.all_vehicles_done:
+                print(f"All vehicles reported done ({scenario_manager.num_completed_vehicles}/{scenario_manager.vehicle_count}), ending simulation")
+                break
 
             # Bird view following
             view_transform = carla.Transform()
@@ -199,12 +202,10 @@ def run_scenario(opt, scenario_params):
             spectator.set_transform(view_transform)
             t_spectator = time.time()
 
-            # Run edge processing step (update_information is called internally)
-            for edge in edge_list:
-                serialized_predictions = edge.run_step(step)
-
-                if opt.distributed and serialized_predictions is not None:
-                    scenario_manager.push_edge_objects(serialized_predictions)
+            # In distributed mode fusion runs in edge_process; skip here
+            if not opt.distributed:
+                for edge in edge_list:
+                    edge.run_step(step)
             t_edge = time.time()
 
             t_total = time.time() - t_step_start
@@ -257,7 +258,8 @@ def run_scenario(opt, scenario_params):
                 pm = getattr(rsu, 'perception_manager', None)
                 if pm is not None and hasattr(pm, 'close'):
                     pm.close()
-            edge.profiler.save_report(os.path.join('logs', f'edge_profiler_{ts}.json'))
+            if edge.profiler is not None:
+                edge.profiler.save_report(os.path.join('logs', f'edge_profiler_{ts}.json'))
 
         if opt.distributed and scenario_manager is not None:
             scenario_manager.end()

@@ -52,6 +52,9 @@ from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
 from ecav.core.application.edge.latency import JitterBuffer
 from .edge_manager_base import _BaseEdgeManager
 
+import logging
+logger = logging.getLogger(__name__)
+
 
 def _box_to_transform(box: np.ndarray):
     """Convert a detection box [x,y,z,h,w,l,yaw] to picklable Transform."""
@@ -77,8 +80,19 @@ class WorldFusionEdge(_BaseEdgeManager):
                  carla_client: carla.Client,
                  *,
                  world_dt: float = 0.05,
+                 is_proxy: bool = False,
                  **kwargs):
-        super().__init__(world, cfg, cav_world, carla_client, world_dt=world_dt, **kwargs)
+        super().__init__(world, cfg, cav_world, carla_client, world_dt=world_dt,
+                         is_proxy=is_proxy, **kwargs)
+
+        if is_proxy:
+            self.model = None
+            self.post_processor = None
+            self.tracker = None
+            self.mot_tracker = None
+            self.profiler = None
+            self._last_update_tick = -1
+            return
 
         print("[WorldFusion Edge] Initializing...")
 
@@ -214,6 +228,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         print("[WorldFusion Edge] Initialization complete.")
 
     def start_edge(self):
+        if self.is_proxy:
+            return
         for vm in self.vehicle_manager_list:
             vm.agent._anchoring = self.anchoring
 
@@ -295,21 +311,10 @@ class WorldFusionEdge(_BaseEdgeManager):
         if excluded_vehicles_snapshot:
             print(f"[WorldFusion Edge] {len(excluded_vehicles_snapshot)} excluded vehicles (not in training data)")
 
-        # Collect from vehicles
-        for vm in self.vehicle_manager_list:
-            pm = vm.perception_manager
-            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
-                feature_dicts.append(pm.feature_dict)
-                pos = vm.localizer.get_ego_pos()
-                poses.append(pos)
-                # Debug: Print CARLA position AND offset from world anchor
-                dx = pos.location.x - self.world_anchor[0]
-                dy = pos.location.y - self.world_anchor[1]
-                # Model outputs in CARLA convention - detection coords should match (dx, dy)
-                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
-                print(f"[WorldFusion Edge]   Offset from anchor: dx={dx:.2f}, dy={dy:.2f} (detection LOCAL should match this)")
-
-        # Collect from RSUs
+        # RSUs collected first: WorldFusion expects agent 0 to be the RSU
+        # (the infrastructure node whose frame is used as the fusion reference).
+        # Collecting vehicles first inverts this, causing fused detections to be
+        # decoded in the vehicle's local frame instead of the RSU's.
         for rsu in self.rsu_manager_list:
             pm = rsu.perception_manager
             if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
@@ -322,10 +327,16 @@ class WorldFusionEdge(_BaseEdgeManager):
                         carla.Rotation()
                     )
                 poses.append(pos)
-                dx = pos.location.x - self.world_anchor[0]
-                dy = pos.location.y - self.world_anchor[1]
                 print(f"[WorldFusion Edge] RSU CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
-                print(f"[WorldFusion Edge]   CARLA offset from anchor: dx={dx:.2f}, dy={dy:.2f}")
+
+        # Vehicles collected after RSUs (agents 1..N)
+        for vm in self.vehicle_manager_list:
+            pm = vm.perception_manager
+            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
+                feature_dicts.append(pm.feature_dict)
+                pos = vm.localizer.get_ego_pos()
+                poses.append(pos)
+                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
 
         # Tick the BSM temp-ID rotation for every managed vehicle so that
         # time/distance thresholds are evaluated each frame.
@@ -381,6 +392,20 @@ class WorldFusionEdge(_BaseEdgeManager):
             frame.set_aoi_ticks(lag_steps)
             num_agents = len(feature_dicts)
 
+            # Log Lincoln's RSU-local position to track when it enters the voxel range (±40m).
+            # Lincoln is the only lincoln.mkz vehicle in scenario_3.
+            rsu_x, rsu_y = self.world_anchor[0], self.world_anchor[1]
+            for actor in self.world.get_actors():
+                if 'lincoln' in actor.type_id.lower():
+                    loc = actor.get_location()
+                    lx, ly = loc.x - rsu_x, loc.y - rsu_y
+                    in_range = abs(lx) <= 40.0 and abs(ly) <= 40.0
+                    logger.info(
+                        "tick=%d lincoln world=(%.1f, %.1f) rsu-local=(%.1f, %.1f) z=%.1f in_range=%s",
+                        tick, loc.x, loc.y, lx, ly, loc.z, in_range
+                    )
+                    break
+
             # 3. Stack features and compute pairwise transforms
             with frame.time("fusion"):
                 torch.cuda.empty_cache()
@@ -401,16 +426,25 @@ class WorldFusionEdge(_BaseEdgeManager):
             with frame.time("detection"):
                 det_results = self._to_ab3dmot_format(pred_dict, frame_id)
                 num_dets = len(det_results.get('dets', []))
-                print(f"[WorldFusion Edge] Detection: {num_dets} objects found (before self-filter)")
 
                 # 5.5 Filter out self-detections using beacon positions of managed VEHICLES only
-                num_vehicles = len(self.vehicle_manager_list)
-                vehicle_poses = poses[:num_vehicles]
+                num_rsus = len(self.rsu_manager_list)
+                vehicle_poses = poses[num_rsus:]
                 det_results = self._filter_self_detections(det_results, vehicle_poses)
                 num_dets_after = len(det_results.get('dets', []))
-                print(f"[WorldFusion Edge] Detection: {num_dets_after} objects after self-beacon filter")
-                if num_dets_after > 0:
-                    print(f"[WorldFusion Edge] First det: {det_results['dets'][0]}")
+
+                logger.info(
+                    "tick=%d dets before_filter=%d after_filter=%d",
+                    tick, num_dets, num_dets_after
+                )
+                for i, det in enumerate(det_results.get('dets', [])):
+                    # AB3DMOT format: [h,w,l,x,y,z,ry,score]; x/y are world coords
+                    wx, wy = det[3], det[4]
+                    lx, ly = wx - rsu_x, wy - rsu_y
+                    logger.info(
+                        "tick=%d det[%d] rsu-local=(%.1f, %.1f) world=(%.1f, %.1f) score=%.3f",
+                        tick, i, lx, ly, wx, wy, det[7]
+                    )
 
                 # 5.6 Compute detection metrics (TP/FP/FN) against ground truth
                 det_metrics = self._compute_detection_metrics(
@@ -589,7 +623,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 local_x = gx * (80.0 / w) - 40
                 local_y = gy * (80.0 / h) - 40
                 top_locs.append(f"({local_x:.1f},{local_y:.1f})={val:.3f}")
-            print(f"[AGENT PSM] Agent {agent_i} Lincoln@({lincoln_grid_x},{lincoln_grid_y})={max_val:.4f}, Top3: {', '.join(top_locs)}")
+            logger.debug("agent=%d psm_lincoln@(%d,%d)=%.4f top3=%s",
+                         agent_i, lincoln_grid_x, lincoln_grid_y, max_val, ', '.join(top_locs))
 
         # Run Where2comm fusion
         # Note: Where2comm expects spatial_features (before backbone) for multi-scale
@@ -636,18 +671,18 @@ class WorldFusionEdge(_BaseEdgeManager):
         lincoln_max, lincoln_argmax = get_local_max(psm, lincoln_grid_x, lincoln_grid_y)
         ego_max, ego_argmax = get_local_max(psm, ego_grid_x, ego_grid_y)
 
-        print(f"\n[PSM DEBUG] Ego expected at grid ({ego_grid_x}, {ego_grid_y}): max_psm={ego_max:.4f}")
-        print(f"[PSM DEBUG] Lincoln expected at grid ({lincoln_grid_x}, {lincoln_grid_y}): max_psm={lincoln_max:.4f}")
-        print(f"[PSM DEBUG] PSM shape: {psm.shape}, global max: {psm.max().item():.4f}")
-
-        # Find top 5 detection locations
-        psm_flat = psm[0].max(dim=0)[0]  # Max over anchors -> [H, W]
+        logger.debug("psm ego@(%d,%d)=%.4f lincoln@(%d,%d)=%.4f global_max=%.4f",
+                     ego_grid_x, ego_grid_y, ego_max,
+                     lincoln_grid_x, lincoln_grid_y, lincoln_max,
+                     psm.max().item())
+        psm_flat = psm[0].max(dim=0)[0]
         top_vals, top_idxs = psm_flat.flatten().topk(5)
         for i, (val, idx) in enumerate(zip(top_vals, top_idxs)):
             gy, gx = idx // w, idx % w
-            local_x = gx * (80.0 / w) - 40  # Convert grid to local coords
+            local_x = gx * (80.0 / w) - 40
             local_y = gy * (80.0 / h) - 40
-            print(f"[PSM DEBUG] Top {i+1}: grid=({gx}, {gy}), local=({local_x:.1f}, {local_y:.1f}), psm={val:.4f}")
+            logger.debug("psm top%d grid=(%d,%d) local=(%.1f, %.1f) val=%.4f",
+                         i + 1, gx, gy, local_x, local_y, val)
 
         return fused_feature, pred_dict
 
@@ -667,7 +702,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         L = len(poses)
         max_cav = self.hypes['train_params']['max_cav']
 
-        # Convert poses to [x, y, z, roll, yaw, pitch] format
+        # Convert poses to [x, y, z, roll, yaw, pitch] format.
+        # Agent 0 is the RSU (world anchor). Agents 1..L-1 are CAVs.
         pose_list = [
             [p.location.x, p.location.y, p.location.z,
              p.rotation.roll, p.rotation.yaw, p.rotation.pitch]
@@ -677,41 +713,32 @@ class WorldFusionEdge(_BaseEdgeManager):
         # Initialize with identity matrices
         pairwise = np.tile(np.eye(4), (1, max_cav, max_cav, 1, 1))
 
-        # Compute transforms from world anchor to each agent
-        # T_anchor_to_j = x1_to_x2(world_anchor, pose_j)
-        T_to_anchor = []
+        # Compute each agent's agent-to-world transformation matrix.
+        # This matches the Multi-V2X dataset convention where each agent
+        # stores a transformation_matrix that maps agent-local → world.
+        T_agent_to_world = []
         for j in range(L):
-            T_j_to_anchor = transformation_utils.x1_to_x2(
-                pose_list[j],       # FROM agent j
-                self.world_anchor   # TO world anchor
+            # x1_to_x2(src, dst) produces the 4x4 matrix that transforms
+            # points from src frame to dst frame.
+            # agent-to-world: src = agent pose, dst = world origin
+            T = transformation_utils.x1_to_x2(
+                pose_list[j],                      # FROM agent j
+                [0, 0, 0, 0, 0, 0]                # TO world origin
             )
-            T_to_anchor.append(T_j_to_anchor)
+            T_agent_to_world.append(T)
 
-            # DEBUG: Print transform details
-            rot_deg = np.degrees(np.arctan2(T_j_to_anchor[1, 0], T_j_to_anchor[0, 0]))
-            tx, ty = T_j_to_anchor[0, 3], T_j_to_anchor[1, 3]
-            print(f"[XFORM DEBUG] T_agent{j}_to_anchor: trans=({tx:.2f}, {ty:.2f}), rot={rot_deg:.1f}°")
-            print(f"[XFORM DEBUG]   agent{j} pose: x={pose_list[j][0]:.2f}, y={pose_list[j][1]:.2f}, yaw={pose_list[j][4]:.2f}°")
-            print(f"[XFORM DEBUG]   anchor pose: x={self.world_anchor[0]:.2f}, y={self.world_anchor[1]:.2f}, yaw={self.world_anchor[4]:.2f}°")
-
-        # Row 0 contains transforms from world anchor to each agent (for warping to world frame)
-        for j in range(L):
-            T_anchor_to_j = np.linalg.inv(T_to_anchor[j])
-            pairwise[0, 0, j] = T_anchor_to_j
-
-            # DEBUG: Print inverted transform
-            rot_deg = np.degrees(np.arctan2(T_anchor_to_j[1, 0], T_anchor_to_j[0, 0]))
-            tx, ty = T_anchor_to_j[0, 3], T_anchor_to_j[1, 3]
-            print(f"[XFORM DEBUG] T_anchor_to_agent{j}: trans=({tx:.2f}, {ty:.2f}), rot={rot_deg:.1f}°")
-
-        # Fill rest of matrix with standard pairwise transforms
-        for i in range(1, L):
+        # Fill pairwise matrix exactly as the dataset does:
+        # pairwise[i,j] = inv(T_j_to_world) @ T_i_to_world
+        # This transforms points from agent i's frame to agent j's frame.
+        for i in range(L):
             for j in range(L):
                 if i == j:
                     pairwise[0, i, j] = np.eye(4)
                 else:
-                    T_i_to_j = np.linalg.inv(T_to_anchor[j]) @ T_to_anchor[i]
-                    pairwise[0, i, j] = T_i_to_j
+                    pairwise[0, i, j] = (
+                        np.linalg.inv(T_agent_to_world[j])
+                        @ T_agent_to_world[i]
+                    )
 
         return torch.from_numpy(pairwise).float().cuda()
 
@@ -733,14 +760,16 @@ class WorldFusionEdge(_BaseEdgeManager):
         # to avoid falling back to VoxelPostprocessor (see lines 191-206)
         anchor_box_np = self.post_processor.generate_anchor_box()
 
-        # lidar_pose: array of agent poses, shape (N, 6) where 6 = [x,y,z,roll,yaw,pitch]
-        lidar_pose_np = np.array([self.world_anchor])  # Use world anchor as reference pose
+        # lidar_pose: use origin since features are fused in RSU-local frame
+        # and anchor boxes are generated centered at origin. The RSU world
+        # position offset is added after corner_to_center.
+        lidar_pose_np = np.array([[0, 0, 0, 0, 0, 0]])
 
         data_dict_for_post = {
             'ego': {
                 'anchor_box': torch.from_numpy(anchor_box_np).cuda(),
                 'transformation_matrix': torch.eye(4).cuda(),
-                'world_anchor': [self.world_anchor],  # List containing the anchor pose
+                'world_anchor': [[0, 0, 0, 0, 0, 0]],  # Origin: features are in RSU-local frame
                 'lidar_pose': lidar_pose_np,  # Agent poses array
             }
         }
@@ -765,77 +794,19 @@ class WorldFusionEdge(_BaseEdgeManager):
 
         boxes_7dof = box_utils.corner_to_center(box_corners_np, order='hwl')
 
-        # boxes_7dof format: [x, y, z, h, w, l, yaw] in local BEV grid frame
-        # Debug: print local coordinates BEFORE transform
-        print(f"\n[COORD DEBUG] World anchor: x={self.world_anchor[0]:.2f}, y={self.world_anchor[1]:.2f}")
-        for i in range(min(len(boxes_7dof), 3)):
-            local_x, local_y, local_yaw = boxes_7dof[i, 0], boxes_7dof[i, 1], boxes_7dof[i, 6]
-            print(f"[COORD DEBUG] Det {i} LOCAL: x={local_x:.2f}, y={local_y:.2f}, yaw={np.degrees(local_yaw):.1f}deg (should match vehicle offset from anchor)")
-
-        # DEBUG: Check what CARLA actors exist at detected positions vs actual vehicle positions
-        print(f"\n[CARLA ACTORS] Checking what's actually in the scene:")
-        try:
-            # Find all vehicles in CARLA
-            actors = self.world.get_actors()
-            vehicles_in_scene = []
-            for actor in actors:
-                if 'vehicle' in actor.type_id.lower():
-                    loc = actor.get_location()
-                    # Compute LOCAL position (relative to world anchor)
-                    local_x = loc.x - self.world_anchor[0]
-                    local_y = loc.y - self.world_anchor[1]
-                    vehicles_in_scene.append({
-                        'type': actor.type_id,
-                        'id': actor.id,
-                        'x': loc.x, 'y': loc.y, 'z': loc.z,
-                        'local_x': local_x, 'local_y': local_y
-                    })
-                    vname = actor.type_id.split('.')[-1]
-                    print(f"[CARLA ACTORS] {vname}: world=({loc.x:.1f}, {loc.y:.1f}), LOCAL=({local_x:.1f}, {local_y:.1f}), z={loc.z:.1f}")
-
-            # Compare detections with actual vehicles (using LOCAL coords)
-            print(f"\n[DETECTION VS REALITY] Comparing {len(boxes_7dof)} detections with {len(vehicles_in_scene)} vehicles:")
-            for i in range(len(boxes_7dof)):
-                det_local_x = boxes_7dof[i, 0]  # Already in LOCAL coords (before anchor offset)
-                det_local_y = boxes_7dof[i, 1]
-
-                # Find closest actual vehicle using LOCAL coordinates
-                min_dist = float('inf')
-                closest_vehicle = None
-                offset_x, offset_y = 0, 0
-                for v in vehicles_in_scene:
-                    dist = np.sqrt((v['local_x'] - det_local_x)**2 + (v['local_y'] - det_local_y)**2)
-                    if dist < min_dist:
-                        min_dist = dist
-                        closest_vehicle = v
-                        offset_x = det_local_x - v['local_x']
-                        offset_y = det_local_y - v['local_y']
-
-                if closest_vehicle:
-                    vname = closest_vehicle['type'].split('.')[-1]
-                    status = "MATCH" if min_dist < 5.0 else f"OFFSET {min_dist:.1f}m"
-                    print(f"[DETECTION VS REALITY] Det {i}: LOCAL=({det_local_x:.1f}, {det_local_y:.1f}), score={scores_np[i]:.3f}")
-                    print(f"[DETECTION VS REALITY]   -> Closest: {vname} at LOCAL=({closest_vehicle['local_x']:.1f}, {closest_vehicle['local_y']:.1f})")
-                    print(f"[DETECTION VS REALITY]   -> ERROR: dx={offset_x:+.1f}m, dy={offset_y:+.1f}m, dist={min_dist:.1f}m - {status}")
-
-        except Exception as e:
-            import traceback
-            print(f"[CARLA ACTORS] Error: {e}")
-            traceback.print_exc()
-
-        # Model output is ALREADY in CARLA's coordinate convention (left-handed, Y right)
-        # No coordinate flip needed - just add anchor offset
-        # (Previous Y/yaw negation was incorrect)
-
-        # Now add world anchor offset to get CARLA world coordinates
-        boxes_7dof[:, 0] += self.world_anchor[0]  # x
-        boxes_7dof[:, 1] += self.world_anchor[1]  # y
-        boxes_7dof[:, 2] += self.world_anchor[2]  # z
-
-        # Debug: print world coordinates AFTER adding anchor offset
-        for i in range(min(len(boxes_7dof), 3)):
-            world_x, world_y, world_yaw = boxes_7dof[i, 0], boxes_7dof[i, 1], boxes_7dof[i, 6]
-            print(f"[COORD DEBUG] Det {i} CARLA WORLD: x={world_x:.2f}, y={world_y:.2f}, yaw={np.degrees(world_yaw):.1f}deg (should match vehicle CARLA pos)")
+        # Detections are in the RSU's local frame (agent 0). To convert to
+        # CARLA world coordinates, add the RSU's actual world position.
+        # Use the RSU pose from the latest tick, not the static world_anchor
+        # config, since the RSU localizer reports the actual position.
+        rsu_pose = self.world_anchor  # fallback
+        if self.rsu_manager_list:
+            rsu_loc = self.rsu_manager_list[0].localizer.get_ego_pos()
+            if rsu_loc is not None:
+                rsu_pose = [rsu_loc.location.x, rsu_loc.location.y,
+                            rsu_loc.location.z, 0, rsu_loc.rotation.yaw, 0]
+        boxes_7dof[:, 0] += rsu_pose[0]
+        boxes_7dof[:, 1] += rsu_pose[1]
+        boxes_7dof[:, 2] += rsu_pose[2]
 
         # Reorder columns for AB3DMOT's required format (h,w,l,x,y,z,ry,score)
         # Score is appended as column 8 so Box3D.array2bbox_raw sets bbox.s correctly;
@@ -1884,6 +1855,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 - perform_txt: Text summary for log file
                 - metrics: Dict of metrics for global_metrics
         """
+        if self.is_proxy:
+            return None, "", self._proxy_metrics
         fig, txt, metrics = self.profiler.get_evaluation_result()
         metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
         metrics.update(self._get_latency_component_stats())

@@ -25,6 +25,7 @@ sys.path.insert(0, os.getcwd())
 
 from ecav.version import __version__
 from ecav.ecav2.arg_utils import build_arg_parser
+from ecav.utils import find_unpicklable
 from ecav.core.common.cav_world import CavWorld
 from ecav.core.common.vehicle_manager import VehicleManager
 from ecav.core.common.rsu_manager import RSUManager
@@ -374,19 +375,35 @@ class Ecav2ActorClient:
 
     #TODO: move to eCloudClient
     async def send_vehicle_update(self, vehicle_update_):
-        logger.debug("send_vehicle_update: sending")
+        actor_label = "VEHICLE" if self.actor_type == ecloud.ActorType.VEHICLE else "RSU"
+        logger.debug("[DATA_FLOW] tick=%d %s %d outgoing: state=%s features=%db objects=%db carla_id=%d",
+                     vehicle_update_.tick_id, actor_label, self.vehicle_index,
+                     vehicle_update_.vehicle_state,
+                     len(vehicle_update_.pickled_features),
+                     len(vehicle_update_.pickled_agent_objects),
+                     vehicle_update_.carla_actor_id)
 
         if self.connected_to_edge:
             # Send to edge, receive fused predictions in response
             assert self.edge_stub is not None, "edge stub not initialized"
             object_buffer = await self.edge_stub.Edge_ActorSendUpdate(vehicle_update_)
-            logger.debug("send_vehicle_update: sent to edge, received fused predictions")
 
             # Process fused predictions if available
             if object_buffer and object_buffer.pickled_edge_predictions:
                 preds = pickle.loads(object_buffer.pickled_edge_predictions)
+                n_preds = len(preds.get('vehicles', [])) if isinstance(preds, dict) else 0
+                logger.debug("[DATA_FLOW] tick=%d %s %d edge_predictions: %d objects",
+                             vehicle_update_.tick_id, actor_label, self.vehicle_index, n_preds)
                 if self.actor_type == ecloud.ActorType.VEHICLE and self.vehicle_manager:
                     self.vehicle_manager.agent.edge_predictions = preds
+            else:
+                logger.debug("[DATA_FLOW] tick=%d %s %d edge_predictions: empty",
+                             vehicle_update_.tick_id, actor_label, self.vehicle_index)
+                if (self.opt.apply_ml and self.connected_to_edge
+                        and vehicle_update_.tick_id > 3
+                        and self.actor_type == ecloud.ActorType.VEHICLE):
+                    logger.warning("[DATA_FLOW] tick=%d %s %d: no edge predictions after warmup",
+                                   vehicle_update_.tick_id, actor_label, self.vehicle_index)
             return object_buffer
         else:
             # Send directly to orchestrator (existing behavior)
@@ -441,6 +458,8 @@ class Ecav2ActorClient:
 
             vehicle_update.actor_type = self.actor_type
             vehicle_update.tick_id = self.tick_id
+            if self.actor_type == ecloud.ActorType.VEHICLE:
+                vehicle_update.carla_actor_id = self.vehicle_manager.vehicle.id
             try:
                 if self.actor_type == ecloud.ActorType.VEHICLE:
                     self.vehicle_manager.agent.objects["traffic_lights"] = []
@@ -449,25 +468,14 @@ class Ecav2ActorClient:
                     self.rsu_manager.objects["traffic_lights"] = []
                     vehicle_update.pickled_agent_objects = pickle.dumps(self.rsu_manager.objects)
             except Exception as e:
-                print(f"Error serializing objects: {e}", flush=True)
-                def find_unpicklable(obj, path=""):
-                    try:
-                        pickle.dumps(obj)
-                        return None  # Object is picklable
-                    except Exception as e:
-                        print(f"Failed to pickle {path}: {e}")
-                        if hasattr(obj, '__dict__'):
-                            for key, value in obj.__dict__.items():
-                                result = find_unpicklable(value, f"{path}.{key}")
-                                if result is not None:
-                                    return result  # Found the unpicklable item
-                        return obj  # This object itself is unpicklable
-                if self.actor_type == ecloud.ActorType.VEHICLE:
-                    for o in self.vehicle_manager.agent.objects:
-                        print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
-                else:
-                    for o in self.rsu_manager.objects:
-                        print(find_unpicklable(o, path=f"preds[{type(o).__name__}]"), flush=True)
+                logger.error("Error serializing objects: %s", e)
+                objects = (self.vehicle_manager.agent.objects
+                           if self.actor_type == ecloud.ActorType.VEHICLE
+                           else self.rsu_manager.objects)
+                for o in objects:
+                    bad = find_unpicklable(o, path=f"preds[{type(o).__name__}]")
+                    if bad is not None:
+                        logger.error("Unpicklable object: %s", bad)
             t_pickle_objects = time.time()
 
             # Send intermediate features for WorldFusion/BM2CP
@@ -523,6 +531,20 @@ class Ecav2ActorClient:
             else:
                 vehicle_update.vehicle_state = ecloud.VehicleState.TICK_OK
 
+            if (self.actor_type == ecloud.ActorType.VEHICLE
+                    and vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE):
+                metrics = {
+                    'planning_metrics': self.vehicle_manager.agent.planning_metrics,
+                    'client_metrics': self.vehicle_manager.client_metrics,
+                    'vehicles_detected': self.vehicle_manager.vehicles_detected,
+                }
+                vehicle_update.pickled_actor_metrics = pickle.dumps(metrics)
+                n_brake_attrs = len(getattr(self.vehicle_manager.agent.planning_metrics, 'brake_attributions', []))
+                n_collisions = len(getattr(self.vehicle_manager.client_metrics, 'collisions_event_list', []))
+                logger.info("[DATA_FLOW] tick=%d VEHICLE %d: serialized actor metrics on TICK_DONE "
+                            "(brake_attrs=%d, collisions=%d)",
+                            self.tick_id, self.vehicle_index, n_brake_attrs, n_collisions)
+
         # block waiting for a response
         t_pre_send = time.time()
         if not self.reported_done or self.done_behavior == eDoneBehavior.CONTROL:
@@ -559,20 +581,22 @@ class Ecav2ActorClient:
                 self.pong.command = ecloud.Command.TICK
 
             elif self.pong.command == ecloud.Command.PULL_OBJECTS_AND_TICK:
-                t_pull_start = time.time()
-                obj_request = ecloud.ObjectRequest()
-                obj_request.vehicle_index = self.vehicle_index
-
-                object_proto = await self.ecloud_server.Client_GetObjects(obj_request)
-
-                preds = pickle.loads(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
-                if self.actor_type == ecloud.ActorType.VEHICLE:
-                    self.vehicle_manager.agent.edge_predictions = preds
+                if self.connected_to_edge:
+                    # Edge mode: predictions already set inline via Edge_ActorSendUpdate response.
+                    # Client_GetObjects would hit the C++ orchestrator (which has no fused data)
+                    # and overwrite the edge-provided predictions with empty.
+                    pass
                 else:
-                    pass # don't have a scenario yet where the RSU gets edge predictions
+                    t_pull_start = time.time()
+                    obj_request = ecloud.ObjectRequest()
+                    obj_request.vehicle_index = self.vehicle_index
+                    object_proto = await self.ecloud_server.Client_GetObjects(obj_request)
+                    preds = pickle.loads(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
+                    if self.actor_type == ecloud.ActorType.VEHICLE:
+                        self.vehicle_manager.agent.edge_predictions = preds
+                    t_pull_end = time.time()
+                    logger.debug("[CLIENT %s] pull_objects=%.0fms", actor_label, (t_pull_end - t_pull_start) * 1000)
                 self.pong.command = ecloud.Command.TICK
-                t_pull_end = time.time()
-                print(f"[CLIENT {actor_label}] pull_objects={(t_pull_end-t_pull_start)*1000:.0f}ms", flush=True)
 
             # HANDLE END
             elif self.pong.command == ecloud.Command.END:

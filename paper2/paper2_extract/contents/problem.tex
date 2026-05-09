@@ -1,0 +1,63 @@
+\section{Problem Setting}
+\label{sec:problem}
+
+\subsection{V2V Intermediate Fusion is Infeasible at Dense Scale}
+
+Intermediate fusion requires each vehicle to transmit a compressed
+Bird's Eye View (BEV) feature map to its peers.  Even after
+post-backbone compression (256$\times$ ratio, yielding
+$\sim$17\,KB per vehicle), the aggregate sidelink demand at 10\,Hz with
+$N$ agents scales as $O(N^2)$ because every agent broadcasts to every
+other.  At $N=40$ and 17\,KB payloads, total sidelink demand reaches
+$\sim$54\,Mbps, exceeding C-V2X PC5 capacity ($\sim$50\,Mbps) and
+triggering MAC-layer collapse.
+
+We validate with ns-3 5G-LENA NR~V2X Mode~2 simulations.
+For uncompressed 200\,KB intermediate features, the Packet Reception
+Ratio (PRR) is exactly zero at every $N$: a single feature map exceeds
+the sidelink transport block size.  Even with 17\,KB compressed payloads,
+PRR degrades from 0.30 at $N=2$ to 0.006 at $N=64$.  The finding is
+categorical: V2V intermediate fusion at dense scale is physically
+unviable.
+
+\subsection{Edge Placement Resolves Bandwidth, Introduces Deadline Cliff}
+
+Centralizing fusion on an edge server connected via 5G NR Uu uplinks
+eliminates the $O(N^2)$ broadcast problem: each vehicle uploads once,
+and the edge returns a lightweight object list ($\sim$5\,KB).
+Uu scheduled access provides contention-free bandwidth sharing that
+scales gracefully with $N$.
+
+The edge pipeline, however, operates under a planner deadline
+$D$ (typically 100\,ms at 10\,Hz).  We define:
+\begin{itemize}
+  \item \textbf{Generation time ($t_{\mathrm{gen}}$):} sensor
+    sampling instant.
+  \item \textbf{Publish time ($t_{\mathrm{pub}}$):} instant the edge
+    broadcasts the world model update.
+  \item \textbf{Use time ($t_{\mathrm{use}}$):} instant the ego
+    vehicle's planner ingests the state.
+\end{itemize}
+The Age-of-Information at use is
+$\Delta_{\mathrm{use}} = t_{\mathrm{use}} - t_{\mathrm{gen}}$.
+A \textbf{deadline miss} occurs when $\Delta_{\mathrm{use}} > D$.
+
+When the total edge compute time $T_{\mathrm{compute}}(N)$ exceeds
+$D$, cross-stage queueing drives $\Delta_{\mathrm{use}}$ unboundedly
+upward.  On our hardware (\cref{sec:eval}), the static pipeline
+crosses 100\,ms at $N \approx 10$.
+
+\subsection{Planner-Aware Utility}
+
+We define a risk-weighted, deadline-qualified utility to drive the
+adaptive controller (\cref{sec:controller}):
+\begin{equation}
+  U(K, \mathbf{x}) = \sum_{i=1}^{M} r_i \cdot q_i(x_i, a_i)
+  \label{eq:utility}
+\end{equation}
+where $r_i$ is the continuous risk score of tracked object $i$
+(\cref{ssec:risk}), $q_i$ is the prediction quality (1.0 for fresh
+MTR inference, decaying with cache age $a_i$, floor $q_{\mathrm{lin}}
+\approx 0.3$ for linear extrapolation), and utility is implicitly zero
+when $T_{\mathrm{compute}} > D$ because no predictions reach the
+planner in time.

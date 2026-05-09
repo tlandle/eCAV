@@ -2,6 +2,7 @@
 
 # Prompt for scenario name
 read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
+read -p "Enable verbose/debug logging (y/N)? " use_verbose
 
 if [[ -z "$scenario_name" ]]; then
     echo "Error: Scenario name cannot be empty"
@@ -239,8 +240,15 @@ if [[ "$use_ml" = "Y" || "$use_ml" = "y" ]]; then
 fi
 
 litserve_flag=""
+wf_grpc_env=""
 if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     litserve_flag="-l"
+    wf_grpc_env="-e WF_GRPC_ENDPOINT=localhost:18002"
+fi
+
+verbose_flag=""
+if [[ "$use_verbose" = "Y" || "$use_verbose" = "y" ]]; then
+    verbose_flag="--verbose"
 fi
 
 echo ""
@@ -254,6 +262,7 @@ echo "Edges: $num_edges"
 echo "ML enabled: $use_ml"
 echo "WorldFusion gRPC: $use_litserve"
 echo "YOLO gRPC: $use_yolo_grpc"
+echo "Verbose: $use_verbose"
 echo "=========================================="
 echo ""
 
@@ -300,7 +309,7 @@ echo "  Log file: $ECAV_LOG"
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
 _CONDA_ROOT="/home/jordan/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag > '$ECAV_LOG' 2>&1" &
+bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
 ECAV_PID=$!
 
 echo "  ✓ Base process started (PID: $ECAV_PID)"
@@ -395,13 +404,14 @@ do
         --name="$container_name" \
         -e "HOSTNAME=$container_name" \
         -e IS_DOCKER=1 \
+        $wf_grpc_env \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
         -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
         -e DISPLAY=$DISPLAY \
         -e TERM \
         -e QT_X11_NO_MITSHM=1 \
         ecav-python310:latest \
-        python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i $i -T $((8000 + i))
+        python3.10 -u ecav.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -d -i $i -T $((8000 + i))
 
     echo "  ✓ $container_name started"
     wait_for_container_log "$container_name" "Registered with" 90 || exit 1
@@ -421,11 +431,12 @@ if [[ $num_rsu -gt 0 ]]; then
             --name="$container_name" \
             -e "HOSTNAME=$container_name" \
             -e IS_DOCKER=1 \
+            $wf_grpc_env \
             -v /tmp/.X11-unix:/tmp/.X11-unix \
             -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
-            python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
+            python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -i $i
 
         echo "  ✓ $container_name started"
         wait_for_container_log "$container_name" "Registered with" 90 || exit 1
@@ -448,7 +459,7 @@ docker run $gpu_flag -d \
     -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
     -e DISPLAY=$DISPLAY \
     ecav-python310:latest \
-    python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i -1 -T 8100
+    python3.10 -u ecav.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -d -i -1 -T 8100
 
 echo "  ✓ $container_name started"
 

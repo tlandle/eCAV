@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Paper 1: Real-data plots from sweep 20260311_162505.
+Safety Envelope paper: data-sweep loader and figure generator.
 
-Generates figures matching the synthetic plot format using actual simulation
-metrics. Format matches paper1_synthetic_plots.py exactly.
+Loads simulation_metrics.json files from a sweep directory, re-derives
+focal-ego safety indicators via compute_run_metrics, and emits the v37
+paper figures.
 
 Usage:
     cd /home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox
@@ -17,7 +18,7 @@ import numpy as np
 import json
 import os
 
-# ── Style (match synthetic) ──────────────────────────────────────────
+# ── Style ────────────────────────────────────────────────────────────
 plt.rcParams.update({
     'font.size': 9, 'axes.labelsize': 9, 'axes.titlesize': 10,
     'legend.fontsize': 7, 'xtick.labelsize': 8, 'ytick.labelsize': 8,
@@ -66,11 +67,8 @@ FAIL_LABELS = {
 }
 
 OUT_REAL = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        'paper1_figures_real')
-OUT_COMPARE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                           'paper1_figures_comparison')
+                        'figures_real')
 os.makedirs(OUT_REAL, exist_ok=True)
-os.makedirs(OUT_COMPARE, exist_ok=True)
 
 
 def _key(mgr, anch):
@@ -106,7 +104,7 @@ def load_sweep(sweep_dirs=None, focal_ego_only=True):
     if sweep_dirs is None:
         sweep_dirs = [os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            'opencda/scenario_testing/evaluation_outputs/20260311_230618')]
+            'ecav/scenario_testing/evaluation_outputs/20260311_230618')]
     if isinstance(sweep_dirs, str):
         sweep_dirs = [sweep_dirs]
 
@@ -588,111 +586,36 @@ def fig12_system_overhead(runs):
 
 
 # ══════════════════════════════════════════════════════════════════════
-# COMPARISON HELPER
-# ══════════════════════════════════════════════════════════════════════
-
-def make_comparison(fig_name, real_name=None):
-    from PIL import Image, ImageDraw
-
-    if real_name is None:
-        real_name = fig_name
-
-    synth_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                              'paper1_figures_synthetic', f'{fig_name}.png')
-    real_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                            'paper1_figures_real_aligned')
-    real_path = os.path.join(real_dir, f'{real_name}.png')
-
-    if not os.path.exists(synth_path):
-        print(f"    Missing synthetic: {synth_path}")
-        return
-    if not os.path.exists(real_path):
-        print(f"    Missing real: {real_path}")
-        return
-
-    synth = Image.open(synth_path)
-    real = Image.open(real_path)
-
-    target_h = max(synth.height, real.height)
-    if synth.height != target_h:
-        ratio = target_h / synth.height
-        synth = synth.resize((int(synth.width * ratio), target_h), Image.LANCZOS)
-    if real.height != target_h:
-        ratio = target_h / real.height
-        real = real.resize((int(real.width * ratio), target_h), Image.LANCZOS)
-
-    gap = 20
-    combined = Image.new('RGB', (synth.width + real.width + gap, target_h + 30), (255, 255, 255))
-    combined.paste(synth, (0, 30))
-    combined.paste(real, (synth.width + gap, 30))
-
-    draw = ImageDraw.Draw(combined)
-    draw.text((synth.width // 2 - 30, 5), "SYNTHETIC", fill='black')
-    draw.text((synth.width + gap + real.width // 2 - 30, 5), "REAL DATA", fill='black')
-
-    combined.save(os.path.join(OUT_COMPARE, f'{fig_name}_compare.png'))
-    print(f"    {fig_name}_compare.png")
-
-
-# ══════════════════════════════════════════════════════════════════════
 # MAIN
 # ══════════════════════════════════════════════════════════════════════
 
 def main():
-    import sys as _sys
-    compare_only = '--compare-only' in _sys.argv
+    print("Loading sweep data...")
+    runs = load_sweep()
+    print(f"  {len(runs)} runs loaded")
 
-    if not compare_only:
-        print("Loading sweep data...")
-        runs = load_sweep()
-        print(f"  {len(runs)} runs loaded")
+    mgrs_found = sorted(set(k[0] for k in runs))
+    print(f"  Managers: {mgrs_found}")
 
-        mgrs_found = sorted(set(k[0] for k in runs))
-        print(f"  Managers: {mgrs_found}")
+    print("\nGenerating figures...")
+    fig1_sop_vs_latency(runs)
+    print("  fig1_sop_vs_latency")
+    fig2_failure_decomposition(runs)
+    print("  fig2_failure_decomposition")
+    fig3_first_failure_stacked(runs)
+    print("  fig3_first_failure_stacked")
+    fig4_oracle_isolation(runs)
+    print("  fig4_oracle_isolation")
+    fig5_aoi_cdf(runs)
+    print("  fig5_aoi_cdf")
+    fig8_brake_provenance(runs)
+    print("  fig8_brake_provenance")
+    fig9_brake_episodes_per_km(runs)
+    print("  fig9_brake_episodes_per_km")
+    fig12_system_overhead(runs)
+    print("  fig12_system_overhead")
 
-        print("\nGenerating real-data figures...")
-        fig1_sop_vs_latency(runs)
-        print("  fig1_sop_vs_latency")
-        fig2_failure_decomposition(runs)
-        print("  fig2_failure_decomposition")
-        fig3_first_failure_stacked(runs)
-        print("  fig3_first_failure_stacked")
-        fig4_oracle_isolation(runs)
-        print("  fig4_oracle_isolation")
-        fig5_aoi_cdf(runs)
-        print("  fig5_aoi_cdf")
-        fig8_brake_provenance(runs)
-        print("  fig8_brake_provenance")
-        fig9_brake_episodes_per_km(runs)
-        print("  fig9_brake_episodes_per_km")
-        fig12_system_overhead(runs)
-        print("  fig12_system_overhead")
-
-        print(f"\nReal figures saved to: {OUT_REAL}/")
-
-    print("\nGenerating side-by-side comparisons...")
-    # Mapping: (synthetic_name, real_aligned_name)
-    # Real aligned single-ego figures have _ego1 suffix
-    comparison_pairs = [
-        ('fig1_sop_vs_latency',        'fig1_sop_vs_latency_ego1'),
-        ('fig2_failure_decomposition', 'fig2_failure_decomposition_ego1'),
-        ('fig3_first_failure_stacked', 'fig3_first_failure_stacked_ego1'),
-        ('fig4_oracle_isolation',      'fig4_oracle_isolation_ego1'),
-        ('fig5_aoi_cdf',              'fig5_aoi_cdf'),
-        ('fig8_brake_provenance',     'fig8_brake_provenance_ego1'),
-        ('fig9_brake_episodes_per_km', 'fig9_brake_episodes_per_km_ego1'),
-        ('fig12_system_overhead',     'fig12_system_overhead_ego1'),
-        ('fig6_multi_ego_scaling',    'fig6_multi_ego_scaling'),
-        ('fig14_ego_uniqueness',      'fig14_ego_uniqueness'),
-        ('fig16_envelope_boundary',   'fig16_envelope_boundary'),
-    ]
-    try:
-        for synth_name, real_name in comparison_pairs:
-            make_comparison(synth_name, real_name)
-        print(f"Comparisons saved to: {OUT_COMPARE}/")
-    except ImportError:
-        print("  PIL not available, skipping comparisons")
-
+    print(f"\nFigures saved to: {OUT_REAL}/")
     print("\nDone.")
 
 

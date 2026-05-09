@@ -1,0 +1,43 @@
+\begin{algorithm}[t]
+\footnotesize                      
+\caption{Edge Data Fusion with Self-Beacon Anchoring}
+\label{alg:edge_preprocess}
+\begin{algorithmic}[1]
+\Procedure{FuseDetections}{$\mathsf{AllDetections},\mathsf{FrameID}$}
+
+  % ----------- STEP 1 --------------------------------------------------
+  \Statex                                     % ← no line-number
+  \Statex\textit{/* Step 1 — insert authoritative beacons */}
+  \State $\mathsf{MasterList} \gets [\,]$
+  \State $\mathsf{BeaconList} \gets \textsc{ExtractBeacons}(\mathsf{AllDetections})$
+  \ForAll{$b \in \mathsf{BeaconList}$}
+      \State $\mathsf{MasterList}\!\cdot\!\textsc{Add}(b)$
+  \EndFor
+
+  % ----------- STEP 2 --------------------------------------------------
+  \Statex                                     % blank un-numbered spacer
+  \Statex\textit{/* Step 2 — filter sensor detections */}
+  \State $\mathsf{SensorList} \gets \textsc{ExtractSensors}(\mathsf{AllDetections})$
+  \ForAll{$d \in \mathsf{SensorList}$}
+      \If{\textsc{IsSliver}$(d)$}
+          \State \textbf{continue}
+      \EndIf
+      \State $\textit{dup} \gets \textbf{false}$
+      \ForAll{$b \in \mathsf{BeaconList}$}
+          \If{$\textsc{IoU}(d,b) > \tau$}
+              \State $\textit{dup} \gets \textbf{true};\ \textbf{break}$
+          \EndIf
+      \EndFor
+      \If{\textbf{not}\ \textit{dup}}
+          \State $\mathsf{MasterList}\!\cdot\!\textsc{Add}(d)$
+      \EndIf
+  \EndFor
+
+  % ----------- STEP 3 --------------------------------------------------
+  \Statex                                     % spacer again
+  \Statex\textit{/* Step 3 — track */}
+  \State \Return $\textsc{AB3DMOT.Track}(\mathsf{MasterList})$
+\EndProcedure
+\end{algorithmic}
+\vspace{3mm}
+\end{algorithm}

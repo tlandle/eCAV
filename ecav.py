@@ -149,6 +149,7 @@ def main():
         scene_dict = OmegaConf.load(config_yaml)
         # merge the dictionaries
         scene_dict = OmegaConf.merge(default_dict, scene_dict)
+        scene_dict['scenario_name'] = opt.test_scenario
 
     assert scene_dict is not None, "scene_dict is not initialized!"
     scene_dict.scenario_runner.distributed = opt.distributed

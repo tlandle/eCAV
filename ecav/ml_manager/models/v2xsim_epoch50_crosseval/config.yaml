@@ -1,0 +1,195 @@
+# Cross-dataset eval: V2XSim-trained WorldFusion on Multi-V2X (car-only)
+# Uses V2XSim spatial ranges (80m grid) to match trained model architecture.
+# Multi-V2X points are cropped to this range at load time.
+
+name: worldfusion_multiv2x_crosseval
+
+root_dir:       "/data1/Datasets/Multi-V2X"
+validate_dir:   "/data1/Datasets/Multi-V2X"
+car_only:       true
+
+yaml_parser:    "load_cross_modal_point_pillar_params"
+
+train_params:
+  batch_size:   1
+  epoches:      50
+  eval_freq:    2
+  save_freq:    2
+  max_cav:      &max_cav 5
+
+comm_range: 70
+
+noise_setting:
+  add_noise: false
+  args:
+    pos_std: 0.2
+    rot_std: 0.2
+    pos_mean: 0
+    rot_mean: 0
+
+input_source:     ['lidar']
+label_type:       'lidar'
+
+# V2XSim spatial ranges (80m x 80m, matching trained model)
+world_lidar_range: &world_range [-40, -40, -3, 40, 40, 1]
+cav_lidar_range:   &cav_range   [-140.8, -38.4, -3, 140.8, 38.4, 1]
+
+preprocess:
+  core_method:  'SpVoxelPreprocessor'
+  cav_lidar_range: *world_range
+  args:
+    voxel_size:           &voxel_size [0.4, 0.4, 4]
+    max_points_per_voxel: 32
+    max_voxel_train:      32000
+    max_voxel_test:       70000
+    cav_lidar_range: *world_range
+
+fusion:
+  core_method: 'MultiV2XIntermediateFusionDataset'
+  args:
+    proj_first: false
+    cur_ego_pose_flag: true
+
+data_augment:
+  - NAME: random_world_flip
+    ALONG_AXIS_LIST: [ 'x' ]
+  - NAME: random_world_rotation
+    WORLD_ROT_ANGLE: [ -0.78539816, 0.78539816 ]
+  - NAME: random_world_scaling
+    WORLD_SCALE_RANGE: [ 0.95, 1.05 ]
+
+postprocess:
+  core_method: 'VoxelPostprocessor'
+  gt_range: *world_range
+  anchor_args:
+    cav_lidar_range: *cav_range
+    canvas_size_m: 80
+    canvas_res: 0.4
+    l: [3.9, 3.9]
+    w: [1.6, 1.6]
+    h: [1.56, 1.56]
+    r: [0, 90]
+    num: &anchor_num 2
+    feature_stride: 2
+  target_args:
+    pos_threshold:   0.6
+    neg_threshold:   0.45
+    score_threshold: 0.2
+  order:    'hwl'
+  max_num: 150
+  nms_thresh: 0.15
+  dir_args: &dir_args
+    dir_offset: 0.7853
+    num_bins:   2
+    anchor_yaw: [0,90]
+
+model:
+  core_method: point_pillar_worldfusion
+  args:
+    device:           cuda
+    supervise_single: False
+    backbone_fix:     False
+    anchor_number:    *anchor_num
+    outc:             256
+    voxel_size:       *voxel_size
+    lidar_range:      *world_range
+
+    img_params:
+      grid_conf:
+        xbound: [-40, 40, 0.4]
+        ybound: [-40, 40, 0.4]
+        zbound: [-10, 10, 20]
+        ddiscr: [2, 50, 48]
+        mode: 'LID'
+      data_aug_conf:
+        resize_lim: [0.7, 0.8]
+        final_dim: [256, 352]
+        rot_lim: [0, 0]
+        h: 600
+        w: 800
+        rand_flip: False
+        bot_pct_lim: [0.0, 0.20]
+        cams: ['cameraFront','cameraRear','cameraLeft','cameraRight']
+        Ncams: 4
+      img_downsample: 8
+      bev_dim: 64
+      use_depth_gt: False
+      depth_supervision: False
+
+    pc_params:
+      voxel_size: *voxel_size
+      lidar_range: *world_range
+      pillar_vfe:
+        use_norm:         True
+        with_distance:    False
+        use_absolute_xyz: True
+        num_filters:      [64]
+      point_pillar_scatter:
+        num_features:     64
+
+    modality_fusion:
+      bev_backbone:
+        encode_first: False
+        multi_scale:  True
+        layer_nums:         [3,4,5]
+        layer_strides:      [2,2,2]
+        num_filters:        [64,128,256]
+        upsample_strides:   [1,2,4]
+        num_upsample_filter: [128,128,128]
+        voxel_size:         *voxel_size
+
+      shrink_header:
+        use:        True
+        input_dim:  384
+        dim:        [256]
+        kernal_size: [3]
+        stride:      [1]
+        padding:     [1]
+
+      compression: 0
+
+    fusion_args:
+      fully:           false
+      voxel_size:      *voxel_size
+      downsample_rate: 1
+      in_channels:     256
+      multi_scale:     true
+      layer_nums:      [3,4,5]
+      num_filters:     [64,128,256]
+      communication:
+        round: 1
+        threshold: 0.01
+        gaussian_smooth:
+          k_size: 5
+          c_sigma: 1.0
+      agg_operator:
+        mode: 'ATTEN'
+        feature_dim: 256
+        multi_scale: true
+        layer_nums: [3,4,5]
+        num_filters: [64,128,256]
+
+    canvas_res:    0.4
+    canvas_size_m: 120
+
+    dir_args: *dir_args
+
+loss:
+  core_method: point_pillar_loss
+  args:
+    cls_weight: 1.0
+    reg: 2.0
+
+optimizer:
+  core_method: Adam
+  lr: 1e-4
+  args:
+    eps: 1e-10
+    weight_decay: 1e-2
+
+lr_scheduler:
+  core_method: cosineannealwarm
+  epoches: 50
+  warmup_lr: 1e-5
+  warmup_epoches: 3
+  lr_min: 5e-6

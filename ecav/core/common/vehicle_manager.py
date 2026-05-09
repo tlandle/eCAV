@@ -137,7 +137,8 @@ class VehicleManager(object):
             run_distributed=False,
             map_helper=None,
             is_edge=False,
-            perception_active=False):
+            perception_active=False,
+            is_proxy=False):
 
         # an unique uuid for this vehicle
         self.vid = str(uuid.uuid1())
@@ -146,6 +147,7 @@ class VehicleManager(object):
         self.vehicle_index = vehicle_index
         self.location_type = location_type
         self.run_distributed = run_distributed
+        self.is_proxy = is_proxy
         self.scenario_params = config_yaml
         self.carla_version = carla_version
         self.perception_active = perception_active
@@ -182,7 +184,7 @@ class VehicleManager(object):
 
         
 
-        if run_distributed == False:
+        if run_distributed == False or is_proxy:
             assert( carla_world is not None )
             self.world = carla_world
             self.carla_map = self.world.get_map()
@@ -198,7 +200,7 @@ class VehicleManager(object):
             else:
                 assert False, "no known vehicle indexing format found"
 
- 
+
         # eCLOUD BEGIN
 
         else: # run_distributed == True
@@ -493,14 +495,17 @@ class VehicleManager(object):
         self.controller = ControlManager(control_config)
         logger.debug("ControlManager created")
 
-        # Stats Gathering
-        blueprint = self.world.get_blueprint_library().find('sensor.other.collision')
-        self._collision_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
-        self._collision_sensor.listen(lambda event: self._count_collisions(weakref.ref(self), event))
+        # Stats Gathering — skipped for proxy VMs; sensors belong to the actor process
+        self._collision_sensor = None
+        self._lane_sensor = None
+        if not is_proxy:
+            blueprint = self.world.get_blueprint_library().find('sensor.other.collision')
+            self._collision_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
+            self._collision_sensor.listen(lambda event: self._count_collisions(weakref.ref(self), event))
 
-        blueprint = self.world.get_blueprint_library().find('sensor.other.lane_invasion')
-        self._lane_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
-        self._lane_sensor.listen(lambda event: self._count_lane_invasion(weakref.ref(self), event))
+            blueprint = self.world.get_blueprint_library().find('sensor.other.lane_invasion')
+            self._lane_sensor = self.world.spawn_actor(blueprint, carla.Transform(), attach_to=self.vehicle)
+            self._lane_sensor.listen(lambda event: self._count_lane_invasion(weakref.ref(self), event))
 
         if data_dumping:
             self.data_dumper = DataDumper(self.perception_manager,

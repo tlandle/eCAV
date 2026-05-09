@@ -1,3 +1,6 @@
+# Runtime-generated feature cache — sparse files, not for git or Docker
+ecav/ml_manager/models/multiv2x_mtr/multiv2x_fused_features_placeholder/
+
 __pycache__/
 *.py[cod]
 *$py.class
@@ -145,6 +148,7 @@ cython_debug/
 .idea
 #*.json
 *.csv
+!paper2/reproduce/data/*.csv
 output/
 outputs
 *.pt
@@ -185,6 +189,9 @@ ecav/ecloud_server/Makefile
 # Local environment configuration (user-specific paths)
 local.env
 
-.claude/
-
 logs/
+
+# Pretrained MTR checkpoint: too large for LFS, download separately
+ecav/ml_manager/models/mtr/best_model.pth
+
+.obsidian/workspace.json

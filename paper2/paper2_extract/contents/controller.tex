@@ -1,0 +1,148 @@
+\section{Adaptive Controller}
+\label{sec:controller}
+
+The controller operates at each tick with two decision variables:
+$K \in [1, N]$, the number of agents retained after input filtering,
+and $\mathbf{x} \in \{0,1\}^M$, a per-object binary indicating fresh
+MTR inference ($x_i=1$) or cached/linear prediction ($x_i=0$).
+Three mechanisms implement these decisions.
+
+\subsection{Mechanism 1: Input Contribution Filtering}
+
+When $N$ incoming agents exceed the budget-feasible count, the
+controller selects $K < N$ agents whose features contribute most to
+safety-critical detection.  Each agent $j$ is scored by:
+\begin{equation}
+  s_j = (1-\alpha-\beta)\,z_j + \alpha\,u_j + \beta\,o_j
+  \label{eq:contrib}
+\end{equation}
+where $z_j$ integrates the agent's detection confidence map over the
+ego-vehicle conflict zone (a 5-second planned-path corridor),
+$u_j$ measures the fraction of agent $j$'s field of view not covered by
+other selected agents, and $o_j$ is 1 if agent $j$ is the sole source
+for an occluded region.  We use $\alpha{=}0.2$, $\beta{=}0.3$.
+
+The controller searches candidate $K$ values $\{4, 8, 16, 24, 32, N\}$
+and selects the $K^*$ that maximizes estimated utility
+(\cref{eq:utility}) given the cost model (\cref{eq:cost}).
+This avoids the pitfall of selecting the largest feasible $K$, which
+would over-allocate budget to fusion at the expense of prediction.
+
+\subsection{Mechanism 2: Temporal Amortization}
+
+Not every tracked object requires fresh prediction each tick.
+The controller maintains a prediction cache keyed by track ID.
+Object $i$ is flagged \emph{divergent} if:
+\begin{equation}
+  \|\hat{p}_i(t) - p_i^{\mathrm{obs}}(t)\| >
+    \max\!\left(d_{\mathrm{floor}},\; v_i \cdot \tau\right)
+  \quad\text{or}\quad
+  |\hat{\theta}_i(t) - \theta_i^{\mathrm{obs}}(t)| > \theta_{\mathrm{thr}}
+  \label{eq:divergence}
+\end{equation}
+where $\hat{p}_i(t)$ is the cached prediction evaluated at the
+current tick, $p_i^{\mathrm{obs}}(t)$ is the Kalman-filtered observed
+position, $v_i$ is the object speed, $\tau = 0.1\,$s is the
+time-domain tolerance, $d_{\mathrm{floor}} = 0.5\,$m prevents
+re-prediction of stationary objects, and $\theta_{\mathrm{thr}}
+\approx 10\degree$.
+
+The velocity-normalized threshold $v_i \cdot \tau$ allows up to
+100\,ms of unmodeled velocity drift regardless of speed.  A maximum
+cache age forces refresh even for non-divergent objects.
+
+Objects not flagged divergent reuse their cached trajectory
+($q_i = q_{\mathrm{cache}}(a_i)$, decaying with age $a_i$).
+
+\subsection{Mechanism 3: Risk-Budgeted Scheduling}
+\label{ssec:risk}
+
+Among divergent objects, the controller allocates the residual
+prediction budget to those with highest risk.  The continuous risk
+score for object $i$ is:
+\begin{equation}
+  r_i = v_i \cdot \exp\!\left(-\frac{d_i}{d_{\mathrm{scale}}}\right)
+    \cdot \omega_i
+    \cdot \max\!\left(0,\; 1 - \frac{c_i}{r_{\mathrm{safe}}}\right)
+  \label{eq:risk}
+\end{equation}
+where $v_i$ is speed (from the Kalman filter), $d_i$ is distance to
+the nearest ego vehicle, $d_{\mathrm{scale}} = 20\,$m controls
+proximity decay, $\omega_i \in \{1.0, 2.0\}$ is an occlusion weight
+(2.0 if the object is visible only to an infrastructure sensor, not to
+any ego), and $c_i$ is the closest-approach distance between the
+object's predicted trajectory and any ego's planned path over a
+5-second horizon, with safety radius $r_{\mathrm{safe}} = 5\,$m.
+
+The scheduler ranks divergent objects by $r_i$ descending and greedily
+assigns $x_i = 1$ until the residual budget
+$B_{\mathrm{pred}} = D - C_{\mathrm{fixed}}(K)$ is exhausted, where
+$C_{\mathrm{fixed}}(K)$ is the measured (not estimated) cost of
+filtering, fusion, detection, and tracking for the current tick.
+Remaining divergent objects receive linear extrapolation
+($q_i = q_{\mathrm{lin}} \approx 0.3$).
+
+\subsection{Tracked-Object Count Estimator}
+
+The cost model requires an estimate of $M$ (tracked objects) before
+fusion and tracking actually run, to evaluate candidate $K$ values.
+We maintain a rolling window of recent $(K, M)$ observations and
+compute:
+\begin{equation}
+  \hat{M}(K) = \bar{\rho} \cdot K + \mathrm{slack}
+  \label{eq:mhat}
+\end{equation}
+where $\bar{\rho}$ is the mean tracks-per-agent ratio over the last 20
+ticks and $\mathrm{slack} = \max(0.1 \cdot \bar{\rho} \cdot K, 2)$
+provides headroom for workload spikes.  Cold start defaults to 4
+tracks per agent.
+
+\subsection{Rate Adaptation (Fallback)}
+
+If no candidate $K$ yields a feasible allocation (i.e., even $K=4$
+would exceed the deadline), the controller reduces the global
+processing rate: it skips $k-1$ out of every $k$ ticks, where
+$k \in \{2, 4, 5, 10\}$ is chosen from the p95 of recent compute
+times.  Rate adaptation is a last resort that trades temporal
+resolution for deadline compliance.
+
+\subsection{Algorithm Summary}
+
+\begin{algorithm}[t]
+\caption{Adaptive controller (per tick)}
+\label{alg:controller}
+\begin{algorithmic}[1]
+\Require $N$ agent features, deadline $D$, candidate $K$-set
+\If{rate fallback active and tick not scheduled}
+  \State \Return cached world model
+\EndIf
+\State Score agents by contribution (\cref{eq:contrib})
+\ForAll{$K \in \{4, 8, 16, 24, 32, N\}$}
+  \State $\hat{M} \gets$ estimator (\cref{eq:mhat})
+  \State $\hat{C}_{\mathrm{fix}} \gets c_{\mathrm{filt}}(N) + c_{\mathrm{fuse}}(K) + c_{\mathrm{det}} + c_{\mathrm{track}}(\hat{M})$
+  \If{$\hat{C}_{\mathrm{fix}} + c_{\mathrm{oh}} > D$} \textbf{skip} \EndIf
+  \State $B_{\mathrm{pred}} \gets D - \hat{C}_{\mathrm{fix}} - c_{\mathrm{oh}}$
+  \State Estimate utility $U(K, B_{\mathrm{pred}})$
+\EndFor
+\State $K^* \gets \arg\max_K U(K, B_{\mathrm{pred}})$
+\If{$K^* = \varnothing$} trigger rate fallback \EndIf
+\State Run fusion on top-$K^*$ agents
+\State Run detection and tracking
+\State Compute divergence gates (\cref{eq:divergence})
+\State $B_{\mathrm{res}} \gets D - C_{\mathrm{measured}}$ \Comment{actual residual}
+\State Rank divergent objects by risk $r_i$ (\cref{eq:risk})
+\State Greedily assign $x_i{=}1$ within $B_{\mathrm{res}}$
+\State Run MTR on selected objects; linear fallback for rest
+\State \Return updated world model
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{What the Controller Does Not Claim}
+
+The controller is a two-level greedy heuristic, not globally optimal.
+It does not provide worst-case deadline guarantees (empirical
+compliance is reported).  Safety priority is best-effort: high-risk
+objects receive prediction budget first, but the risk score is a
+calibrated surrogate, not a formal safety certificate.
+The greedy gap relative to an ILP oracle is reported in
+\cref{sec:eval} for small instances where the oracle is tractable.

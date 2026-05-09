@@ -201,6 +201,46 @@ python ecav.py --build
 
 ---
 
+## Supported Models
+
+### Cooperative Perception
+- [x] [CMP (CoBEVT + MTR) [RA-L2025]](https://ieeexplore.ieee.org/document/10908648) - V2V cooperative perception and prediction (32KB payload, 256x compression)
+- [x] [BM2CP [CoRL2023]](https://proceedings.mlr.press/v229/zhao23a.html) - V2V multi-modal intermediate fusion (~200KB payload)
+- [x] [AutoCast [MobiSys2022]](https://dl.acm.org/doi/10.1145/3498361.3538925) - V2V early fusion with MCKP scheduling (~10-50KB payload)
+- [x] Late Fusion (YOLO + LiDAR) - Edge-assisted detected object fusion (~5KB payload)
+- [x] WorldFusion - Edge-assisted BEV feature fusion with Where2Comm attention (eCAV, ~17KB payload)
+- [ ] [Where2comm [NeurIPS2022]](https://proceedings.neurips.cc/paper_files/paper/2022/hash/1f5c5cd01b864d53cc5fa0a3472e152e-Abstract-Conference.html)
+- [ ] [V2X-ViT [ECCV2022]](https://link.springer.com/chapter/10.1007/978-3-031-19842-7_7)
+- [ ] [EMP [MobiCom2021]](https://dl.acm.org/doi/10.1145/3447993.3483242)
+
+### OPV2V 3D Detection (100ms delay)
+
+| Method | Compression | Payload | AP@0.5 | AP@0.7 | Weights |
+|--------|-------------|---------|--------|--------|---------|
+| No Cooperation | N/A | 0 | 0.79 | 0.65 | [download](ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/point_pillar_sinbevt/) |
+| [V2VNet [ECCV2020]](https://link.springer.com/chapter/10.1007/978-3-030-58536-5_36) | None | 82.5 MB/s | 0.83 | 0.66 | [download](ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/point_pillar_v2vnet_multiego/) |
+| [CoBEVT/CMP [RA-L2025]](https://ieeexplore.ieee.org/document/10908648) | 256x | **0.32 MB/s** | **0.92** | **0.82** | [download](ecav/core/application/v2v/baselines/cmp/CMP/pretrained/opv2v/corpbevtlidar_delay_1_frame_aug_c256/) |
+| WorldFusion (Multi-V2X) | 256x | ~17KB/msg | 0.627 | - | ecav/ml_manager/models/worldfusion_multiv2x_caronly_ndm/ |
+
+### OPV2V Cooperative Motion Prediction
+
+| Method | Perception Frontend | Cooperation | minADE@5s | minFDE@5s |
+|--------|-------------------|-------------|-----------|-----------|
+| No Cooperation | SinBEVT | None | 2.2217 | 5.1853 |
+| [CMP [RA-L2025]](https://ieeexplore.ieee.org/document/10908648) | [V2VNet](https://link.springer.com/chapter/10.1007/978-3-030-58536-5_36) | Perception + Prediction | 2.1174 | 4.9037 |
+| **[CMP [RA-L2025]](https://ieeexplore.ieee.org/document/10908648)** | **CoBEVT (256x)** | **Perception + Prediction** | **1.8578** | **4.1628** |
+
+### Tracking
+- [x] AB3DMOT (vectorized Kalman, 1.8x speedup over original)
+- [x] MambaTrack3D (Mamba-based 3D MOT with trained weights)
+
+### Trajectory Prediction
+- [x] MTR (Motion Transformer, edge single-call mode, 57ms @ 25 objects)
+- [x] SMART (NeurIPS 2024, 143ms constant, Waymo-trained)
+- [x] Linear KF predictor (fallback)
+
+---
+
 ## Attributions
 
 - [OpenCDA](https://github.com/ucla-mobility/OpenCDA) — baseline coordination and planning

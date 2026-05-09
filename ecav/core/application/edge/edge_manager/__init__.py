@@ -29,6 +29,9 @@ from .edge_manager_vips_temporal_alignment import (
 )
 from .edge_manager_sota import SOTAEdge
 from .edge_manager_adaptive import AdaptiveEdge
+from .edge_manager_worldfusion_ab3dmot_mtr_adaptive import (
+    WorldFusionAdaptiveEdge,
+)
 
 __all__ = [
     "BaseEdgeManager",
@@ -60,6 +63,8 @@ _EDGE_REGISTRY = {
     "SOTA": SOTAEdge,
     "ADAPTIVE_EDGE": AdaptiveEdge,
     "ADAPTIVE": AdaptiveEdge,
+    "WORLDFUSION_ADAPTIVE": WorldFusionAdaptiveEdge,
+    "WORLDFUSION_ADAPTIVE_EDGE": WorldFusionAdaptiveEdge,
 }
 
 

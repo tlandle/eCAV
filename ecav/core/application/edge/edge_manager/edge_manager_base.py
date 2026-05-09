@@ -54,8 +54,10 @@ class _BaseEdgeManager:
         carla_client: carla.Client,
         *,
         world_dt: float = 0.05,
+        is_proxy: bool = False,
         **kwargs,
     ):
+        self.is_proxy = is_proxy
         self.edgeid = str(uuid.uuid4())[:8]
         self.world  = world
         self.carla  = carla_client
@@ -65,15 +67,26 @@ class _BaseEdgeManager:
         self.vehicle_manager_list: List[Any] = []
         self.rsu_manager_list:     List[Any] = []
 
-        # latency model (pluggable: fixed, normal, lognormal, hybrid)
-        self.latency_model = create_latency_model(cfg, world_dt)
-        self.downlink_pl = float(cfg.get("downlink_packet_loss_pct", 0))
+        if not is_proxy:
+            # latency model (pluggable: fixed, normal, lognormal, hybrid)
+            self.latency_model = create_latency_model(cfg, world_dt)
+            self.downlink_pl = float(cfg.get("downlink_packet_loss_pct", 0))
 
-        # MAC model (pluggable: legacy/null/sbsps)
-        reset_global_macs()  # idempotent — prevents cross-test contamination
-        _mac_seed = cfg.get("mac", {}).get("seed", 0)
-        self.mac_model = create_mac_model(
-            cfg, latency_model=self.latency_model, seed=_mac_seed)
+            # MAC model (pluggable: legacy/null/sbsps)
+            reset_global_macs()  # idempotent — prevents cross-test contamination
+            _mac_seed = cfg.get("mac", {}).get("seed", 0)
+            self.mac_model = create_mac_model(
+                cfg, latency_model=self.latency_model, seed=_mac_seed)
+
+            # global debug helper for perf / viz
+            self.debug = EdgeMetrics(0)
+        else:
+            self.latency_model = None
+            self.downlink_pl = 0.0
+            self.mac_model = None
+            self.debug = None
+
+        self._proxy_metrics: dict = {}
 
         # compute-contention model (ms)
         _budget = cfg.get("compute_budget_ms", None)
@@ -95,10 +108,7 @@ class _BaseEdgeManager:
         )
 
         # shared predictor helper (used by some back-ends)
-        self.lin_pred = LinearPredictorManager(num_future_steps=25)
-
-        # global debug helper for perf / viz
-        self.debug = EdgeMetrics(0)
+        self.lin_pred = LinearPredictorManager(num_future_steps=25) if not is_proxy else None
 
         # Ego-consistency gate violation tracking (publish-boundary invariant)
         self._ego_gate_violations_total = 0
@@ -115,9 +125,22 @@ class _BaseEdgeManager:
         weakref.ref(cav_world)().update_edge(self)
 
     # ─── abstract hooks every backend must override ────────────
-    def start_edge(self):                     raise NotImplementedError
+    def start_edge(self):
+        if self.is_proxy:
+            return
+        raise NotImplementedError
+
     def update_information(self, frame_idx):  raise NotImplementedError
-    def run_step(self, tick):                 raise NotImplementedError
+
+    def run_step(self, tick):
+        if self.is_proxy:
+            return None
+        raise NotImplementedError
+
+    def evaluate(self):
+        if self.is_proxy:
+            return None, "", self._proxy_metrics
+        raise NotImplementedError
 
     # ─── helpers common to all concrete back-ends ────────────
     def add_member(self, vm: Any) -> None:

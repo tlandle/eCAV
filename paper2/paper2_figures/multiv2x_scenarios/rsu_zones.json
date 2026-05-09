@@ -1,0 +1,878 @@
+{
+  "Town01__2023_11_10_22_23_28": {
+    "map": "Town01",
+    "n_rsus": 12,
+    "zones": [
+      {
+        "rsu": "rsu_25",
+        "rsu_id": 25,
+        "position": [
+          95.0,
+          70.4,
+          4.4
+        ],
+        "yaw": 0.0,
+        "mean_conn": 12.2,
+        "max_conn": 13,
+        "unique_cavs_seen": 13,
+        "unique_rsus_seen": 3,
+        "mean_objects": 37.4
+      },
+      {
+        "rsu": "rsu_29",
+        "rsu_id": 29,
+        "position": [
+          102.7,
+          126.8,
+          4.4
+        ],
+        "yaw": -90.0,
+        "mean_conn": 7.6,
+        "max_conn": 9,
+        "unique_cavs_seen": 7,
+        "unique_rsus_seen": 3,
+        "mean_objects": 14.8
+      },
+      {
+        "rsu": "rsu_32",
+        "rsu_id": 32,
+        "position": [
+          102.7,
+          192.6,
+          4.4
+        ],
+        "yaw": -90.0,
+        "mean_conn": 8.6,
+        "max_conn": 11,
+        "unique_cavs_seen": 10,
+        "unique_rsus_seen": 2,
+        "mean_objects": 14.8
+      },
+      {
+        "rsu": "rsu_35",
+        "rsu_id": 35,
+        "position": [
+          85.6,
+          316.4,
+          4.4
+        ],
+        "yaw": 180.0,
+        "mean_conn": 3.6,
+        "max_conn": 4,
+        "unique_cavs_seen": 4,
+        "unique_rsus_seen": 1,
+        "mean_objects": 22.4
+      },
+      {
+        "rsu": "rsu_38",
+        "rsu_id": 38,
+        "position": [
+          332.0,
+          316.4,
+          4.4
+        ],
+        "yaw": 180.0,
+        "mean_conn": 4.8,
+        "max_conn": 8,
+        "unique_cavs_seen": 9,
+        "unique_rsus_seen": 1,
+        "mean_objects": 45.4
+      },
+      {
+        "rsu": "rsu_41",
+        "rsu_id": 41,
+        "position": [
+          151.3,
+          45.3,
+          4.4
+        ],
+        "yaw": 180.0,
+        "mean_conn": 15.6,
+        "max_conn": 17,
+        "unique_cavs_seen": 14,
+        "unique_rsus_seen": 4,
+        "mean_objects": 27.2
+      },
+      {
+        "rsu": "rsu_43",
+        "rsu_id": 43,
+        "position": [
+          332.0,
+          44.9,
+          4.4
+        ],
+        "yaw": -180.0,
+        "mean_conn": 13.4,
+        "max_conn": 16,
+        "unique_cavs_seen": 16,
+        "unique_rsus_seen": 2,
+        "mean_objects": 33.6
+      },
+      {
+        "rsu": "rsu_50",
+        "rsu_id": 50,
+        "position": [
+          341.3,
+          143.6,
+          4.4
+        ],
+        "yaw": -0.0,
+        "mean_conn": 5.8,
+        "max_conn": 8,
+        "unique_cavs_seen": 6,
+        "unique_rsus_seen": 2,
+        "mean_objects": 35.2
+      },
+      {
+        "rsu": "rsu_51",
+        "rsu_id": 51,
+        "position": [
+          332.0,
+          184.5,
+          4.4
+        ],
+        "yaw": -180.0,
+        "mean_conn": 7.4,
+        "max_conn": 11,
+        "unique_cavs_seen": 9,
+        "unique_rsus_seen": 2,
+        "mean_objects": 41.8
+      },
+      {
+        "rsu": "rsu_56",
+        "rsu_id": 56,
+        "position": [
+          167.8,
+          -4.4,
+          4.4
+        ],
+        "yaw": -90.0,
+        "mean_conn": 8.2,
+        "max_conn": 9,
+        "unique_cavs_seen": 10,
+        "unique_rsus_seen": 3,
+        "mean_objects": 30.0
+      },
+      {
+        "rsu": "rsu_59",
+        "rsu_id": 59,
+        "position": [
+          102.1,
+          -4.4,
+          4.4
+        ],
+        "yaw": -90.0,
+        "mean_conn": 13.0,
+        "max_conn": 14,
+        "unique_cavs_seen": 13,
+        "unique_rsus_seen": 3,
+        "mean_objects": 24.6
+      },
+      {
+        "rsu": "rsu_60",
+        "rsu_id": 60,
+        "position": [
+          323.8,
+          5.0,
+          4.4
+        ],
+        "yaw": 90.0,
+        "mean_conn": 13.2,
+        "max_conn": 15,
+        "unique_cavs_seen": 16,
+        "unique_rsus_seen": 2,
+        "mean_objects": 26.8
+      }
+    ]
+  },
+  "Town03__2023_11_13_18_26_24": {
+    "map": "Town03",
+    "n_rsus": 11,
+    "zones": [
+      {
+        "rsu": "rsu_66",
+        "rsu_id": 66,
+        "position": [
+          238.4,
+          80.9,
+          4.3
+        ],
+        "yaw": -180.0,
+        "mean_conn": 14.0,
+        "max_conn": 14,
+        "unique_cavs_seen": 20,
+        "unique_rsus_seen": 1,
+        "mean_objects": 25.2
+      },
+      {
+        "rsu": "rsu_67",
+        "rsu_id": 67,
+        "position": [
+          20.5,
+          -201.8,
+          4.4
+        ],
+        "yaw": 90.0,
+        "mean_conn": 12.8,
+        "max_conn": 15,
+        "unique_cavs_seen": 20,
+        "unique_rsus_seen": 2,
+        "mean_objects": 37.8
+      },
+      {
+        "rsu": "rsu_68",
+        "rsu_id": 68,
+        "position": [
+          -146.2,
+          -9.8,
+          4.4
+        ],
+        "yaw": 0.0,
+        "mean_conn": 11.2,
+        "max_conn": 13,
+        "unique_cavs_seen": 14,
+        "unique_rsus_seen": 2,
+        "mean_objects": 31.0
+      },
+      {
+        "rsu": "rsu_70",
+        "rsu_id": 70,
+        "position": [
+          -80.1,
+          145.9,
+          4.4
+        ],
+        "yaw": -180.0,
+        "mean_conn": 13.0,
+        "max_conn": 17,
+        "unique_cavs_seen": 18,
+        "unique_rsus_seen": 1,
+        "mean_objects": 36.0
+      },
+      {
+        "rsu": "rsu_77",
+        "rsu_id": 77,
+        "position": [
+          -1.3,
+          143.5,
+          4.5
+        ],
+        "yaw": -180.0,
+        "mean_conn": 10.2,
+        "max_conn": 14,
+        "unique_cavs_seen": 14,
+        "unique_rsus_seen": 1,
+        "mean_objects": 25.4
+      },
+      {
+        "rsu": "rsu_80",
+        "rsu_id": 80,
+        "position": [
+          -80.2,
+          28.4,
+          4.4
+        ],
+        "yaw": -180.0,
+        "mean_conn": 18.4,
+        "max_conn": 20,
+        "unique_cavs_seen": 22,
+        "unique_rsus_seen": 2,
+        "mean_objects": 53.0
+      },
+      {
+        "rsu": "rsu_83",
+        "rsu_id": 83,
+        "position": [
+          153.5,
+          -121.5,
+          12.4
+        ],
+        "yaw": -179.8,
+        "mean_conn": 7.2,
+        "max_conn": 8,
+        "unique_cavs_seen": 7,
+        "unique_rsus_seen": 2,
+        "mean_objects": 7.8
+      },
+      {
+        "rsu": "rsu_85",
+        "rsu_id": 85,
+        "position": [
+          95.9,
+          -134.9,
+          12.4
+        ],
+        "yaw": 90.0,
+        "mean_conn": 12.2,
+        "max_conn": 14,
+        "unique_cavs_seen": 14,
+        "unique_rsus_seen": 2,
+        "mean_objects": 20.0
+      },
+      {
+        "rsu": "rsu_89",
+        "rsu_id": 89,
+        "position": [
+          140.6,
+          -198.1,
+          4.4
+        ],
+        "yaw": -90.0,
+        "mean_conn": 11.0,
+        "max_conn": 12,
+        "unique_cavs_seen": 10,
+        "unique_rsus_seen": 2,
+        "mean_objects": 27.4
+      },
+      {
+        "rsu": "rsu_93",
+        "rsu_id": 93,
+        "position": [
+          71.1,
+          -199.8,
+          4.4
+        ],
+        "yaw": -87.9,
+        "mean_conn": 11.0,
+        "max_conn": 14,
+        "unique_cavs_seen": 12,
+        "unique_rsus_seen": 3,
+        "mean_objects": 35.2
+      },
+      {
+        "rsu": "rsu_98",
+        "rsu_id": 98,
+        "position": [
+          2.4,
+          -125.1,
+          4.4
+        ],
+        "yaw": -180.0,
+        "mean_conn": 13.2,
+        "max_conn": 15,
+        "unique_cavs_seen": 17,
+        "unique_rsus_seen": 1,
+        "mean_objects": 43.0
+      }
+    ]
+  },
+  "Town05__2023_11_13_23_03_07": {
+    "map": "Town05",
+    "n_rsus": 15,
+    "zones": [
+      {
+        "rsu": "rsu_198",
+        "rsu_id": 198,
+        "position": [
+          24.2,
+          -144.3,
+          4.4
+        ],
+        "yaw": -95.0,
+        "mean_conn": 8.0,
+        "max_conn": 9,
+        "unique_cavs_seen": 10,
+        "unique_rsus_seen": 2,
+        "mean_objects": 17.0
+      },
+      {
+        "rsu": "rsu_205",
+        "rsu_id": 205,
+        "position": [
+          31.4,
+          -78.9,
+          4.3
+        ],
+        "yaw": 180.0,
+        "mean_conn": 10.0,
+        "max_conn": 11,
+        "unique_cavs_seen": 11,
+        "unique_rsus_seen": 2,
+        "mean_objects": 55.8
+      },
+      {
+        "rsu": "rsu_209",
+        "rsu_id": 209,
+        "position": [
+          -51.0,
+          -78.1,
+          4.3
+        ],
+        "yaw": 180.0,
+        "mean_conn": 11.2,
+        "max_conn": 13,
+        "unique_cavs_seen": 14,
+        "unique_rsus_seen": 1,
+        "mean_objects": 44.4
+      },
+      {
+        "rsu": "rsu_213",
+        "rsu_id": 213,
+        "position": [
+          -126.5,
+          -78.1,
+          4.3
+        ],
+        "yaw": 180.0,
+        "mean_conn": 8.2,
+        "max_conn": 10,
+        "unique_cavs_seen": 10,
+        "unique_rsus_seen": 2,
+        "mean_objects": 50.8
+      },
+      {
+        "rsu": "rsu_214",
+        "rsu_id": 214,
+        "position": [
+          -113.1,
+          -2.3,
+          4.3
+        ],
+        "yaw": 90.0,
+        "mean_conn": 10.0,
+        "max_conn": 12,
+        "unique_cavs_seen": 11,
+        "unique_rsus_seen": 2,
+        "mean_objects": 67.4
+      },
+      {
+        "rsu": "rsu_218",
+        "rsu_id": 218,
+        "position": [
+          -38.5,
+          1.5,
+          4.3
+        ],
+        "yaw": 90.0,
+        "mean_conn": 16.2,
+        "max_conn": 18,
+        "unique_cavs_seen": 18,
+        "unique_rsus_seen": 3,
+        "mean_objects": 85.4
+      },
+      {
+        "rsu": "rsu_224",
+        "rsu_id": 224,
+        "position": [
+          -47.6,
+          78.0,
+          4.3
+        ],
+        "yaw": -0.0,
+        "mean_conn": 6.6,
+        "max_conn": 10,
+        "unique_cavs_seen": 10,
+        "unique_rsus_seen": 2,
+        "mean_objects": 42.8
+      },
+      {
+        "rsu": "rsu_230",
+        "rsu_id": 230,
+        "position": [
+          -124.9,
+          100.0,
+          4.3
+        ],
+        "yaw": 180.0,
+        "mean_conn": 15.8,
+        "max_conn": 17,
+        "unique_cavs_seen": 18,
+        "unique_rsus_seen": 2,
+        "mean_objects": 57.2
+      },
+      {
+        "rsu": "rsu_231",
+        "rsu_id": 231,
+        "position": [
+          -179.3,
+          2.3,
+          4.3
+        ],
+        "yaw": 90.0,
+        "mean_conn": 7.2,
+        "max_conn": 10,
+        "unique_cavs_seen": 15,
+        "unique_rsus_seen": 2,
+        "mean_objects": 58.6
+      },
+      {
+        "rsu": "rsu_238",
+        "rsu_id": 238,
+        "position": [
+          -138.5,
+          147.7,
+          4.3
+        ],
+        "yaw": -90.0,
+        "mean_conn": 15.2,
+        "max_conn": 17,
+        "unique_cavs_seen": 18,
+        "unique_rsus_seen": 2,
+        "mean_objects": 42.0
+      },
+      {
+        "rsu": "rsu_240",
+        "rsu_id": 240,
+        "position": [
+          -113.0,
+          -139.0,
+          4.3
+        ],
+        "yaw": 90.0,
+        "mean_conn": 8.0,
+        "max_conn": 9,
+        "unique_cavs_seen": 9,
+        "unique_rsus_seen": 2,
+        "mean_objects": 30.4
+      },
+      {
+        "rsu": "rsu_244",
+        "rsu_id": 244,
+        "position": [
+          17.3,
+          187.5,
+          4.3
+        ],
+        "yaw": -90.0,
+        "mean_conn": 8.2,
+        "max_conn": 10,
+        "unique_cavs_seen": 9,
+        "unique_rsus_seen": 2,
+        "mean_objects": 14.8
+      },
+      {
+        "rsu": "rsu_245",
+        "rsu_id": 245,
+        "position": [
+          25.8,
+          197.9,
+          4.3
+        ],
+        "yaw": 180.0,
+        "mean_conn": 7.2,
+        "max_conn": 9,
+        "unique_cavs_seen": 8,
+        "unique_rsus_seen": 2,
+        "mean_objects": 18.4
+      },
+      {
+        "rsu": "rsu_246",
+        "rsu_id": 246,
+        "position": [
+          46.3,
+          -188.6,
+          4.3
+        ],
+        "yaw": 90.0,
+        "mean_conn": 6.4,
+        "max_conn": 8,
+        "unique_cavs_seen": 8,
+        "unique_rsus_seen": 2,
+        "mean_objects": 13.6
+      },
+      {
+        "rsu": "rsu_250",
+        "rsu_id": 250,
+        "position": [
+          18.6,
+          0.2,
+          4.3
+        ],
+        "yaw": -90.0,
+        "mean_conn": 22.8,
+        "max_conn": 24,
+        "unique_cavs_seen": 22,
+        "unique_rsus_seen": 3,
+        "mean_objects": 71.6
+      }
+    ]
+  },
+  "Town06__2023_11_14_16_39_31": {
+    "map": "Town06",
+    "n_rsus": 8,
+    "zones": [
+      {
+        "rsu": "rsu_105",
+        "rsu_id": 105,
+        "position": [
+          138.1,
+          -27.7,
+          4.6
+        ],
+        "yaw": -15.0,
+        "mean_conn": 7.6,
+        "max_conn": 10,
+        "unique_cavs_seen": 14,
+        "unique_rsus_seen": 1,
+        "mean_objects": 11.0
+      },
+      {
+        "rsu": "rsu_107",
+        "rsu_id": 107,
+        "position": [
+          -152.8,
+          46.4,
+          4.3
+        ],
+        "yaw": 90.0,
+        "mean_conn": 3.0,
+        "max_conn": 4,
+        "unique_cavs_seen": 4,
+        "unique_rsus_seen": 1,
+        "mean_objects": 15.2
+      },
+      {
+        "rsu": "rsu_110",
+        "rsu_id": 110,
+        "position": [
+          0.6,
+          243.4,
+          4.4
+        ],
+        "yaw": 90.0,
+        "mean_conn": 4.6,
+        "max_conn": 6,
+        "unique_cavs_seen": 7,
+        "unique_rsus_seen": 1,
+        "mean_objects": 8.4
+      },
+      {
+        "rsu": "rsu_112",
+        "rsu_id": 112,
+        "position": [
+          667.5,
+          125.2,
+          4.3
+        ],
+        "yaw": 0.0,
+        "mean_conn": 4.4,
+        "max_conn": 6,
+        "unique_cavs_seen": 5,
+        "unique_rsus_seen": 1,
+        "mean_objects": 15.4
+      },
+      {
+        "rsu": "rsu_117",
+        "rsu_id": 117,
+        "position": [
+          -1.4,
+          -20.2,
+          4.3
+        ],
+        "yaw": -90.0,
+        "mean_conn": 11.4,
+        "max_conn": 15,
+        "unique_cavs_seen": 20,
+        "unique_rsus_seen": 1,
+        "mean_objects": 23.0
+      },
+      {
+        "rsu": "rsu_119",
+        "rsu_id": 119,
+        "position": [
+          -1.7,
+          47.4,
+          4.3
+        ],
+        "yaw": 90.0,
+        "mean_conn": 12.0,
+        "max_conn": 14,
+        "unique_cavs_seen": 15,
+        "unique_rsus_seen": 1,
+        "mean_objects": 17.6
+      },
+      {
+        "rsu": "rsu_53",
+        "rsu_id": 53,
+        "position": [
+          676.5,
+          44.9,
+          4.4
+        ],
+        "yaw": 85.0,
+        "mean_conn": 7.0,
+        "max_conn": 9,
+        "unique_cavs_seen": 16,
+        "unique_rsus_seen": 1,
+        "mean_objects": 11.6
+      },
+      {
+        "rsu": "rsu_56",
+        "rsu_id": 56,
+        "position": [
+          -9.4,
+          152.7,
+          4.4
+        ],
+        "yaw": -180.0,
+        "mean_conn": 5.2,
+        "max_conn": 6,
+        "unique_cavs_seen": 8,
+        "unique_rsus_seen": 1,
+        "mean_objects": 24.2
+      }
+    ]
+  },
+  "Town07__2023_11_14_22_06_38": {
+    "map": "Town07",
+    "n_rsus": 5,
+    "zones": [
+      {
+        "rsu": "rsu_122",
+        "rsu_id": 122,
+        "position": [
+          -109.4,
+          51.0,
+          4.5
+        ],
+        "yaw": -90.0,
+        "mean_conn": 12.6,
+        "max_conn": 15,
+        "unique_cavs_seen": 15,
+        "unique_rsus_seen": 1,
+        "mean_objects": 21.6
+      },
+      {
+        "rsu": "rsu_127",
+        "rsu_id": 127,
+        "position": [
+          62.7,
+          61.5,
+          4.4
+        ],
+        "yaw": -130.0,
+        "mean_conn": 5.0,
+        "max_conn": 5,
+        "unique_cavs_seen": 6,
+        "unique_rsus_seen": 2,
+        "mean_objects": 5.2
+      },
+      {
+        "rsu": "rsu_130",
+        "rsu_id": 130,
+        "position": [
+          6.1,
+          -236.5,
+          4.4
+        ],
+        "yaw": 100.0,
+        "mean_conn": 8.4,
+        "max_conn": 10,
+        "unique_cavs_seen": 13,
+        "unique_rsus_seen": 1,
+        "mean_objects": 8.2
+      },
+      {
+        "rsu": "rsu_135",
+        "rsu_id": 135,
+        "position": [
+          70.1,
+          3.4,
+          4.4
+        ],
+        "yaw": 100.0,
+        "mean_conn": 6.4,
+        "max_conn": 7,
+        "unique_cavs_seen": 8,
+        "unique_rsus_seen": 2,
+        "mean_objects": 20.8
+      },
+      {
+        "rsu": "rsu_94",
+        "rsu_id": 94,
+        "position": [
+          -10.9,
+          -3.5,
+          4.4
+        ],
+        "yaw": -90.0,
+        "mean_conn": 10.6,
+        "max_conn": 13,
+        "unique_cavs_seen": 16,
+        "unique_rsus_seen": 1,
+        "mean_objects": 33.6
+      }
+    ]
+  },
+  "Town10HD__2023_11_15_00_20_38": {
+    "map": "Town10HD",
+    "n_rsus": 5,
+    "zones": [
+      {
+        "rsu": "rsu_34",
+        "rsu_id": 34,
+        "position": [
+          -46.2,
+          -63.4,
+          4.5
+        ],
+        "yaw": -90.0,
+        "mean_conn": 10.8,
+        "max_conn": 13,
+        "unique_cavs_seen": 12,
+        "unique_rsus_seen": 1,
+        "mean_objects": 9.2
+      },
+      {
+        "rsu": "rsu_37",
+        "rsu_id": 37,
+        "position": [
+          99.9,
+          20.9,
+          4.5
+        ],
+        "yaw": 180.0,
+        "mean_conn": 13.4,
+        "max_conn": 16,
+        "unique_cavs_seen": 15,
+        "unique_rsus_seen": 1,
+        "mean_objects": 22.0
+      },
+      {
+        "rsu": "rsu_40",
+        "rsu_id": 40,
+        "position": [
+          -52.2,
+          20.2,
+          4.5
+        ],
+        "yaw": 180.0,
+        "mean_conn": 25.8,
+        "max_conn": 30,
+        "unique_cavs_seen": 29,
+        "unique_rsus_seen": 2,
+        "mean_objects": 47.8
+      },
+      {
+        "rsu": "rsu_41",
+        "rsu_id": 41,
+        "position": [
+          -105.1,
+          20.3,
+          4.5
+        ],
+        "yaw": 0.0,
+        "mean_conn": 21.4,
+        "max_conn": 25,
+        "unique_cavs_seen": 23,
+        "unique_rsus_seen": 2,
+        "mean_objects": 25.2
+      },
+      {
+        "rsu": "rsu_45",
+        "rsu_id": 45,
+        "position": [
+          -62.1,
+          133.9,
+          4.6
+        ],
+        "yaw": -90.0,
+        "mean_conn": 5.6,
+        "max_conn": 6,
+        "unique_cavs_seen": 6,
+        "unique_rsus_seen": 1,
+        "mean_objects": 12.4
+      }
+    ]
+  }
+}

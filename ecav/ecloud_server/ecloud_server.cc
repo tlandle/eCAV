@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <map>
+#include <set>
 #include <vector>
 
 #include "absl/flags/flag.h"
@@ -118,6 +119,10 @@ using ecloud::ActorConnectionInfo;
 using ecloud::EdgeMapping;
 using ecloud::EdgeMappingSetup;
 using ecloud::EdgeReadyNotification;
+using ecloud::ActorCarlaInfo;
+using ecloud::ActorCarlaInfoResponse;
+using ecloud::EdgeEvaluationResult;
+using ecloud::EdgeEvaluationResultList;
 
 std::atomic<int16_t> numCompletedVehicles_;
 std::atomic<int16_t> numRepliedVehicles_;
@@ -154,14 +159,17 @@ struct EdgeInfo {
     std::string edge_config_yaml;  // JSON of edge-specific YAML section
     std::vector<int32_t> vehicle_indices;  // Global vehicle indices owned by this edge
     std::vector<int32_t> rsu_indices;      // Global RSU indices owned by this edge
+    std::vector<ActorCarlaInfo> actor_carla_infos;  // CARLA actor IDs reported at actor-ready time
+    std::string pickled_edge_profiler;              // serialized EdgeMetrics sent at end-of-scenario
 };
 
 std::vector<EdgeInfo> edgeInfos_;  // Registered edges
 std::map<int32_t, int32_t> vehicleToEdgeMapping_;  // vehicle_index -> edge_index
 std::map<int32_t, int32_t> rsuToEdgeMapping_;      // rsu_index -> edge_index
 std::atomic<int16_t> numRegisteredEdges_;
-std::atomic<int16_t> numCompletedEdges_;
+std::atomic<int16_t> numEdgesRepliedTick_;  // per-tick edge reply counter, reset each tick
 std::atomic<int16_t> numEdgesActorReady_;
+std::set<int32_t> completedVehicleIndices_;  // permanent set of done vehicle indices (edge path)
 bool hasEdges_;  // True if scenario has edges (from sim_api.py)
 int16_t numExpectedEdges_;  // Expected number of edges to register
 
@@ -241,12 +249,13 @@ public:
 
             // Edge architecture initialization
             numRegisteredEdges_.store(0);
-            numCompletedEdges_.store(0);
+            numEdgesRepliedTick_.store(0);
             hasEdges_ = false;
             numExpectedEdges_ = 0;
             edgeInfos_.clear();
             vehicleToEdgeMapping_.clear();
             rsuToEdgeMapping_.clear();
+            completedVehicleIndices_.clear();
 
             simIP_ = "localhost";
 
@@ -506,7 +515,7 @@ public:
 
         pushedTick_ = false;
         numRepliedVehicles_ = 0;
-        numCompletedEdges_ = 0;  // Reset edge completion counter
+        numEdgesRepliedTick_ = 0;  // Reset edge completion counter
         assert(tickId_ == request->tick_id() - 1);
         tickId_++;
         command_ = request->command();
@@ -698,7 +707,7 @@ public:
 
         mu_.Lock();
 
-        // Store edge info
+        // Store edge info — populate vehicle/RSU indices from mappings before pushing
         EdgeInfo edgeInfo;
         edgeInfo.edge_index = request->edge_index();
         edgeInfo.edge_ip = request->edge_ip();
@@ -707,9 +716,14 @@ public:
         edgeInfo.num_rsus = request->num_rsus();
         edgeInfo.container_name = request->container_name();
 
-        // Find edge config from stored mappings (set by sim_api.py via Server_StartScenario extended)
-        // For now, we'll populate these during registration processing
-        // The vehicle_indices and rsu_indices are set by sim_api.py before actors/edges start
+        for (const auto& mapping : vehicleToEdgeMapping_) {
+            if (mapping.second == request->edge_index())
+                edgeInfo.vehicle_indices.push_back(mapping.first);
+        }
+        for (const auto& mapping : rsuToEdgeMapping_) {
+            if (mapping.second == request->edge_index())
+                edgeInfo.rsu_indices.push_back(mapping.first);
+        }
 
         // Create push client for this edge
         const std::string connection = absl::StrFormat("%s:%d", request->edge_ip(), request->edge_port());
@@ -728,23 +742,12 @@ public:
         reply->set_application(application_);
         reply->set_version(version_);
 
-        // Copy vehicle and RSU indices if they've been set and count them
-        int32_t numVehicles = 0;
-        int32_t numRsus = 0;
-        for (const auto& mapping : vehicleToEdgeMapping_) {
-            if (mapping.second == request->edge_index()) {
-                reply->add_vehicle_indices(mapping.first);
-                numVehicles++;
-            }
-        }
-        for (const auto& mapping : rsuToEdgeMapping_) {
-            if (mapping.second == request->edge_index()) {
-                reply->add_rsu_indices(mapping.first);
-                numRsus++;
-            }
-        }
-        reply->set_num_vehicles(numVehicles);
-        reply->set_num_rsus(numRsus);
+        for (int32_t vi : edgeInfo.vehicle_indices)
+            reply->add_vehicle_indices(vi);
+        for (int32_t ri : edgeInfo.rsu_indices)
+            reply->add_rsu_indices(ri);
+        reply->set_num_vehicles(edgeInfo.vehicle_indices.size());
+        reply->set_num_rsus(edgeInfo.rsu_indices.size());
 
         LOG(INFO) << "Edge_Register - registered edge " << request->edge_index()
                   << " (" << numRegisteredEdges_.load() << "/" << numExpectedEdges_ << ")";
@@ -769,9 +772,25 @@ public:
         LOG(INFO) << "Edge_TickComplete - edge " << request->edge_index()
                   << " tick " << request->tick_id() << " (" << request->num_actors_processed() << " actors)";
 
-        numCompletedEdges_++;
+        numEdgesRepliedTick_++;
 
-        const bool allEdgesComplete = (numCompletedEdges_.load() == numExpectedEdges_);
+        // Forward newly-done vehicle state to orchestrator so Python can detect scenario end.
+        // Lock covers both the set (concurrent Edge_TickComplete handlers) and pendingReplies_ (concurrent push_back).
+        for (const VehicleUpdate& update : request->vehicle_updates()) {
+            if (update.vehicle_state() == VehicleState::TICK_DONE) {
+                mu_.Lock();
+                if (completedVehicleIndices_.find(update.vehicle_index()) == completedVehicleIndices_.end()) {
+                    completedVehicleIndices_.insert(update.vehicle_index());
+                    std::string msg;
+                    update.SerializeToString(&msg);
+                    pendingReplies_.push_back(msg);
+                    LOG(INFO) << "Edge_TickComplete - vehicle " << update.vehicle_index() << " TICK_DONE forwarded";
+                }
+                mu_.Unlock();
+            }
+        }
+
+        const bool allEdgesComplete = (numEdgesRepliedTick_.load() == numExpectedEdges_);
         if (allEdgesComplete && !pushedTick_) {
             pushedTick_ = true;
             simAPIClient_->PushTick(request->tick_id(), command_, INVALID_TIME);
@@ -788,7 +807,21 @@ public:
                                Empty* reply) override {
 
         LOG(INFO) << "Edge_ActorsReady - edge " << request->edge_index()
-                  << " (" << request->num_actors() << " actors)";
+                  << " (" << request->num_actors() << " actors, "
+                  << request->actor_infos_size() << " carla IDs)";
+
+        // Store actor CARLA IDs for this edge so sim_api can fetch them via Server_GetAllActorCarlaInfos
+        {
+            absl::MutexLock lock(&mu_);
+            for (auto& info : edgeInfos_) {
+                if (info.edge_index == request->edge_index()) {
+                    for (const auto& ai : request->actor_infos()) {
+                        info.actor_carla_infos.push_back(ai);
+                    }
+                    break;
+                }
+            }
+        }
 
         numEdgesActorReady_++;
 
@@ -797,6 +830,57 @@ public:
             simAPIClient_->PushTick(TICK_ID_INVALID, Command::ACTORS_READY, INVALID_TIME);
         }
 
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Server_GetAllActorCarlaInfos(CallbackServerContext* context,
+                                                     const Empty* request,
+                                                     ActorCarlaInfoResponse* reply) override {
+        absl::MutexLock lock(&mu_);
+        for (const auto& edge : edgeInfos_) {
+            for (const auto& ai : edge.actor_carla_infos) {
+                *reply->add_actor_infos() = ai;
+            }
+        }
+        LOG(INFO) << "Server_GetAllActorCarlaInfos - returning " << reply->actor_infos_size() << " entries";
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Edge_SendEvaluationData(CallbackServerContext* context,
+                                                const EdgeEvaluationResult* request,
+                                                Empty* reply) override {
+        LOG(INFO) << "Edge_SendEvaluationData - edge " << request->edge_index()
+                  << " profiler bytes=" << request->pickled_edge_profiler().size();
+        {
+            absl::MutexLock lock(&mu_);
+            for (auto& info : edgeInfos_) {
+                if (info.edge_index == request->edge_index()) {
+                    info.pickled_edge_profiler = request->pickled_edge_profiler();
+                    break;
+                }
+            }
+        }
+        ServerUnaryReactor* reactor = context->DefaultReactor();
+        reactor->Finish(Status::OK);
+        return reactor;
+    }
+
+    ServerUnaryReactor* Server_GetAllEdgeEvaluations(CallbackServerContext* context,
+                                                     const Empty* request,
+                                                     EdgeEvaluationResultList* reply) override {
+        absl::MutexLock lock(&mu_);
+        for (const auto& info : edgeInfos_) {
+            if (!info.pickled_edge_profiler.empty()) {
+                EdgeEvaluationResult* r = reply->add_results();
+                r->set_edge_index(info.edge_index);
+                r->set_pickled_edge_profiler(info.pickled_edge_profiler);
+            }
+        }
+        LOG(INFO) << "Server_GetAllEdgeEvaluations - returning " << reply->results_size() << " edge results";
         ServerUnaryReactor* reactor = context->DefaultReactor();
         reactor->Finish(Status::OK);
         return reactor;

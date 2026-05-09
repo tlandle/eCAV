@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<!-- Scenario 20: LTAP with Dense Occlusion
+     Ego heading north through a signalized intersection.
+     A bus and delivery trucks line the right side, occluding
+     cross-traffic approaching from the east.  Two obstacle
+     vehicles approach at speed from the east.  The RSU on the
+     traffic light sees the cross-traffic; only CAVs positioned
+     on the eastern approach can also see it.  Selector must
+     pick eastern-approach CAVs over same-lane CAVs.
+     Town03, same intersection as scenario_3.
+-->
+<scenarios>
+    <scenario name="Scenario_20" type="Scenario_20" town="Town03">
+        <!-- Ego: heading north on the main road -->
+        <ego_vehicle x="-84.8" y="70" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
+
+        <!-- Cross-traffic: two vehicles approaching from the east at speed -->
+        <other_actor x="-20.0" y="127.7" z="-500" yaw="180" model="vehicle.lincoln.mkz_2017" />
+        <other_actor x="-10.0" y="127.7" z="-500" yaw="180" model="vehicle.tesla.model3" />
+
+        <!-- Occluders: bus + trucks blocking ego's eastward view -->
+        <other_actor x="-81.0" y="122.0" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="113.0" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="104.0" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="95.0" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+
+        <!-- CAVs: 4 on the same lane as ego (low value), 4 on eastern approach (high value) -->
+        <other_actor x="-84.8" y="60" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-84.8" y="50" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-84.8" y="40" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="-84.8" y="30" z="-500" yaw="90" model="vehicle.audi.a2" />
+        <other_actor x="0.0" y="131.0" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="15.0" y="131.0" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="30.0" y="131.0" z="-500" yaw="180" model="vehicle.audi.etron" />
+        <other_actor x="45.0" y="131.0" z="-500" yaw="180" model="vehicle.audi.etron" />
+
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0"
+                 wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75"
+                 fog_density="0" />
+    </scenario>
+</scenarios>

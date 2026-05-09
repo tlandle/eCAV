@@ -1,0 +1,530 @@
+{
+  "data_root": "/data1/Datasets/Multi-V2X",
+  "out_root": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr",
+  "car_only": true,
+  "interpolated_to_10hz": false,
+  "n_zones_train": 44,
+  "n_zones_test": 8,
+  "records": [
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_66",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 18,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_66-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_66-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_67",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 23,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_67-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_67-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_68",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 23,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_68-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_68-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_70",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 23,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_70-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_70-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_77",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 13,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_77-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_77-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_80",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 29,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_80-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_80-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_83",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 3,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_83-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_83-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_85",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 18,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_85-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_85-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_89",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 16,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_89-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_89-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_93",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 18,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_93-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_93-traj.pickle"
+    },
+    {
+      "scenario": "Town03__2023_11_13_18_26_24",
+      "rsu": "rsu_98",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 28,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town03__2023_11_13_18_26_24-rsu_98-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town03__2023_11_13_18_26_24-rsu_98-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_198",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 13,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_198-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_198-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_205",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 47,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_205-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_205-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_209",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 30,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_209-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_209-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_213",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 32,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_213-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_213-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_214",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 51,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_214-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_214-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_218",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 58,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_218-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_218-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_224",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 41,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_224-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_224-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_230",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 42,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_230-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_230-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_231",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 41,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_231-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_231-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_238",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 30,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_238-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_238-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_240",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 21,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_240-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_240-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_244",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 21,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_244-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_244-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_245",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 20,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_245-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_245-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_246",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 12,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_246-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_246-traj.pickle"
+    },
+    {
+      "scenario": "Town05__2023_11_13_23_03_07",
+      "rsu": "rsu_250",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 56,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town05__2023_11_13_23_03_07-rsu_250-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town05__2023_11_13_23_03_07-rsu_250-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_105",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 27,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_105-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_105-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_105",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 11,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_105-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_105-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_107",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 16,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_107-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_107-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_107",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 17,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_107-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_107-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_110",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 14,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_110-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_110-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_110",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 8,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_110-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_110-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_112",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 26,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_112-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_112-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_112",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 13,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_112-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_112-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_117",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 33,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_117-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_117-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_117",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 26,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_117-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_117-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_119",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 20,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_119-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_119-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_119",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 20,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_119-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_119-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_53",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 24,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_53-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_53-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_53",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 11,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_53-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_53-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_56",
+      "split": "train",
+      "n_timestamps": 312,
+      "n_objects": 30,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town06__2023_11_14_16_39_31-rsu_56-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town06__2023_11_14_16_39_31-rsu_56-traj.pickle"
+    },
+    {
+      "scenario": "Town06__2023_11_14_16_39_31",
+      "rsu": "rsu_56",
+      "split": "test",
+      "n_timestamps": 78,
+      "n_objects": 21,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/test/Town06__2023_11_14_16_39_31-rsu_56-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/test/Town06__2023_11_14_16_39_31-rsu_56-traj.pickle"
+    },
+    {
+      "scenario": "Town07__2023_11_14_22_06_38",
+      "rsu": "rsu_122",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 18,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town07__2023_11_14_22_06_38-rsu_122-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town07__2023_11_14_22_06_38-rsu_122-traj.pickle"
+    },
+    {
+      "scenario": "Town07__2023_11_14_22_06_38",
+      "rsu": "rsu_127",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 9,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town07__2023_11_14_22_06_38-rsu_127-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town07__2023_11_14_22_06_38-rsu_127-traj.pickle"
+    },
+    {
+      "scenario": "Town07__2023_11_14_22_06_38",
+      "rsu": "rsu_130",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 18,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town07__2023_11_14_22_06_38-rsu_130-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town07__2023_11_14_22_06_38-rsu_130-traj.pickle"
+    },
+    {
+      "scenario": "Town07__2023_11_14_22_06_38",
+      "rsu": "rsu_135",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 20,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town07__2023_11_14_22_06_38-rsu_135-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town07__2023_11_14_22_06_38-rsu_135-traj.pickle"
+    },
+    {
+      "scenario": "Town07__2023_11_14_22_06_38",
+      "rsu": "rsu_94",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 35,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town07__2023_11_14_22_06_38-rsu_94-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town07__2023_11_14_22_06_38-rsu_94-traj.pickle"
+    },
+    {
+      "scenario": "Town10HD__2023_11_15_00_20_38",
+      "rsu": "rsu_34",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 12,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town10HD__2023_11_15_00_20_38-rsu_34-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town10HD__2023_11_15_00_20_38-rsu_34-traj.pickle"
+    },
+    {
+      "scenario": "Town10HD__2023_11_15_00_20_38",
+      "rsu": "rsu_37",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 18,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town10HD__2023_11_15_00_20_38-rsu_37-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town10HD__2023_11_15_00_20_38-rsu_37-traj.pickle"
+    },
+    {
+      "scenario": "Town10HD__2023_11_15_00_20_38",
+      "rsu": "rsu_40",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 30,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town10HD__2023_11_15_00_20_38-rsu_40-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town10HD__2023_11_15_00_20_38-rsu_40-traj.pickle"
+    },
+    {
+      "scenario": "Town10HD__2023_11_15_00_20_38",
+      "rsu": "rsu_41",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 17,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town10HD__2023_11_15_00_20_38-rsu_41-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town10HD__2023_11_15_00_20_38-rsu_41-traj.pickle"
+    },
+    {
+      "scenario": "Town10HD__2023_11_15_00_20_38",
+      "rsu": "rsu_45",
+      "split": "train",
+      "n_timestamps": 240,
+      "n_objects": 10,
+      "interpolated": false,
+      "gt_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_gt_traj/train/Town10HD__2023_11_15_00_20_38-rsu_45-traj.pickle",
+      "pred_traj_file": "/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/models/multiv2x_mtr/multiv2x_pred_traj/train/Town10HD__2023_11_15_00_20_38-rsu_45-traj.pickle"
+    }
+  ]
+}

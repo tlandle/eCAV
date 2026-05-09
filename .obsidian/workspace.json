@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/kb/wiki/current_state.md",
+                "file": "docs/agent_plans/distributed_instrumentation_and_evaluation.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "current_state"
+              "title": "distributed_instrumentation_and_evaluation"
             }
           }
         ]
@@ -94,6 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "docs/kb/wiki/current_state.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -103,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks"
+              "title": "Backlinks for current_state"
             }
           },
           {
@@ -182,32 +183,32 @@
   },
   "active": "5b4c723d70127237",
   "lastOpenFiles": [
-    "docs/kb/wiki/current_state.md.tmp.2181436.1775507574161",
+    "ecav/ecav2/edge_process.py.tmp.84796.1777866032555",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_plotting.eps",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/evaluation_report.txt",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_metrics.json",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_timing.eps",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_timing.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/collision_plotting.eps",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/collision_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/lane_invasions_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/lane_invasions_plotting.eps",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/perception_tracking_latency.eps",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/perception_tracking_latency.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/109_kinematics_plotting.eps",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/109_localization_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/109_localization_plotting.eps",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/log.txt",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/simulation_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/simulation_timing.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/collision_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/lane_invasions_plotting.png",
+    "docs/kb/wiki/current_state.md",
     "docs/agent_plans/azure_deploy.md",
-    "docs/agent_plans/azure_deploy.md.tmp.2181436.1775507566763",
-    "docs/kb/wiki/current_state.md.tmp.2181436.1775505922897",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/simulation_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/simulation_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/evaluation_report.txt",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/simulation_metrics.json",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/simulation_timing.eps",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/simulation_timing.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/collision_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/collision_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/lane_invasions_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/lane_invasions_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/6c2bc1a4_edge_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/perception_tracking_latency.eps",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/perception_tracking_latency.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_13_04_01/996_localization_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_12_57_11/simulation_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_12_57_11/simulation_timing.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_12_57_11/collision_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_worldfusion_fog_0_rain_0_clouds_75_target_speed_ego_70/2026_04_06_12_57_11/lane_invasions_plotting.png",
     "docs/kb/wiki/worldfusion_performance.md",
     "docs/kb/raw/notes/tyler_worldfusion_litserve_questions.md",
     "docs/agent_plans/worldfusion_grpc_plan.md",
-    "docs/kb/wiki/current_state.md",
     "docs/kb/wiki/index.md",
     "docs/kb/wiki/tools/ccusage.md",
     "docs/agent_plans/litserve_parallelism_plan.md",
