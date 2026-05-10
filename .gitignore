@@ -195,3 +195,4 @@ logs/
 ecav/ml_manager/models/mtr/best_model.pth
 
 .obsidian/workspace.json
+plantuml-images/

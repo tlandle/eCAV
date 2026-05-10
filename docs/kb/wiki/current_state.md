@@ -158,25 +158,34 @@ All 4 WorldFusion tests now passing (2026-04-29).
 
 ### Edge-Only Distributed Mode (2026-05-09)
 
-Architecture plan written. See [edge_only_distributed_mode.md](../../agent_plans/edge_only_distributed_mode.md).
+Architecture plan: [edge_only_distributed_mode.md](../../agent_plans/edge_only_distributed_mode.md).
 
-**Motivation:** Research focus is the edge node itself (fusion pipeline, latency, handoff). Fully-distributed mode buries the edge in actor-protocol overhead. Edge-only mode runs edges in Docker (isolated, profilable) while vehicle + RSU stay in the base process (sequential-style, zero gRPC overhead).
+**Motivation:** Research focus is the edge node itself (fusion pipeline, latency, handoff). Edge-only mode runs edges in Docker (isolated, profilable) while vehicle + RSU stay in the base process (sequential-style, zero gRPC overhead).
 
-**Architecture decision:** Direct fusion interface, not actor protocol. The edge exposes `Edge_PerformFusion(IntermediateFeaturesBatch) → FusionResult` as a per-tick RPC. Base process calls it directly after local perception, gets predictions back, injects into planning. No C++ orchestrator, no actor registration, no push servers in this mode.
+**Architecture decision:** Direct fusion interface. Edge exposes `Edge_PerformFusion(IntermediateFeaturesBatch) → FusionResult` as a per-tick RPC. Base process calls it directly after local perception. No C++ orchestrator, no actor registration.
 
-**Key finding:** `Edge_PerformFusion` is defined in `ecav/protos/ecloud.proto:445` and has generated stubs, but is NOT implemented in `ecav/ecav2/edge_process.py`. Primary gap is implementing this handler and the real fusion pipeline behind it.
+**Phase 0 complete.** Key findings:
 
-**Implementation scope:**
+- `Edge_PerformFusion` is defined in proto (line 476) but has no handler in `EdgeServer`
+- `run_edge_step()` from commit `787f4dac` is the direct implementation reference — it does feature unpack + `edge_manager.run_step()` + per-vehicle prediction serialization. The standalone handler wraps this same logic
+- `FusionResult` proto needs `bytes pickled_predictions = 5` added — the existing `detections` field carries `EdgeObstacleObject` proto structs, not the pickled `ObstaclePrediction` objects the planning pipeline expects
+- RSU features flow through the same path as vehicle features (`update_information()` iterates all members)
 
-- `edge_process.py`: `--standalone` flag + `Edge_PerformFusion` handler
+**`start_actors.sh` verified clean** after merge with 787f4dac remote — YAML parsing, verbose flag, and fusion prompts all intact.
+
+**Phase 1 pending:**
+
+- Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`, recompile
+- Add `--standalone` / `--config` args to `edge_process.py`
+- Implement `Edge_PerformFusion` handler in `EdgeServer`
+- Add standalone `run()` path that skips orchestrator registration
+
+**Implementation scope (Phases 2–3 still pending):**
+
 - New `ecav/scenario_testing/utils/edge_fusion_client.py`: gRPC client with retry-connect
 - `ecav.py`: `-eo` flag, skip C++ server in this mode
 - `EdgeManager.run_step()` split: `collect_features()` + `apply_predictions()`
 - `start_actors.sh`: skip vehicle containers in edge-only mode
-
-**Handoff relationship:** `EdgeFusionClient` is the exact primitive Model C handoff (orchestrator-driven) builds on — handoff = route to a different client. No additional infrastructure needed at handoff time.
-
-**Status:** Plan approved; Phase 0 exploration (EdgeManager `run_step()` internals + WorldFusion feature extraction) is next.
 
 ### Multi-Edge Locale & Handoff Architecture (2026-04-18)
 

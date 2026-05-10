@@ -1,3 +1,11 @@
+---
+header-includes: |
+  \AtBeginDocument{%
+    \let\origpandocbounded\pandocbounded
+    \renewcommand{\pandocbounded}[1]{\begin{center}\origpandocbounded{#1}\end{center}}%
+  }
+---
+
 # Edge-Only Distributed Mode
 
 **Branch:** `distributed-integration`  
@@ -18,17 +26,102 @@ Edge-only distributed mode keeps edges in Docker containers (realistic, isolated
 
 ---
 
-## Architecture Decision: Direct Fusion Interface (Not Actor Protocol)
+## Architecture Decision: Edge as a Pure Fusion Service
 
 The current fully-distributed actor protocol is heavy: actor registration, push servers, tick synchronization via C++ orchestrator. None of that machinery is needed when the vehicle runs in the base process — the base process already owns the tick loop and has direct CARLA access.
 
-Instead, the edge exposes a **per-tick fusion interface**: `Edge_PerformFusion(IntermediateFeaturesBatch) → FusionResult`. The base process calls this RPC directly after local perception, passing all agent feature data (vehicle + RSU cameras/lidar), and receives fused predictions to inject into planning.
+In edge-only mode the edge is a **pure fusion service**, not a tick-synchronization participant:
 
-This RPC is already defined in `ecav/protos/ecloud.proto` (line 445) and has generated stubs. It is **not currently implemented** in `ecav/ecav2/edge_process.py` — the `EdgeServer` class has no `Edge_PerformFusion` handler. That is the primary implementation gap.
+- **No C++ orchestrator** — `ecav.py` hosts a lightweight asyncio gRPC server for edge registration. Edges connect to it on startup; it assigns each an edge ID and sends the scenario config. One hop instead of two.
+- **No tick push** — the edge sits idle until `Edge_PerformFusion` arrives. It does not receive `Edge_PushTick` and does not call `Edge_TickComplete`. The tick loop is driven entirely by `ecav.py`.
+- **No CARLA connection in the edge container** — actor positions travel in the `IntermediateFeatures.pose` field. `ecav.py` also pre-computes `pairwise_t_matrix` from actor poses before calling `Edge_PerformFusion`, so the edge does zero coordinate math. No `carla.Client()`, no PythonAPI volume mount.
+- **Tick-ID tracking for idempotency** — the edge asserts each incoming `tick_id == expected_tick_id`. On a gRPC retry (same tick_id), it returns the cached `FusionResult`. After a successful fusion it increments `expected_tick_id`.
 
-Consequence: the C++ orchestrator (`ecloud_server`) is **not used** in edge-only mode. The edge reads its own scenario config from the YAML (already available in the Docker container via volume mount), starts its gRPC server, and waits for fusion calls. No actor registration, no push servers, no `Edge_TickComplete` back-channel.
+Two update modes are supported:
 
-This is also the right shape for the handoff plan: in Model C, `ecav.py` just switches which edge it sends `Edge_PerformFusion` calls to based on locale containment. No new infrastructure needed at handoff time.
+- **Batch (Phase 1)** — `ecav.py` collects all actor features, packs them into a single `IntermediateFeaturesBatch`, and calls `Edge_PerformFusion` as a blocking RPC. The sequential tick loop has nothing else to do while fusion runs, so blocking is the right semantic.
+- **Piecemeal (Phase 2)** — individual `Edge_SendIntermediateFeatures` calls per actor, followed by a blocking `Edge_GetFusionResult`. Needed when actors eventually run concurrently. All three RPCs are already defined in `ecloud.proto`; only the handlers are missing.
+
+This is also the right shape for the handoff plan: in Model C, `ecav.py` just routes `Edge_PerformFusion` calls to whichever `EdgeFusionClient` owns the vehicle's current locale. No new infrastructure at handoff time.
+
+---
+
+## Data Flow
+
+```plantuml
+@startuml
+participant "ecav.py (-eo)" as ecav
+participant "edge container(s)" as edge
+
+== STARTUP ==
+
+ecav -> ecav: start asyncio gRPC server\n(edge registration endpoint)
+note over ecav: wait for N_edges to connect
+
+edge -> ecav: Edge_Register(container_name)
+ecav --> edge: EdgeScenarioConfig(edge_id, scenario_yaml,\nvehicle_indices[], rsu_indices[])
+
+note over edge
+  init edge manager from YAML
+  load WF model — no CARLA connection
+  start fusion gRPC server
+end note
+
+loop for each actor assigned to this edge
+    ecav -> edge: Actor_Register(vehicle_index, actor_type, carla_actor_id)
+    edge --> ecav: ack
+end
+
+note over ecav, edge: all edges ready → scenario starts
+
+== PER-TICK ==
+
+loop each tick
+
+    note over ecav
+      run perception for all actors
+      collect feature_dicts + poses
+      compute pairwise_t_matrix
+    end note
+
+    alt Batch (Phase 1)
+        ecav -> edge: Edge_PerformFusion(IntermediateFeaturesBatch)\n[tick_id, features[], pairwise_t_matrix] — blocking
+        note over edge
+          assert tick_id == expected_tick_id
+          (return cached result if duplicate retry)
+          unpack features into lightweight stubs
+          run edge_manager.run_step()
+          serialize per-vehicle predictions
+        end note
+        edge --> ecav: FusionResult(tick_id, pickled_predictions)
+        note over edge: expected_tick_id += 1
+    else Piecemeal (Phase 2)
+        loop for each actor
+            ecav -> edge: Edge_SendIntermediateFeatures(IntermediateFeatures)
+            edge --> ecav: ack
+        end
+        note over edge: accumulated N of N features → auto-fuse
+        ecav -> edge: Edge_GetFusionResult(tick_id) — blocking
+        edge --> ecav: FusionResult(tick_id, pickled_predictions)
+        note over edge: expected_tick_id += 1
+    end
+
+    note over ecav
+      inject predictions into VehicleManagers
+      run planning for all actors
+    end note
+
+end
+
+== END SCENARIO ==
+
+ecav -> edge: Edge_EndScenario(Empty)
+note over edge: finalize profiler
+edge --> ecav: EdgeEvaluationResult(pickled_profiler)
+note over ecav: store profiler, write eval output
+
+@enduml
+```
 
 ---
 
@@ -36,69 +129,77 @@ This is also the right shape for the handoff plan: in Model C, `ecav.py` just sw
 
 ### 1. `ecav/ecav2/edge_process.py`
 
-Add standalone mode (`--standalone` flag):
-- Skip `register_with_orchestrator()` — no C++ server
-- Read scenario YAML from `--config <yaml_path>` arg instead
-- Parse edge config from YAML (`scenario.edge_list[edge_index]`)
-- Start gRPC server and wait for `Edge_PerformFusion` calls
+**Registration:** Connect to ecav.py's gRPC server (same `Edge_Register` RPC, different host). Remove `--edge-index`, `--standalone`, `--config` args — the edge ID and scenario config come from the registration response. `cloud_config.yaml` already provides the host IP.
 
-Implement `Edge_PerformFusion` in `EdgeServer`:
-- Receives `IntermediateFeaturesBatch` (tick_id, features from vehicle + RSU, pairwise_t_matrix)
-- Calls the existing WorldFusion or late-fusion pipeline (whichever is configured)
-- Returns `FusionResult` (fused detections)
+**Fusion handler:** Implement `Edge_PerformFusion` in `EdgeServer`:
 
-The existing actor-protocol code (`Edge_ActorRegister`, `Edge_PushTick`, `Edge_TickComplete`, etc.) is **unchanged** — standalone mode just doesn't use it.
+- Assert `tick_id == expected_tick_id`; return cached result if it's a retry
+- Unpack `IntermediateFeatures` into lightweight stubs (just `feature_dict` + `pose` — no proxy VehicleManagers, no CARLA)
+- Call `edge_manager.run_step(tick_id)` — the existing implementation
+- Serialize per-vehicle predictions into `FusionResult.pickled_predictions`
+- Increment `expected_tick_id`
 
-### 2. New `ecav/scenario_testing/utils/edge_fusion_client.py`
+**End handler:** Implement `Edge_EndScenario` — finalize profiler, return `EdgeEvaluationResult`.
+
+**No CARLA init:** `setup_edge_manager()` no longer calls `carla.Client()`. Actor stubs are populated from `IntermediateFeatures.pose`, not from world queries.
+
+The existing actor-protocol code (`Edge_PushTick`, `Edge_TickComplete`, etc.) is **unchanged** — the new code is additive.
+
+### 2. `ecav.py`
+
+Add `-eo` flag. When set:
+
+- Start asyncio gRPC server for edge registration
+- Handle `Edge_Register` RPC — assign IDs sequentially, send scenario YAML + vehicle/RSU assignments
+- Wait for all expected edges to register
+- Register actors with their assigned edges (`Actor_Register` per actor)
+- Create `EdgeFusionClient(s)` — one per edge
+- Skip C++ `ecloud_server` subprocess
+
+### 3. New `ecav/scenario_testing/utils/edge_fusion_client.py`
 
 `EdgeFusionClient`:
+
 - gRPC stub wrapping `Edge_PerformFusion`
 - `connect(edge_ip, edge_port, retry_timeout_s)` — retry loop until edge is reachable
-- `fuse(tick_id, features_list, pairwise_t_matrix) → FusionResult`
-- One client per edge; for the handoff multi-edge case, the base process holds `{edge_index: EdgeFusionClient}`
+- `fuse(tick_id, features_batch) → FusionResult`
+- One client per edge; handoff plan just routes to a different client based on locale
 
-### 3. Scenario `.py` files (new branch in `run_scenario()`)
+### 4. Scenario `.py` files (new branch in `run_scenario()`)
 
-When `opt.edge_only_distributed` is set, `run_scenario()` diverges at the point of tick execution:
-
-```
+```python
 # Sequential path (unchanged):
 for step in range(MAX_STEP):
     edge.run_step(step)      # perception → local fusion → planning
 
 # Edge-only distributed path (new):
 for step in range(MAX_STEP):
-    features = edge.collect_features(step)    # perception only, no fusion
-    result   = fusion_client.fuse(step, features)
-    edge.apply_predictions(step, result)      # planning + control using fused result
+    batch   = edge.collect_features(step)           # perception only, returns IntermediateFeaturesBatch
+    result  = fusion_client.fuse(step, batch)       # blocking RPC to edge container
+    edge.apply_predictions(step, result)            # inject predictions → planning
 ```
 
-This requires splitting `EdgeManager.run_step()` into:
-- `collect_features(step)` — runs perception pipeline, returns `IntermediateFeaturesBatch`
-- `apply_predictions(step, fusion_result)` — injects predictions, runs planning/control
+**Files to update:** `openscenario_3_edge_worldfusion.py`, `openscenario_3_edge_late_fusion.py`.
 
-**Files to update:** `openscenario_3_edge_worldfusion.py`, `openscenario_3_edge_late_fusion.py` (and any future edge scenarios that opt into this mode).
+### 5. `ecav/core/application/edge/edge_manager/` (WorldFusion and LateFusion)
 
-### 4. `ecav/core/common/edge_manager.py` (or equivalent)
+Split `run_step()` at the confirmed boundary:
 
-Add `collect_features()` and `apply_predictions()` methods (or refactor `run_step()` to accept an optional fusion callback). The exact split point depends on where the existing fusion code hooks in — **this is the riskiest part and needs careful reading during implementation**.
+- `collect_features(step)` → runs `update_information(step)`, builds and returns `IntermediateFeaturesBatch` (includes all actor poses so `pairwise_t_matrix` can be computed by ecav.py before the RPC)
+- `apply_predictions(step, fusion_result)` → injects predictions, runs `_update_agents(step, preds)` → planning/control
 
-### 5. `ecav.py`
+### 6. `ecav/protos/ecloud.proto`
 
-Add `--edge-only-distributed` / `-eo` flag. When set:
-- Skip `run_comms()` (no C++ orchestrator)
-- Create `EdgeFusionClient(s)` from YAML edge config
-- Wait for edge containers to be reachable before starting tick loop
-- Pass flag through to `opt` so `run_scenario()` branches correctly
+See **Proto Changes** section below.
 
-### 6. `start_actors.sh`
+### 7. `start_actors.sh`
 
-In edge-only mode (detected from YAML `manager_type` or a new `edge_only: true` YAML field):
-- Start base eCAV process with `-eo`
-- Start edge Docker containers with `--standalone --config ecav/scenario_testing/config_yaml/${scenario_name}.yaml -e $edge_index`
+In edge-only mode:
+
+- Spawn edge containers with no `--edge-index` (assigned at registration)
 - Do **not** start vehicle or RSU containers
-- Wait for edge gRPC port to be reachable (replace current "pushed scenario start" wait with a retry-connect check)
-- Rebuild container prompt still applies (edge still uses the Docker image)
+- Wait for ecav.py's "all edges ready" signal (not a per-edge gRPC health check)
+- Rebuild container prompt still applies
 
 ---
 
@@ -106,9 +207,39 @@ In edge-only mode (detected from YAML `manager_type` or a new `edge_only: true` 
 
 - `ecav/ecav2/edge_process.py` actor protocol (non-standalone mode is untouched)
 - `ecav/ecloud_server/` — C++ server unchanged
-- `ecav/protos/ecloud.proto` — no new messages needed; `Edge_PerformFusion` already exists
 - Existing fully-distributed scenarios (they still use the old code path)
 - `stop_actors.sh`
+
+## Proto Changes Required
+
+**Field addition — `FusionResult`:**
+
+```proto
+message FusionResult {
+  int32 tick_id = 1;
+  repeated EdgeObstacleObject detections = 2;
+  float communication_rate = 3;
+  int64 fusion_time_ns = 4;
+  bytes pickled_predictions = 5;  // ADD THIS: per-vehicle ObstaclePrediction objects
+}
+```
+
+The existing `detections` field carries `EdgeObstacleObject` proto structs, not the pickled `ObstaclePrediction` objects the planning pipeline expects. Field 5 carries those pickled predictions so `ecav.py` can inject them into `VehicleManager.update_info()` after `Edge_PerformFusion` returns.
+
+**New RPC — `Edge_EndScenario`:**
+
+```proto
+rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult);
+```
+
+`ecav.py` calls this at scenario end; the edge finalizes its profiler and returns it as the response. The existing `Edge_SendEvaluationData` RPC (edge pushes to orchestrator) is the distributed-mode equivalent and is unchanged.
+
+**Already defined, handlers only (Phase 2 piecemeal mode):**
+
+- `rpc Edge_SendIntermediateFeatures(IntermediateFeatures) returns (Empty)` — per-actor feature push
+- `rpc Edge_GetFusionResult(IntermediateFeaturesRequest) returns (FusionResult)` — blocking result fetch
+
+After any proto change, recompile: `python ecav.py --build`.
 
 ---
 
@@ -116,38 +247,51 @@ In edge-only mode (detected from YAML `manager_type` or a new `edge_only: true` 
 
 | Risk | Mitigation |
 |------|-----------|
-| `run_step()` split: perception and planning are interleaved in complex ways inside EdgeManager | Read the EdgeManager and WorldFusion/late-fusion perception manager code carefully before splitting. Start with worldfusion (cleaner model). |
-| `IntermediateFeaturesBatch.pairwise_t_matrix` format: must match what the WorldFusion model expects | Confirm by reading `ecav/worldfusion/` inference code before building the serialization path |
-| RSU perception data: RSU camera/lidar must be included in the fusion batch (not just vehicle data) | RSUManager runs locally in edge-only mode; its features must be collected in `collect_features()` alongside vehicle features |
-| `Edge_PerformFusion` implementation in edge process must actually run the model | The existing `fuse_predictions()` is a passthrough placeholder — needs real implementation |
+| `run_step()` split: perception and planning are interleaved in complex ways inside EdgeManager | The split point is confirmed: `update_information(tick)` → fusion → `_update_agents(tick, preds)`. Phase 2 splits these into `collect_features()` + `apply_predictions()`. WorldFusion first. |
+| `IntermediateFeaturesBatch.pairwise_t_matrix` format: must match what the WorldFusion model expects | `ecav.py` computes from actor poses before the RPC call; edge just unpacks and passes to the model. `pairwise_t_matrix_shape` field already present in proto. |
+| RSU perception data must be included in the fusion batch | In edge-only mode, RSU runs locally in the base process. Its `feature_dict['spatial_features']` must be included in the `IntermediateFeaturesBatch` alongside vehicle features. |
+| `Edge_PerformFusion` handler: reference implementation exists | `run_edge_step()` in edge_process.py (committed 787f4dac) is the direct reference — it already does feature unpack + `edge_manager.run_step()` + per-vehicle prediction serialization. The handler is a standalone-mode wrapper around this same logic. |
 
 ---
 
 ## Implementation Checklist
 
 ### Phase 0: Exploration
-- [ ] Read `ecav/core/common/edge_manager.py` (or equivalent) — understand `run_step()` fully
-- [ ] Read WorldFusion perception manager to understand feature extraction and the `IntermediateFeaturesBatch` fields
-- [ ] Confirm RSU features are captured in the same path as vehicle features
 
-### Phase 1: Edge Standalone Mode
-- [ ] Add `--standalone` and `--config` args to `edge_process.py`
-- [ ] Add `Edge_PerformFusion` handler to `EdgeServer` in `edge_process.py`
-- [ ] Implement real fusion in `Edge_PerformFusion` (call WorldFusion model or late-fusion pipeline)
-- [ ] Test: start edge process in standalone mode, call `Edge_PerformFusion` manually via grpcurl
+- [x] Read `ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py` — understand `run_step()` fully
+- [x] Read `ecav/core/sensing/perception/worldfusion_perception_manager.py` — understand `IntermediateFeaturesBatch` fields and feature extraction
+- [x] Confirm RSU features flow through the same path as vehicle features (yes — `update_information()` iterates all members including RSUs; `run_edge_step()` in 787f4dac handles both actor types)
+- [x] Confirm `Edge_PerformFusion` RPC is defined in proto (yes, line 476; `EdgeServer` has no handler yet)
+- [x] Identify `FusionResult` proto gap: needs `bytes pickled_predictions = 5` (current fields 1-4 only)
+
+### Phase 1: Edge Fusion Service
+
+- [ ] Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`
+- [ ] Add `rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult)` to `ecloud.proto`
+- [ ] Recompile stubs: `python ecav.py --build`
+- [ ] Add `Edge_PerformFusion` handler to `EdgeServer` in `edge_process.py` (reference: `run_edge_step()` from 787f4dac; lightweight actor stubs from payload — no CARLA init)
+- [ ] Add `Edge_EndScenario` handler to `EdgeServer` — finalize profiler, return `EdgeEvaluationResult`
+- [ ] Add tick-ID tracking to `EdgeProcess` (`expected_tick_id`, cached result for idempotent retries)
+- [ ] Change `register_with_orchestrator()` to connect to ecav.py's gRPC server instead of C++ server; receive `edge_id` + scenario config from registration response (no `--edge-index` arg)
+- [ ] Test: start edge process, call `Edge_PerformFusion` manually via grpcurl
 
 ### Phase 2: Base Process Client
+
+- [ ] Add `-eo` flag to `ecav.py`; start asyncio gRPC server for edge registration
+- [ ] Implement `Edge_Register` handler in `ecav.py` — assign IDs, send scenario + actor assignments
+- [ ] Implement actor registration: `ecav.py` calls `Edge_ActorRegister` on each edge for its assigned actors
 - [ ] Write `ecav/scenario_testing/utils/edge_fusion_client.py` with retry-connect
-- [ ] Add `-eo` flag to `ecav.py`
 - [ ] Split `EdgeManager.run_step()` into `collect_features()` + `apply_predictions()`
 - [ ] Add `edge_only_distributed` branch to `openscenario_3_edge_worldfusion.py`
 
 ### Phase 3: Launch Script
-- [ ] Update `start_actors.sh`: skip vehicle containers in edge-only mode
-- [ ] Replace "pushed scenario start" wait with edge gRPC health check
+
+- [ ] Update `start_actors.sh`: spawn edges with no `--edge-index`; skip vehicle/RSU containers in edge-only mode
+- [ ] Replace "pushed scenario start" wait with ecav.py "all edges ready" signal
 - [ ] Test: `openscenario_3_edge_worldfusion` end-to-end in edge-only distributed mode
 
 ### Phase 4: Verification
+
 - [ ] Confirm vehicle drives successfully using edge-fused predictions
 - [ ] Confirm edge profiler logs are written (`edge_profiler_<ts>.json`)
 - [ ] Confirm late-fusion scenario also works (same code path, different edge config)
