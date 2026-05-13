@@ -42,7 +42,14 @@ class WorldFusionServicer(perception_pb2_grpc.PerceptionServiceServicer):
         batch = msgpack.unpackb(body, raw=False)
         t1 = time.time()
 
-        result = self._extract(batch)
+        try:
+            result = self._extract(batch)
+        except Exception:
+            import traceback, sys
+            print("[WorldFusionServicer] EXTRACT FAILED:", flush=True)
+            traceback.print_exc(file=sys.stdout)
+            sys.stdout.flush()
+            raise
         t2 = time.time()
 
         packed = msgpack.packb(result, use_bin_type=True)

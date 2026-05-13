@@ -1,3 +1,44 @@
 cache
 ecav/BM2CP/data
 ecav/ml_manager/models/multiv2x_mtr/multiv2x_fused_features_placeholder
+
+# Git metadata (~10 GB)
+.git
+
+# Run outputs (~90 GB combined). Keep model weights (*.pth) tracked.
+log/
+logs/
+experiment_results/
+evaluation_outputs/
+preprocessed_data/
+archive/
+lightning_logs/
+
+# Paper drafts (not needed at runtime)
+paper2/
+paper2_figures/
+safety_envelope_paper/
+notes/paper_extract/
+
+# Worldfusion submodule build artifacts and training data
+ecav/worldfusion/build
+ecav/worldfusion/data
+ecav/worldfusion/debug_plots
+ecav/worldfusion/paper2_figures
+
+# Python / build artifacts
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/.pytest_cache
+**/*.egg-info
+
+# Training scratch (weights stay; only backups and event logs excluded)
+**/*.pth.bak
+**/events.out.tfevents.*
+
+# Editor / OS
+.claude/
+.vscode/
+.idea/
+.DS_Store

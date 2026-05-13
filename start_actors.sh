@@ -1,34 +1,76 @@
 #!/bin/bash
 
-# Prompt for scenario configuration
-read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
-read -p "Enter number of ego vehicles: " num_ego
-read -p "Enter number of RSUs: " num_rsu
-read -p "Enter number of edges (0 if edge-less scenario): " num_edges
-read -p "Use ML (Y/n)? " use_ml
-read -p "Use WorldFusion gRPC server for distributed ML inference (Y/n)? " use_litserve
-read -p "Use YOLO gRPC server for distributed YOLO inference / late fusion (Y/n)? " use_yolo_grpc
-read -p "Rebuild containers (Y/n)? " rebuild
+# Usage: ./start_actors.sh [scenario_name] [--auto|-y]
+#   scenario_name : if given, skips the scenario prompt. Counts (egos, rsus,
+#                   edges) are derived from the matching config_yaml/<name>.yaml.
+#   --auto / -y   : skip all runtime prompts and use defaults:
+#                     ML=Y, WorldFusion gRPC=Y, YOLO gRPC=n, rebuild=n,
+#                     start Carla locally=Y, headless=Y.
+#                   Override any of these by exporting USE_ML, USE_LITSERVE,
+#                   USE_YOLO_GRPC, REBUILD, START_CARLA, HEADLESS before
+#                   running.
 
-# Validate inputs
+auto_mode=0
+positional=()
+for arg in "$@"; do
+    case "$arg" in
+        --auto|-y) auto_mode=1 ;;
+        *)         positional+=("$arg") ;;
+    esac
+done
+
+# Scenario name: CLI arg or prompt
+if [[ -n "${positional[0]:-}" ]]; then
+    scenario_name="${positional[0]}"
+    echo "Scenario: $scenario_name (from CLI)"
+else
+    read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
+fi
+
 if [[ -z "$scenario_name" ]]; then
     echo "Error: Scenario name cannot be empty"
     exit 1
 fi
 
+# Derive ego/RSU/edge counts from the scenario YAML.
+SCENARIO_YAML="ecav/scenario_testing/config_yaml/${scenario_name}.yaml"
+if [[ ! -f "$SCENARIO_YAML" ]]; then
+    echo "Error: $SCENARIO_YAML not found"
+    exit 1
+fi
+
+read num_ego num_rsu num_edges < <(python3 - "$SCENARIO_YAML" <<'PY'
+import sys, yaml
+with open(sys.argv[1]) as f:
+    d = yaml.safe_load(f) or {}
+sc = d.get("scenario", {}) or {}
+edge_list = sc.get("edge_list", []) or []
+single_list = sc.get("single_cav_list", []) or []
+num_edges = len(edge_list)
+num_rsu = sum(len((e or {}).get("rsus", []) or []) for e in edge_list)
+num_ego = sum(len((e or {}).get("vehicles", []) or []) for e in edge_list) + len(single_list)
+print(num_ego, num_rsu, num_edges)
+PY
+)
+echo "Derived from $SCENARIO_YAML: ego=$num_ego rsu=$num_rsu edges=$num_edges"
+
 if ! [[ "$num_ego" =~ ^[0-9]+$ ]] || [[ "$num_ego" -lt 1 ]]; then
-    echo "Error: Number of ego vehicles must be a positive integer"
+    echo "Error: derived num_ego=$num_ego invalid (need >=1). Check scenario YAML."
     exit 1
 fi
 
-if ! [[ "$num_rsu" =~ ^[0-9]+$ ]] || [[ "$num_rsu" -lt 0 ]]; then
-    echo "Error: Number of RSUs must be a non-negative integer"
-    exit 1
-fi
-
-if ! [[ "$num_edges" =~ ^[0-9]+$ ]] || [[ "$num_edges" -lt 0 ]]; then
-    echo "Error: Number of edges must be a non-negative integer"
-    exit 1
+# Runtime mode prompts (or defaults under --auto).
+if (( auto_mode )); then
+    use_ml="${USE_ML:-Y}"
+    use_litserve="${USE_LITSERVE:-Y}"
+    use_yolo_grpc="${USE_YOLO_GRPC:-n}"
+    rebuild="${REBUILD:-n}"
+    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc rebuild=$rebuild"
+else
+    read -p "Use ML (Y/n)? " use_ml
+    read -p "Use WorldFusion gRPC server for distributed ML inference (Y/n)? " use_litserve
+    read -p "Use YOLO gRPC server for distributed YOLO inference / late fusion (Y/n)? " use_yolo_grpc
+    read -p "Rebuild containers (Y/n)? " rebuild
 fi
 
 # Check and clean up any existing containers
@@ -58,23 +100,45 @@ fi
 
 # Ask if user wants to start Carla locally (or use remote)
 echo ""
-read -p "Start Carla locally? (Y/n - select 'n' if using remote Carla): " start_carla
+if (( auto_mode )); then
+    start_carla="${START_CARLA:-Y}"
+    echo "Start Carla locally: $start_carla (auto)"
+else
+    read -p "Start Carla locally? (Y/n - select 'n' if using remote Carla): " start_carla
+fi
+
+# Resolve CARLA install root. Prefer $CARLA_ROOT env var, then known locations.
+if [[ -z "$CARLA_ROOT" ]]; then
+    for cand in "$HOME/carla-0.9.15" "/opt/carla-simulator" "$HOME/carla"; do
+        if [[ -x "$cand/CarlaUE4.sh" ]]; then
+            CARLA_ROOT="$cand"
+            break
+        fi
+    done
+fi
 
 if [[ "$start_carla" = "Y" || "$start_carla" = "y" ]]; then
-    read -p "Run Carla in headless mode (no display)? (Y/n): " headless
-
-    echo ""
-    echo "Starting Carla..."
-    if [[ "$headless" = "Y" || "$headless" = "y" ]]; then
-        echo "  Mode: Headless (RenderOffScreen)"
-        cd /opt/carla-simulator && ./CarlaUE4.sh -RenderOffScreen &
+    if [[ -z "$CARLA_ROOT" ]]; then
+        echo "ERROR: CARLA install not found. Set CARLA_ROOT or install at ~/carla-0.9.15."
+        exit 1
+    fi
+    if (( auto_mode )); then
+        headless="${HEADLESS:-Y}"
+        echo "Headless: $headless (auto)"
     else
-        echo "  Mode: With display"
-        cd /opt/carla-simulator && ./CarlaUE4.sh &
+        read -p "Run Carla in headless mode (no display)? (Y/n): " headless
     fi
 
-    CARLA_PID=$!
-    echo "  Carla PID: $CARLA_PID"
+    echo ""
+    echo "Starting Carla from $CARLA_ROOT..."
+    if [[ "$headless" = "Y" || "$headless" = "y" ]]; then
+        echo "  Mode: Headless (RenderOffScreen)"
+        ( cd "$CARLA_ROOT" && ./CarlaUE4.sh -RenderOffScreen & )
+    else
+        echo "  Mode: With display"
+        ( cd "$CARLA_ROOT" && ./CarlaUE4.sh & )
+    fi
+
     echo ""
     echo "Waiting 10 seconds for Carla to initialize..."
     sleep 10
@@ -82,9 +146,11 @@ if [[ "$start_carla" = "Y" || "$start_carla" = "y" ]]; then
     # Verify Carla started successfully
     if ! pgrep -f "CarlaUE4" > /dev/null; then
         echo "ERROR: Failed to start Carla!"
-        echo "Please check the Carla installation at /opt/carla-simulator/"
+        echo "Please check the Carla installation at $CARLA_ROOT/"
         exit 1
     fi
+    CARLA_PID=$(pgrep -f "CarlaUE4" | head -1)
+    echo "  Carla PID: $CARLA_PID"
     echo "✓ Carla started successfully"
 else
     echo ""
@@ -101,9 +167,9 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
         exit 1
     fi
     echo "Starting WorldFusion gRPC inference server (port 18002)..."
-    _CONDA_ROOT="/home/jordan/anaconda3"
+    _CONDA_ROOT="${HOME}/anaconda3"
     WF_GRPC_LOG=$(mktemp /tmp/worldfusion_grpc.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/worldfusion_grpc_server.py > '$WF_GRPC_LOG' 2>&1" &
+    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/worldfusion_grpc_server.py > '$WF_GRPC_LOG' 2>&1" &
     WF_GRPC_PID=$!
     echo "  WorldFusion gRPC PID: $WF_GRPC_PID"
     echo "  Log file: $WF_GRPC_LOG"
@@ -137,9 +203,9 @@ if [[ "$use_yolo_grpc" = "Y" || "$use_yolo_grpc" = "y" ]]; then
         exit 1
     fi
     echo "Starting YOLO gRPC inference server (port 18001)..."
-    _CONDA_ROOT="/home/jordan/anaconda3"
+    _CONDA_ROOT="${HOME}/anaconda3"
     YOLO_GRPC_LOG=$(mktemp /tmp/yolo_grpc.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/yolo_grpc_server.py > '$YOLO_GRPC_LOG' 2>&1" &
+    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/yolo_grpc_server.py > '$YOLO_GRPC_LOG' 2>&1" &
     YOLO_GRPC_PID=$!
     echo "  YOLO gRPC PID: $YOLO_GRPC_PID"
     echo "  Log file: $YOLO_GRPC_LOG"
@@ -269,8 +335,8 @@ echo "  Log file: $ECAV_LOG"
 
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
-_CONDA_ROOT="/home/jordan/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag > '$ECAV_LOG' 2>&1" &
+_CONDA_ROOT="${HOME}/anaconda3"
+bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag > '$ECAV_LOG' 2>&1" &
 ECAV_PID=$!
 
 echo "  ✓ Base process started (PID: $ECAV_PID)"
@@ -341,7 +407,7 @@ if [[ $num_edges -gt 0 ]]; then
             -e "HOSTNAME=$container_name" \
             -e IS_DOCKER=1 \
             -v /tmp/.X11-unix:/tmp/.X11-unix \
-            -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+            -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             -e TERM \
             ecav-python310:latest \
@@ -367,7 +433,7 @@ do
         -e IS_DOCKER=1 \
         $wf_grpc_env \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
-        -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+        -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
         -e DISPLAY=$DISPLAY \
         -e TERM \
         -e QT_X11_NO_MITSHM=1 \
@@ -394,7 +460,7 @@ if [[ $num_rsu -gt 0 ]]; then
             -e IS_DOCKER=1 \
             $wf_grpc_env \
             -v /tmp/.X11-unix:/tmp/.X11-unix \
-            -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+            -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
             python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
@@ -417,7 +483,7 @@ docker run $gpu_flag -d \
     -e "HOSTNAME=$container_name" \
     -e IS_DOCKER=1 \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+    -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
     -e DISPLAY=$DISPLAY \
     ecav-python310:latest \
     python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i -1 -T 8100

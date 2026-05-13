@@ -190,7 +190,7 @@ def _extract_wf_features(batch):
     }
     bd = sensor.scatter(sensor.pillar_vfe(bd))
 
-    if 'image_inputs' in batch and batch['image_inputs'] is not None:
+    if 'image_inputs' in batch and batch['image_inputs'] is not None and sensor.camenc is not None:
         from einops import rearrange
         # Cast back to float32 if client sent as uint8 to reduce payload
         imgs = batch['image_inputs']['imgs'].float()
