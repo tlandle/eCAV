@@ -2,13 +2,10 @@
 
 # Usage: ./start_actors.sh [scenario_name] [--auto|-y]
 #   scenario_name : if given, skips the scenario prompt. Counts (egos, rsus,
-#                   edges) are derived from the matching config_yaml/<name>.yaml.
-#   --auto / -y   : skip all runtime prompts and use defaults:
-#                     ML=Y, WorldFusion gRPC=Y, YOLO gRPC=n, rebuild=n,
-#                     start Carla locally=Y, headless=Y.
-#                   Override any of these by exporting USE_ML, USE_LITSERVE,
-#                   USE_YOLO_GRPC, REBUILD, START_CARLA, HEADLESS before
-#                   running.
+#                   edges, fusion type) are derived from config_yaml/<name>.yaml.
+#   --auto / -y   : skip all runtime prompts and use fusion-type-aware defaults.
+#                   Override via env vars: USE_ML, USE_LITSERVE, USE_YOLO_GRPC,
+#                   REBUILD, START_CARLA, HEADLESS, VERBOSE.
 
 auto_mode=0
 positional=()
@@ -32,14 +29,14 @@ if [[ -z "$scenario_name" ]]; then
     exit 1
 fi
 
-# Derive ego/RSU/edge counts from the scenario YAML.
+# Derive ego/RSU/edge counts and fusion type from the scenario YAML.
 SCENARIO_YAML="ecav/scenario_testing/config_yaml/${scenario_name}.yaml"
 if [[ ! -f "$SCENARIO_YAML" ]]; then
     echo "Error: $SCENARIO_YAML not found"
     exit 1
 fi
 
-read num_ego num_rsu num_edges < <(python3 - "$SCENARIO_YAML" <<'PY'
+read num_ego num_rsu num_edges fusion_type < <(python3 - "$SCENARIO_YAML" <<'PY'
 import sys, yaml
 with open(sys.argv[1]) as f:
     d = yaml.safe_load(f) or {}
@@ -49,28 +46,59 @@ single_list = sc.get("single_cav_list", []) or []
 num_edges = len(edge_list)
 num_rsu = sum(len((e or {}).get("rsus", []) or []) for e in edge_list)
 num_ego = sum(len((e or {}).get("vehicles", []) or []) for e in edge_list) + len(single_list)
-print(num_ego, num_rsu, num_edges)
+mgr_types = {(e or {}).get("manager_type", "") for e in edge_list}
+if "worldfusion" in mgr_types:
+    fusion = "worldfusion"
+elif "late_fusion" in mgr_types:
+    fusion = "late_fusion"
+else:
+    fusion = "none"
+print(num_ego, num_rsu, num_edges, fusion)
 PY
 )
-echo "Derived from $SCENARIO_YAML: ego=$num_ego rsu=$num_rsu edges=$num_edges"
+echo "Derived from $SCENARIO_YAML: ego=$num_ego rsu=$num_rsu edges=$num_edges fusion=$fusion_type"
 
 if ! [[ "$num_ego" =~ ^[0-9]+$ ]] || [[ "$num_ego" -lt 1 ]]; then
     echo "Error: derived num_ego=$num_ego invalid (need >=1). Check scenario YAML."
     exit 1
 fi
 
-# Runtime mode prompts (or defaults under --auto).
+# ML / gRPC defaults derived from fusion type:
+#   worldfusion  -> ML=Y, WF-gRPC=Y, YOLO-gRPC=n
+#   late_fusion  -> ML=Y, WF-gRPC=n, YOLO-gRPC=Y
+#   none         -> ML=n
+case "$fusion_type" in
+    worldfusion) default_ml=Y; default_wf=Y; default_yolo=n ;;
+    late_fusion) default_ml=Y; default_wf=n; default_yolo=Y ;;
+    *)           default_ml=n; default_wf=n; default_yolo=n ;;
+esac
+
 if (( auto_mode )); then
-    use_ml="${USE_ML:-Y}"
-    use_litserve="${USE_LITSERVE:-Y}"
-    use_yolo_grpc="${USE_YOLO_GRPC:-n}"
+    use_ml="${USE_ML:-$default_ml}"
+    use_litserve="${USE_LITSERVE:-$default_wf}"
+    use_yolo_grpc="${USE_YOLO_GRPC:-$default_yolo}"
     rebuild="${REBUILD:-n}"
-    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc rebuild=$rebuild"
+    use_verbose="${VERBOSE:-n}"
+    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc rebuild=$rebuild verbose=$use_verbose"
 else
-    read -p "Use ML (Y/n)? " use_ml
-    read -p "Use WorldFusion gRPC server for distributed ML inference (Y/n)? " use_litserve
-    read -p "Use YOLO gRPC server for distributed YOLO inference / late fusion (Y/n)? " use_yolo_grpc
+    use_ml="$default_ml"
+    if [[ "$fusion_type" == "worldfusion" ]]; then
+        echo "WorldFusion scenario — ML is required."
+        read -p "Use WorldFusion gRPC server for distributed inference (Y/n)? " use_litserve
+        use_litserve="${use_litserve:-$default_wf}"
+        use_yolo_grpc="$default_yolo"
+    elif [[ "$fusion_type" == "late_fusion" ]]; then
+        echo "Late Fusion scenario — ML is required."
+        read -p "Use YOLO gRPC server for distributed inference (Y/n)? " use_yolo_grpc
+        use_yolo_grpc="${use_yolo_grpc:-$default_yolo}"
+        use_litserve="$default_wf"
+    else
+        read -p "Use ML (Y/n)? " use_ml
+        use_litserve="$default_wf"
+        use_yolo_grpc="$default_yolo"
+    fi
     read -p "Rebuild containers (Y/n)? " rebuild
+    read -p "Enable verbose/debug logging (y/N)? " use_verbose
 fi
 
 # Check and clean up any existing containers
@@ -279,6 +307,11 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     wf_grpc_env="-e WF_GRPC_ENDPOINT=localhost:18002"
 fi
 
+verbose_flag=""
+if [[ "$use_verbose" = "Y" || "$use_verbose" = "y" ]]; then
+    verbose_flag="--verbose"
+fi
+
 echo ""
 echo "=========================================="
 echo "Starting eCAV Distributed Scenario"
@@ -290,6 +323,7 @@ echo "Edges: $num_edges"
 echo "ML enabled: $use_ml"
 echo "WorldFusion gRPC: $use_litserve"
 echo "YOLO gRPC: $use_yolo_grpc"
+echo "Verbose: $use_verbose"
 echo "=========================================="
 echo ""
 
@@ -336,7 +370,7 @@ echo "  Log file: $ECAV_LOG"
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
 _CONDA_ROOT="${HOME}/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag > '$ECAV_LOG' 2>&1" &
+bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
 ECAV_PID=$!
 
 echo "  ✓ Base process started (PID: $ECAV_PID)"
@@ -438,7 +472,7 @@ do
         -e TERM \
         -e QT_X11_NO_MITSHM=1 \
         ecav-python310:latest \
-        python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i $i -T $((8000 + i))
+        python3.10 -u ecav.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -d -i $i -T $((8000 + i))
 
     echo "  ✓ $container_name started"
     wait_for_container_log "$container_name" "Registered with" 90 || exit 1
@@ -463,7 +497,7 @@ if [[ $num_rsu -gt 0 ]]; then
             -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
-            python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag -v 0.9.15 -i $i
+            python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -i $i
 
         echo "  ✓ $container_name started"
         wait_for_container_log "$container_name" "Registered with" 90 || exit 1
@@ -486,7 +520,7 @@ docker run $gpu_flag -d \
     -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
     -e DISPLAY=$DISPLAY \
     ecav-python310:latest \
-    python3.10 -u ecav.py $ml_flag $litserve_flag -v 0.9.15 -d -i -1 -T 8100
+    python3.10 -u ecav.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -d -i -1 -T 8100
 
 echo "  ✓ $container_name started"
 

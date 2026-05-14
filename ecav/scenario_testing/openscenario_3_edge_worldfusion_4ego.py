@@ -37,12 +37,20 @@ def exec_scenario_runner(scenario_params):
 
 def run_vehicle(opt, scenario_params):
     assert opt.distributed
+    vehicle_index = scenario_params.scenario_runner.vehicle_index
+    # Only cav1 (index 0) is the ScenarioRunner hero. cav2-4 are self-spawned
+    # by VehicleManager in run_scenario — they have no container of their own.
+    if vehicle_index != 0:
+        raise RuntimeError(
+            f"run_vehicle called with vehicle_index={vehicle_index}, but only "
+            f"index 0 (the ScenarioRunner hero) should run in a container. "
+            f"Start this scenario with num_ego=1.")
     try:
         scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
         scenario_runner.run()
         scenario_runner.destroy()
     except Exception as e:
-        print(f"vehicle_index: {scenario_params.scenario_runner.vehicle_index}")
+        print(f"vehicle_index: {vehicle_index}")
         raise e
 
 
@@ -155,10 +163,9 @@ def run_scenario(opt, scenario_params):
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
 
-            for edge in edge_list:
-                serialized_predictions = edge.run_step(step)
-                if opt.distributed and serialized_predictions is not None:
-                    scenario_manager.push_edge_objects(serialized_predictions)
+            if not opt.distributed:
+                for edge in edge_list:
+                    edge.run_step(step)
 
             step += 1
             if step >= MAX_STEP:

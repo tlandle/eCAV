@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import math, random, time, logging, pickle
 from collections import deque
-from typing import Dict, List, Deque
+from typing import Any, Dict, List, Deque
 
 import numpy as np
 from scipy.optimize import linear_sum_assignment
@@ -85,7 +85,11 @@ def _collect_ab3d_detections(edge,
     for vm in edge.vehicle_manager_list:
         loc, ext = beacons[vm.vehicle.id]
         h,w,l = ext.z*2, ext.y*2, ext.x*2
-        det_rows.append([h,w,l, loc.x,loc.z,loc.y, 0.0, 1.0])
+        # Heading-align the exclusion zone: yaw=0 hardcoded puts the 2m
+        # lateral gate on the longitudinal axis, letting depth-error ghosts
+        # through.  CARLA yaw (°, CW from +x) maps directly to KITTI theta.
+        beacon_theta = math.radians(vm.vehicle.get_transform().rotation.yaw)
+        det_rows.append([h,w,l, loc.x,loc.z,loc.y, beacon_theta, 1.0])
         _GUID += 1
         # Use temp_id instead of raw carla_id when manager is present
         if beacon_id_mgr is not None:
@@ -187,11 +191,20 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
     # ------------------------------------------------------------------
     def __init__(self, world, cfg, cav_world, carla_client,
-                 *, world_dt=0.05, **kw):
+                 *, world_dt=0.05, is_proxy=False, **kw):
         super().__init__(world, cfg, cav_world, carla_client,
-                         world_dt=world_dt, **kw)
+                         world_dt=world_dt, is_proxy=is_proxy, **kw)
 
         self.dt = world_dt
+
+        if is_proxy:
+            self.profiler = None
+            self.ego_monitor = None
+            self.tracker = None
+            self._jitter_buffer = None
+            self._track_history = None
+            self._last_update_tick = -1
+            return
 
         # managers ------------------------------------------------------
         pred_type = cfg.get('predictor_type', 'linear').lower()
@@ -253,6 +266,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         self.debug = EdgeMetrics(0)
         self._last_update_tick = -1  # Guard against double-update
         self._latest_source_tick = None
+        # Previous beacon locations for position-based ego_speed (Fix 2)
+        self._prev_beacon_locs: Dict[int, Any] = {}
 
         # Compute-contention: cache of previous tick's per-vehicle predictions
         self._prev_per_vehicle_preds: Dict[int, list] = {}  # vehicle index -> preds
@@ -283,6 +298,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
     # ------------------------------------------------------------------
     def start_edge(self):
+        if self.is_proxy:
+            return
         for vm in self.vehicle_manager_list:
             vm.agent._anchoring = self.anchoring
 
@@ -570,6 +587,16 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                                       prediction_time=predict_ms,
                                       latency=total_ms)
 
+            # Temporary: log all prediction tracks for Lincoln detection debugging
+            if preds and 90 <= tick <= 140:
+                logger.warning(
+                    "[PREDS] tick=%d n=%d tracks=%s",
+                    tick, len(preds),
+                    [(getattr(p.obstacle_trajectory.obstacle, 'carla_id', -1),
+                      f"{getattr(p.obstacle_trajectory.obstacle, 'kf_speed_mps', 0.0):.1f}",
+                      f"({p.obstacle_trajectory.obstacle.location.x:.1f},"
+                      f"{p.obstacle_trajectory.obstacle.location.y:.1f})")
+                     for p in preds])
             # ===== Per-ego ego-consistency suppression (publish boundary) ==
             # Part of the anchoring contract: anchor + enforce ego-uniqueness.
             # For each consumer ego, suppress anonymous tracks satisfying
@@ -596,8 +623,15 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 for vm in self.vehicle_manager_list:
                     ego_tf = managed_tfs[vm.vehicle.id]
                     ego_loc = ego_tf.location
-                    ego_vel = vm.vehicle.get_velocity()
-                    ego_speed = (ego_vel.x**2 + ego_vel.y**2)**0.5
+                    _prev_loc = self._prev_beacon_locs.get(vm.vehicle.id)
+                    if _prev_loc is not None:
+                        ego_speed = (
+                            (ego_loc.x - _prev_loc.x)**2 +
+                            (ego_loc.y - _prev_loc.y)**2
+                        )**0.5 / self.dt
+                    else:
+                        ego_vel = vm.vehicle.get_velocity()
+                        ego_speed = (ego_vel.x**2 + ego_vel.y**2)**0.5
 
                     # Ego footprint for stationary-track suppression:
                     # suppress obs within inflated bounding box in ego
@@ -670,6 +704,13 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                         if d_to_us >= self._self_id_radius:
                             continue
                         obs_speed = getattr(obs, 'kf_speed_mps', 0.0)
+                        logger.warning(
+                            "[SUPP-TRACE] tick=%d ego=%d pred_idx=%d "
+                            "cid=%d d=%.2fm obs_spd=%.2f ego_spd=%.2f "
+                            "gate=%.1f",
+                            tick, vm.vehicle.id, i, cid, d_to_us,
+                            obs_speed, ego_speed,
+                            self._self_id_speed_gate)
 
                         # Two suppression paths:
                         # (a) Ego-footprint overlap: stationary track
@@ -712,7 +753,7 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                             self._self_id_speed_gate, d_to_us)
                     ego_suppress_sets[vm.vehicle.id] = suppress_idx
                     if suppress_idx or n_swap_detect:
-                        logger.debug(
+                        logger.warning(
                             "[EGO-SUPPRESS] tick=%d ego=%d "
                             "suppressed=%d (footprint=%d speed_gate=%d) "
                             "swaps_detected=%d stat_candidates=%d "
@@ -721,6 +762,10 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                             n_footprint, n_speed_gate, n_swap_detect,
                             n_stat_cand, self._self_id_radius,
                             self._self_id_speed_gate)
+
+            # Advance beacon position history for next tick's ego_speed estimate
+            for vid, (loc, _ext) in beacons.items():
+                self._prev_beacon_locs[vid] = loc
 
             # ===== 3. distribute predictions (with compute contention) =====
             with frame.time("distribution"):
@@ -885,6 +930,16 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         for tid in list(self.tracked_trajectories):
             if tid not in updated:
                 del self.tracked_trajectories[tid]
+
+        # Temporary: log tracked trajectory summary for debugging
+        if self.tracked_trajectories:
+            summary = [(tid,
+                        getattr(t.obstacle, 'carla_id', -1),
+                        f"{getattr(t.obstacle, 'kf_speed_mps', 0.0):.1f}",
+                        f"({t.obstacle.location.x:.1f},{t.obstacle.location.y:.1f})",
+                        len(t.trajectory))
+                       for tid, t in self.tracked_trajectories.items()]
+            logger.warning("[TRACKS] n=%d %s", len(summary), summary)
 
         # Anchoring OFF: no edge-side self-identification.
         # The edge sends all predictions unsuppressed.  The vehicle
@@ -1143,6 +1198,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         Returns:
             Tuple[figure, perform_txt, metrics]
         """
+        if self.is_proxy:
+            return None, "", self._proxy_metrics
         fig, txt, metrics = self.profiler.get_evaluation_result()
         metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
         metrics['spatial_self_id_failures'] = self._self_id_failures

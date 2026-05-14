@@ -71,9 +71,19 @@ The compaction scratch file (`YYYY-MM-DD_scratch.md`) has been removed as a dire
 
 This is automatic; whomever is working with you in this workspace does not need to ask. See [docs/agent_plans/kb_plan.md](../docs/agent_plans/kb_plan.md) for full KB structure.
 
-## Code Quality: Progressive Cleanup Policy
+### Code Search
+
+Use the Semble MCP tools (`mcp__semble__search`, `mcp__semble__find_related`) for all codebase searches instead of Grep, Glob, or Read for exploratory queries. Always pass `repo` as `C:\Users\jorda\eCAV` on the first search of a session to build the index — subsequent searches in the same session are cached and fast. Fall back to Grep/Glob only for exact literal matches where Semble would be overkill (e.g. finding a specific known file path).
+
+### Planning — Project Override
 
 When editing any file for a functional reason (bug fix, feature, refactor), also sweep that file for:
+
+- Plans for this project live in `/docs/agent_plans` (not `~/agent_plans`).
+- You have explicit permission to read and write `.md` files under `/docs/` and all subfolders.
+- Do not delete any file or folder from `/docs/` without asking.
+
+## Code Quality: Progressive Cleanup Policy
 
 1. **`print` → `logger` conversion** — bare `print(...)` calls should become `logger.debug/info/warning/error(...)` at the appropriate level. Use an existing logger if the module already has one; add `logger = logging.getLogger(__name__)` if not. Don't convert prints that are intentional user-facing CLI output.
 

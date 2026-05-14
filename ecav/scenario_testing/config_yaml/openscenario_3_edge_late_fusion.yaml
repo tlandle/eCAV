@@ -268,7 +268,7 @@ scenario:
       # Trajectory predictor: "linear" (KF velocity) or "smart" (SMART NeurIPS 2024)
       predictor_type: smart
       smart_predictor:
-        checkpoint: ecav/core/prediction/smart/checkpoints/epoch=105.ckpt
+        checkpoint: models/smart/epoch=105.ckpt
         map_cache: null
         device: cuda
 

@@ -83,8 +83,19 @@ class WorldFusionEdge(_BaseEdgeManager):
                  carla_client: carla.Client,
                  *,
                  world_dt: float = 0.05,
+                 is_proxy: bool = False,
                  **kwargs):
-        super().__init__(world, cfg, cav_world, carla_client, world_dt=world_dt, **kwargs)
+        super().__init__(world, cfg, cav_world, carla_client, world_dt=world_dt,
+                         is_proxy=is_proxy, **kwargs)
+
+        if is_proxy:
+            self.model = None
+            self.post_processor = None
+            self.tracker = None
+            self.mot_tracker = None
+            self.profiler = None
+            self._last_update_tick = -1
+            return
 
         print("[WorldFusion Edge] Initializing...")
 
@@ -247,6 +258,8 @@ class WorldFusionEdge(_BaseEdgeManager):
         print("[WorldFusion Edge] Initialization complete.")
 
     def start_edge(self):
+        if self.is_proxy:
+            return
         for vm in self.vehicle_manager_list:
             vm.agent._anchoring = self.anchoring
 
@@ -2058,6 +2071,8 @@ class WorldFusionEdge(_BaseEdgeManager):
                 - perform_txt: Text summary for log file
                 - metrics: Dict of metrics for global_metrics
         """
+        if self.is_proxy:
+            return None, "", self._proxy_metrics
         fig, txt, metrics = self.profiler.get_evaluation_result()
         metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
         metrics.update(self._get_latency_component_stats())

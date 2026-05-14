@@ -1,5 +1,5 @@
 ---
-updated: 2026-04-27
+updated: 2026-05-09
 ---
 # Current State
 
@@ -34,19 +34,43 @@ Commits: `2a9db949` (fix), `647733e4` (logging + KB). Not pushed.
 
 ---
 
+## Distributed Integration — Committed (2026-05-04), Verified
+
+All work from the two implementation sessions (edge fusion + instrumentation/evaluation) committed in `787f4dac`. Pipeline verified end-to-end on `openscenario_3_edge_worldfusion --apply_ml -d`.
+
+**What was fixed and implemented:** see commit `787f4dac` message for full list. High-level:
+- `edge_process.py` NOP relay fixed — edge now instantiates and runs the real edge manager
+- `CavWorld(apply_ml=False, config={'distributed': True})` in edge container — no YOLOv5 load, correct `run_distributed` flag
+- RSU `actor_id < 0` guard — RSUs have no base CARLA actor; skip `world.get_actor()` for static infrastructure
+- `_init_task` always-await fix — exceptions from phase A (edge manager init) now surface correctly
+- Instrumentation, metrics chain, `is_proxy` on edge managers, edge eval forwarding, verbose flag
+- `ecav.py`: missing `scenario_name` after OmegaConf merge
+- `openscenario_3_edge_worldfusion.yaml`: reverted ego speed 70 → 43 km/h (Tyler's workaround masked fusion failure)
+
+**Verified behavior (test 3: `--apply_ml -d`):**
+- `[DATA_FLOW] tick=N features=2/2 objects=2/2` — both RSU and vehicle send features every tick ✓
+- WorldFusion runs each tick and produces detection scores ✓
+- Lincoln z≈−502 at spawn (below map) → `in_range=False` → correctly no detections until Lincoln arrives ✓
+- SMART builds a 9-tick track on the Lincoln near the intersection; rejects it (need 22 ticks) ✓
+- No predictions reach vehicle → no brake signal → collision at tick ~226 ✓
+
+**Key finding: collision is expected and correct.** Tyler's 70 km/h workaround had the ego clear the intersection before the Lincoln arrived, making "no predictions" survivable. At 43 km/h (correct), no predictions = collision. The predictor is the research problem — SMART requires 22 ticks of track history but the Lincoln only provides ~9 before the intersection. This is Tyler's problem to fix, not distributed architecture.
+
+**Test 4 verified (`--apply_ml -d -l`)**: `features=2/2 objects=2/2` every tick via gRPC litserve endpoint (confirmed by `DEBUG:grpc._cython.cygrpc` in edge container per tick). Same SMART maturity failure, same collision. Cleanup crash `edge.profiler.save_report()` on NoneType fixed with guard in `openscenario_3_edge_worldfusion.py:261`.
+
+**Next: tests 5–8** — late fusion variants.
+
 ## Next: Full Regression Matrix
 
-All 8 permutations must pass before moving to multi-ego (`openscenario_3_edge_worldfusion_4ego`). Cannot assume prior results hold — agent-ordering fix touches the edge manager in every mode.
-
-Flags: `--apply_ml` enables ML; `-l` routes inference to external gRPC server; `-d` distributed actors.
+All 8 permutations must pass. Flags: `--apply_ml` enables ML; `-l` routes inference to external gRPC server; `-d` distributed actors.
 
 | # | Fusion | `-l` | `-d` | Status |
 |---|---|---|---|---|
 | 1 | WorldFusion | no | no | ✓ 2026-04-26 |
 | 2 | WorldFusion | yes | no | ✓ 2026-04-29 |
-| 3 | WorldFusion | no | yes | ✓ 2026-04-29 |
-| 4 | WorldFusion | yes | yes | — |
-| 5 | Late fusion | no | no | — |
+| 3 | WorldFusion | no | yes | ✓ 2026-05-03 — pipeline verified, collision expected (SMART maturity) |
+| 4 | WorldFusion | yes | yes | ✓ 2026-05-03 — identical to test 3; gRPC feature extraction confirmed via litserve |
+| 5 | Late fusion | no | no | ✓ 2026-05-03 — no collision; SMART loaded; YOLO detections flowing; V2X beacon caught Lincoln |
 | 6 | Late fusion | yes | no | — |
 | 7 | Late fusion | no | yes | — |
 | 8 | Late fusion | yes | yes | — |
@@ -96,6 +120,31 @@ Run in order 1→8: sequential before distributed, WorldFusion before late fusio
 
 ---
 
+## WF_GRPC_ENDPOINT Fix for Distributed Containers (2026-04-29) — Committed
+
+**Problem**: `-l -d` (WorldFusion + distributed actors) tried `localhost:18000` (HTTP LitServe) instead of `localhost:18002` (gRPC). Root cause: `CavWorld` is initialized `config=None` in the distributed actor container, so `ml_manager` gets an empty config dict and `worldfusion_grpc_endpoint` defaults to `None`. gRPC path skipped; HTTP fallback fires.
+
+**Fix**: `start_actors.sh` — set `wf_grpc_env="-e WF_GRPC_ENDPOINT=localhost:18002"` when `-l` active; pass to ego and RSU `docker run` commands. This is the first-checked path in `worldfusion_perception_manager.py`.
+
+**Late fusion unaffected**: `ml_manager._init_distributed()` creates YOLO gRPC channel directly to `yolo_endpoint` (default `localhost:18001`); `perception_manager.py` calls `ml_manager.detect()` which uses the pre-initialized stub. No env var needed.
+
+All 4 WorldFusion tests now passing (2026-04-29).
+
+---
+
+## Late Fusion Self-Detection Regression — RESOLVED (Not a Real Regression)
+
+**Was**: `openscenario_3_edge_late_fusion --apply_ml` — ego detected itself as an obstacle, 86 brakes, collision.
+
+**Actual cause**: Two bugs silenced the pipeline entirely — (1) wrong SMART checkpoint path (`ecav/core/prediction/...` instead of `models/smart/...`) fell back to linear predictor, which never loaded CUDA, causing `EdgeProfiler._start_frame` to crash every tick with `Invalid device argument` from `torch.cuda.reset_peak_memory_stats(0)` before any tracking ran. (2) Profiler crash propagated out of `run_step`, so zero predictions reached the vehicle.
+
+**Fixes**: `openscenario_3_edge_late_fusion.yaml` checkpoint path corrected; `edge_profiler.py` probes device once at init and gates `sample_gpu_utilization` — no crash if no CUDA context.
+
+**Test 5 result (2026-05-03)**: No collision, SMART loaded, YOLO detections flowing from RSU, no self-detection, no ghost brakes. Ego avoided collision via V2X beacon (Lincoln broadcasts position; SMART never fired because Lincoln track window is ~9 ticks, same as WorldFusion).
+
+---
+
+
 ## Code Quality Changes (2026-04-27)
 
 - `ecav/utils.py` (new): `find_unpicklable(obj, path="")` — pure recursive helper, no side effects
@@ -106,6 +155,58 @@ Run in order 1→8: sequential before distributed, WorldFusion before late fusio
 ---
 
 ## WIP / Exploratory
+
+### Edge-Only Distributed Mode (2026-05-09)
+
+Architecture plan: [edge_only_distributed_mode.md](../../agent_plans/edge_only_distributed_mode.md).
+
+**Motivation:** Research focus is the edge node itself (fusion pipeline, latency, handoff). Edge-only mode runs edges in Docker (isolated, profilable) while vehicle + RSU stay in the base process (sequential-style, zero gRPC overhead).
+
+**Architecture decision:** Direct fusion interface. Edge exposes `Edge_PerformFusion(IntermediateFeaturesBatch) → FusionResult` as a per-tick RPC. Base process calls it directly after local perception. No C++ orchestrator, no actor registration.
+
+**Phase 0 complete.** Key findings:
+
+- `Edge_PerformFusion` is defined in proto (line 476) but has no handler in `EdgeServer`
+- `run_edge_step()` from commit `787f4dac` is the direct implementation reference — it does feature unpack + `edge_manager.run_step()` + per-vehicle prediction serialization. The standalone handler wraps this same logic
+- `FusionResult` proto needs `bytes pickled_predictions = 5` added — the existing `detections` field carries `EdgeObstacleObject` proto structs, not the pickled `ObstaclePrediction` objects the planning pipeline expects
+- RSU features flow through the same path as vehicle features (`update_information()` iterates all members)
+
+**`start_actors.sh` verified clean** after merge with 787f4dac remote — YAML parsing, verbose flag, and fusion prompts all intact.
+
+**Phase 1 pending:**
+
+- Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`, recompile
+- Add `--standalone` / `--config` args to `edge_process.py`
+- Implement `Edge_PerformFusion` handler in `EdgeServer`
+- Add standalone `run()` path that skips orchestrator registration
+
+**Implementation scope (Phases 2–3 still pending):**
+
+- New `ecav/scenario_testing/utils/edge_fusion_client.py`: gRPC client with retry-connect
+- `ecav.py`: `-eo` flag, skip C++ server in this mode
+- `EdgeManager.run_step()` split: `collect_features()` + `apply_predictions()`
+- `start_actors.sh`: skip vehicle containers in edge-only mode
+
+### Multi-Edge Locale & Handoff Architecture (2026-04-18)
+
+Architecture plan written. See [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md).
+
+**Scope:** Two interrelated problems — locale ownership (how an edge claims geographic CARLA space) and vehicle handoff (how vehicles transfer between edges when crossing locale boundaries).
+
+**Locale v1:** Rectangular bounding box (min/max XYZ in YAML `locale_bounds` field). Spawn-time geometric assignment replaces explicit vehicle lists. Transition zone width is a research variable.
+
+**Handoff models (all three to implement and compare):**
+- **Model C (first):** Orchestrator-driven via CARLA direct position query. Lowest cost; cleanest experimental baseline.
+- **Model A (second):** Vehicle-driven; most V2X deployment-realistic.
+- **Model B (third):** Edge-driven with peer-to-peer channels; warmest handoff; most complex.
+
+**State transfer:** Cold start in v1 (handoff gap is the research signal). Warm handoff (state serialization) is Phase 2 and a core Paper 2 research variable.
+
+**Paper mapping:**
+- Paper 2: Multi-edge handoff characterization (handoff gap, cold vs. warm, Model A/B/C comparison, latency stacking)
+- Paper 3: Scaling (N-edge tick throughput, simultaneous crossings, city-block grid)
+
+**Status:** Plan written; implementation not yet started. Next step: Phase 0 (locale YAML schema + `compute_edge_mappings()` geometric rewrite).
 
 ### Azure Distributed Deployment (2026-04-06)
 

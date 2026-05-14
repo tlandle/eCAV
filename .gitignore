@@ -189,9 +189,8 @@ ecav/ecloud_server/Makefile
 # Local environment configuration (user-specific paths)
 local.env
 
-.claude/
-
 logs/
+
 # Pretrained MTR checkpoint: too large for LFS, download separately
 ecav/ml_manager/models/mtr/best_model.pth
 
@@ -218,3 +217,8 @@ ecav/ml_manager/models/**/events.out.tfevents.*
 preprocessed_data/
 # Paper1 figure outputs (paper1 lives outside this repo)
 scripts/paper1_figures_real_aligned/
+
+# Editor / external workspace
+.obsidian/workspace.json
+plantuml-images/
+dissertation_proposal/
