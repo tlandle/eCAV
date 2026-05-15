@@ -149,6 +149,7 @@ cython_debug/
 #*.json
 *.csv
 !paper2/reproduce/data/*.csv
+!ecav/core/application/edge/latency/data/*.csv
 output/
 outputs
 *.pt

@@ -1,6 +1,6 @@
 """ns-3 LUT-backed latency sampler for closed-loop AoI injection.
 
-Loads paper2/paper2_figures/ns3_uplink_lut.csv and ns3_downlink_lut.csv and
+Loads ns3_uplink_lut.csv and ns3_downlink_lut.csv from this module's data/ dir, and
 exposes sample_ms(N, payload_bytes, direction) for the edge manager.  Each
 LUT row has mean/p50/p95/p99 ms over n_samples runs at a (N, payload) cell;
 we treat (mean, p95) as a Gaussian (approx, since p95 ≈ mean + 1.645 sigma)
@@ -138,14 +138,12 @@ _DEFAULT: Ns3LutSampler | None = None
 
 
 def get_default(repo_root: str | None = None) -> Ns3LutSampler:
-    """Singleton accessor.  Reads CSVs from paper2/paper2_figures/ once."""
+    """Singleton accessor.  Reads CSVs alongside this module under data/."""
     global _DEFAULT
     if _DEFAULT is None:
-        if repo_root is None:
-            here = Path(__file__).resolve()
-            # latency/ -> edge/ -> application/ -> core/ -> ecav/ -> repo
-            repo_root = str(here.parents[5])
-        ul = Path(repo_root) / "paper2" / "paper2_figures" / "ns3_uplink_lut.csv"
-        dl = Path(repo_root) / "paper2" / "paper2_figures" / "ns3_downlink_lut.csv"
+        here = Path(__file__).resolve()
+        data_dir = here.parent / "data"
+        ul = data_dir / "ns3_uplink_lut.csv"
+        dl = data_dir / "ns3_downlink_lut.csv"
         _DEFAULT = Ns3LutSampler(str(ul), str(dl))
     return _DEFAULT
