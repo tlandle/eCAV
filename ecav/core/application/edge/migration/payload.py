@@ -4,28 +4,26 @@
 
 """MigrationPayload: the unit migrated between locales.
 
-The payload carries the model's latent state for one or more tracks:
-the sequence-model tracker's recurrent hidden state plus the multi-modal
-predictor's per-track attention cache, together with track identity and
-per-track risk metadata. This is the artifact that lets the destination
-locale resume inference without warm-up.
+A payload carries the per-track state that lets the destination locale
+resume inference without warm-up. For the Mamba3DMOT tracker this is the
+input history that the learned motion model conditions on (memo_bank and
+diff_memo_bank) plus the bookkeeping the tracker needs to keep the track
+identified and associated.
 
-The payload is intentionally minimal. Container-level state (process,
-operating system, model weights) is assumed to already exist at the
-destination because every locale runs an instance of the same service.
-What changes per migration is only the learned per-track state.
+The Mamba motion model itself is shared across locales (same weights, same
+architecture); the per-track state is what changes per vehicle and per
+tick, and is what gets serialized into a payload.
 
-The dataclass is serializable via pickle for the parametric inter-locale
-link model in :mod:`.link`. A real deployment would replace pickle with a
-length-prefixed binary protocol; the serializer interface is the same.
+The factory functions that build a payload from a live MambaTracklet3D and
+inject it into a fresh tracker live in :mod:`.factories` to keep this
+module free of torch imports.
 """
 from __future__ import annotations
 
-import io
 import logging
 import pickle
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 
@@ -34,32 +32,53 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class TrackLatent:
-    """Per-track payload entries that the destination tracker uses to resume."""
+    """Per-track payload entries that the destination tracker uses to resume.
 
+    Fields map directly to MambaTracklet3D state. ``memo_bank`` and
+    ``diff_memo_bank`` are the input history the learned motion model
+    conditions on; the rest is tracker bookkeeping.
+    """
+
+    # Identity
     track_id: int
     persistent_vehicle_id: int
-    hidden_state: np.ndarray  # tracker's recurrent state, shape (D,) float16
-    predictor_cache: Optional[np.ndarray] = None  # predictor's per-track context
+
+    # Mamba motion model input history (the latent surface the model sees)
+    memo_bank: np.ndarray         # (K, 7) float32, K up to max_window
+    diff_memo_bank: np.ndarray    # (K, 7) float32
+
+    # Current and predicted bbox
+    bbox_3d: np.ndarray           # (7,) float32
+    predicted_last_bbox: Optional[np.ndarray]  # (7,) or None
+
+    # Track bookkeeping
+    frame_id: int
+    start_frame: int
+    score: float
+    is_activated: bool
+    state_flag: int
+    time_since_update: int
+
+    # Optional predictor cache (e.g. MTR per-track attention context)
+    predictor_cache: Optional[np.ndarray] = None
+
+    # Migration metadata
     risk_score: float = 0.0
-    last_observation_t: float = 0.0  # simulator time of latest input used
+    last_observation_t: float = 0.0
 
     def nbytes(self) -> int:
-        n = int(self.hidden_state.nbytes)
+        n = int(self.memo_bank.nbytes) + int(self.diff_memo_bank.nbytes)
+        n += int(self.bbox_3d.nbytes)
+        if self.predicted_last_bbox is not None:
+            n += int(self.predicted_last_bbox.nbytes)
         if self.predictor_cache is not None:
             n += int(self.predictor_cache.nbytes)
-        # identity + scalars ~ 32 B
-        return n + 32
+        return n + 96  # rough header overhead
 
 
 @dataclass
 class MigrationPayload:
-    """A bundle of TrackLatent records for one source->destination migration.
-
-    The payload is created by the source locale's :class:`MigrationDaemon`
-    once the :class:`TrajectoryTrigger` fires. It crosses the inter-locale
-    link as a single message and is consumed on the destination side by the
-    receiving daemon.
-    """
+    """A bundle of TrackLatent records for one source -> destination migration."""
 
     source_locale_id: str
     destination_locale_id: str
@@ -67,23 +86,12 @@ class MigrationPayload:
     tracks: List[TrackLatent] = field(default_factory=list)
     schema_version: int = 1
 
-    # ------------------------------------------------------------------
-    # Size accounting
-    # ------------------------------------------------------------------
     def payload_bytes(self) -> int:
-        """Total serialized size in bytes (best-effort sum across tracks).
-
-        Used by :class:`InterLocaleLink` to compute transfer time from the
-        link's bandwidth parameter without materializing the wire bytes.
-        """
         n = 64  # header overhead
         for t in self.tracks:
             n += t.nbytes()
         return n
 
-    # ------------------------------------------------------------------
-    # Serialization
-    # ------------------------------------------------------------------
     def serialize(self) -> bytes:
         return pickle.dumps(self, protocol=pickle.HIGHEST_PROTOCOL)
 
