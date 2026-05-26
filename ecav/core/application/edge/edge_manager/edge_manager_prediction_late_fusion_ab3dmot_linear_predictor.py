@@ -855,13 +855,7 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
             # ===== 5. advance vehicles ===================================
             if not self.run_distributed:
-                for vm in self.vehicle_manager_list:
-                    vm.update_info(tick)
-                    vm.vehicle.apply_control(vm.run_step())
-                    self._label_brake_attributions_gt(vm)
-                    self._record_time_to_events(tick, vm)
-                for rsu in self.rsu_manager_list:
-                    rsu.update_info();  rsu.run_step()
+                self._advance_actors(tick)
 
             # Set profiler counts
             frame.set_counts(
@@ -872,6 +866,25 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             )
 
             return serialized_preds
+
+    # ------------------------------------------------------------------
+    #  Per-tick vehicle/RSU advance (override hook for CIP and friends)
+    # ------------------------------------------------------------------
+    def _advance_actors(self, tick: int) -> None:
+        """Default actor advance: each VM perceives, plans, and actuates
+        locally; each RSU updates and runs its step.
+
+        Subclasses (e.g., CIPEdge) override this when planning moves to
+        the edge or when the consumer boundary changes.
+        """
+        for vm in self.vehicle_manager_list:
+            vm.update_info(tick)
+            vm.vehicle.apply_control(vm.run_step())
+            self._label_brake_attributions_gt(vm)
+            self._record_time_to_events(tick, vm)
+        for rsu in self.rsu_manager_list:
+            rsu.update_info()
+            rsu.run_step()
 
     # ------------------------------------------------------------------
     #  Trajectory conversion
