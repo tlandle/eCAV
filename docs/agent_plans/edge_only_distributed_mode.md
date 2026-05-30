@@ -274,7 +274,7 @@ After any proto change, recompile: `python ecav.py --build`.
 - [x] Add tick-ID tracking to `EdgeProcess` (`expected_tick_id`, `_last_fusion_result` for idempotent retries)
 - [x] Add `--standalone` / `--config` args and `_run_standalone()` path (skips orchestrator, loads YAML from file, inits edge manager without CARLA) — `_setup_edge_manager_standalone()` uses `world=None, carla_client=None`
 - [x] Guard unguarded `self.world.get_actors()` in `WorldFusionEdge.run_step()` with `if self.world is not None:`
-- [ ] Change `register_with_orchestrator()` to connect to ecav.py's gRPC server instead of C++ server (Phase 2 dependency — ecav.py server doesn't exist yet)
+- [x] Change `register_with_orchestrator()` to connect to ecav.py's gRPC server instead of C++ server — no code change needed: it uses `orchestrator_ip`/`orchestrator_port` CLI args; in edge-only mode those point at `EdgeRegistrationServer` (port 50055); `run()` branches on `carla_ip==""` after registration
 - [x] Test: start edge process in `--standalone` mode, call `Edge_PerformFusion` via `test_edge_standalone.py` — PASSED (2026-05-30): empty batch → early return, idempotency gate, Edge_EndScenario profiler (75 keys)
 
 ### Phase 2: Base Process Client
@@ -289,8 +289,8 @@ After any proto change, recompile: `python ecav.py --build`.
 
 ### Phase 3: Launch Script
 
-- [ ] Update `start_actors.sh`: spawn edges with no `--edge-index`; skip vehicle/RSU containers in edge-only mode
-- [ ] Replace "pushed scenario start" wait with ecav.py "all edges ready" signal
+- [x] Update `start_actors.sh`: spawn edges with `--orchestrator_ip localhost --orchestrator_port 50055` (no `--edge-index`); skip vehicle/RSU/non-ego containers in edge-only mode; use port base 50060 for fusion servers
+- [x] Replace "pushed scenario start" wait with mode-aware signals: wait for "EdgeRegistrationServer" before starting edges, then `[EDGE-ONLY]` after all edges connected
 - [ ] Test: `openscenario_3_edge_worldfusion` end-to-end in edge-only distributed mode
 
 ### Phase 4: Verification

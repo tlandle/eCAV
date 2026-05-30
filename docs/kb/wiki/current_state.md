@@ -48,10 +48,15 @@ One checklist item intentionally deferred to Phase 2: changing `register_with_or
 
 **How the edge registers:** edge container starts with `--orchestrator_ip <host> --orchestrator_port 50055` pointing at ecav.py's registration server instead of the C++ server. The `carla_ip=""` in the response tells it to use standalone setup.
 
-### Phase 3 — Next
+### Phase 3 — Script Done, Test Pending
 
-- `start_actors.sh`: spawn edges only (no vehicle/RSU containers); pass `--orchestrator_ip <host> --orchestrator_port 50055` to each edge; await ecav.py "all edges ready" signal
-- End-to-end test: `openscenario_3_edge_worldfusion --apply_ml --edge_only`
+`start_actors.sh` updated (2026-05-30):
+- New prompt "Edge-only distributed mode?" → sets `mode_flag=-eo` (vs `-d` for fully-distributed)
+- Edge-only wait flow: wait for "EdgeRegistrationServer" in ECAV_LOG (registration server up) before starting edges; then wait for `[EDGE-ONLY]` (all edges connected) before proceeding
+- Edge containers start with `--orchestrator_ip localhost --orchestrator_port 50055`, port base 50060 (avoids collision with registration server on 50055)
+- Vehicle/RSU/non-ego containers skipped entirely in edge-only mode
+
+Remaining: End-to-end test: `openscenario_3_edge_worldfusion --apply_ml --edge_only`
 
 ---
 

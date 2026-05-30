@@ -3,6 +3,7 @@
 # Prompt for scenario name
 read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
 read -p "Enable verbose/debug logging (y/N)? " use_verbose
+read -p "Edge-only distributed mode — edges in Docker, no vehicle/RSU containers (y/N)? " use_edge_only
 
 if [[ -z "$scenario_name" ]]; then
     echo "Error: Scenario name cannot be empty"
@@ -251,11 +252,19 @@ if [[ "$use_verbose" = "Y" || "$use_verbose" = "y" ]]; then
     verbose_flag="--verbose"
 fi
 
+# -eo (edge-only) replaces -d (fully-distributed) in the ecav.py invocation
+if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+    mode_flag="-eo"
+else
+    mode_flag="-d"
+fi
+
 echo ""
 echo "=========================================="
 echo "Starting eCAV Distributed Scenario"
 echo "=========================================="
 echo "Scenario: $scenario_name"
+echo "Mode: $([ "$use_edge_only" = "Y" ] || [ "$use_edge_only" = "y" ] && echo "edge-only (-eo)" || echo "fully-distributed (-d)")"
 echo "Ego vehicles: $num_ego"
 echo "RSUs: $num_rsu"
 echo "Edges: $num_edges"
@@ -309,18 +318,25 @@ echo "  Log file: $ECAV_LOG"
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
 _CONDA_ROOT="/home/jordan/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
+bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u ecav.py -t '$scenario_name' -v 0.9.15 $mode_flag $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
 ECAV_PID=$!
 
 echo "  ✓ Base process started (PID: $ECAV_PID)"
-echo "  Monitoring log file for 'pushed scenario start' message..."
+if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+    echo "  Monitoring log file for 'EdgeRegistrationServer' message..."
+    ready_pattern="EdgeRegistrationServer"
+    ready_msg="EdgeRegistrationServer ready"
+else
+    echo "  Monitoring log file for 'pushed scenario start' message..."
+    ready_pattern="pushed scenario start"
+    ready_msg="Scenario initialization complete"
+fi
 
-# Monitor the log file until we see "pushed scenario start"
 timeout=60  # 60 second timeout
 elapsed=0
 while [[ $elapsed -lt $timeout ]]; do
-    if grep -qi "pushed scenario start" "$ECAV_LOG" 2>/dev/null; then
-        echo "  ✓ Scenario initialization complete!"
+    if grep -qi "$ready_pattern" "$ECAV_LOG" 2>/dev/null; then
+        echo "  ✓ $ready_msg!"
         break
     fi
 
@@ -367,31 +383,84 @@ container_id=0
 # Start edge containers (if any)
 if [[ $num_edges -gt 0 ]]; then
     echo "Starting $num_edges edge container(s)..."
-    EDGE_BASE_PORT=50054
-    for ((e=0; e<$num_edges; e++))
-    do
-        container_name="edge_$e"
-        edge_port=$((EDGE_BASE_PORT + e))
-        echo "  Starting $container_name (edge index: $e, port: $edge_port)..."
 
-        docker run $gpu_flag -d \
-            --network=host \
-            --name="$container_name" \
-            -e "HOSTNAME=$container_name" \
-            -e IS_DOCKER=1 \
-            -v /tmp/.X11-unix:/tmp/.X11-unix \
-            -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
-            -e DISPLAY=$DISPLAY \
-            -e TERM \
-            ecav-python310:latest \
-            python3.10 -u ecav/ecav2/edge_process.py -e $e -P $edge_port
+    if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+        # Edge-only mode: edges register with ecav.py's EdgeRegistrationServer on port 50055.
+        # Use port base 50060 to avoid collision with the registration server (50055) and
+        # the C++ orchestrator port (50051).
+        EDGE_BASE_PORT=50060
+        for ((e=0; e<$num_edges; e++))
+        do
+            container_name="edge_$e"
+            edge_port=$((EDGE_BASE_PORT + e))
+            echo "  Starting $container_name (port: $edge_port, connects to registration server on 50055)..."
 
-        echo "  ✓ $container_name started"
-        wait_for_container_log "$container_name" "registered successfully" 90 || exit 1
-    done
+            docker run $gpu_flag -d \
+                --network=host \
+                --name="$container_name" \
+                -e "HOSTNAME=$container_name" \
+                -e IS_DOCKER=1 \
+                -v /tmp/.X11-unix:/tmp/.X11-unix \
+                -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+                -e DISPLAY=$DISPLAY \
+                -e TERM \
+                ecav-python310:latest \
+                python3.10 -u ecav/ecav2/edge_process.py \
+                    --orchestrator_ip localhost \
+                    --orchestrator_port 50055 \
+                    -P $edge_port
+
+            echo "  ✓ $container_name started"
+            wait_for_container_log "$container_name" "edge-only ready" 120 || exit 1
+        done
+
+        echo ""
+        echo "  Waiting for ecav.py to connect to all edge fusion servers..."
+        timeout=60
+        elapsed=0
+        while [[ $elapsed -lt $timeout ]]; do
+            if grep -q "\[EDGE-ONLY\]" "$ECAV_LOG" 2>/dev/null; then
+                echo "  ✓ All edges connected — scenario starting"
+                break
+            fi
+            sleep 2
+            ((elapsed+=2))
+            echo -n "."
+        done
+        echo ""
+        if [[ $elapsed -ge $timeout ]]; then
+            echo "ERROR: Timeout waiting for '[EDGE-ONLY]' in ecav.py log."
+            echo "Check logs: tail -f $ECAV_LOG"
+            exit 1
+        fi
+    else
+        EDGE_BASE_PORT=50054
+        for ((e=0; e<$num_edges; e++))
+        do
+            container_name="edge_$e"
+            edge_port=$((EDGE_BASE_PORT + e))
+            echo "  Starting $container_name (edge index: $e, port: $edge_port)..."
+
+            docker run $gpu_flag -d \
+                --network=host \
+                --name="$container_name" \
+                -e "HOSTNAME=$container_name" \
+                -e IS_DOCKER=1 \
+                -v /tmp/.X11-unix:/tmp/.X11-unix \
+                -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+                -e DISPLAY=$DISPLAY \
+                -e TERM \
+                ecav-python310:latest \
+                python3.10 -u ecav/ecav2/edge_process.py -e $e -P $edge_port
+
+            echo "  ✓ $container_name started"
+            wait_for_container_log "$container_name" "registered successfully" 90 || exit 1
+        done
+    fi
     echo ""
 fi
 
+if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
 # Start ego vehicle containers
 echo "Starting $num_ego ego vehicle container(s)..."
 for ((i=0; i<$num_ego; i++))
@@ -463,6 +532,8 @@ docker run $gpu_flag -d \
 
 echo "  ✓ $container_name started"
 
+fi  # end: not edge-only
+
 echo ""
 echo "=========================================="
 echo "All containers started successfully!"
@@ -470,13 +541,20 @@ echo "=========================================="
 echo ""
 echo "Container summary:"
 if [[ $num_edges -gt 0 ]]; then
-    echo "  - edge_0 to edge_$((num_edges-1)): Edge servers (ports 50054-$((50054+num_edges-1)))"
+    if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+        echo "  - edge_0 to edge_$((num_edges-1)): Edge fusion servers (ports 50060-$((50060+num_edges-1)))"
+        echo "  - (vehicles/RSUs run in base process — no separate containers)"
+    else
+        echo "  - edge_0 to edge_$((num_edges-1)): Edge servers (ports 50054-$((50054+num_edges-1)))"
+    fi
 fi
-echo "  - ego_vehicle_0 to ego_vehicle_$((num_ego-1)): Ego vehicles (indices 0-$((num_ego-1)))"
-if [[ $num_rsu -gt 0 ]]; then
-    echo "  - rsu_0 to rsu_$((num_rsu-1)): RSUs (indices 0-$((num_rsu-1)))"
+if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
+    echo "  - ego_vehicle_0 to ego_vehicle_$((num_ego-1)): Ego vehicles (indices 0-$((num_ego-1)))"
+    if [[ $num_rsu -gt 0 ]]; then
+        echo "  - rsu_0 to rsu_$((num_rsu-1)): RSUs (indices 0-$((num_rsu-1)))"
+    fi
+    echo "  - non_ego_vehicles: Non-ego vehicle controller (index -1)"
 fi
-echo "  - non_ego_vehicles: Non-ego vehicle controller (index -1)"
 echo ""
 docker container ls
 echo ""
@@ -548,28 +626,30 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
             fi
         done
 
-        # Check ego vehicles
-        for ((i=0; i<$num_ego; i++)); do
-            container_name="ego_vehicle_$i"
-            status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
-            if [[ "$status" != "running" ]]; then
-                failed_containers+=("$container_name ($status)")
-            fi
-        done
+        if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
+            # Check ego vehicles
+            for ((i=0; i<$num_ego; i++)); do
+                container_name="ego_vehicle_$i"
+                status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
+                if [[ "$status" != "running" ]]; then
+                    failed_containers+=("$container_name ($status)")
+                fi
+            done
 
-        # Check RSUs
-        for ((i=0; i<$num_rsu; i++)); do
-            container_name="rsu_$i"
-            status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
-            if [[ "$status" != "running" ]]; then
-                failed_containers+=("$container_name ($status)")
-            fi
-        done
+            # Check RSUs
+            for ((i=0; i<$num_rsu; i++)); do
+                container_name="rsu_$i"
+                status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
+                if [[ "$status" != "running" ]]; then
+                    failed_containers+=("$container_name ($status)")
+                fi
+            done
 
-        # Check non-ego vehicles
-        status=$(docker inspect -f '{{.State.Status}}' "non_ego_vehicles" 2>/dev/null)
-        if [[ "$status" != "running" ]]; then
-            failed_containers+=("non_ego_vehicles ($status)")
+            # Check non-ego vehicles
+            status=$(docker inspect -f '{{.State.Status}}' "non_ego_vehicles" 2>/dev/null)
+            if [[ "$status" != "running" ]]; then
+                failed_containers+=("non_ego_vehicles ($status)")
+            fi
         fi
 
         # Report any failed containers and show their error logs
