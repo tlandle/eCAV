@@ -48,7 +48,7 @@ One checklist item intentionally deferred to Phase 2: changing `register_with_or
 
 **How the edge registers:** edge container starts with `--orchestrator_ip <host> --orchestrator_port 50055` pointing at ecav.py's registration server instead of the C++ server. The `carla_ip=""` in the response tells it to use standalone setup.
 
-### Phase 3 — Script Done, Test Pending
+### Phase 3 — Script Done (commit `d7bc9cb1`), Test Pending
 
 `start_actors.sh` updated (2026-05-30):
 - New prompt "Edge-only distributed mode?" → sets `mode_flag=-eo` (vs `-d` for fully-distributed)
@@ -56,7 +56,30 @@ One checklist item intentionally deferred to Phase 2: changing `register_with_or
 - Edge containers start with `--orchestrator_ip localhost --orchestrator_port 50055`, port base 50060 (avoids collision with registration server on 50055)
 - Vehicle/RSU/non-ego containers skipped entirely in edge-only mode
 
-Remaining: End-to-end test: `openscenario_3_edge_worldfusion --apply_ml --edge_only`
+### Next Steps (stopping point 2026-05-30)
+
+End-to-end test sequence — run in order:
+
+1. Start CARLA (headless or with display)
+2. Start edge container (in a separate terminal, run without `-d` to see output):
+   ```
+   docker run --runtime=nvidia --gpus all --network=host \
+       --name=edge_0 -e HOSTNAME=edge_0 -e IS_DOCKER=1 \
+       -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+       ecav-python310:latest \
+       python3.10 -u ecav/ecav2/edge_process.py \
+           --orchestrator_ip localhost --orchestrator_port 50055 -P 50060
+   ```
+   Edge will print "edge-only ready" and wait for RPCs.
+3. Run ecav.py:
+   ```
+   python -u ecav.py -t openscenario_3_edge_worldfusion -v 0.9.15 -eo --apply_ml
+   ```
+
+What to verify (Phase 4):
+- Vehicle drives successfully using edge-fused predictions
+- Edge profiler JSON written to `logs/edge_profiler_<ts>.json`
+- No crashes during `collect_features` → `fuse` → `apply_predictions` per-tick loop
 
 ---
 
