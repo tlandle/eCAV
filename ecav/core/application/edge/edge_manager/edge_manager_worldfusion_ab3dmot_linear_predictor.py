@@ -569,6 +569,121 @@ class WorldFusionEdge(_BaseEdgeManager):
 
         return serialized_preds
 
+    # ------------------------------------------------------------------
+    # Edge-only distributed mode helpers (Phase 2)
+    # ------------------------------------------------------------------
+
+    def collect_features(self, step: int):
+        """
+        Edge-only distributed mode: drive perception, then serialize all actor
+        features + poses into an IntermediateFeaturesBatch for the RPC.
+
+        RSUs are packed first (agent-0 invariant for WorldFusion).
+        Callers pass the returned batch to EdgeFusionClient.fuse().
+        """
+        import pickle as _pickle
+        import msgpack
+        import msgpack_numpy as m_np
+        import ecloud_pb2 as ecloud
+        m_np.patch()
+
+        # Drive perception (same as run_step phase 1; pushes to jitter buffer too,
+        # but that is harmless — the jitter buffer just accumulates unused frames).
+        self.update_information(step)
+
+        batch = ecloud.IntermediateFeaturesBatch(tick_id=step)
+
+        for rsu in self.rsu_manager_list:
+            pm = rsu.perception_manager
+            if not (hasattr(pm, 'feature_dict') and pm.feature_dict is not None):
+                continue
+            pos = rsu.localizer.get_ego_pos()
+            if pos is None and hasattr(rsu, 'spawn_position'):
+                sp = rsu.spawn_position
+                pos = carla.Transform(
+                    carla.Location(x=sp[0], y=sp[1], z=sp[2] if len(sp) > 2 else 0.0),
+                    carla.Rotation()
+                )
+            pose_list = [
+                pos.location.x, pos.location.y, pos.location.z,
+                pos.rotation.roll, pos.rotation.yaw, pos.rotation.pitch
+            ] if pos is not None else [0.0] * 6
+
+            feat_np = {k: v.cpu().numpy() for k, v in pm.feature_dict.items()}
+            raw = msgpack.packb(feat_np, default=m_np.encode)
+            compressed = zlib.compress(raw)
+
+            actor_id = rsu.vehicle.id if hasattr(rsu, 'vehicle') else 0
+            batch.features.append(ecloud.IntermediateFeatures(
+                agent_id=actor_id,
+                agent_type=ecloud.RSU,
+                pose=ecloud.AgentPose(pose=pose_list),
+                spatial_features=ecloud.CompressedTensor(data=compressed),
+            ))
+
+        for vm in self.vehicle_manager_list:
+            pm = vm.perception_manager
+            if not (hasattr(pm, 'feature_dict') and pm.feature_dict is not None):
+                continue
+            pos = vm.localizer.get_ego_pos()
+            pose_list = [
+                pos.location.x, pos.location.y, pos.location.z,
+                pos.rotation.roll, pos.rotation.yaw, pos.rotation.pitch
+            ] if pos is not None else [0.0] * 6
+
+            feat_np = {k: v.cpu().numpy() for k, v in pm.feature_dict.items()}
+            raw = msgpack.packb(feat_np, default=m_np.encode)
+            compressed = zlib.compress(raw)
+
+            batch.features.append(ecloud.IntermediateFeatures(
+                agent_id=vm.vehicle.id,
+                agent_type=ecloud.VEHICLE,
+                pose=ecloud.AgentPose(pose=pose_list),
+                spatial_features=ecloud.CompressedTensor(data=compressed),
+            ))
+
+        return batch
+
+    def apply_predictions(self, step: int, fusion_result):
+        """
+        Edge-only distributed mode: unpack FusionResult from edge container,
+        inject predictions into vehicle managers, then run planning and control.
+
+        Mirrors what _update_agents() does in sequential mode, without the
+        O5 batch encoder (which is a litserve optimization for local perception only).
+        """
+        import pickle as _pickle
+
+        # Unpack per-vehicle predictions from FusionResult.pickled_predictions.
+        # Structure: pickle({vehicle_batch_idx: pickle(List[ObstaclePrediction])})
+        predictions = None
+        if fusion_result is not None and fusion_result.pickled_predictions:
+            try:
+                all_preds = _pickle.loads(fusion_result.pickled_predictions)
+                # All vehicles share the same global prediction list; take index 0.
+                first_key = min(all_preds.keys()) if all_preds else None
+                if first_key is not None:
+                    predictions = _pickle.loads(all_preds[first_key])
+            except Exception as exc:
+                logger.warning("apply_predictions: failed to unpack FusionResult: %s", exc)
+
+        logger.debug("apply_predictions: tick=%d  predictions=%d",
+                     step, len(predictions) if predictions else 0)
+
+        for vm in self.vehicle_manager_list:
+            if predictions and random.random() * 100 > self.downlink_pl:
+                vm.agent.edge_predictions = list(predictions)
+            else:
+                vm.agent.edge_predictions = []
+            vm.update_info(step)
+            vm.vehicle.apply_control(vm.run_step())
+            self._label_brake_attributions_gt(vm)
+            self._record_time_to_events(step, vm)
+
+        for rsu in self.rsu_manager_list:
+            rsu.update_info()
+            rsu.run_step()
+
     def _run_fusion(self, spatial_features: torch.Tensor,
                     pairwise_t_matrix: torch.Tensor,
                     record_len: torch.Tensor) -> Tuple[torch.Tensor, Dict]:

@@ -17,6 +17,8 @@ from ecav.scenario_testing.evaluations.evaluate_manager import \
 from ecav.scenario_testing.utils.yaml_utils import add_current_time
 
 import ecloud_pb2 as ecloud
+from ecav.scenario_testing.utils.edge_fusion_client import EdgeFusionClient
+from ecav.scenario_testing.utils.edge_registration_server import EdgeRegistrationServer
 
 MAX_STEP = 600
 SCENARIO_NAME = 'openscenario_3_edge_worldfusion'
@@ -83,6 +85,8 @@ def run_scenario(opt, scenario_params):
     edge_list = []
     step = 0
 
+    fusion_clients = []  # EdgeFusionClient list — populated in -eo mode
+
     try:
         scenario_params = add_current_time(scenario_params)
 
@@ -106,6 +110,24 @@ def run_scenario(opt, scenario_params):
         if opt.distributed:
             # Distributed mode: wait for actors to connect via gRPC
             asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
+        elif getattr(opt, 'edge_only', False):
+            # Edge-only distributed mode: start registration server, wait for edge containers
+            reg_server = EdgeRegistrationServer(
+                scenario_params=dict(scenario_params),
+                port=getattr(opt, 'edge_reg_port', 50055),
+            )
+            fusion_clients = asyncio.get_event_loop().run_until_complete(
+                reg_server.start_and_wait(timeout_s=120.0)
+            )
+            # Connect each fusion client (retry until edge gRPC server is up)
+            for fc in fusion_clients:
+                fc.connect(retry_timeout_s=60.0)
+            print(f"[EDGE-ONLY] {len(fusion_clients)} edge(s) ready", flush=True)
+            # ScenarioRunner still needed for CARLA world setup
+            print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner, flush=True)
+            sr_process = Process(target=exec_scenario_runner,
+                                 args=(scenario_params,))
+            sr_process.start()
         else:
             # Sequential mode: launch ScenarioRunner in subprocess
             print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner, flush=True)
@@ -202,8 +224,16 @@ def run_scenario(opt, scenario_params):
             spectator.set_transform(view_transform)
             t_spectator = time.time()
 
-            # In distributed mode fusion runs in edge_process; skip here
-            if not opt.distributed:
+            # Fusion step — three variants:
+            #   sequential:          edge manager runs perception + fusion + planning locally
+            #   distributed (-d):    fusion runs in edge_process containers; nothing to do here
+            #   edge-only (-eo):     collect features locally, fuse via RPC, apply predictions
+            if getattr(opt, 'edge_only', False):
+                for edge, fc in zip(edge_list, fusion_clients):
+                    batch = edge.collect_features(step)
+                    result = fc.fuse(step, batch)
+                    edge.apply_predictions(step, result)
+            elif not opt.distributed:
                 for edge in edge_list:
                     edge.run_step(step)
             t_edge = time.time()
@@ -260,6 +290,10 @@ def run_scenario(opt, scenario_params):
                     pm.close()
             if edge.profiler is not None:
                 edge.profiler.save_report(os.path.join('logs', f'edge_profiler_{ts}.json'))
+
+        for fc in fusion_clients:
+            fc.end_scenario()
+            fc.close()
 
         if opt.distributed and scenario_manager is not None:
             scenario_manager.end()

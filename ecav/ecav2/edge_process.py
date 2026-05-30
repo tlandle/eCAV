@@ -897,8 +897,19 @@ class EdgeProcess:
             # Start our server first so orchestrator can push to us
             self.push_server_task = asyncio.create_task(self.run_server())
 
-            # Register with orchestrator
+            # Register with orchestrator (C++ ecloud_server in fully-distributed mode;
+            # ecav.py EdgeRegistrationServer in edge-only distributed mode).
             await self.register_with_orchestrator()
+
+            # Edge-only distributed mode: ecav.py sends carla_ip="" to signal no CARLA.
+            # Skip actor wait and tick queue; initialize without CARLA and serve fusion RPCs.
+            if not self.carla_ip:
+                logger.info("Edge %s: carla_ip empty — edge-only distributed mode (no CARLA)", self.edge_index)
+                await self._setup_edge_manager_standalone()
+                self.scenario_ready.set()
+                logger.info("Edge %s edge-only ready — serving Edge_PerformFusion calls", self.edge_index)
+                await self.push_server_task   # blocks until server terminates (Edge_EndScenario or kill)
+                return
 
             # Wait for actors to connect
             await self.wait_for_actors()

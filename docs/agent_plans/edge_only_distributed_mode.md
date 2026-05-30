@@ -279,12 +279,13 @@ After any proto change, recompile: `python ecav.py --build`.
 
 ### Phase 2: Base Process Client
 
-- [ ] Add `-eo` flag to `ecav.py`; start asyncio gRPC server for edge registration
-- [ ] Implement `Edge_Register` handler in `ecav.py` — assign IDs, send scenario + actor assignments
-- [ ] Implement actor registration: `ecav.py` calls `Edge_ActorRegister` on each edge for its assigned actors
-- [ ] Write `ecav/scenario_testing/utils/edge_fusion_client.py` with retry-connect
-- [ ] Split `EdgeManager.run_step()` into `collect_features()` + `apply_predictions()`
-- [ ] Add `edge_only_distributed` branch to `openscenario_3_edge_worldfusion.py`
+- [x] Add `-eo` / `--edge_only` flag + `--edge_reg_port` to `ecav/ecav2/arg_utils.py`
+- [x] Write `ecav/scenario_testing/utils/edge_registration_server.py` — asyncio gRPC server handles `Edge_Register`, assigns sequential IDs, sends `EdgeScenarioConfig` (carla_ip="" signals no-CARLA to edge), signals completion when all edges registered
+- [x] Write `ecav/scenario_testing/utils/edge_fusion_client.py` — `EdgeFusionClient` with retry-connect, `fuse()`, `end_scenario()`, `close()`
+- [x] Add `WorldFusionEdge.collect_features(step)` — drives `update_information()`, serializes features + poses into `IntermediateFeaturesBatch` (RSUs first)
+- [x] Add `WorldFusionEdge.apply_predictions(step, fusion_result)` — unpacks pickled predictions from `FusionResult`, injects into vehicle managers, runs planning + control
+- [x] Add `-eo` branch to `openscenario_3_edge_worldfusion.py`: registration server startup + `collect_features/fuse/apply_predictions` tick loop + `end_scenario`/`close` teardown
+- [x] `edge_process.py` `run()`: after `register_with_orchestrator()`, if `carla_ip==""` → use `_setup_edge_manager_standalone()` path (no CARLA, no actor wait, serve fusion RPCs)
 
 ### Phase 3: Launch Script
 

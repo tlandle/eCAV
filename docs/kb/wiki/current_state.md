@@ -36,18 +36,22 @@ Smoke test (`test_edge_standalone.py`) passed: empty batch, idempotency, `Edge_E
 
 One checklist item intentionally deferred to Phase 2: changing `register_with_orchestrator()` to connect to ecav.py's server (that server doesn't exist yet).
 
-### Phase 2 — Next
+### Phase 2 — Complete (2026-05-30)
 
-- `ecav.py`: add `-eo` flag; start asyncio gRPC server; handle `Edge_Register`; wait for all edges; create `EdgeFusionClient(s)`; skip C++ server
-- New `ecav/scenario_testing/utils/edge_fusion_client.py`: gRPC stub with retry-connect
-- `EdgeManager.run_step()` split: `collect_features(step)` → RPC → `apply_predictions(step, result)`
-- `openscenario_3_edge_worldfusion.py`: add `edge_only_distributed` branch in `run_scenario()`
-- `edge_process.py`: `register_with_orchestrator()` → connect to ecav.py server
+- `ecav/ecav2/arg_utils.py`: added `-eo`/`--edge_only` flag and `--edge_reg_port` (default 50055)
+- `ecav/scenario_testing/utils/edge_registration_server.py` (new): asyncio gRPC server handles `Edge_Register`; assigns sequential IDs; sends `EdgeScenarioConfig` with `carla_ip=""` to signal no-CARLA; signals completion when all edges registered
+- `ecav/scenario_testing/utils/edge_fusion_client.py` (new): `EdgeFusionClient` with retry-connect, `fuse()`, `end_scenario()`, `close()`
+- `WorldFusionEdge.collect_features(step)`: drives `update_information()`, serializes features + poses into `IntermediateFeaturesBatch` (RSUs first, maintaining agent-0 invariant)
+- `WorldFusionEdge.apply_predictions(step, fusion_result)`: unpacks pickled predictions, injects into vehicle managers, runs planning + control
+- `openscenario_3_edge_worldfusion.py`: `-eo` startup branch (registration server → connect clients), tick loop branch (`collect_features` → `fuse` → `apply_predictions`), teardown (`end_scenario` + `close`)
+- `edge_process.py` `run()`: after `register_with_orchestrator()`, if `carla_ip==""` → uses `_setup_edge_manager_standalone()` (no CARLA, no actor wait, serves fusion RPCs directly)
 
-### Phase 3 — After Phase 2
+**How the edge registers:** edge container starts with `--orchestrator_ip <host> --orchestrator_port 50055` pointing at ecav.py's registration server instead of the C++ server. The `carla_ip=""` in the response tells it to use standalone setup.
 
-- `start_actors.sh`: spawn edges only (no vehicle/RSU containers); await ecav.py "all edges ready" signal
-- End-to-end test: `openscenario_3_edge_worldfusion` in edge-only distributed mode
+### Phase 3 — Next
+
+- `start_actors.sh`: spawn edges only (no vehicle/RSU containers); pass `--orchestrator_ip <host> --orchestrator_port 50055` to each edge; await ecav.py "all edges ready" signal
+- End-to-end test: `openscenario_3_edge_worldfusion --apply_ml --edge_only`
 
 ---
 
