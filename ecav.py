@@ -120,6 +120,17 @@ def main():
     # print the version of eCAV
     logger.info("eCAV Version: %s", __version__)
 
+    # Build check comes first — no scenario needed
+    if opt.build:
+        subprocess.run([
+            'python', '-m', 'grpc_tools.protoc',
+            '-I./ecav/protos',
+            '--python_out=.',
+            '--grpc_python_out=.',
+            './ecav/protos/ecloud.proto'
+        ])
+        return
+
     scene_dict = None
     config_yaml = None
 
@@ -165,16 +176,6 @@ def main():
     if not opt.distributed and config_yaml and not os.path.isfile(config_yaml):
         sys.exit(
             "ecav/scenario_testing/config_yaml/%s.yaml not found!" % opt.test_scenario)
-
-    # Rebuild gRPC proto files if requested
-    if opt.build:
-        subprocess.run([
-            'python', '-m', 'grpc_tools.protoc',
-            '-I./ecav/protos',
-            '--python_out=.',
-            '--grpc_python_out=.',
-            './ecav/protos/ecloud.proto'
-        ])
 
     if opt.vehicle_index == -2:
         # Run the main scenario (server mode in distributed, or full scenario in sequential)

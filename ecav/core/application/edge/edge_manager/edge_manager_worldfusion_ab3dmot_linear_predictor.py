@@ -395,16 +395,17 @@ class WorldFusionEdge(_BaseEdgeManager):
             # Log Lincoln's RSU-local position to track when it enters the voxel range (±40m).
             # Lincoln is the only lincoln.mkz vehicle in scenario_3.
             rsu_x, rsu_y = self.world_anchor[0], self.world_anchor[1]
-            for actor in self.world.get_actors():
-                if 'lincoln' in actor.type_id.lower():
-                    loc = actor.get_location()
-                    lx, ly = loc.x - rsu_x, loc.y - rsu_y
-                    in_range = abs(lx) <= 40.0 and abs(ly) <= 40.0
-                    logger.info(
-                        "tick=%d lincoln world=(%.1f, %.1f) rsu-local=(%.1f, %.1f) z=%.1f in_range=%s",
-                        tick, loc.x, loc.y, lx, ly, loc.z, in_range
-                    )
-                    break
+            if self.world is not None:
+                for actor in self.world.get_actors():
+                    if 'lincoln' in actor.type_id.lower():
+                        loc = actor.get_location()
+                        lx, ly = loc.x - rsu_x, loc.y - rsu_y
+                        in_range = abs(lx) <= 40.0 and abs(ly) <= 40.0
+                        logger.info(
+                            "tick=%d lincoln world=(%.1f, %.1f) rsu-local=(%.1f, %.1f) z=%.1f in_range=%s",
+                            tick, loc.x, loc.y, lx, ly, loc.z, in_range
+                        )
+                        break
 
             # 3. Stack features and compute pairwise transforms
             with frame.time("fusion"):

@@ -266,14 +266,16 @@ After any proto change, recompile: `python ecav.py --build`.
 
 ### Phase 1: Edge Fusion Service
 
-- [ ] Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`
-- [ ] Add `rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult)` to `ecloud.proto`
-- [ ] Recompile stubs: `python ecav.py --build`
-- [ ] Add `Edge_PerformFusion` handler to `EdgeServer` in `edge_process.py` (reference: `run_edge_step()` from 787f4dac; lightweight actor stubs from payload — no CARLA init)
-- [ ] Add `Edge_EndScenario` handler to `EdgeServer` — finalize profiler, return `EdgeEvaluationResult`
-- [ ] Add tick-ID tracking to `EdgeProcess` (`expected_tick_id`, cached result for idempotent retries)
-- [ ] Change `register_with_orchestrator()` to connect to ecav.py's gRPC server instead of C++ server; receive `edge_id` + scenario config from registration response (no `--edge-index` arg)
-- [ ] Test: start edge process, call `Edge_PerformFusion` manually via grpcurl
+- [x] Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`
+- [x] Add `rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult)` to `ecloud.proto`
+- [x] Recompile stubs: `python ecav.py --build` (also fixed `--build` requiring a scenario arg — hoisted check to top of `main()`)
+- [x] Add `Edge_PerformFusion` handler to `EdgeServer` in `edge_process.py` — `_FeatureStub` for duck-typed actor stubs, inject into edge_manager lists, call `run_step()`
+- [x] Add `Edge_EndScenario` handler to `EdgeServer` — finalize profiler, return `EdgeEvaluationResult`
+- [x] Add tick-ID tracking to `EdgeProcess` (`expected_tick_id`, `_last_fusion_result` for idempotent retries)
+- [x] Add `--standalone` / `--config` args and `_run_standalone()` path (skips orchestrator, loads YAML from file, inits edge manager without CARLA) — `_setup_edge_manager_standalone()` uses `world=None, carla_client=None`
+- [x] Guard unguarded `self.world.get_actors()` in `WorldFusionEdge.run_step()` with `if self.world is not None:`
+- [ ] Change `register_with_orchestrator()` to connect to ecav.py's gRPC server instead of C++ server (Phase 2 dependency — ecav.py server doesn't exist yet)
+- [x] Test: start edge process in `--standalone` mode, call `Edge_PerformFusion` via `test_edge_standalone.py` — PASSED (2026-05-30): empty batch → early return, idempotency gate, Edge_EndScenario profiler (75 keys)
 
 ### Phase 2: Base Process Client
 

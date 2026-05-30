@@ -46,6 +46,68 @@ elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
 
+class _FeatureStub:
+    """
+    Lightweight duck-type stub for an actor in edge-only distributed mode.
+
+    Satisfies the interface expected by WorldFusionEdge.update_information() and
+    run_step() without requiring a CARLA connection or full VehicleManager/RSUManager.
+    Populated from IntermediateFeatures fields in an Edge_PerformFusion batch.
+    """
+
+    class _PerceptionManager:
+        def __init__(self, feature_dict):
+            self.feature_dict = feature_dict
+
+    class _Localizer:
+        def __init__(self, pose):
+            # pose is [x, y, z, roll, yaw, pitch]
+            from ecav.ecav_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
+            self._transform = _Tf(
+                _Loc(x=float(pose[0]), y=float(pose[1]), z=float(pose[2])),
+                _Rot(roll=float(pose[3]), yaw=float(pose[4]), pitch=float(pose[5]))
+            )
+
+        def get_ego_pos(self):
+            return self._transform
+
+        def localize(self):
+            pass  # pose already set from batch; no sensor to re-read
+
+    class _Vehicle:
+        def __init__(self, vehicle_id, pose):
+            self.id = vehicle_id
+            self._pose = pose
+
+        def get_location(self):
+            from ecav.ecav_carla import Location as _Loc
+            return _Loc(x=float(self._pose[0]), y=float(self._pose[1]), z=float(self._pose[2]))
+
+        def get_transform(self):
+            from ecav.ecav_carla import Location as _Loc, Rotation as _Rot, Transform as _Tf
+            return _Tf(
+                _Loc(x=float(self._pose[0]), y=float(self._pose[1]), z=float(self._pose[2])),
+                _Rot(roll=float(self._pose[3]), yaw=float(self._pose[4]), pitch=float(self._pose[5]))
+            )
+
+    class _Agent:
+        def __init__(self):
+            self.edge_predictions = []
+            self._anchoring = False
+
+    def __init__(self, agent_id, feature_dict, pose):
+        """
+        Args:
+            agent_id:     Stable integer ID for this actor (used by BSM tracker).
+            feature_dict: Dict of tensors from unpack_intermediate_features().
+            pose:         6-element list [x, y, z, roll, yaw, pitch].
+        """
+        self.perception_manager = self._PerceptionManager(feature_dict)
+        self.localizer = self._Localizer(pose)
+        self.vehicle = self._Vehicle(agent_id, pose)
+        self.agent = self._Agent()
+
+
 class EdgeActorInfo:
     """Information about a registered actor."""
     def __init__(self, vehicle_index, actor_id, vid, actor_type, push_port=None):
@@ -173,6 +235,108 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
 
         return ecloud.Empty()
 
+    def Edge_PerformFusion(self, request: ecloud.IntermediateFeaturesBatch, context) -> ecloud.FusionResult:
+        """
+        Edge-only distributed mode: ecav.py sends a batch of pre-extracted intermediate
+        features for all actors and receives fused predictions.
+
+        Idempotency: if tick_id < expected_tick_id the cached result is returned.
+        If tick_id > expected_tick_id the tick is out of order and we return empty.
+        """
+        import zlib
+        import msgpack
+        import msgpack_numpy as m_np
+        import torch
+        m_np.patch()
+
+        ep = self.edge_process
+        tick_id = request.tick_id
+
+        # Idempotency gate
+        if tick_id < ep.expected_tick_id:
+            logger.info("Edge_PerformFusion: duplicate tick_id=%d (expected %d) — returning cached result",
+                        tick_id, ep.expected_tick_id)
+            return ep._last_fusion_result if ep._last_fusion_result is not None else ecloud.FusionResult(tick_id=tick_id)
+
+        if tick_id != ep.expected_tick_id:
+            logger.error("Edge_PerformFusion: out-of-order tick_id=%d (expected %d) — returning empty",
+                         tick_id, ep.expected_tick_id)
+            return ecloud.FusionResult(tick_id=tick_id)
+
+        if ep.edge_manager is None:
+            logger.warning("Edge_PerformFusion: edge_manager not ready at tick %d", tick_id)
+            return ecloud.FusionResult(tick_id=tick_id)
+
+        # Unpack features from batch.
+        # WorldFusion requires RSU as agent 0; the batch must arrive RSU-first.
+        rsu_stubs = []
+        vehicle_stubs = []
+
+        for feat in request.features:
+            pose = list(feat.pose.pose) if feat.pose.pose else [0.0] * 6
+
+            if feat.spatial_features.data:
+                compressed = feat.spatial_features.data
+                raw = zlib.decompress(compressed)
+                feat_np = msgpack.unpackb(raw, raw=False)
+                feature_dict = {k: torch.from_numpy(v) for k, v in feat_np.items()}
+            else:
+                feature_dict = None
+
+            stub = _FeatureStub(agent_id=feat.agent_id, feature_dict=feature_dict, pose=pose)
+
+            if feat.agent_type == ecloud.ActorType.RSU:
+                rsu_stubs.append(stub)
+            else:
+                vehicle_stubs.append(stub)
+
+        # Inject stubs: RSUs first, then vehicles (WorldFusion agent-0 = RSU invariant)
+        ep.edge_manager.rsu_manager_list = rsu_stubs
+        ep.edge_manager.vehicle_manager_list = vehicle_stubs
+
+        # Run the standard fusion step
+        serialized_preds = ep.edge_manager.run_step(tick_id)
+
+        # Pack predictions into FusionResult.
+        # buf.vehicle_id is the index within vehicle_stubs (same ordering as the batch).
+        all_preds = {}
+        if serialized_preds is not None:
+            for buf in serialized_preds.all_object_buffers:
+                if buf.pickled_edge_predictions:
+                    all_preds[buf.vehicle_id] = buf.pickled_edge_predictions
+
+        result = ecloud.FusionResult(tick_id=tick_id)
+        if all_preds:
+            result.pickled_predictions = pickle.dumps(all_preds)
+
+        ep._last_fusion_result = result
+        ep.expected_tick_id += 1
+
+        logger.info("Edge_PerformFusion: tick=%d done, %d vehicle predictions packed",
+                    tick_id, len(all_preds))
+        return result
+
+    def Edge_EndScenario(self, request: ecloud.Empty, context) -> ecloud.EdgeEvaluationResult:
+        """
+        Edge-only distributed mode: ecav.py signals end of scenario.
+        Finalizes the edge profiler and returns metrics.
+        """
+        ep = self.edge_process
+        result = ecloud.EdgeEvaluationResult(edge_index=ep.edge_index)
+
+        if ep.edge_manager is None:
+            logger.warning("Edge_EndScenario called but edge_manager is None")
+            return result
+
+        try:
+            _, _, metrics = ep.edge_manager.evaluate()
+            result.pickled_edge_profiler = pickle.dumps(metrics)
+            logger.info("Edge_EndScenario: profiler serialized (%d keys)", len(metrics))
+        except Exception as exc:
+            logger.warning("Edge_EndScenario: evaluate() failed: %s", exc)
+
+        return result
+
     async def Edge_ActorSendUpdate(self, request: ecloud.VehicleUpdate, context) -> ecloud.ObjectBuffer:
         """Actor sends update to edge, receives previous tick's fused data."""
         vehicle_index = request.vehicle_index
@@ -257,6 +421,10 @@ class EdgeProcess:
         self._init_task = None          # asyncio.Task for _init_edge_manager_model (phase A)
         self._vm_list_to_actor_key = []  # position in vm_list -> actor key
 
+        # Edge-only distributed mode: tick-ID tracking for idempotent fusion RPCs
+        self.expected_tick_id = 0        # next tick_id we expect from Edge_PerformFusion
+        self._last_fusion_result = None  # cached FusionResult for retry detection
+
         # gRPC connections
         self.orchestrator_channel = None
         self.orchestrator_stub = None
@@ -271,14 +439,19 @@ class EdgeProcess:
 
     def arg_parse(self):
         parser = argparse.ArgumentParser(description="eCAV Edge Process")
-        parser.add_argument('-e', "--edge_index", type=int, required=True,
-                           help='Edge index (unique identifier)')
+        parser.add_argument('-e', "--edge_index", type=int, default=0,
+                           help='Edge index (unique identifier; default 0)')
         parser.add_argument('-P', "--edge_port", type=int, default=50054,
                            help='Port for this edge to listen on')
         parser.add_argument('-o', "--orchestrator_port", type=int, default=50051,
                            help='Orchestrator port')
         parser.add_argument('-O', "--orchestrator_ip", type=str, default=ECLOUD_IP,
                            help='Orchestrator IP address')
+        parser.add_argument("--standalone", action="store_true",
+                           help="Edge-only distributed mode: skip orchestrator registration, "
+                                "load config from --config, accept Edge_PerformFusion calls directly")
+        parser.add_argument("--config", type=str, default=None,
+                           help="Path to scenario YAML (required in --standalone mode)")
         parser.add_argument("--verbose", action="store_true",
                            help="Enable debug logging")
         parser.add_argument('-q', "--quiet", action="store_true",
@@ -646,8 +819,78 @@ class EdgeProcess:
         except Exception as e:
             logger.exception("edge_manager.run_step failed at tick %s: %s", tick_id, e)
 
+    async def _setup_edge_manager_standalone(self):
+        """
+        Initialize edge manager without CARLA (edge-only distributed mode).
+
+        Phase A (_init_edge_manager_model) must have completed before this is called.
+        vehicle_manager_list and rsu_manager_list start empty; stubs are injected
+        per-tick by the Edge_PerformFusion handler.
+        """
+        if self._init_task is not None:
+            await self._init_task  # re-raises if phase A failed
+
+        self.edge_manager = self._edge_manager_cls(
+            world=None,
+            cfg=self._edge_manager_cfg,
+            cav_world=self._cav_world,
+            carla_client=None,
+            **self._edge_manager_args
+        )
+        self.edge_manager.start_edge()
+        logger.info("Edge manager ready (standalone, no CARLA): %s",
+                    type(self.edge_manager).__name__)
+
+    async def _run_standalone(self):
+        """
+        Edge-only distributed mode run loop.
+
+        Skips orchestrator registration. Loads scenario YAML from --config,
+        initializes the edge manager without CARLA, then sits in the gRPC server
+        loop. The tick loop is driven entirely by Edge_PerformFusion calls from
+        ecav.py; there is no tick queue here.
+        """
+        if not self.opt.config:
+            raise ValueError("--standalone requires --config <scenario_yaml>")
+
+        logger.info("Edge %s starting in standalone mode (port %s)", self.edge_index, self.edge_port)
+
+        # Load scenario YAML; store as JSON string so _init_edge_manager_model can parse it
+        import json
+        scenario = load_yaml(self.opt.config)
+        edge_list = scenario.get('scenario', {}).get('edge_list', [])
+        if self.edge_index >= len(edge_list):
+            raise ValueError(
+                f"--edge_index {self.edge_index} out of range "
+                f"(scenario has {len(edge_list)} edge(s))")
+        self.scenario_yaml_str = json.dumps(scenario)
+
+        # Phase A: resolve edge manager class and create CavWorld (no CARLA needed)
+        self._init_task = asyncio.create_task(self._init_edge_manager_model())
+
+        # Phase B: instantiate edge manager (no CARLA)
+        await self._setup_edge_manager_standalone()
+
+        # Signal scenario ready so Edge_ActorRegister (if it ever fires) won't block
+        self.scenario_ready.set()
+
+        logger.info("Edge %s standalone ready — waiting for Edge_PerformFusion calls", self.edge_index)
+
+        # gRPC server runs until process is killed or Edge_EndScenario is received
+        await self.run_server()
+
     async def run(self):
         """Main entry point for the edge process."""
+        if self.opt.standalone:
+            try:
+                await self._run_standalone()
+            except Exception as e:
+                logger.exception("Edge standalone error: %s", e)
+                raise
+            finally:
+                await self.cleanup()
+            return
+
         logger.info("Starting edge process %s", self.edge_index)
 
         try:

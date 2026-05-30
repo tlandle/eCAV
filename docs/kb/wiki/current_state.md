@@ -173,12 +173,33 @@ Architecture plan: [edge_only_distributed_mode.md](../../agent_plans/edge_only_d
 
 **`start_actors.sh` verified clean** after merge with 787f4dac remote — YAML parsing, verbose flag, and fusion prompts all intact.
 
-**Phase 1 pending:**
+**Phase 1 implemented (2026-05-25):**
 
-- Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`, recompile
-- Add `--standalone` / `--config` args to `edge_process.py`
-- Implement `Edge_PerformFusion` handler in `EdgeServer`
-- Add standalone `run()` path that skips orchestrator registration
+- `ecloud.proto`: added `bytes pickled_predictions = 5` to `FusionResult`; added `rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult)`; stubs recompiled and copied to `ecav/protos/`
+- `ecav.py`: fixed `--build` flag — hoisted proto recompile check to before scenario validation (was unreachable when no scenario arg given)
+- `edge_process.py`:
+  - `_FeatureStub` class: duck-typed actor stub with `perception_manager.feature_dict`, `localizer.get_ego_pos()`, `vehicle.id/get_location()/get_transform()`, `agent.edge_predictions` — populated from `IntermediateFeatures` fields; uses `ecav_carla` Transform/Location/Rotation
+  - `EdgeProcess`: added `expected_tick_id` and `_last_fusion_result` fields for idempotent fusion RPC handling
+  - `EdgeServer.Edge_PerformFusion`: unpacks batch, builds `_FeatureStub` instances, injects RSU/vehicle stubs into edge_manager lists, calls `edge_manager.run_step()`, packs per-vehicle predictions into `FusionResult.pickled_predictions`
+  - `EdgeServer.Edge_EndScenario`: calls `edge_manager.evaluate()`, serializes profiler into `EdgeEvaluationResult`
+  - `arg_parse()`: `--edge_index` default 0 (no longer required); added `--standalone` and `--config` flags
+  - `_setup_edge_manager_standalone()`: instantiates edge_manager with `world=None, carla_client=None` (no CARLA); member lists start empty, stubs injected per-tick
+  - `_run_standalone()`: loads YAML from `--config`, runs phase A + standalone phase B, starts gRPC server (no orchestrator registration, no tick queue)
+  - `run()`: branches on `opt.standalone` before the existing orchestrator-registration path
+- `edge_manager_worldfusion_ab3dmot_linear_predictor.py`: guarded unguarded `self.world.get_actors()` in `run_step()` with `if self.world is not None:`
+
+**Phase 1 remaining:**
+
+- `register_with_orchestrator()` change (connect to ecav.py gRPC server instead of C++ server) — blocked on Phase 2 (ecav.py server doesn't exist yet)
+
+**Phase 1 smoke test — PASSED (2026-05-30):**
+
+`test_edge_standalone.py` against edge running `--standalone --config openscenario_3_edge_worldfusion.yaml`:
+- Empty batch (`features=[]`) → "No feature_dicts collected!" early return, `FusionResult(tick_id=0, 0 bytes)` ✓
+- Duplicate `tick_id=0` → idempotency gate, cached result returned ✓
+- `Edge_EndScenario` → profiler serialized (75 keys, 2963 bytes) ✓
+
+Phase 1 is complete. The one un-checked item (`register_with_orchestrator` change) is intentionally deferred — it requires Phase 2 infrastructure.
 
 **Implementation scope (Phases 2–3 still pending):**
 
