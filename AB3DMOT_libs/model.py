@@ -527,7 +527,7 @@ class AB3DMOT(object):
 		for trk in reversed(self.trackers):
 			# change format from [x,y,z,theta,l,w,h] to [h,w,l,x,y,z,theta]
 			d = Box3D.array2bbox(trk.kf.x[:7].reshape((7, )))     # bbox location self
-			d = Box3D.bbox2array_raw(d)
+			d = Box3D.bbox2array_raw(d)[:7]  # strip score — KF state has no confidence
 
 			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):
 				vel = trk.get_velocity().flatten()
