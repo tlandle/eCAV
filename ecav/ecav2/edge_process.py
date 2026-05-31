@@ -487,14 +487,35 @@ class EdgeProcess:
         except:
             request.container_name = f"edge_{self.edge_index}"
 
-        # Register and receive config
-        config = await self.orchestrator_stub.Edge_Register(request)
+        # Register and receive config — retry until the orchestrator is reachable.
+        # In edge-only mode the edge container may start before ecav.py's registration
+        # server is up; in fully-distributed mode the C++ server may still be initializing.
+        retry_timeout_s = 120.0
+        retry_interval_s = 2.0
+        deadline = time.monotonic() + retry_timeout_s
+        config = None
+        while True:
+            try:
+                config = await self.orchestrator_stub.Edge_Register(request)
+                break
+            except grpc.aio.AioRpcError as exc:
+                if exc.code() != grpc.StatusCode.UNAVAILABLE:
+                    raise
+                if time.monotonic() >= deadline:
+                    raise RuntimeError(
+                        f"Orchestrator at {self.opt.orchestrator_ip}:{self.opt.orchestrator_port} "
+                        f"not reachable after {retry_timeout_s:.0f}s"
+                    ) from exc
+                logger.debug("Orchestrator not yet reachable — retrying in %.0fs", retry_interval_s)
+                await asyncio.sleep(retry_interval_s)
 
         self.scenario_yaml_str = config.edge_config_yaml
         self.application = config.application
         self.version = config.version
         self.carla_ip = config.carla_ip
         self.expected_num_actors = config.num_vehicles + config.num_rsus
+        # In edge-only mode the server assigns the index; overwrite CLI default.
+        self.edge_index = config.edge_index
         self.scenario_ready.set()
 
         logger.info("Edge %s registered successfully. Expected actors: %d vehicles, %d RSUs",

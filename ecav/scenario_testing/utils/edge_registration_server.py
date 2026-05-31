@@ -21,6 +21,17 @@ import time
 
 import grpc
 
+
+def _to_plain(obj):
+    """Recursively convert OmegaConf DictConfig/ListConfig (and any dict-like) to plain types."""
+    if hasattr(obj, 'items'):
+        return {k: _to_plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)) or (
+        hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes))
+    ):
+        return [_to_plain(v) for v in obj]
+    return obj
+
 logger = logging.getLogger(__name__)
 
 # Lazy imports — proto stubs are on sys.path after ecav.py startup
@@ -97,7 +108,7 @@ class _EdgeRegistrationServicer:
 
         config = ecloud.EdgeScenarioConfig(
             edge_index=edge_id,
-            edge_config_yaml=json.dumps(dict(self._scenario)),
+            edge_config_yaml=json.dumps(_to_plain(self._scenario)),
             num_vehicles=len(veh_idxs),
             num_rsus=len(rsu_idxs),
             carla_ip="",       # empty → edge uses standalone setup (no CARLA)

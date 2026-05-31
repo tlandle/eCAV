@@ -58,10 +58,14 @@ One checklist item intentionally deferred to Phase 2: changing `register_with_or
 
 ### Next Steps (stopping point 2026-05-30)
 
+**Container must be rebuilt after any `ecav/` code change before running Docker-based tests.**
+`docker build --network=host -f Dockerfile -t ecav-python310:latest .`
+
 End-to-end test sequence — run in order:
 
-1. Start CARLA (headless or with display)
-2. Start edge container (in a separate terminal, run without `-d` to see output):
+1. Rebuild container if any code changed since last build (see above)
+2. Start CARLA (headless or with display)
+3. Start edge container (in a separate terminal, run without `-d` to see output):
    ```
    docker run --runtime=nvidia --gpus all --network=host \
        --name=edge_0 -e HOSTNAME=edge_0 -e IS_DOCKER=1 \
@@ -71,7 +75,7 @@ End-to-end test sequence — run in order:
            --orchestrator_ip localhost --orchestrator_port 50055 -P 50060
    ```
    Edge will print "edge-only ready" and wait for RPCs.
-3. Run ecav.py:
+4. Run ecav.py:
    ```
    python -u ecav.py -t openscenario_3_edge_worldfusion -v 0.9.15 -eo --apply_ml
    ```
