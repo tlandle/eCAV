@@ -271,6 +271,9 @@ message IntermediateFeatures {
   // Camera features (optional, for camera-only or LiDAR+camera fusion)
   CompressedTensor camera_features = 8;
 
+  // Late fusion: pickled agent object detections (vehicles dict from YOLO)
+  bytes pickled_objects = 11;
+
   // Metadata
   int64 timestamp_ns = 9;            // Feature extraction timestamp
   float communication_rate = 10;     // Fraction of features transmitted (0-1)

@@ -75,9 +75,18 @@ class _FeatureStub:
             pass  # pose already set from batch; no sensor to re-read
 
     class _Vehicle:
+        class _BoundingBox:
+            class _Extent:
+                x = 2.5   # half-length (m), typical sedan
+                y = 1.0   # half-width
+                z = 0.75  # half-height
+            def __init__(self):
+                self.extent = _FeatureStub._Vehicle._BoundingBox._Extent()
+
         def __init__(self, vehicle_id, pose):
             self.id = vehicle_id
             self._pose = pose
+            self.bounding_box = self._BoundingBox()
 
         def get_location(self):
             from ecav.ecav_carla import Location as _Loc
@@ -90,10 +99,18 @@ class _FeatureStub:
                 _Rot(roll=float(self._pose[3]), yaw=float(self._pose[4]), pitch=float(self._pose[5]))
             )
 
+        def get_velocity(self):
+            class _Vec:
+                x = 0.0
+                y = 0.0
+                z = 0.0
+            return _Vec()
+
     class _Agent:
         def __init__(self):
             self.edge_predictions = []
             self._anchoring = False
+            self.objects = {}   # late fusion: YOLO detections dict
 
     def __init__(self, agent_id, feature_dict, pose):
         """
@@ -106,6 +123,7 @@ class _FeatureStub:
         self.localizer = self._Localizer(pose)
         self.vehicle = self._Vehicle(agent_id, pose)
         self.agent = self._Agent()
+        self.objects = {}   # late fusion RSU path: rsu.objects
 
 
 class EdgeActorInfo:
@@ -284,6 +302,12 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
                 feature_dict = None
 
             stub = _FeatureStub(agent_id=feat.agent_id, feature_dict=feature_dict, pose=pose)
+
+            # Late fusion: unpack YOLO detections into stub
+            if feat.pickled_objects:
+                objects = pickle.loads(feat.pickled_objects)
+                stub.objects = objects          # RSU path: rsu.objects
+                stub.agent.objects = objects    # vehicle path: vm.agent.objects
 
             if feat.agent_type == ecloud.ActorType.RSU:
                 rsu_stubs.append(stub)
