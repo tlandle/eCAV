@@ -898,7 +898,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 pos.rotation.roll, pos.rotation.yaw, pos.rotation.pitch
             ] if pos is not None else [0.0] * 6
             actor_id = rsu.vehicle.id if hasattr(rsu, 'vehicle') else 0
-            objects = getattr(rsu, 'objects', {})
+            objects = {k: v for k, v in getattr(rsu, 'objects', {}).items()
+                       if k != 'traffic_lights'}
             batch.features.append(ecloud.IntermediateFeatures(
                 agent_id=actor_id,
                 agent_type=ecloud.RSU,
@@ -912,7 +913,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 pos.location.x, pos.location.y, pos.location.z,
                 pos.rotation.roll, pos.rotation.yaw, pos.rotation.pitch
             ] if pos is not None else [0.0] * 6
-            objects = getattr(vm.agent, 'objects', {})
+            objects = {k: v for k, v in getattr(vm.agent, 'objects', {}).items()
+                       if k != 'traffic_lights'}
             batch.features.append(ecloud.IntermediateFeatures(
                 agent_id=vm.vehicle.id,
                 agent_type=ecloud.VEHICLE,
