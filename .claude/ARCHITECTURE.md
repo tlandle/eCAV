@@ -69,6 +69,20 @@ run as vehicle manager class instances in sequential scenarios. run as ecloud ac
 <!-- How the edge node differs from vehicle actors, its role in perception fusion -->
 edge and rsu are both actor classes in sequential scenarios. And standalone processes in distributed scenarios. When running distributed, they are typically run inside docker containers to avoid the GIL.
 
+#### 2.5.1 Modular Edge Stack
+
+The edge manager is not a monolith. It is composed of three independently replaceable stages, each of which is a distinct axis of research. A given driving scenario (occluded left, overtake, etc. — e.g. `openscenario_3`) should be runnable against *any* permutation of these stages:
+
+- **Fusion** — how perception inputs from the RSU and vehicle(s) are combined. Backends: `worldfusion` (intermediate / BEV feature fusion), `late_fusion` (YOLO bounding-box / object-level fusion), `oracle` (ground-truth), with `early`/point-cloud fusion (raw LiDAR, VRF-style) as a future slot. Selected by `fusion_backend` in YAML; instantiated via `get_fusion()` in `ecav/core/application/edge/fusion/`.
+- **Tracker** — multi-object tracking over fused detections. Currently `ab3dmot` (the one to rely on for our tests); `mamba` and others are future slots. Selected by `tracker` in YAML; instantiated via `get_tracker()` in `ecav/core/tracking/`.
+- **Predictor** — trajectory prediction over confirmed tracks. `linear` (KF-velocity extrapolation) or `smart` (SMART, NeurIPS 2024). Selected by `predictor_type` in YAML.
+
+`_PluggableEdgeBase` (`edge_manager_pluggable_base.py`) composes fusion + tracker from config and runs the common collect → track → advance loop; subclasses supply the prediction strategy in `run_step()`. The concrete edge manager filenames encode their composition — e.g. `edge_manager_worldfusion_ab3dmot_mtr.py`, `edge_manager_prediction_late_fusion_ab3dmot_linear_predictor.py`.
+
+Other components follow the same removable/addable pattern — notably the **Network Model** (latency/jitter/packet-loss applied to the uplink/downlink, configured in the `edge_base` YAML block), which is its own research axis.
+
+**Current testing posture (2026-06):** SMART is broken, so tests use the `linear` predictor; `ab3dmot` is the tracker of record. Fusion is the variable under test — exercise each fusion backend against `ab3dmot` + `linear`, then layer scenario-specific permutations on top. See `docs/kb/raw/notes/tyler_modular_architecture.md`.
+
 ### 2.6 LitServe Perception Server
 <!-- Standalone process, model served (YOLOv5), how actors communicate with it -->
 Standalone process. Communication is done via HTTP and gRPC. Ego vehicles communicate directly with it for late fusion. For intermediate fusion, the edge communicates with it. 

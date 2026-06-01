@@ -1,5 +1,5 @@
 ---
-updated: 2026-05-30
+updated: 2026-06-01
 ---
 # Current State
 
@@ -56,34 +56,37 @@ One checklist item intentionally deferred to Phase 2: changing `register_with_or
 - Edge containers start with `--orchestrator_ip localhost --orchestrator_port 50055`, port base 50060 (avoids collision with registration server on 50055)
 - Vehicle/RSU/non-ego containers skipped entirely in edge-only mode
 
-### Next Steps (stopping point 2026-05-30)
+### Phase 4 — AB3DMOT Index Bug Fixed (commit `2ea1d9a1`, 2026-05-31)
 
-**Container must be rebuilt after any `ecav/` code change before running Docker-based tests.**
-`docker build --network=host -f Dockerfile -t ecav-python310:latest .`
+**Root cause of all late fusion prediction failures found and fixed.**
 
-End-to-end test sequence — run in order:
+`Box3D.__init__` defaults `self.s = 0.0` (not `None`). Because `bbox2array_raw` checks `if bbox.s is None`, it always returned 8 elements (including the score) for KF-state bboxes. This shifted every subsequent index in the output row by +1:
 
-1. Rebuild container if any code changed since last build (see above)
-2. Start CARLA (headless or with display)
-3. Start edge container (in a separate terminal, run without `-d` to see output):
-   ```
-   docker run --runtime=nvidia --gpus all --network=host \
-       --name=edge_0 -e HOSTNAME=edge_0 -e IS_DOCKER=1 \
-       -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
-       ecav-python310:latest \
-       python3.10 -u ecav/ecav2/edge_process.py \
-           --orchestrator_ip localhost --orchestrator_port 50055 -P 50060
-   ```
-   Edge will print "edge-only ready" and wait for RPCs.
-4. Run ecav.py:
-   ```
-   python -u ecav.py -t openscenario_3_edge_worldfusion -v 0.9.15 -eo --apply_ml
-   ```
+| Index | Expected | Actual (broken) |
+|---|---|---|
+| 7 | track_id | s-score = 0.0 |
+| 8 | carla_id | track_id (always 0 for first track) |
+| 10 | KF dx | trk.guid (GUID counter = 1) |
+| 12 | KF dz | KF dy |
 
-What to verify (Phase 4):
-- Vehicle drives successfully using edge-fused predictions
-- Edge profiler JSON written to `logs/edge_profiler_<ts>.json`
-- No crashes during `collect_features` → `fuse` → `apply_predictions` per-tick loop
+Effects: `carla_id=0` on every track → `[OWN-BEACON]` suppression never fired; `kf_speed = guid/dt = 20 m/s` phantom velocity → speed gate never suppressed beacon either. Ego braked for its own ghost every tick in sequential mode. In edge-only mode: same phantom prevented Lincoln track from being useful.
+
+Fix: `AB3DMOT_libs/model.py` `output()` — add `[:7]` to strip score: `d = Box3D.bbox2array_raw(d)[:7]`.
+
+Sequential late fusion (`openscenario_3_edge_late_fusion`, no `-eo`) confirmed working:
+- `ghost_brake_events=0` (was 73/73)
+- `true_positive_gt=8` (was 0)
+- Vehicle moves at `avg_speed=9.94 m/s` and correctly brakes for the real Lincoln threat
+
+Also changed `predictor_type: smart → linear` in YAML. SMART requires 22-tick track history; Lincoln is visible for only ~9 ticks before the intersection. Linear predictor works with 3 confirmed track points.
+
+**Container rebuilt** with this fix (2026-05-31). Both sequential and edge-only (`-eo`) confirmed working.
+
+### Next Steps
+
+Edge-only late fusion is working. The immediate next focus is the remaining regression tests and multi-edge locale work.
+
+**WorldFusion `-eo` is no longer blocked on SMART.** Per Tyler's modular-stack framing (2026-05-31, [tyler_modular_architecture.md](../raw/notes/tyler_modular_architecture.md)), the edge stack is three independent slots: fusion / tracker / predictor. WorldFusion is just a different fusion backend — it can run against the same `ab3dmot` tracker + `linear` predictor we validated for late fusion. So we can re-test `openscenario_3_edge_worldfusion` with `-eo` directly, using the linear predictor, to confirm WorldFusion works in edge-only mode. No SMART dependency. This supersedes the earlier "blocked until SMART is fixed" conclusion.
 
 ---
 
@@ -97,14 +100,14 @@ All 8 permutations of the base scenario. Flags: `--apply_ml` enables ML; `-l` ro
 | 2 | WorldFusion | yes | no | ✓ 2026-04-29 |
 | 3 | WorldFusion | no | yes | ✓ 2026-05-03 |
 | 4 | WorldFusion | yes | yes | ✓ 2026-05-03 |
-| 5 | Late fusion | no | no | ✓ 2026-05-03 |
+| 5 | Late fusion | no | no | ✓ 2026-05-31 (AB3DMOT index fix; sequential + `-eo` both confirmed) |
 | 6 | Late fusion | yes | no | pending |
 | 7 | Late fusion | no | yes | pending |
 | 8 | Late fusion | yes | yes | pending |
 
 Tests 6-8: pipeline issues that were blocking them were fixed in `96ab86c0`. They have not been run and confirmed. Run in order; always use a clean CARLA session.
 
-**Key finding across all tests:** Collision at tick ~226 in WorldFusion tests is **expected and correct**. SMART needs 22 ticks of track history to confirm a track; the Lincoln only provides ~9 ticks before the intersection. No predictions reach the vehicle → no brake → collision. This is Tyler's predictor problem, not a distributed architecture bug. Tyler's prior workaround (70 km/h) cleared the intersection before Lincoln arrived, masking the failure. Correct ego speed is 43 km/h.
+**Key finding across all tests:** Collision at tick ~226 in WorldFusion tests was previously deemed **expected** *with the SMART predictor* — SMART needs 22 ticks of track history; the Lincoln only provides ~9 ticks before the intersection, so no prediction reaches the vehicle → no brake → collision. **This is now reframed by the modular-stack insight (2026-05-31):** predictor is an independent slot, so WorldFusion should be run with the `linear` predictor (3 confirmed track points), exactly as late fusion is. With linear, WorldFusion should predict and brake — the collision is *not* inherent to the scenario. SMART's 22-tick requirement is Tyler's predictor problem, not a distributed-architecture or scenario bug. Correct ego speed is 43 km/h (Tyler's prior 70 km/h workaround cleared the intersection before Lincoln arrived, masking the SMART failure).
 
 ---
 
@@ -150,9 +153,19 @@ Late fusion with `-l`, with `-d`, with both. Pipeline is believed working based 
 
 ### Multi-Edge Locale & Handoff
 
-Plan written: [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md). Not yet started. Depends on edge-only distributed mode (Phase 3) being solid first.
+Plan written and **revised 2026-06-01** for the `-eo` substrate: [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md). Not yet implemented. This is the next active workstream (Paper 2).
 
-**Model C first** (orchestrator-driven via CARLA position query). Paper 2 focus. `EdgeFusionClient` from Phase 2 is the primitive this builds on — handoff just routes to a different client.
+**Near-term path = edge-to-edge handoff on `-eo`, Model B (peer-to-peer)** — decided with jrapp 2026-06-01. The original plan was written against the full-distributed C++ orchestrator (Models A/B/C) and predated `-eo`. An earlier courier-through-base idea was **rejected**: routing state transfer through the base bakes in a centralized double-hop (A→base→B) and misplaces handoff logic. Correct v1 = **edge-owned `handoff_manager`** with each edge holding a list of neighbor edges and communicating directly (peer mesh).
+
+Simplest experiment: one ego, two edges (two fusion-service containers), two rectangular locales overlapping by `N` meters, ego drives the corridor A→overlap→B. Single controlled handoff (`openscenario_3_multi_edge` for `-eo`).
+
+- **Decision is edge-local:** ego pose is already in the `IntermediateFeaturesBatch` the primary edge receives each tick, so its `handoff_manager` runs its own containment check — no base involvement to decide.
+- **Peer transfer is direct:** new `Edge_ReceiveHandoff(EdgeState)` RPC, edge→edge (no courier). State = serialized AB3DMOT tracker + track→carla map.
+- **Orchestrator notification re-points routing:** registration server shuts down post-registration, so the edge piggybacks `handoff_complete{vehicle, to_edge, payload}` on the `FusionResult` it already returns to the base. Base records the event (metric) and flips its feature routing to B next tick. **Base routing table = the single source of truth for "who is primary" → no split-brain.**
+- **`handoff_manager` is itself modular:** pluggable handoff *behavior*. Build both for v1 — **hard-cut first**, **dual-route second**. Cold-vs-warm handoff gap is Paper 2's core result; **Network Model** slot injects realistic transfer cost on the peer hop later.
+- **Conceptual reference: EdgeWarp (SEC '25)** — two-step sync (`BackgroundSync` proactive warm + `BlockingSync` final) frames the behaviors; mobility hint = "ego entered overlap zone." See [2026-06-01 session log](../raw/sessions/2026-06-01.md).
+
+Full Models A/B/C analysis + C++ proto infrastructure retained in the plan as a deferred full-distributed variant.
 
 ### Azure Distributed Deployment
 
