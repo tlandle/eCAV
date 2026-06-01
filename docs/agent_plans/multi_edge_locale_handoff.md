@@ -49,6 +49,18 @@ These are not merely implementation questions. The choice of handoff model direc
 
 ## Near-Term Path: Edge-to-Edge Handoff on `-eo` (supersedes Model C for v1)
 
+> **SUPERSEDED 2026-06-01 PM — pivot to Model C on Tyler's `migration/` module.**
+> develop already ships `ecav/core/application/edge/migration/` (polygon `Locale`,
+> `LocaleRouter`, hysteresis `VehicleLocaleTracker`, `MigrationPayload`), and its
+> router/binding is **orchestrator-centric = Model C**. jrapp's call: adopt Model C
+> and build on Tyler's primitives rather than diverge (pending Tyler confirmation).
+> The Model B (edge-peer) design in this section is **retained for history** but is
+> no longer the build path. What we build instead = Tyler's "forthcoming" pieces:
+> trajectory trigger, inter-locale link model (+ `ns3_cosim`), migration daemon,
+> and the `-eo` runtime wiring (his primitives have no runtime imports yet). Our
+> rectangular `locale_bounds` is superseded by his polygon `Locale`. See
+> [current_state.md](../kb/wiki/current_state.md) and the 2026-06-01 session log.
+
 This is the experiment to build *now*. It is the `-eo` realization of **Model B**
 (edge-driven, peer-to-peer), chosen as the correct v1 because the handoff logic
 and state belong with the entity that owns them — the edge. It is stripped of the

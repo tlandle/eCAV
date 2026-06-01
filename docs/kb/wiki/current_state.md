@@ -155,7 +155,11 @@ Late fusion with `-l`, with `-d`, with both. Pipeline is believed working based 
 
 Plan written and **revised 2026-06-01** for the `-eo` substrate: [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md). Not yet implemented. This is the next active workstream (Paper 2).
 
-**Near-term path = edge-to-edge handoff on `-eo`, Model B (peer-to-peer)** — decided with jrapp 2026-06-01. The original plan was written against the full-distributed C++ orchestrator (Models A/B/C) and predated `-eo`. An earlier courier-through-base idea was **rejected**: routing state transfer through the base bakes in a centralized double-hop (A→base→B) and misplaces handoff logic. Correct v1 = **edge-owned `handoff_manager`** with each edge holding a list of neighbor edges and communicating directly (peer mesh).
+**Direction = Model C, building on Tyler's `migration/` module** (jrapp, 2026-06-01 PM; pending Tyler confirmation). **This supersedes the morning's Model B (edge-peer) decision.** Reason: develop already ships `ecav/core/application/edge/migration/` — polygon `Locale`, `LocaleRegistry`/`LocaleRouter` (orchestrator polls router → Model C), `VehicleLocaleTracker` (hysteresis binding, emits `HandoffEvent`), `MigrationPayload`/`TrackLatent` (latent-state migration). Tyler's router/binding is orchestrator-centric = Model C. We adopt it rather than diverge. The B-vs-C analysis and the morning's `-eo` peer-mesh rewrite in [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md) are retained for history but are now superseded by "build on Tyler's primitives."
+
+**What we build (the pieces Tyler left "forthcoming"):** the trajectory trigger, the inter-locale link model (parametric, + the `ns3_cosim` 5G-LENA high-fidelity path = Network Model slot), the migration daemon, and the **`-eo` runtime wiring** (his primitives have zero runtime imports today). Our rectangular `locale_bounds` is superseded by his polygon `Locale`. Open question for Tyler: his `MigrationPayload` carries **neural latent state** (RNN hidden + attention cache) for the sequence-model stack; our validated `-eo` baseline is AB3DMOT + linear (KF state), so the cold-vs-warm baseline needs KF state mapped into `TrackLatent` or confirmation he's targeting the neural predictor.
+
+Original courier-through-base idea was rejected earlier (centralized double-hop); that reasoning still holds and is moot under Model C anyway.
 
 Simplest experiment: one ego, two edges (two fusion-service containers), two rectangular locales overlapping by `N` meters, ego drives the corridor A→overlap→B. Single controlled handoff (`openscenario_3_multi_edge` for `-eo`).
 
@@ -166,6 +170,12 @@ Simplest experiment: one ego, two edges (two fusion-service containers), two rec
 - **Conceptual reference: EdgeWarp (SEC '25)** — two-step sync (`BackgroundSync` proactive warm + `BlockingSync` final) frames the behaviors; mobility hint = "ego entered overlap zone." See [2026-06-01 session log](../raw/sessions/2026-06-01.md).
 
 Full Models A/B/C analysis + C++ proto infrastructure retained in the plan as a deferred full-distributed variant.
+
+### Merge `develop` (do before starting `-eo` handoff)
+
+`origin/develop` (`70cd4ae8`) previewed 2026-06-01: 25 commits, 5322 files, but **only 2 conflicts** — `AB3DMOT_libs/model.py` (same fix; **took theirs**, model.py now matches develop) and `start_actors.sh` (real divergence; **kept ours**, parked develop's copy as `start_actors_develop.sh` for standalone reconciliation). Local merge needs GitHub LFS creds (`.pth` models) or `GIT_LFS_SKIP_SMUDGE=1`, and clearing untracked-file collisions.
+
+**Why this matters for the handoff plan:** develop already contains modules on our roadmap — `ecav/core/application/edge/migration/` (state migration = handoff), `ns3_cosim` + `latency/ns3_lut_sampler.py` (the Network Model slot), `fusion/gt_injector.py`. **Read these before building the `-eo` handoff** — they may already implement pieces of [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md). See [2026-06-01 session log](../raw/sessions/2026-06-01.md). (Throwaway preview branch `merge-preview-develop` left undeleted — `git branch -D` it.)
 
 ### Azure Distributed Deployment
 
