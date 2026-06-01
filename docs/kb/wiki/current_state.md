@@ -100,7 +100,7 @@ All 8 permutations of the base scenario. Flags: `--apply_ml` enables ML; `-l` ro
 | 2 | WorldFusion | yes | no | ✓ 2026-04-29 |
 | 3 | WorldFusion | no | yes | ✓ 2026-05-03 |
 | 4 | WorldFusion | yes | yes | ✓ 2026-05-03 |
-| 5 | Late fusion | no | no | ✓ 2026-05-31 (AB3DMOT index fix; sequential + `-eo` both confirmed) |
+| 5 | Late fusion | no | no | ✓ 2026-06-01 (AB3DMOT index fix; sequential + `-eo` confirmed, **re-validated post-develop-merge**) |
 | 6 | Late fusion | yes | no | pending |
 | 7 | Late fusion | no | yes | pending |
 | 8 | Late fusion | yes | yes | pending |
@@ -174,6 +174,8 @@ Full Models A/B/C analysis + C++ proto infrastructure retained in the plan as a 
 ### Merge `develop` (do before starting `-eo` handoff)
 
 `origin/develop` (`70cd4ae8`) previewed 2026-06-01: 25 commits, 5322 files, but **only 2 conflicts** — `AB3DMOT_libs/model.py` (same fix; **took theirs**, model.py now matches develop) and `start_actors.sh` (real divergence; **kept ours**, parked develop's copy as `start_actors_develop.sh` for standalone reconciliation). Local merge needs GitHub LFS creds (`.pth` models) or `GIT_LFS_SKIP_SMUDGE=1`, and clearing untracked-file collisions.
+
+**Post-merge validation — DONE (2026-06-01):** late fusion confirmed working after the merge in **both sequential and edge-only (`-eo`)** modes. Sequential first (no rebuild) cleared the `ecav.py` auto-merge + develop's `model.py`; then containers rebuilt and `-eo` confirmed. `predictor_type: linear` survived the merge. The develop merge is fully validated on the late-fusion baseline.
 
 **Why this matters for the handoff plan:** develop already contains modules on our roadmap — `ecav/core/application/edge/migration/` (state migration = handoff), `ns3_cosim` + `latency/ns3_lut_sampler.py` (the Network Model slot), `fusion/gt_injector.py`. **Read these before building the `-eo` handoff** — they may already implement pieces of [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md). See [2026-06-01 session log](../raw/sessions/2026-06-01.md). (Throwaway preview branch `merge-preview-develop` left undeleted — `git branch -D` it.)
 
