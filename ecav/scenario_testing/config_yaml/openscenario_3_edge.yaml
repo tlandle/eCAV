@@ -263,8 +263,8 @@ scenario:
       
       # This top-level block is good for reference but not used by the perception manager init
       bm2cp_model:            
-        hypes_yaml: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_04_17_32_09/config.yaml
-        checkpoint: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_04_17_32_09/net_epoch7.pth
+        hypes_yaml: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_02_20_01_42/config.yaml
+        checkpoint: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_02_20_01_42/net_epoch7.pth
 
       rsus:
         - <<: *rsu_base
@@ -276,8 +276,8 @@ scenario:
               <<: *base_perception
               backend: bm2cp
               bm2cp_model:
-                hypes_yaml: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_04_17_32_09/config.yaml
-                checkpoint: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_04_17_32_09/net_epoch7.pth
+                hypes_yaml: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_02_20_01_42/config.yaml
+                checkpoint: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_02_20_01_42/net_epoch7.pth
 
           id: -1
       vehicles:
@@ -298,8 +298,8 @@ scenario:
                   - [-1.5,  0.0, 1.7, 180]
               backend: bm2cp
               bm2cp_model:
-                hypes_yaml: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_04_17_32_09/config.yaml
-                checkpoint: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_04_17_32_09/net_epoch7.pth
+                hypes_yaml: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_02_20_01_42/config.yaml
+                checkpoint: ecav/worldfusion/opencood/logs/v2xsim_bm2cp_ego_baseline_2026_01_02_20_01_42/net_epoch7.pth
             localization:
               <<: *base_localize
               debug_helper:

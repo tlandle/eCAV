@@ -1,0 +1,298 @@
+car_only: true
+cav_lidar_range: &id003
+- -70.4
+- -70.4
+- -6
+- 70.4
+- 70.4
+- 2
+comm_range: 70
+data_augment:
+- ALONG_AXIS_LIST:
+  - x
+  NAME: random_world_flip
+- NAME: random_world_rotation
+  WORLD_ROT_ANGLE:
+  - -0.78539816
+  - 0.78539816
+- NAME: random_world_scaling
+  WORLD_SCALE_RANGE:
+  - 0.95
+  - 1.05
+- NAME: random_world_translation
+  TRANSLATION_RANGE:
+  - 15.0
+  - 15.0
+  - 0.0
+- NAME: random_vehicle_dropout
+  P_DROP_VEHICLE: 0.3
+  P_DROP_LOWER_BODY: 0.3
+  LOWER_BODY_FRACTION: 0.5
+fusion:
+  args:
+    cur_ego_pose_flag: true
+    proj_first: false
+  core_method: MultiV2XIntermediateFusionDataset
+input_source:
+- lidar
+label_type: lidar
+loss:
+  args:
+    cls_weight: 1.0
+    reg: 2.0
+  core_method: point_pillar_loss
+lr_scheduler:
+  core_method: cosineannealwarm
+  epoches: 45
+  lr_min: 5.0e-06
+  warmup_epoches: 3
+  warmup_lr: 1.0e-05
+model:
+  args:
+    anchor_number: 2
+    backbone_fix: false
+    canvas_res: 0.4
+    canvas_size_m: 140.8
+    device: cuda
+    use_camera: false
+    dir_args: &id004
+      anchor_yaw:
+      - 0
+      - 90
+      dir_offset: 0.7853
+      num_bins: 2
+    fusion_args:
+      agg_operator:
+        feature_dim: 256
+        layer_nums:
+        - 3
+        - 4
+        - 5
+        mode: ATTEN
+        multi_scale: true
+        num_filters:
+        - 64
+        - 128
+        - 256
+      communication:
+        gaussian_smooth:
+          c_sigma: 1.0
+          k_size: 5
+        round: 1
+        threshold: 0.01
+      downsample_rate: 1
+      fully: false
+      in_channels: 256
+      layer_nums:
+      - 3
+      - 4
+      - 5
+      multi_scale: true
+      num_filters:
+      - 64
+      - 128
+      - 256
+      voxel_size: &id001
+      - 0.4
+      - 0.4
+      - 8
+    img_params:
+      bev_dim: 64
+      data_aug_conf:
+        Ncams: 4
+        bot_pct_lim:
+        - 0.0
+        - 0.2
+        cams:
+        - cameraFront
+        - cameraRear
+        - cameraLeft
+        - cameraRight
+        final_dim:
+        - 256
+        - 352
+        h: 600
+        rand_flip: false
+        resize_lim:
+        - 0.7
+        - 0.8
+        rot_lim:
+        - 0
+        - 0
+        w: 800
+      depth_supervision: false
+      grid_conf:
+        ddiscr:
+        - 2
+        - 50
+        - 48
+        mode: LID
+        xbound:
+        - -70.4
+        - 70.4
+        - 0.4
+        ybound:
+        - -70.4
+        - 70.4
+        - 0.4
+        zbound:
+        - -10
+        - 10
+        - 20
+      img_downsample: 8
+      use_depth_gt: false
+    lidar_range: &id002
+    - -70.4
+    - -70.4
+    - -6
+    - 70.4
+    - 70.4
+    - 2
+    modality_fusion:
+      bev_backbone:
+        encode_first: false
+        layer_nums:
+        - 3
+        - 4
+        - 5
+        layer_strides:
+        - 2
+        - 2
+        - 2
+        multi_scale: true
+        num_filters:
+        - 64
+        - 128
+        - 256
+        num_upsample_filter:
+        - 128
+        - 128
+        - 128
+        upsample_strides:
+        - 1
+        - 2
+        - 4
+        voxel_size: *id001
+      compression: 0
+      shrink_header:
+        dim:
+        - 256
+        input_dim: 384
+        kernal_size:
+        - 3
+        padding:
+        - 1
+        stride:
+        - 1
+        use: true
+    outc: 256
+    pc_params:
+      lidar_range: *id002
+      pillar_vfe:
+        num_filters:
+        - 64
+        use_absolute_xyz: true
+        use_norm: true
+        with_distance: false
+      point_pillar_scatter:
+        grid_size: !!python/object/apply:numpy.core.multiarray._reconstruct
+          args:
+          - !!python/name:numpy.ndarray ''
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 3
+          - !!python/object/apply:numpy.dtype
+            args:
+            - i8
+            - false
+            - true
+            state: !!python/tuple
+            - 3
+            - <
+            - null
+            - null
+            - null
+            - -1
+            - -1
+            - 0
+          - false
+          - !!binary |
+            YAEAAAAAAABgAQAAAAAAAAEAAAAAAAAA
+        num_features: 64
+      voxel_size: *id001
+    supervise_single: false
+    voxel_size: *id001
+  core_method: point_pillar_worldfusion
+name: worldfusion_multiv2x_caronly
+noise_setting:
+  add_noise: false
+  args:
+    pos_mean: 0
+    pos_std: 0.2
+    rot_mean: 0
+    rot_std: 0.2
+optimizer:
+  args:
+    eps: 1.0e-10
+    weight_decay: 0.01
+  core_method: Adam
+  lr: 0.0001
+postprocess:
+  anchor_args:
+    D: 1
+    H: 352
+    W: 352
+    canvas_res: 0.4
+    canvas_size_m: 140.8
+    cav_lidar_range: *id003
+    feature_stride: 2
+    h:
+    - 1.56
+    - 1.56
+    l:
+    - 3.9
+    - 3.9
+    num: 2
+    r:
+    - 0
+    - 90
+    vd: 8
+    vh: 0.4
+    vw: 0.4
+    w:
+    - 1.6
+    - 1.6
+  core_method: VoxelPostprocessor
+  dir_args: *id004
+  gt_range: *id002
+  max_num: 150
+  nms_thresh: 0.15
+  order: hwl
+  target_args:
+    neg_threshold: 0.45
+    pos_threshold: 0.6
+    score_threshold: 0.15
+preprocess:
+  args:
+    cav_lidar_range: *id002
+    max_points_per_voxel: 32
+    max_voxel_test: 70000
+    max_voxel_train: 32000
+    voxel_size: *id001
+  cav_lidar_range: *id002
+  core_method: SpVoxelPreprocessor
+root_dir: "/tmp/Multi-V2X"
+train_params:
+  batch_size: 1
+  epoches: 45
+  eval_freq: 2
+  max_cav: 31
+  save_freq: 2
+validate_dir: "/tmp/Multi-V2X"
+world_lidar_range: *id002
+yaml_parser: load_cross_modal_point_pillar_params

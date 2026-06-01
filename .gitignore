@@ -149,6 +149,7 @@ cython_debug/
 #*.json
 *.csv
 !paper2/reproduce/data/*.csv
+!ecav/core/application/edge/latency/data/*.csv
 output/
 outputs
 *.pt
@@ -194,5 +195,31 @@ logs/
 # Pretrained MTR checkpoint: too large for LFS, download separately
 ecav/ml_manager/models/mtr/best_model.pth
 
+# Paper drafts excluded from this repo to keep authorship out of git history
+safety_envelope_paper/
+paper2/
+paper2_figures/
+paper2_contributions_summary.md
+paper2_implementation_status.md
+paper2_optimization.md
+paper2_state.md
+notes/paper_extract/
+notes/paper_network_slides.md
+
+# Large training artifacts and run scratch
+lightning_logs/
+archive/
+
+# Training scratch we don't need in git
+ecav/ml_manager/models/**/*.pth.bak
+ecav/ml_manager/models/**/events.out.tfevents.*
+
+# Training/eval data artifacts (large; archive separately)
+preprocessed_data/
+# Paper1 figure outputs (paper1 lives outside this repo)
+scripts/paper1_figures_real_aligned/
+
+# Editor / external workspace
 .obsidian/workspace.json
 plantuml-images/
+dissertation_proposal/

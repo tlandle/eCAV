@@ -1,0 +1,629 @@
+description: |-
+  Scenario 20 with 12 CAVs for closed-loop evaluation.
+  Edge manager: worldfusion_adaptive.  1 RSU + 12 CAVs around the
+  Town03 intersection at (-84, 128).  NB approach: ego + 3;
+  SB approach: 3; EB approach: 5.  XML NPCs: 2 cross-traffic
+  Lincolns + 4 firetruck occluders.
+
+define: &perception_is_active true
+perception_active: *perception_is_active
+
+ml_manager:
+  yolo_endpoint: 'http://localhost:18000'
+
+world:
+  sync_mode: true
+  client_host: &host localhost
+  client_port: &port 2000
+  fixed_delta_seconds: 0.05
+  seed: 11
+  weather:
+    sun_altitude_angle: 15
+    cloudiness: 75
+    precipitation: 0
+    precipitation_deposits: 0
+    wind_intensity: 0
+    fog_density: 0
+    fog_distance: 0
+    fog_falloff: 0
+    wetness: 0
+
+carla_traffic_manager:
+  sync_mode: true
+  global_distance: 5.0
+  global_speed_perc: -50
+  set_osm_mode: true
+  auto_lane_change: false
+  random: false
+  ignore_lights_percentage: 0
+  vehicle_list:
+  range: []
+  # No TM-spawned background. cav2-cav12 are placed at the same kind of
+  # static positions a parked-background range would generate, but they
+  # are CAVs so they share LiDAR features with the edge.
+
+ego_vehicle_max_speed: 70
+
+scenario_runner:
+  town: town03
+  scenario: Scenario_20
+  num_actors: 2
+  configFile: ecav/scenario_testing/scenarios/scenario_20.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_20.py
+  host: *host
+  port: *port
+  timeout: 120
+  debug: false
+  sync: false
+  repetitions: 1
+  agent: null
+  openscenario: null
+  route: null
+  reloadWorld: false
+  waitForEgo: false
+  trafficManagerPort: '8000'
+  trafficManagerSeed: '0'
+  record: ''
+  agentConfig: ''
+  file: false
+  json: false
+  junit: false
+  list: false
+  openscenarioparams:
+    - ego_vehicle_max_speed=70
+  output: false
+  outputDir: ''
+  randomize: false
+  vehicle_index: 0
+
+vehicle_base: &vehicle_base
+  sensing: &base_sensing
+    perception: &base_perception
+      activate: true
+      camera:
+        visualize: 4
+        num: 4
+        positions:
+          - [ 1.5,  0.0, 1.7,   0]
+          - [ 0.0, -1.5, 1.7, -90]
+          - [ 0.0,  1.5, 1.7,  90]
+          - [-1.5,  0.0, 1.7, 180]
+      lidar:  # Typical 64-ch automotive LiDAR (Pandar64-class)
+        visualize: false
+        channels: 64
+        range: 50
+        points_per_second: 1150000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -30.0
+        dropoff_general_rate: 0.0
+        dropoff_intensity_limit: 1.0
+        dropoff_zero_intensity: 0.0
+        noise_stddev: 0.0
+    localization: &base_localize
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.5
+        noise_lat_stddev: 1.5e-6
+        noise_lon_stddev: 1.5e-6
+        heading_direction_stddev: 1.0
+        speed_stddev: 0.5
+      debug_helper: &loc_debug_helper
+        show_animation: false
+        x_scale: 1.0
+        y_scale: 1.0
+  behavior: &base_behavior
+    max_speed: 70
+    tailgate_speed: 121
+    speed_lim_dist: 3
+    speed_decrease: 15
+    safety_time: 4
+    emergency_param: .4
+    ignore_traffic_light: true
+    overtake_allowed: true
+    collision_time_ahead: 2
+    overtake_counter_recover: 35
+    sample_resolution: 4.5
+    local_planner: &base_local_planner
+      buffer_size: 12
+      trajectory_update_freq: 15
+      waypoint_update_freq: 9
+      min_dist: 3
+      trajectory_dt: 0.20
+      debug: true
+      debug_trajectory: true
+  controller: &base_controller
+    type: pid_controller
+    args: &control_args
+      lat:
+        k_p: 0.75
+        k_d: 0.02
+        k_i: 0.4
+      lon:
+        k_p: 0.37
+        k_d: 0.024
+        k_i: 0.032
+      dynamic: false
+      dt: ${world.fixed_delta_seconds}
+      max_brake: 1.0
+      max_throttle: 1.0
+      max_steering: 0.3
+  v2x: &base_v2x
+    enabled: true
+    communication_range: 35
+    loc_noise: 0.0
+    yaw_noise: 0.0
+    speed_noise: 0.0
+    lag: 0
+  map_manager:
+    pixels_per_meter: 2
+    raster_size: [224, 224]
+    lane_sample_resolution: 0.1
+    visualize: false
+    activate: true
+  safety_manager:
+    print_message: true
+    collision_sensor:
+      history_size: 30
+      col_thresh: 1
+    stuck_dector:
+      len_thresh: 500
+      speed_thresh: 0.5
+    offroad_dector: [ ]
+    traffic_light_detector:
+      light_dist_thresh: 20
+
+rsu_base: &rsu_base
+  sensing:
+    perception:
+      activate: true
+      camera:
+        visualize: 4
+        num: 4
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar:
+        visualize: false
+        channels: 32
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -70.0
+        dropoff_general_rate: 0.0
+        dropoff_intensity_limit: 1.0
+        dropoff_zero_intensity: 0.0
+        noise_stddev: 0.0
+    localization:
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+
+ecloud:
+  num_servers: 2
+  server_ping_time_s: 0.005
+  client_world_time_factor: 0.9
+  client_ping_spawn_s: 0.05
+  client_ping_tick_s: 0.005
+
+edge_base: &edge_base
+  max_capacity: 10
+  inter_gap: 0.6
+  open_gap: 1.2
+  warm_up_speed: 55
+  change_leader_speed: true
+  leader_speeds_profile: [ 85, 95 ]
+  stage_duration: 10
+  target_speed: 100
+  edge_dt: 0.2
+  search_dt: 2
+  latency: 0.0
+  jitter_std: 0.0
+  latency_distribution: hybrid
+  edge_sets_destination: false
+  uplink_packet_loss_pct: 0.0
+  downlink_packet_loss_pct: 0.0
+  mode: PREDICTION
+
+scenario:
+  edge_list:
+    - <<: *edge_base
+      manager_type: worldfusion_adaptive
+
+      worldfusion_model:
+        hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
+        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch39.pth
+
+      predictor_type: mtr
+      mtr_predictor:
+        cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
+        checkpoint: ecav/ml_manager/models/mtr/best_model.pth
+        device: cuda
+        budget_ms: 50.0
+        enable_amortization: true
+        enable_risk_budget: true
+
+      adaptive_controller:
+        enabled: true
+        deadline_ms: 130.0
+
+      gt_detection_injection:
+        enabled: false
+        max_range_m: 70.0
+        exclude_managed: true
+
+      world_anchor: [-78.0, 128.0, 0.0, 0.0, 0.0, 0.0]
+
+      rsus:
+        - <<: *rsu_base
+          name: rsu1
+          spawn_position: [-82.0, 126.0, 7.0]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              worldfusion_model:
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch39.pth
+          id: -1
+
+      vehicles:
+        # ── cav1 ──
+        - <<: *vehicle_base
+          name: cav1
+          # ScenarioRunner hero, NB -> EB right-turn
+          destination: [-28.8, 136.2, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 4
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 50
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav2 ──
+        - <<: *vehicle_base
+          name: cav2
+          spawn_position: [-74.4, 99.7, 0.7, 0, -90, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-28.8, 136.2, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav3 ──
+        - <<: *vehicle_base
+          name: cav3
+          spawn_position: [-121.3, 136.4, 0.3, 0, -1, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-28.8, 136.2, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav4 ──
+        - <<: *vehicle_base
+          name: cav4
+          spawn_position: [-43.3, 131.2, 0.3, 0, 177, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-28.8, 136.2, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav5 ──
+        - <<: *vehicle_base
+          name: cav5
+          spawn_position: [-88.6, 149.9, 0.3, 0, 90, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-77.5, 50.0, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav6 ──
+        - <<: *vehicle_base
+          name: cav6
+          spawn_position: [-101.6, 132.6, 0.3, 0, 179, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-77.5, 50.0, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav7 ──
+        - <<: *vehicle_base
+          name: cav7
+          spawn_position: [-74.0, 119.1, 0.4, 0, -90, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-77.5, 50.0, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav8 ──
+        - <<: *vehicle_base
+          name: cav8
+          spawn_position: [-77.5, 109.8, 0.5, 0, -90, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-20.0, 134.4, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav9 ──
+        - <<: *vehicle_base
+          name: cav9
+          spawn_position: [-108.4, 136.3, 0.3, 0, -1, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-20.0, 134.4, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+        # ── cav10 ──
+        - <<: *vehicle_base
+          name: cav10
+          spawn_position: [-95.4, 136.1, 0.3, 0, -1, 0]  # CARLA-safe spawn (ego-path excluded)
+          destination: [-20.0, 134.4, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              camera:
+                visualize: 0
+                num: 4
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              localization:
+                <<: *base_localize
+                debug_helper:
+                  <<: *loc_debug_helper
+                  show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            max_speed: 0
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+

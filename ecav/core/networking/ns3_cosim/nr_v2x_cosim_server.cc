@@ -87,6 +87,7 @@ struct ShmLinkResult {
     uint8_t  delivered;
     uint8_t  _pad;
     int16_t  sinr_db_x10;
+    uint16_t delay_ms_x10;  // one-way delay * 10, 0 if undelivered
 };
 
 struct ResultHeader {
@@ -99,7 +100,7 @@ struct ResultHeader {
 
 static_assert(sizeof(ShmHeader) == 64, "Header must be 64 bytes");
 static_assert(sizeof(VehicleEntry) == 20, "VehicleEntry must be 20 bytes");
-static_assert(sizeof(ShmLinkResult) == 8, "ShmLinkResult must be 8 bytes");
+static_assert(sizeof(ShmLinkResult) == 10, "ShmLinkResult must be 10 bytes");
 static_assert(sizeof(ResultHeader) == 16, "ResultHeader must be 16 bytes");
 
 // ===================================================================
@@ -144,18 +145,25 @@ ResultHeader* getResultHeader() {
 // ===================================================================
 //  Delivery tracker for per-tick result collection
 // ===================================================================
-struct DeliveryTracker {
-    // (tx_node_id, rx_node_id) -> (delivered, sinr_db)
-    std::map<std::pair<uint32_t, uint32_t>, std::pair<bool, float>> results;
+struct DeliveryRecord {
+    bool  delivered;
+    float sinr_db;
+    float delay_ms;  // 0 on failure
+};
 
-    void RecordDelivery(uint32_t txNode, uint32_t rxNode, float sinrDb) {
-        results[{txNode, rxNode}] = {true, sinrDb};
+struct DeliveryTracker {
+    // (tx_node_id, rx_node_id) -> record
+    std::map<std::pair<uint32_t, uint32_t>, DeliveryRecord> results;
+
+    void RecordDelivery(uint32_t txNode, uint32_t rxNode,
+                        float sinrDb, float delayMs) {
+        results[{txNode, rxNode}] = {true, sinrDb, delayMs};
     }
 
     void RecordFailure(uint32_t txNode, uint32_t rxNode, float sinrDb) {
         auto key = std::make_pair(txNode, rxNode);
         if (results.find(key) == results.end()) {
-            results[key] = {false, sinrDb};
+            results[key] = {false, sinrDb, 0.0f};
         }
     }
 
@@ -189,7 +197,9 @@ void OnRlcRxPdu(uint64_t imsi, uint16_t rnti, uint16_t txRnti,
     uint32_t txIdx = (it != g_rntiToNodeIdx.end()) ? it->second : 0;
 
     if (rxIdx < g_maxVehicles && txIdx < g_maxVehicles && txIdx != rxIdx) {
-        g_tracker.RecordDelivery(txIdx, rxIdx, 10.0f);
+        // delay is in seconds (ns-3 convention); store as ms.
+        g_tracker.RecordDelivery(txIdx, rxIdx, 10.0f,
+                                 static_cast<float>(delay * 1000.0));
     }
 }
 
@@ -479,6 +489,398 @@ void AdvanceOneTick(double tickDurationS) {
     Simulator::Run();
 }
 
+// ===================================================================
+//  Uu uplink: gNB + EPC + remote host + per-UE UDP uplink
+// ===================================================================
+//
+// Structured after 5G-LENA's cttc-nr-cc-bwp-demo.cc. Single gNB co-located
+// with the RSU at the world origin; UEs are the SHM vehicles. A P2P link
+// connects the PGW to one synthetic remote host that represents the edge.
+// Per tick we call Send() on each active UE's socket, tag with a SeqTsHeader,
+// and on the remote host's PacketSink Rx trace compute delay = now - ts.
+
+// Persistent Uu state (lifetime = server process).
+NodeContainer g_gnbNodes;
+NodeContainer g_remoteHostContainer;
+std::vector<Ptr<Socket>> g_ueUpSockets;   // one per UE (UL: UE -> edge)
+std::vector<Ptr<Socket>> g_edgeDnSockets; // one per UE (DL: edge -> UE)
+std::vector<Ipv4Address> g_ueIpAddrs;     // target address for DL per UE
+Ipv4Address g_remoteHostAddr;
+uint16_t g_uuUplinkBasePort   = 2000;  // UL per-UE port = base + ueIdx
+uint16_t g_uuDownlinkBasePort = 3000;  // DL per-UE port = base + ueIdx
+uint32_t g_gnbNodeIdx = 0xFFFFFFFF;
+// NR helpers and EPC helper MUST persist for the lifetime of the process.
+// Destroying them between ticks breaks multi-Run() because NR's scheduler
+// and EPC state reach into helper internals. Cosim originally had these as
+// locals in SetupUuTopology, which caused silent crashes on the 2nd Run().
+Ptr<NrPointToPointEpcHelper> g_epcHelper;
+Ptr<IdealBeamformingHelper>  g_beamHelper;
+Ptr<NrHelper>                g_nrHelper;
+
+static void OnUuPacketRxPerUe(uint32_t txId, Ptr<const Packet> pkt)
+{
+    // Uplink Rx at edge (UdpServer on remote host). Chunked sends: last
+    // chunk has bit 31 of seq set. Record delivery only on last chunk so
+    // the recorded delay is full-message completion time.
+    SeqTsHeader seqTs;
+    Ptr<Packet> copy = pkt->Copy();
+    if (copy->PeekHeader(seqTs) == 0) return;
+    uint32_t seq = seqTs.GetSeq();
+    if ((seq & 0x80000000u) == 0) return;
+    double delayMs =
+        (Simulator::Now() - seqTs.GetTs()).GetNanoSeconds() / 1e6;
+    if (txId < g_maxVehicles) {
+        g_tracker.RecordDelivery(txId, g_gnbNodeIdx, 10.0f,
+                                 static_cast<float>(delayMs));
+    }
+}
+
+// Separate tracker for downlink (edge -> UE). rx_id = UE index, tx_id = 0
+// (the edge). Uses the same RecordDelivery semantics — we repurpose the
+// result struct by writing DL records with rx_id set to the UE.
+static std::map<uint32_t, DeliveryRecord> g_dlTracker;
+
+static void OnUuPacketRxDownlink(uint32_t ueId, Ptr<const Packet> pkt)
+{
+    // Downlink Rx at UE (UdpServer on each UE).
+    SeqTsHeader seqTs;
+    Ptr<Packet> copy = pkt->Copy();
+    if (copy->PeekHeader(seqTs) == 0) return;
+    uint32_t seq = seqTs.GetSeq();
+    if ((seq & 0x80000000u) == 0) return;
+    double delayMs =
+        (Simulator::Now() - seqTs.GetTs()).GetNanoSeconds() / 1e6;
+    if (ueId < g_maxVehicles) {
+        g_dlTracker[ueId] = {true, 10.0f, static_cast<float>(delayMs)};
+    }
+}
+
+void SetupUuTopology(uint32_t maxVeh, double carrierGhz,
+                     double bandwidthMhz, double txPowerDbm,
+                     uint16_t numerology, uint16_t /*payloadBytes*/)
+{
+    // Bump RLC UM TX buffer so large multi-chunk payloads (e.g. 17 KB
+    // cooperative-perception features) don't overflow the default 10 KB
+    // buffer. We chunk at ~1.4 KB; 64 KB covers CoBEVT-256x (~17 KB) plus
+    // a safety margin for burst contention at high N.
+    Config::SetDefault("ns3::LteRlcUm::MaxTxBufferSize",
+                       UintegerValue(64 * 1024));
+
+    // Create UE + gNB nodes. UEs persist like sidelink path; gNB is fixed.
+    g_ueNodes.Create(maxVeh);
+    g_gnbNodes.Create(1);
+    g_remoteHostContainer.Create(1);
+
+    MobilityHelper mobility;
+    mobility.SetMobilityModel("ns3::ConstantPositionMobilityModel");
+    mobility.Install(g_ueNodes);
+    mobility.Install(g_gnbNodes);
+    mobility.Install(g_remoteHostContainer);
+
+    g_mobilityModels.resize(maxVeh);
+    // Initialize UEs spread around the cell at mid-range so NR attach +
+    // beamforming initialization have sensible pathloss. Actual positions
+    // get updated per tick for active UEs; inactive ones stay here.
+    for (uint32_t i = 0; i < maxVeh; i++) {
+        g_mobilityModels[i] = g_ueNodes.Get(i)->GetObject<ConstantPositionMobilityModel>();
+        double angle = 2.0 * M_PI * i / maxVeh;
+        double r = 40.0;
+        g_mobilityModels[i]->SetPosition(Vector(r * cos(angle), r * sin(angle), 1.5));
+    }
+    // gNB co-located with RSU at world origin, 4.5 m mast height (matches
+    // eCAV RSU LiDAR placement).
+    g_gnbNodes.Get(0)->GetObject<ConstantPositionMobilityModel>()
+        ->SetPosition(Vector(0.0, 0.0, 4.5));
+
+    // NR + EPC helpers — store globally so they outlive this function.
+    // Losing these Ptrs between ticks breaks NR's multi-Run behavior.
+    g_epcHelper  = CreateObject<NrPointToPointEpcHelper>();
+    g_beamHelper = CreateObject<IdealBeamformingHelper>();
+    g_nrHelper   = CreateObject<NrHelper>();
+    auto& epcHelper = g_epcHelper;
+    auto& beam = g_beamHelper;
+    auto& nrHelper = g_nrHelper;
+    nrHelper->SetBeamformingHelper(beam);
+    nrHelper->SetEpcHelper(epcHelper);
+    beam->SetAttribute("BeamformingMethod",
+                       TypeIdValue(DirectPathBeamforming::GetTypeId()));
+
+    // Spectrum: single band, single CC, single BWP. bandwidthMhz MHz at
+    // carrierGhz GHz. SimpleOperationBandConf wants Hz (double), not the
+    // 100-kHz uint16 that sidelink's LteRrcSap::Bwp attribute uses.
+    double bandwidthHz = bandwidthMhz * 1e6;
+    CcBwpCreator ccBwpCreator;
+    CcBwpCreator::SimpleOperationBandConf bandConf(
+        carrierGhz * 1e9, bandwidthHz, 1,
+        BandwidthPartInfo::UMi_StreetCanyon_LoS);
+    bandConf.m_numBwp = 1;
+    OperationBandInfo band = ccBwpCreator.CreateOperationBandContiguousCc(bandConf);
+    nrHelper->SetPathlossAttribute("ShadowingEnabled", BooleanValue(false));
+    // S1u backhaul: gNB -> PGW tunneling delay. Typical MEC edge: 1-5 ms
+    // fronthaul; non-MEC (regional) edge: 5-20 ms. Set via --s1u-delay-ms.
+    double s1uDelayMs = 2.0;
+    if (const char* s = std::getenv("UU_S1U_DELAY_MS")) s1uDelayMs = std::atof(s);
+    epcHelper->SetAttribute("S1uLinkDelay",
+                            TimeValue(MilliSeconds((uint32_t)s1uDelayMs)));
+    // Reduce ns-3 event rate for faster wall-clock. Channel model updates
+    // every 500ms (default is 100ms) — we use static UE positions per tick
+    // so frequent channel updates buy nothing.
+    Config::SetDefault("ns3::ThreeGppChannelModel::UpdatePeriod",
+                       TimeValue(MilliSeconds(500)));
+    nrHelper->SetChannelConditionModelAttribute("UpdatePeriod",
+                                                TimeValue(MilliSeconds(500)));
+    nrHelper->SetSchedulerTypeId(TypeId::LookupByName("ns3::NrMacSchedulerTdmaRR"));
+    nrHelper->InitializeOperationBand(&band);
+    BandwidthPartInfoPtrVector allBwps = CcBwpCreator::GetAllBwps({band});
+
+    // Antennas
+    nrHelper->SetUeAntennaAttribute("NumRows", UintegerValue(1));
+    nrHelper->SetUeAntennaAttribute("NumColumns", UintegerValue(2));
+    nrHelper->SetUeAntennaAttribute("AntennaElement",
+        PointerValue(CreateObject<IsotropicAntennaModel>()));
+    nrHelper->SetGnbAntennaAttribute("NumRows", UintegerValue(4));
+    nrHelper->SetGnbAntennaAttribute("NumColumns", UintegerValue(8));
+    nrHelper->SetGnbAntennaAttribute("AntennaElement",
+        PointerValue(CreateObject<IsotropicAntennaModel>()));
+
+    nrHelper->SetUePhyAttribute("TxPower", DoubleValue(txPowerDbm));
+
+    NetDeviceContainer gnbDev = nrHelper->InstallGnbDevice(g_gnbNodes, allBwps);
+    NetDeviceContainer ueDev  = nrHelper->InstallUeDevice(g_ueNodes, allBwps);
+
+    nrHelper->GetGnbPhy(gnbDev.Get(0), 0)
+        ->SetAttribute("Numerology", UintegerValue(numerology));
+    nrHelper->GetGnbPhy(gnbDev.Get(0), 0)
+        ->SetAttribute("TxPower", DoubleValue(txPowerDbm));
+    // All-flexible TDD pattern (matches cc-bwp-demo). The scheduler picks
+    // UL vs DL per slot based on pending traffic. Explicit fixed TDD
+    // patterns starve whichever direction has more pending bytes; flex
+    // lets the scheduler adapt to our per-tick UL-heavy (features) +
+    // smaller DL (predictions) bursts.
+    nrHelper->GetGnbPhy(gnbDev.Get(0), 0)
+        ->SetAttribute("Pattern", StringValue(
+            "F|F|F|F|F|F|F|F|F|F|"));
+
+    for (auto it = gnbDev.Begin(); it != gnbDev.End(); ++it) {
+        DynamicCast<NrGnbNetDevice>(*it)->UpdateConfig();
+    }
+    for (auto it = ueDev.Begin(); it != ueDev.End(); ++it) {
+        DynamicCast<NrUeNetDevice>(*it)->UpdateConfig();
+    }
+
+    // Internet on remote host; P2P link PGW <-> remote.
+    Ptr<Node> pgw = epcHelper->GetPgwNode();
+    Ptr<Node> remoteHost = g_remoteHostContainer.Get(0);
+    InternetStackHelper internet;
+    internet.Install(g_remoteHostContainer);
+    PointToPointHelper p2ph;
+    p2ph.SetDeviceAttribute("DataRate", DataRateValue(DataRate("100Gb/s")));
+    p2ph.SetDeviceAttribute("Mtu", UintegerValue(2500));
+    p2ph.SetChannelAttribute("Delay", TimeValue(Seconds(0.0)));
+    NetDeviceContainer internetDevs = p2ph.Install(pgw, remoteHost);
+    Ipv4AddressHelper ipv4h;
+    ipv4h.SetBase("1.0.0.0", "255.0.0.0");
+    Ipv4InterfaceContainer ipIfs = ipv4h.Assign(internetDevs);
+    Ipv4StaticRoutingHelper ipv4Rh;
+    Ptr<Ipv4StaticRouting> rhStatic =
+        ipv4Rh.GetStaticRouting(remoteHost->GetObject<Ipv4>());
+    rhStatic->AddNetworkRouteTo(Ipv4Address("7.0.0.0"),
+                                Ipv4Mask("255.0.0.0"), 1);
+    internet.Install(g_ueNodes);
+    Ipv4InterfaceContainer ueIpIfs =
+        epcHelper->AssignUeIpv4Address(NetDeviceContainer(ueDev));
+    g_remoteHostAddr = ipIfs.GetAddress(1);
+    g_gnbNodeIdx = g_gnbNodes.Get(0)->GetId();
+
+    for (uint32_t u = 0; u < g_ueNodes.GetN(); u++) {
+        Ptr<Ipv4StaticRouting> ueSr =
+            ipv4Rh.GetStaticRouting(g_ueNodes.Get(u)->GetObject<Ipv4>());
+        ueSr->SetDefaultRoute(epcHelper->GetUeDefaultGatewayAddress(), 1);
+    }
+    nrHelper->AttachToClosestEnb(ueDev, gnbDev);
+
+    // Per-UE UL + DL. UL: UdpServer on remote host (edge), UE-side raw
+    // socket as client. DL: UdpServer on UE, edge-side raw socket as
+    // client. Each direction has its own port and EpcTft filter so PGW
+    // routing disambiguates bearers.
+    g_ueUpSockets.resize(g_ueNodes.GetN());
+    g_edgeDnSockets.resize(g_ueNodes.GetN());
+    g_ueIpAddrs.resize(g_ueNodes.GetN());
+    for (uint32_t u = 0; u < g_ueNodes.GetN(); u++) {
+        Ipv4Address ueAddr = ueIpIfs.GetAddress(u);
+        g_ueIpAddrs[u] = ueAddr;
+        uint16_t ulPort = g_uuUplinkBasePort + u;
+        uint16_t dlPort = g_uuDownlinkBasePort + u;
+
+        // UL: edge-side server + UE-side client socket
+        UdpServerHelper ulSrv(ulPort);
+        ApplicationContainer ulSa = ulSrv.Install(remoteHost);
+        ulSa.Start(Seconds(0.0));
+        DynamicCast<UdpServer>(ulSa.Get(0))->TraceConnectWithoutContext(
+            "Rx", MakeBoundCallback(&OnUuPacketRxPerUe, u));
+        Ptr<Socket> uls = Socket::CreateSocket(g_ueNodes.Get(u),
+            TypeId::LookupByName("ns3::UdpSocketFactory"));
+        uls->Bind();
+        uls->Connect(InetSocketAddress(g_remoteHostAddr, ulPort));
+        g_ueUpSockets[u] = uls;
+
+        // DL: UE-side server + edge-side client socket
+        UdpServerHelper dlSrv(dlPort);
+        ApplicationContainer dlSa = dlSrv.Install(g_ueNodes.Get(u));
+        dlSa.Start(Seconds(0.0));
+        DynamicCast<UdpServer>(dlSa.Get(0))->TraceConnectWithoutContext(
+            "Rx", MakeBoundCallback(&OnUuPacketRxDownlink, u));
+        Ptr<Socket> dls = Socket::CreateSocket(remoteHost,
+            TypeId::LookupByName("ns3::UdpSocketFactory"));
+        dls->Bind();
+        dls->Connect(InetSocketAddress(ueAddr, dlPort));
+        g_edgeDnSockets[u] = dls;
+
+        // Dedicated bearer covering both directions (UL + DL for this UE).
+        Ptr<EpcTft> tft = Create<EpcTft>();
+        EpcTft::PacketFilter ulpf;
+        ulpf.remotePortStart = ulPort;
+        ulpf.remotePortEnd   = ulPort;
+        tft->Add(ulpf);
+        EpcTft::PacketFilter dlpf;
+        dlpf.localPortStart = dlPort;
+        dlpf.localPortEnd   = dlPort;
+        tft->Add(dlpf);
+        EpsBearer bearer(EpsBearer::NGBR_LOW_LAT_EMBB);
+        nrHelper->ActivateDedicatedEpsBearer(ueDev.Get(u), bearer, tft);
+    }
+
+    std::cout << "NR Uu uplink topology initialized (" << maxVeh
+              << " UEs, gNB at origin, remote=" << g_remoteHostAddr << ")"
+              << std::endl;
+}
+
+static bool g_uuFirstTick = true;
+
+// Payload chunking: keep each UDP datagram below typical MTU so IP doesn't
+// fragment and overflow the NR RLC buffer. Large application payloads (e.g.
+// 17KB compressed feature maps) are split into CHUNK_PAYLOAD-byte chunks at
+// Send time. All chunks carry the same SeqTsHeader timestamp, so the delay
+// measured on the LAST chunk is the time-to-fully-deliver the logical
+// message. This mirrors what PDCP/RLC does at L2 in real 5G.
+constexpr uint16_t CHUNK_PAYLOAD = 1400;
+
+static void SendChunkedOn(Ptr<Socket> socket, uint32_t senderTag,
+                          uint32_t totalBytes);
+
+static void SendChunkedDownlink(uint32_t ueIdx, uint32_t totalBytes)
+{
+    SendChunkedOn(g_edgeDnSockets[ueIdx], ueIdx, totalBytes);
+}
+
+static void SendChunkedUplink(uint32_t ueIdx, uint32_t totalBytes)
+{
+    SendChunkedOn(g_ueUpSockets[ueIdx], ueIdx, totalBytes);
+}
+
+static void SendChunkedOn(Ptr<Socket> socket, uint32_t senderTag,
+                          uint32_t totalBytes)
+{
+    // Split payload into <=CHUNK_PAYLOAD byte UDP datagrams so IP doesn't
+    // fragment. Last chunk has bit 31 of seq set so the receiver records
+    // delay once per logical message. senderTag identifies the UE index
+    // (so both UL and DL rx traces can demux per-UE).
+    const uint32_t headerOverhead = 12;
+    const uint32_t chunkBody = CHUNK_PAYLOAD - headerOverhead;
+    uint32_t remaining = totalBytes;
+    uint32_t chunkIdx = 0;
+    uint32_t totalChunks = (totalBytes + chunkBody - 1) / chunkBody;
+    while (remaining > 0) {
+        uint32_t thisChunk = std::min(chunkBody, remaining);
+        SeqTsHeader seqTs;
+        uint32_t seq = senderTag;
+        if (chunkIdx == totalChunks - 1) seq |= 0x80000000u;
+        seqTs.SetSeq(seq);
+        Ptr<Packet> pkt = Create<Packet>(thisChunk);
+        pkt->AddHeader(seqTs);
+        socket->Send(pkt);
+        remaining -= thisChunk;
+        chunkIdx++;
+    }
+}
+
+void AdvanceOneTickUu(uint16_t N, uint16_t payloadBytes,
+                      double tickDurationS)
+{
+    g_tracker.Clear();
+    g_dlTracker.clear();
+    // DL payload: separate size for edge -> UE direction (predictions are
+    // typically comparable to UL feature payload). Override via env var.
+    uint32_t dlPayload = payloadBytes;
+    if (const char* s = std::getenv("UU_DL_PAYLOAD_BYTES")) {
+        dlPayload = static_cast<uint32_t>(std::atoi(s));
+    }
+    // First tick folds in the RRC/bearer warmup (~1.5s in cc-bwp-demo).
+    double runFor = g_uuFirstTick ? (1.5 + tickDurationS) : tickDurationS;
+    for (uint16_t i = 0; i < N; i++) {
+        VehicleEntry* ve = getVehicle(i);
+        if (!ve->tx_flag) continue;
+        g_mobilityModels[i]->SetPosition(Vector(ve->x, ve->y, ve->z));
+        if (g_uuFirstTick) {
+            uint32_t ueIdx = i;
+            uint32_t pb = payloadBytes;
+            uint32_t dpb = dlPayload;
+            Simulator::Schedule(Seconds(1.5), [ueIdx, pb, dpb](){
+                SendChunkedUplink(ueIdx, pb);
+                SendChunkedDownlink(ueIdx, dpb);
+            });
+        } else {
+            SendChunkedUplink(i, payloadBytes);
+            SendChunkedDownlink(i, dlPayload);
+        }
+    }
+    Simulator::Stop(Seconds(runFor));
+    Simulator::Run();
+    g_uuFirstTick = false;
+}
+
+void WriteUuResults(uint16_t N) {
+    // Two rows per active UE: UL (tx=UE, rx=0xFFFF) and DL (tx=0xFFFE, rx=UE).
+    // Python side can demux by tx_id/rx_id to get UL and DL delay per UE.
+    uint32_t resultIdx = 0;
+    for (uint16_t u = 0; u < N; u++) {
+        VehicleEntry* ve = getVehicle(u);
+        if (!ve->tx_flag) continue;
+
+        // UL row
+        auto ulIt = g_tracker.results.find({(uint32_t)u, g_gnbNodeIdx});
+        bool ulOk = ulIt != g_tracker.results.end() && ulIt->second.delivered;
+        float ulDelay = ulOk ? ulIt->second.delay_ms : 0.0f;
+        ShmLinkResult* lr = getLinkResult(resultIdx++);
+        lr->tx_id = u;
+        lr->rx_id = 0xFFFF;  // edge
+        lr->delivered = ulOk ? 1 : 0;
+        lr->sinr_db_x10 = static_cast<int16_t>(10);
+        lr->delay_ms_x10 = static_cast<uint16_t>(
+            std::min(static_cast<double>(ulDelay) * 10.0, 65535.0));
+
+        // DL row
+        auto dlIt = g_dlTracker.find(u);
+        bool dlOk = dlIt != g_dlTracker.end() && dlIt->second.delivered;
+        float dlDelay = dlOk ? dlIt->second.delay_ms : 0.0f;
+        lr = getLinkResult(resultIdx++);
+        lr->tx_id = 0xFFFE;  // edge -> UE marker
+        lr->rx_id = u;
+        lr->delivered = dlOk ? 1 : 0;
+        lr->sinr_db_x10 = static_cast<int16_t>(10);
+        lr->delay_ms_x10 = static_cast<uint16_t>(
+            std::min(static_cast<double>(dlDelay) * 10.0, 65535.0));
+    }
+    ResultHeader* rh = getResultHeader();
+    rh->n_results = resultIdx;
+    uint32_t delivered_count = 0;
+    for (uint32_t i = 0; i < resultIdx; i++) {
+        if (getLinkResult(i)->delivered) delivered_count++;
+    }
+    rh->prr = resultIdx > 0 ? (float)delivered_count / resultIdx : 0;
+    rh->mean_sinr_db = 0;
+}
+
 #endif // USE_NS3_FULL
 
 // ===================================================================
@@ -520,6 +922,7 @@ void RunAnalyticalTick(uint16_t N, uint16_t payloadBytes,
                 lr->rx_id = rx;
                 lr->delivered = 0;
                 lr->sinr_db_x10 = -100;
+                lr->delay_ms_x10 = 0;
                 resultIdx++;
                 continue;
             }
@@ -551,11 +954,23 @@ void RunAnalyticalTick(uint16_t N, uint16_t payloadBytes,
 
             bool delivered = !collision && sinr > 0.0;
 
+            // Analytical sidelink delay synth: one selection-window (0.1ms
+            // granularity) + payload transmission at MCS 14 rate (~4 Mbps
+            // per subchannel). Order-of-magnitude only; real numbers come
+            // from the USE_NS3_FULL path.
+            double delayMs = 0.0;
+            if (delivered) {
+                double txMs = (payloadBytes * 8.0) / (4e6) * 1000.0;
+                delayMs = 1.0 + txMs;  // 1 ms MAC + transmission
+            }
+
             ShmLinkResult* lr = getLinkResult(resultIdx);
             lr->tx_id = tx;
             lr->rx_id = rx;
             lr->delivered = delivered ? 1 : 0;
             lr->sinr_db_x10 = static_cast<int16_t>(sinr * 10);
+            lr->delay_ms_x10 = static_cast<uint16_t>(
+                std::min(delayMs * 10.0, 65535.0));
             resultIdx++;
         }
     }
@@ -585,9 +1000,11 @@ void WriteNs3Results(uint16_t N) {
             auto it = g_tracker.results.find({(uint32_t)tx, (uint32_t)rx});
             bool delivered = false;
             float sinr = -10.0f;
+            float delayMs = 0.0f;
             if (it != g_tracker.results.end()) {
-                delivered = it->second.first;
-                sinr = it->second.second;
+                delivered = it->second.delivered;
+                sinr = it->second.sinr_db;
+                delayMs = it->second.delay_ms;
             }
 
             ShmLinkResult* lr = getLinkResult(resultIdx);
@@ -595,6 +1012,8 @@ void WriteNs3Results(uint16_t N) {
             lr->rx_id = rx;
             lr->delivered = delivered ? 1 : 0;
             lr->sinr_db_x10 = static_cast<int16_t>(sinr * 10);
+            lr->delay_ms_x10 = static_cast<uint16_t>(
+                std::min(static_cast<double>(delayMs) * 10.0, 65535.0));
             resultIdx++;
         }
     }
@@ -695,8 +1114,10 @@ int main(int argc, char* argv[])
     if (useNs3 && mode == 0) {
         SetupSidelinkTopology(maxVehicles, carrierGhz, bandwidthMhz,
                               txPowerDbm, numerology, initialPayload);
+    } else if (useNs3 && mode == 1) {
+        SetupUuTopology(maxVehicles, carrierGhz, bandwidthMhz,
+                        txPowerDbm, numerology, initialPayload);
     }
-    // TODO: SetupUuTopology for mode == 1
 #endif
 
     // Process the first tick that's already waiting
@@ -728,12 +1149,12 @@ int main(int argc, char* argv[])
 
 #ifdef USE_NS3_FULL
         if (useNs3 && mode == 0) {
-            // Update node positions from SHM
             UpdatePositions(N);
-            // Advance ns-3 by one tick
             AdvanceOneTick(tickDurationS);
-            // Write delivery results to SHM
             WriteNs3Results(N);
+        } else if (useNs3 && mode == 1) {
+            AdvanceOneTickUu(N, payloadBytes, tickDurationS);
+            WriteUuResults(N);
         } else
 #endif
         {

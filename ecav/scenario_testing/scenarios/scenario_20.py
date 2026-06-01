@@ -51,8 +51,12 @@ class Scenario_20(BasicScenario):
         self._reference_waypoint = self._map.get_waypoint(
             config.trigger_points[0].location)
 
-        # 2 cross-traffic + 4 occluders + 4 same-lane CAVs + 4 eastern CAVs
-        self.num_vehicle = 14
+        # XML has 2 cross-traffic + N stationary occluders. Read N from
+        # the config so both scenario_20.xml (occluded) and
+        # scenario_20_deoc.xml (no occluders) work without code changes.
+        # Real cooperating CAVs are defined in the YAML vehicles: list.
+        self.num_cross_traffic = 2
+        self.num_vehicle = len(config.other_actors)
         self._trigger_distance = 90
 
         kv = dict(p.split("=", 1) for p in (scenario_params or []))
@@ -107,7 +111,7 @@ class Scenario_20(BasicScenario):
             seq.add_child(ActorTransformSetter(actor, vis))
             seq.add_child(trigger)
 
-            if i < 2:
+            if i < self.num_cross_traffic:
                 # Cross-traffic: drive westward through intersection
                 waypoints = [
                     carla.Location(x=-84.8, y=127.9, z=0.5),
@@ -116,25 +120,9 @@ class Scenario_20(BasicScenario):
                 ]
                 seq.add_child(WaypointFollower(
                     actor, self.cross_traffic_speed_mps, plan=waypoints))
-            elif i < 6:
-                # Occluders: stationary
-                seq.add_child(Idle())
-            elif i < 10:
-                # Same-lane CAVs: follow ego direction slowly
-                waypoints = [
-                    carla.Location(x=-84.8, y=130.0, z=0.5),
-                    carla.Location(x=-84.8, y=160.0, z=0.5),
-                ]
-                seq.add_child(WaypointFollower(
-                    actor, self.cav_speed_mps, plan=waypoints))
             else:
-                # Eastern approach CAVs: drive westward slowly
-                waypoints = [
-                    carla.Location(x=-50.0, y=131.0, z=0.5),
-                    carla.Location(x=-84.8, y=131.0, z=0.5),
-                ]
-                seq.add_child(WaypointFollower(
-                    actor, self.cav_speed_mps, plan=waypoints))
+                # Stationary occluder cars (parked along the eastern curb)
+                seq.add_child(Idle())
 
             seq.add_child(Idle())
             sequences.append(seq)

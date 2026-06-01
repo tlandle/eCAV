@@ -160,6 +160,8 @@ def main():
         scene_dict = OmegaConf.load(config_yaml)
         # merge the dictionaries
         scene_dict = OmegaConf.merge(default_dict, scene_dict)
+        # Inject scenario_name so distributed actors fetched-from-server can
+        # populate opt.test_scenario without an explicit -t flag.
         scene_dict['scenario_name'] = opt.test_scenario
 
     assert scene_dict is not None, "scene_dict is not initialized!"
