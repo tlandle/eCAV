@@ -13,15 +13,58 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/agent_plans/distributed_instrumentation_and_evaluation.md",
+                "file": "docs/agent_plans/multi_edge_locale_handoff.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "distributed_instrumentation_and_evaluation"
+              "title": "multi_edge_locale_handoff"
+            }
+          },
+          {
+            "id": "b0c4ec67702eade6",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/kb/wiki/current_state.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "current_state"
+            }
+          },
+          {
+            "id": "76e4b179fbf8f38a",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/kb/raw/notes/tyler_modular_architecture.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "tyler_modular_architecture"
+            }
+          },
+          {
+            "id": "71437664ed706c35",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/agent_plans/multi_edge_locale_handoff.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "multi_edge_locale_handoff"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -181,30 +224,41 @@
       "bases:Create new base": false
     }
   },
-  "active": "5b4c723d70127237",
+  "active": "b0c4ec67702eade6",
   "lastOpenFiles": [
-    "ecav/ecav2/edge_process.py.tmp.84796.1777866032555",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/evaluation_report.txt",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_metrics.json",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_timing.eps",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/simulation_timing.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/collision_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/collision_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/lane_invasions_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/lane_invasions_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/perception_tracking_latency.eps",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/perception_tracking_latency.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/109_kinematics_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/109_localization_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/109_localization_plotting.eps",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_36_01/log.txt",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/simulation_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/simulation_timing.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/collision_plotting.png",
-    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_03_20_22_51/lane_invasions_plotting.png",
+    "docs/agent_plans/multi_edge_locale_handoff.md",
+    "docs/kb/raw/sessions/2026-06-01.md.tmp.3829706.4a2d1a712d2d",
+    "docs/kb/wiki/current_state.md.tmp.3829706.d8217391610a",
+    "docs/agent_plans/multi_edge_locale_handoff.md.tmp.3829706.b392677ce8ac",
+    "docs/agent_plans/multi_edge_locale_handoff.md.tmp.3829706.6fcb3ff137dd",
+    "docs/agent_plans/multi_edge_locale_handoff.md.tmp.3829706.4accdc4de3f5",
+    "docs/agent_plans/multi_edge_locale_handoff.md.tmp.3829706.5450a24db5f8",
+    "docs/kb/raw/sessions/2026-06-01.md.tmp.3829706.54668377f4d6",
+    "docs/kb/wiki/current_state.md.tmp.3829706.23f662549924",
+    "docs/kb/wiki/current_state.md.tmp.3829706.1e64eff6de81",
+    "docs/agent_plans/multi_edge_locale_handoff.md.tmp.3829706.655c8959bb5f",
+    "docs/kb/raw/sessions/2026-06-01.md",
+    "docs/kb/raw/notes/tyler_modular_architecture.md",
+    "docs/agent_plans/edge_architecture_proposal.md",
+    "docs/agent_plans/edge_only_distributed_mode.md",
+    "docs/agent_plans/edge_process_fusion.md",
+    "docs/agent_plans/edge_actor_ready_handshake.md",
+    "docs/kb/raw/notes/tyler_smart_and_edge_only.md",
     "docs/kb/wiki/current_state.md",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_15_54/simulation_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_15_54/simulation_timing.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_15_54/collision_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_15_54/lane_invasions_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_15_54/perception_tracking_latency.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_15_54/109_localization_plotting.png",
+    "docs/kb/raw/sessions/2026-05-31.md",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_01_30/simulation_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_01_30/simulation_timing.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_01_30/collision_plotting.png",
+    "evaluation_outputs/openscenario_3_edge_late_fusion_fog_0_rain_0_clouds_75_target_speed_ego_43/2026_05_31_11_01_30/lane_invasions_plotting.png",
+    "docs/kb/raw/sessions/2026-05-30b.md",
+    "docs/kb/raw/sessions/2026-05-25.md",
+    "docs/agent_plans/distributed_instrumentation_and_evaluation.md",
     "docs/agent_plans/azure_deploy.md",
     "docs/kb/wiki/worldfusion_performance.md",
     "docs/kb/raw/notes/tyler_worldfusion_litserve_questions.md",
@@ -215,9 +269,7 @@
     "docs/kb/wiki/architecture.md",
     "docs/kb/raw/sessions/2026-04-06.md",
     "docs/kb/raw/sessions/2026-04-04c.md",
-    "docs/agent_plans/edge_actor_ready_handshake.md",
     "docs/kb/raw/sessions/2026-04-05b.md",
-    "docs/kb/raw/sessions/2026-04-05.md",
-    "docs/kb/raw/sessions/2026-04-04b.md"
+    "docs/kb/raw/sessions/2026-04-05.md"
   ]
 }
