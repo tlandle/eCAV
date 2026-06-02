@@ -7,9 +7,9 @@ Primary context-switching artifact. Read this first after a gap.
 
 ## Active Branch
 
-`distributed-integration` → PR target: `ecav_2_distributed`
+**`develop`** — now the shared working branch (2026-06-01). All `distributed-integration` work was merged into `develop` (fast-forward, `70cd4ae8..63db5170`) and pushed; `develop` and `distributed-integration` both point at `63db5170`. In sync with `origin/develop`. New work goes on `develop`.
 
-**Unpushed commits:** `20e8fe19` (Phase 1: edge-only distributed mode — standalone edge fusion service)
+`distributed-integration` is retained at the same commit as a marker but is now redundant.
 
 ---
 
@@ -87,6 +87,8 @@ Also changed `predictor_type: smart → linear` in YAML. SMART requires 22-tick 
 Edge-only late fusion is working. The immediate next focus is the remaining regression tests and multi-edge locale work.
 
 **WorldFusion `-eo` is no longer blocked on SMART.** Per Tyler's modular-stack framing (2026-05-31, [tyler_modular_architecture.md](../raw/notes/tyler_modular_architecture.md)), the edge stack is three independent slots: fusion / tracker / predictor. WorldFusion is just a different fusion backend — it can run against the same `ab3dmot` tracker + `linear` predictor we validated for late fusion. So we can re-test `openscenario_3_edge_worldfusion` with `-eo` directly, using the linear predictor, to confirm WorldFusion works in edge-only mode. No SMART dependency. This supersedes the earlier "blocked until SMART is fixed" conclusion.
+
+**TODO**: make smoke test script that runs all permutations for a given scenario.
 
 ---
 

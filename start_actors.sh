@@ -1,69 +1,115 @@
 #!/bin/bash
 
-# Prompt for scenario name
-read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
-read -p "Enable verbose/debug logging (y/N)? " use_verbose
-read -p "Edge-only distributed mode — edges in Docker, no vehicle/RSU containers (y/N)? " use_edge_only
+# Usage: ./start_actors.sh [scenario_name] [--auto|-y]
+#   scenario_name : if given, skips the scenario prompt. Counts (egos, rsus,
+#                   edges, fusion type) are derived from config_yaml/<name>.yaml.
+#   --auto / -y   : skip all runtime prompts and use fusion-type-aware defaults.
+#                   Override via env vars: USE_ML, USE_LITSERVE, USE_YOLO_GRPC,
+#                   USE_EDGE_ONLY, REBUILD, START_CARLA, HEADLESS, VERBOSE.
+#
+# Environment knobs (apply in both interactive and auto mode):
+#   CONDA_ENV  : conda env for host-side processes (default: opencda)
+#   CONDA_ROOT : conda install root              (default: $HOME/anaconda3)
+#   CARLA_ROOT : CARLA install dir               (default: autodetect)
+
+CONDA_ENV="${CONDA_ENV:-ecav310}"
+CONDA_ROOT="${CONDA_ROOT:-$HOME/anaconda3}"
+
+auto_mode=0
+positional=()
+for arg in "$@"; do
+    case "$arg" in
+        --auto|-y) auto_mode=1 ;;
+        *)         positional+=("$arg") ;;
+    esac
+done
+
+# Scenario name: CLI arg or prompt
+if [[ -n "${positional[0]:-}" ]]; then
+    scenario_name="${positional[0]}"
+    echo "Scenario: $scenario_name (from CLI)"
+else
+    read -p "Enter scenario name (e.g., openscenario_3_edge): " scenario_name
+fi
 
 if [[ -z "$scenario_name" ]]; then
     echo "Error: Scenario name cannot be empty"
     exit 1
 fi
 
-# Parse scenario configuration from YAML
-yaml_file="ecav/scenario_testing/config_yaml/${scenario_name}.yaml"
-if [[ ! -f "$yaml_file" ]]; then
-    echo "Error: Scenario YAML not found: $yaml_file"
+# Derive ego/RSU/edge counts and fusion type from the scenario YAML.
+SCENARIO_YAML="ecav/scenario_testing/config_yaml/${scenario_name}.yaml"
+if [[ ! -f "$SCENARIO_YAML" ]]; then
+    echo "Error: $SCENARIO_YAML not found"
     exit 1
 fi
 
-echo "Parsing scenario configuration from $yaml_file..."
+read num_ego num_rsu num_edges fusion_type < <(python3 - "$SCENARIO_YAML" <<'PY'
+import sys, yaml
+with open(sys.argv[1]) as f:
+    d = yaml.safe_load(f) or {}
+sc = d.get("scenario", {}) or {}
+edge_list = sc.get("edge_list", []) or []
+single_list = sc.get("single_cav_list", []) or []
+num_edges = len(edge_list)
+num_rsu = sum(len((e or {}).get("rsus", []) or []) for e in edge_list)
+num_ego = sum(len((e or {}).get("vehicles", []) or []) for e in edge_list) + len(single_list)
+mgr_types = {(e or {}).get("manager_type", "") for e in edge_list}
+if "worldfusion" in mgr_types:
+    fusion = "worldfusion"
+elif "late_fusion" in mgr_types:
+    fusion = "late_fusion"
+else:
+    fusion = "none"
+print(num_ego, num_rsu, num_edges, fusion)
+PY
+)
+echo "Derived from $SCENARIO_YAML: ego=$num_ego rsu=$num_rsu edges=$num_edges fusion=$fusion_type"
 
-# Count via anchor references — one per actor type in scenario.edge_list
-num_edges=$(grep 'manager_type:' "$yaml_file" | wc -l | tr -d ' ')
-num_rsu=$(grep '\- <<: \*rsu_base' "$yaml_file" | wc -l | tr -d ' ')
-num_ego=$(grep '\- <<: \*vehicle_base' "$yaml_file" | wc -l | tr -d ' ')
-
-# Detect fusion type from edge manager_type field
-if grep -q 'manager_type: worldfusion' "$yaml_file"; then
-    fusion_type="worldfusion"
-elif grep -q 'manager_type: late_fusion' "$yaml_file"; then
-    fusion_type="late_fusion"
-else
-    fusion_type="none"
-fi
-
-echo ""
-echo "Detected configuration:"
-echo "  Ego vehicles : $num_ego"
-echo "  RSUs         : $num_rsu"
-echo "  Edges        : $num_edges"
-echo "  Fusion type  : $fusion_type"
-echo ""
-
-if [[ "$num_ego" -lt 1 ]]; then
-    echo "Error: No ego vehicles detected in YAML — check scenario.edge_list[].vehicles"
+if ! [[ "$num_ego" =~ ^[0-9]+$ ]] || [[ "$num_ego" -lt 1 ]]; then
+    echo "Error: derived num_ego=$num_ego invalid (need >=1). Check scenario YAML."
     exit 1
 fi
 
-# Determine ML usage and which fusion server to start
-use_ml="n"
-use_litserve="n"
-use_yolo_grpc="n"
+# ML / gRPC defaults derived from fusion type:
+#   worldfusion  -> ML=Y, WF-gRPC=Y, YOLO-gRPC=n
+#   late_fusion  -> ML=Y, WF-gRPC=n, YOLO-gRPC=Y
+#   none         -> ML=n
+case "$fusion_type" in
+    worldfusion) default_ml=Y; default_wf=Y; default_yolo=n ;;
+    late_fusion) default_ml=Y; default_wf=n; default_yolo=Y ;;
+    *)           default_ml=n; default_wf=n; default_yolo=n ;;
+esac
 
-if [[ "$fusion_type" == "worldfusion" ]]; then
-    use_ml="Y"
-    echo "WorldFusion scenario — ML is required."
-    read -p "Use WorldFusion gRPC server for distributed inference (Y/n)? " use_litserve
-elif [[ "$fusion_type" == "late_fusion" ]]; then
-    use_ml="Y"
-    echo "Late Fusion scenario — ML is required."
-    read -p "Use YOLO gRPC server for distributed inference (Y/n)? " use_yolo_grpc
+if (( auto_mode )); then
+    use_ml="${USE_ML:-$default_ml}"
+    use_litserve="${USE_LITSERVE:-$default_wf}"
+    use_yolo_grpc="${USE_YOLO_GRPC:-$default_yolo}"
+    use_edge_only="${USE_EDGE_ONLY:-n}"
+    rebuild="${REBUILD:-n}"
+    use_verbose="${VERBOSE:-n}"
+    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc edge_only=$use_edge_only rebuild=$rebuild verbose=$use_verbose"
 else
-    read -p "Use ML (Y/n)? " use_ml
+    use_ml="$default_ml"
+    if [[ "$fusion_type" == "worldfusion" ]]; then
+        echo "WorldFusion scenario — ML is required."
+        read -p "Use WorldFusion gRPC server for distributed inference (Y/n)? " use_litserve
+        use_litserve="${use_litserve:-$default_wf}"
+        use_yolo_grpc="$default_yolo"
+    elif [[ "$fusion_type" == "late_fusion" ]]; then
+        echo "Late Fusion scenario — ML is required."
+        read -p "Use YOLO gRPC server for distributed inference (Y/n)? " use_yolo_grpc
+        use_yolo_grpc="${use_yolo_grpc:-$default_yolo}"
+        use_litserve="$default_wf"
+    else
+        read -p "Use ML (Y/n)? " use_ml
+        use_litserve="$default_wf"
+        use_yolo_grpc="$default_yolo"
+    fi
+    read -p "Edge-only distributed mode — edges in Docker, no vehicle/RSU containers (y/N)? " use_edge_only
+    read -p "Rebuild containers (Y/n)? " rebuild
+    read -p "Enable verbose/debug logging (y/N)? " use_verbose
 fi
-
-read -p "Rebuild containers (Y/n)? " rebuild
 
 # Check and clean up any existing containers
 running_containers=$(docker ps -a -q | wc -l)
@@ -92,23 +138,47 @@ fi
 
 # Ask if user wants to start Carla locally (or use remote)
 echo ""
-read -p "Start Carla locally? (Y/n - select 'n' if using remote Carla): " start_carla
+if (( auto_mode )); then
+    start_carla="${START_CARLA:-Y}"
+    echo "Start Carla locally: $start_carla (auto)"
+else
+    read -p "Start Carla locally? (Y/n - select 'n' if using remote Carla): " start_carla
+fi
+
+# Resolve CARLA install root. Prefer $CARLA_ROOT env var, then known locations.
+if [[ -z "$CARLA_ROOT" ]]; then
+    for cand in "$HOME/carla-0.9.15" "/opt/carla-simulator" "$HOME/carla"; do
+        if [[ -x "$cand/CarlaUE4.sh" ]]; then
+            CARLA_ROOT="$cand"
+            break
+        fi
+    done
+fi
+# Host path mounted into containers as /opt/carla-simulator/PythonAPI.
+CARLA_PYTHONAPI="${CARLA_ROOT:-/opt/carla-simulator}/PythonAPI"
 
 if [[ "$start_carla" = "Y" || "$start_carla" = "y" ]]; then
-    read -p "Run Carla in headless mode (no display)? (Y/n): " headless
-
-    echo ""
-    echo "Starting Carla..."
-    if [[ "$headless" = "Y" || "$headless" = "y" ]]; then
-        echo "  Mode: Headless (RenderOffScreen)"
-        cd /opt/carla-simulator && ./CarlaUE4.sh -RenderOffScreen &
+    if [[ -z "$CARLA_ROOT" ]]; then
+        echo "ERROR: CARLA install not found. Set CARLA_ROOT or install at ~/carla-0.9.15."
+        exit 1
+    fi
+    if (( auto_mode )); then
+        headless="${HEADLESS:-Y}"
+        echo "Headless: $headless (auto)"
     else
-        echo "  Mode: With display"
-        cd /opt/carla-simulator && ./CarlaUE4.sh &
+        read -p "Run Carla in headless mode (no display)? (Y/n): " headless
     fi
 
-    CARLA_PID=$!
-    echo "  Carla PID: $CARLA_PID"
+    echo ""
+    echo "Starting Carla from $CARLA_ROOT..."
+    if [[ "$headless" = "Y" || "$headless" = "y" ]]; then
+        echo "  Mode: Headless (RenderOffScreen)"
+        ( cd "$CARLA_ROOT" && ./CarlaUE4.sh -RenderOffScreen & )
+    else
+        echo "  Mode: With display"
+        ( cd "$CARLA_ROOT" && ./CarlaUE4.sh & )
+    fi
+
     echo ""
     echo "Waiting 10 seconds for Carla to initialize..."
     sleep 10
@@ -116,9 +186,11 @@ if [[ "$start_carla" = "Y" || "$start_carla" = "y" ]]; then
     # Verify Carla started successfully
     if ! pgrep -f "CarlaUE4" > /dev/null; then
         echo "ERROR: Failed to start Carla!"
-        echo "Please check the Carla installation at /opt/carla-simulator/"
+        echo "Please check the Carla installation at $CARLA_ROOT/"
         exit 1
     fi
+    CARLA_PID=$(pgrep -f "CarlaUE4" | head -1)
+    echo "  Carla PID: $CARLA_PID"
     echo "✓ Carla started successfully"
 else
     echo ""
@@ -135,9 +207,8 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
         exit 1
     fi
     echo "Starting WorldFusion gRPC inference server (port 18002)..."
-    _CONDA_ROOT="/home/jordan/anaconda3"
     WF_GRPC_LOG=$(mktemp /tmp/worldfusion_grpc.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/worldfusion_grpc_server.py > '$WF_GRPC_LOG' 2>&1" &
+    bash -c "source $CONDA_ROOT/etc/profile.d/conda.sh && conda activate $CONDA_ENV && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/worldfusion_grpc_server.py > '$WF_GRPC_LOG' 2>&1" &
     WF_GRPC_PID=$!
     echo "  WorldFusion gRPC PID: $WF_GRPC_PID"
     echo "  Log file: $WF_GRPC_LOG"
@@ -146,7 +217,7 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     timeout=90
     elapsed=0
     while [[ $elapsed -lt $timeout ]]; do
-        if conda run -n opencda python -c "import grpc; c=grpc.insecure_channel('localhost:18002'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
+        if conda run -n "$CONDA_ENV" python -c "import grpc; c=grpc.insecure_channel('localhost:18002'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
             echo "  ✓ WorldFusion gRPC server is ready"
             break
         fi
@@ -171,9 +242,8 @@ if [[ "$use_yolo_grpc" = "Y" || "$use_yolo_grpc" = "y" ]]; then
         exit 1
     fi
     echo "Starting YOLO gRPC inference server (port 18001)..."
-    _CONDA_ROOT="/home/jordan/anaconda3"
     YOLO_GRPC_LOG=$(mktemp /tmp/yolo_grpc.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/yolo_grpc_server.py > '$YOLO_GRPC_LOG' 2>&1" &
+    bash -c "source $CONDA_ROOT/etc/profile.d/conda.sh && conda activate $CONDA_ENV && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/yolo_grpc_server.py > '$YOLO_GRPC_LOG' 2>&1" &
     YOLO_GRPC_PID=$!
     echo "  YOLO gRPC PID: $YOLO_GRPC_PID"
     echo "  Log file: $YOLO_GRPC_LOG"
@@ -182,7 +252,7 @@ if [[ "$use_yolo_grpc" = "Y" || "$use_yolo_grpc" = "y" ]]; then
     timeout=90
     elapsed=0
     while [[ $elapsed -lt $timeout ]]; do
-        if conda run -n opencda python -c "import grpc; c=grpc.insecure_channel('localhost:18001'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
+        if conda run -n "$CONDA_ENV" python -c "import grpc; c=grpc.insecure_channel('localhost:18001'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
             echo "  ✓ YOLO gRPC server is ready"
             break
         fi
@@ -317,8 +387,7 @@ echo "  Log file: $ECAV_LOG"
 
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
-_CONDA_ROOT="/home/jordan/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda && python -u ecav.py -t '$scenario_name' -v 0.9.15 $mode_flag $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
+bash -c "source $CONDA_ROOT/etc/profile.d/conda.sh && conda activate $CONDA_ENV && python -u ecav.py -t '$scenario_name' -v 0.9.15 $mode_flag $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
 ECAV_PID=$!
 
 echo "  ✓ Base process started (PID: $ECAV_PID)"
@@ -348,10 +417,10 @@ done
 echo ""
 
 if [[ $elapsed -ge $timeout ]]; then
-    echo "ERROR: Timeout waiting for 'pushed scenario start' message."
+    echo "ERROR: Timeout waiting for '$ready_pattern' message."
     echo "Check logs: tail -f $ECAV_LOG"
     echo ""
-    
+
     # Check if Carla is running
     if pgrep -f "CarlaUE4" > /dev/null; then
         echo "Stopping Carla processes..."
@@ -378,8 +447,6 @@ fi
 
 echo ""
 
-container_id=0
-
 # Start edge containers (if any)
 if [[ $num_edges -gt 0 ]]; then
     echo "Starting $num_edges edge container(s)..."
@@ -401,7 +468,7 @@ if [[ $num_edges -gt 0 ]]; then
                 -e "HOSTNAME=$container_name" \
                 -e IS_DOCKER=1 \
                 -v /tmp/.X11-unix:/tmp/.X11-unix \
-                -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+                -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
                 -e DISPLAY=$DISPLAY \
                 -e TERM \
                 ecav-python310:latest \
@@ -447,7 +514,7 @@ if [[ $num_edges -gt 0 ]]; then
                 -e "HOSTNAME=$container_name" \
                 -e IS_DOCKER=1 \
                 -v /tmp/.X11-unix:/tmp/.X11-unix \
-                -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+                -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
                 -e DISPLAY=$DISPLAY \
                 -e TERM \
                 ecav-python310:latest \
@@ -475,7 +542,7 @@ do
         -e IS_DOCKER=1 \
         $wf_grpc_env \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
-        -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+        -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
         -e DISPLAY=$DISPLAY \
         -e TERM \
         -e QT_X11_NO_MITSHM=1 \
@@ -502,7 +569,7 @@ if [[ $num_rsu -gt 0 ]]; then
             -e IS_DOCKER=1 \
             $wf_grpc_env \
             -v /tmp/.X11-unix:/tmp/.X11-unix \
-            -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+            -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
             python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -i $i
@@ -525,7 +592,7 @@ docker run $gpu_flag -d \
     -e "HOSTNAME=$container_name" \
     -e IS_DOCKER=1 \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v /opt/carla-simulator/PythonAPI:/opt/carla-simulator/PythonAPI:ro \
+    -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
     -e DISPLAY=$DISPLAY \
     ecav-python310:latest \
     python3.10 -u ecav.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -d -i -1 -T 8100

@@ -4,7 +4,7 @@ Phase 1 smoke test: start edge process in --standalone mode and call Edge_Perfor
 Usage (two terminals):
 
   Terminal 1 — start the edge:
-    conda activate opencda
+    conda activate ecav310
     python ecav/ecav2/edge_process.py \
         --standalone \
         --config ecav/scenario_testing/config_yaml/openscenario_3_edge_worldfusion.yaml \
@@ -12,7 +12,7 @@ Usage (two terminals):
         --verbose
 
   Terminal 2 — run this script:
-    conda activate opencda
+    conda activate ecav310
     python test_edge_standalone.py
 
 The edge process must print "standalone ready" before running this script.

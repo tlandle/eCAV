@@ -72,7 +72,7 @@ recommend use conda environment to install.</strong>
 
 ```sh
 conda env create -f environment.yml
-conda activate ecav
+conda activate ecav310
 python setup.py develop
 ```
 
@@ -81,7 +81,7 @@ If conda install failed,  install through pip
 pip install -r requirements.txt
 ```
 
-After dependencies are installed, we need to install the CARLA python library into ecav conda environment.
+After dependencies are installed, we need to install the CARLA python library into ecav310 conda environment.
 You can do this by running this script:
 ```sh
 export CARLA_HOME=/path/to/your/CARLA_ROOT

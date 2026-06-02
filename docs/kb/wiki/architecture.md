@@ -148,7 +148,7 @@ Invocation: `python ecav.py -t <scenario_name>` (names must match across `.py` a
 
 Docker: single `Dockerfile` for all actor types. `start_actors.sh` / `stop_actors.sh` manage lifecycle.
 
-Conda env: `opencda`. Must be activated before running orchestrator.
+Conda env: `ecav310`. Must be activated before running orchestrator.
 
 ## Architecture TODOs (open in ARCHITECTURE.md)
 

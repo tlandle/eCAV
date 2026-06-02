@@ -1,4 +1,4 @@
-name: opencda
+name: ecav310
 channels:
   - defaults
 dependencies:

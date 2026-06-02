@@ -67,8 +67,8 @@ The scenario name maps to matching `.py` and `.yaml` files under `ecav/scenario_
 ## Setup
 
 ```bash
-conda env create -f environment.yml   # or: conda create -n opencda python=3.10
-conda activate opencda
+conda env create -f environment.yml   # or: conda create -n ecav310 python=3.10
+conda activate ecav310
 pip install -r requirements_3_10.txt
 ```
 

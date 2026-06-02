@@ -227,7 +227,7 @@ When running automated tests or running in a cloud (e.g. Azure) environment, run
 
 When running locally, we typically run Carla normally so we can see the scenario.
 
-We use the `opencda` conda environment for the orchestrator process.
+We use the `ecav310` conda environment for the orchestrator process.
 
 ### 8.2 Docker-Based Actors
 <!-- Building the image, start_vehicles.sh / stop_vehicles.sh -->

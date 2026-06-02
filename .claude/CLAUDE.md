@@ -21,7 +21,7 @@ eCAV supports optional distribution and parallelization to two core aspects of t
 - distributed actors, where individual actor(s) run in standalone processes, optionally containerized in Docker containers
 - distributed perception, where rather than running a local perception stack, perception data - camera and lidar - is fed to a litserve instance running the core perception stack; this avoids each individual actor from running the same PyTorch model - YOLOv5 - on its own.
 
-With the exception of the central orchestration comms server, which is written in C++ for true multithreaded operation, the project is written entirely in Python. All of the project is written using Python 3.10 environment. We use a Conda environment - invoked by `conda activate opencda` - defined by the file `requirements_3_10.txt`
+With the exception of the central orchestration comms server, which is written in C++ for true multithreaded operation, the project is written entirely in Python. All of the project is written using Python 3.10 environment. We use a Conda environment - invoked by `conda activate ecav310` - defined by the file `requirements_3_10.txt`
 
 ### Code Organization
 
