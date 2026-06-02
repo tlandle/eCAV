@@ -11,6 +11,9 @@ __pycache__/
 start_vehicles.sh
 experiment_results/*
 
+# Claude Code local (per-machine) settings — not shared
+.claude/settings.local.json
+
 # C extensions
 *.so
 
