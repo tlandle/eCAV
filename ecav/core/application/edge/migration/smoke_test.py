@@ -30,7 +30,7 @@ from typing import List, Tuple
 
 import numpy as np
 
-from .binding import HandoffEvent, VehicleLocaleTracker
+from .binding import HandoffEvent, HandoffManager, VehicleLocaleTracker
 from .locale import Locale
 from .registry import LocaleRegistry, LocaleRouter
 
@@ -116,7 +116,16 @@ def traj_gap() -> Trajectory:
 # ──────────────────────────────────────────────────────────────────────────────
 #  Driver
 # ──────────────────────────────────────────────────────────────────────────────
-def run_scenario(name: str, *, verbose: bool = True) -> List[HandoffEvent]:
+# Per-scenario trigger ticks for the Phase 1 scripted HandoffManager.
+# Each is set to match the tick where VehicleLocaleTracker fires the A→B event,
+# so the smoke test verifies both mechanisms agree on the handoff moment.
+_TRIGGER_TICKS = {"straight": 12, "bounce": 11, "gap": 30}
+
+
+def run_scenario(
+    name: str, *, verbose: bool = True
+) -> Tuple[List[HandoffEvent], List[HandoffEvent]]:
+    """Run one scenario and return (locale_events, manager_events)."""
     if name == "straight":
         _, router = build_two_locale_deployment()
         traj = traj_straight()
@@ -129,47 +138,78 @@ def run_scenario(name: str, *, verbose: bool = True) -> List[HandoffEvent]:
     else:
         raise ValueError(f"unknown scenario {name!r}")
 
-    events: List[HandoffEvent] = []
+    locale_events: List[HandoffEvent] = []
     tracker = VehicleLocaleTracker(router, min_dwell_ticks=3)
-    tracker.subscribe(events.append)
+    tracker.subscribe(locale_events.append)
+
+    manager_events: List[HandoffEvent] = []
+    manager = HandoffManager(trigger_tick=_TRIGGER_TICKS[name])
+    manager.subscribe(manager_events.append)
 
     if verbose:
         print(f"\n=== scenario: {name} ===")
         print(f"{'tick':>4} {'x':>6} {'y':>6} {'bound':>6}  event")
     for tick, (x, y) in enumerate(traj.positions):
+        src_locale = tracker.locale_for(42)
         ev = tracker.update(
             vehicle_id=42, position=(x, y), tick=tick, sim_time_s=tick * traj.dt_s,
         )
+        dst_locale = tracker.locale_for(42) or ""
+
+        if not manager_events:  # fire at most once per vehicle
+            manager.evaluate(
+                42, tick, tick * traj.dt_s,
+                source_locale_id=src_locale,
+                destination_locale_id=dst_locale,
+            )
+
         if verbose:
-            bound = tracker.locale_for(42) or "-"
+            bound = dst_locale or "-"
             tag = ""
             if ev is not None:
                 tag = f"HANDOFF {ev.source_locale_id} -> {ev.destination_locale_id}"
+            if manager_events and manager_events[-1].tick == tick:
+                tag += "  [manager TRIGGER]"
             print(f"{tick:>4} {x:>6.1f} {y:>6.1f} {bound:>6}  {tag}")
-    return events
+    return locale_events, manager_events
 
 
-def assertions(events_by_scenario: dict) -> None:
+def assertions(locale_events_by_scenario: dict, manager_events_by_scenario: dict) -> None:
     """Hard-coded oracle for the three scenarios."""
-    s = events_by_scenario["straight"]
-    assert len(s) == 2, f"straight: expected 2 events, got {len(s)}"
+    s = locale_events_by_scenario["straight"]
+    ms = manager_events_by_scenario["straight"]
+    assert len(s) == 2, f"straight: expected 2 locale events, got {len(s)}"
     assert s[0].source_locale_id is None and s[0].destination_locale_id == "A"
     assert s[1].source_locale_id == "A" and s[1].destination_locale_id == "B"
+    assert len(ms) == 1 and ms[0].tick == s[1].tick, (
+        f"straight: manager event at tick {ms[0].tick if ms else '(none)'}, "
+        f"expected {s[1].tick}"
+    )
 
-    b = events_by_scenario["bounce"]
-    assert len(b) == 2, f"bounce: expected 2 events (initial + sustained), got {len(b)}"
+    b = locale_events_by_scenario["bounce"]
+    mb = manager_events_by_scenario["bounce"]
+    assert len(b) == 2, f"bounce: expected 2 locale events, got {len(b)}"
     assert b[0].destination_locale_id == "A"
     assert b[1].source_locale_id == "A" and b[1].destination_locale_id == "B"
     # The switch must happen AFTER the third consecutive B observation, not
     # during the earlier single-tick excursions.
     assert b[1].tick >= 11, f"bounce: switch at tick {b[1].tick} is too early"
+    assert len(mb) == 1 and mb[0].tick == b[1].tick, (
+        f"bounce: manager event at tick {mb[0].tick if mb else '(none)'}, "
+        f"expected {b[1].tick}"
+    )
 
-    g = events_by_scenario["gap"]
+    g = locale_events_by_scenario["gap"]
+    mg = manager_events_by_scenario["gap"]
     # Initial bind to A, then handoff to B once the vehicle has dwelled in B
     # for ``min_dwell_ticks`` consecutive ticks after the gap.
-    assert len(g) == 2, f"gap: expected 2 events, got {len(g)}"
+    assert len(g) == 2, f"gap: expected 2 locale events, got {len(g)}"
     assert g[0].destination_locale_id == "A"
     assert g[1].source_locale_id == "A" and g[1].destination_locale_id == "B"
+    assert len(mg) == 1 and mg[0].tick == g[1].tick, (
+        f"gap: manager event at tick {mg[0].tick if mg else '(none)'}, "
+        f"expected {g[1].tick}"
+    )
 
 
 def main() -> int:
@@ -180,12 +220,15 @@ def main() -> int:
     args = ap.parse_args()
 
     scenarios = ["straight", "bounce", "gap"] if args.scenario == "all" else [args.scenario]
-    events_by_scenario = {}
+    locale_events_by_scenario = {}
+    manager_events_by_scenario = {}
     for s in scenarios:
-        events_by_scenario[s] = run_scenario(s, verbose=not args.quiet)
+        locale_events_by_scenario[s], manager_events_by_scenario[s] = run_scenario(
+            s, verbose=not args.quiet
+        )
 
     if args.scenario == "all":
-        assertions(events_by_scenario)
+        assertions(locale_events_by_scenario, manager_events_by_scenario)
         print("\nAll assertions passed.")
     return 0
 

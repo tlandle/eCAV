@@ -21,15 +21,31 @@ length-prefixed binary protocol; the serializer interface is the same.
 """
 from __future__ import annotations
 
-import io
 import logging
 import pickle
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import List, Optional
 
 import numpy as np
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class KFState:
+    """Kalman filter state snapshot for one AB3DMOT track.
+
+    Extracted from the source edge's KF.kf and carried in TrackLatent so the
+    destination edge can inject a warm KF without a cold-start dwell period.
+    """
+
+    state_vector: np.ndarray  # (10,) [x,y,z,θ,l,w,h,dx,dy,dz]
+    covariance: np.ndarray    # (10,10)
+    hits: int                 # set >= tracker.min_hits on import to skip confirmation dwell
+    anchoring_age: int        # ticks since last beacon-matched update
+
+    def nbytes(self) -> int:
+        return int(self.state_vector.nbytes + self.covariance.nbytes) + 8
 
 
 @dataclass
@@ -38,8 +54,9 @@ class TrackLatent:
 
     track_id: int
     persistent_vehicle_id: int
-    hidden_state: np.ndarray  # tracker's recurrent state, shape (D,) float16
+    hidden_state: np.ndarray         # recurrent tracker state, shape (D,) — reserved for sequence models (Mamba etc.)
     predictor_cache: Optional[np.ndarray] = None  # predictor's per-track context
+    kf_state: Optional[KFState] = None            # AB3DMOT KF state; None for sequence-model trackers
     risk_score: float = 0.0
     last_observation_t: float = 0.0  # simulator time of latest input used
 
@@ -47,6 +64,8 @@ class TrackLatent:
         n = int(self.hidden_state.nbytes)
         if self.predictor_cache is not None:
             n += int(self.predictor_cache.nbytes)
+        if self.kf_state is not None:
+            n += self.kf_state.nbytes()
         # identity + scalars ~ 32 B
         return n + 32
 

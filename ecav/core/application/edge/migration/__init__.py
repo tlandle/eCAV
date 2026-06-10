@@ -10,22 +10,26 @@ Module layout:
   signed distance, exit prediction).
 * :mod:`registry` -- :class:`LocaleRegistry`, :class:`LocaleRouter` for
   area-based vehicle-to-edge assignment.
-* :mod:`binding` -- :class:`VehicleLocaleTracker` and :class:`HandoffEvent`:
-  dynamic per-vehicle binding with hysteresis, with subscriber callbacks.
-* :mod:`payload` -- :class:`MigrationPayload`, :class:`TrackLatent` for the
-  serialized latent state crossing the inter-locale link.
+* :mod:`binding` -- :class:`VehicleLocaleTracker`, :class:`HandoffEvent`, and
+  :class:`HandoffManager`: dynamic per-vehicle binding with hysteresis,
+  subscriber callbacks, and the handoff decision interface.
+* :mod:`payload` -- :class:`MigrationPayload`, :class:`TrackLatent`, and
+  :class:`KFState` for the serialized latent state crossing the inter-locale
+  link.
 
 The trajectory trigger, inter-locale link model, and migration daemon are
 forthcoming.
 """
 
-from .binding import HandoffEvent, VehicleLocaleTracker
+from .binding import HandoffEvent, HandoffManager, VehicleLocaleTracker
 from .locale import Locale
-from .payload import MigrationPayload, TrackLatent
+from .payload import KFState, MigrationPayload, TrackLatent
 from .registry import LocaleRegistry, LocaleRouter
 
 __all__ = [
     "HandoffEvent",
+    "HandoffManager",
+    "KFState",
     "Locale",
     "LocaleRegistry",
     "LocaleRouter",

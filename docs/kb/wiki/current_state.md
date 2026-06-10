@@ -1,5 +1,5 @@
 ---
-updated: 2026-06-01
+updated: 2026-06-09
 ---
 # Current State
 
@@ -7,9 +7,11 @@ Primary context-switching artifact. Read this first after a gap.
 
 ## Active Branch
 
-**`develop`** — now the shared working branch (2026-06-01). All `distributed-integration` work was merged into `develop` (fast-forward, `70cd4ae8..63db5170`) and pushed; `develop` and `distributed-integration` both point at `63db5170`. In sync with `origin/develop`. New work goes on `develop`.
+**`develop`** — the shared working branch (since 2026-06-01). All `distributed-integration` work was fast-forward-merged into `develop` and pushed; subsequent work commits directly on `develop`. In sync with `origin/develop` (pushed through 2026-06-02). New work goes on `develop`.
 
-`distributed-integration` is retained at the same commit as a marker but is now redundant.
+`distributed-integration` is retained as a redundant marker.
+
+**Conda env: `ecav310`** (converged 2026-06-02, finishing the migration develop began; retired the `opencda`/`opencda310` mix). `environment.yml` `name:` is `ecav310`; all active scripts/docs use it. Recreate or `conda rename` your local env to match before running. `start_actors.sh` is reconciled (our `-eo` path + develop's `--auto`/env-override automation; conda env via `CONDA_ENV`/`CONDA_ROOT`). `.claude/settings.local.json` is now gitignored/untracked.
 
 ---
 
@@ -155,11 +157,19 @@ Late fusion with `-l`, with `-d`, with both. Pipeline is believed working based 
 
 ### Multi-Edge Locale & Handoff
 
-Plan written and **revised 2026-06-01** for the `-eo` substrate: [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md). Not yet implemented. This is the next active workstream (Paper 2).
+Plan written and **revised 2026-06-01**: [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md). **Phase 1 implementation plan written 2026-06-08:** [edge_handoff_phase1_state_transfer.md](../../agent_plans/edge_handoff_phase1_state_transfer.md). **Active workstream (Paper 2).**
 
-**Direction = Model C, building on Tyler's `migration/` module** (jrapp, 2026-06-01 PM; pending Tyler confirmation). **This supersedes the morning's Model B (edge-peer) decision.** Reason: develop already ships `ecav/core/application/edge/migration/` — polygon `Locale`, `LocaleRegistry`/`LocaleRouter` (orchestrator polls router → Model C), `VehicleLocaleTracker` (hysteresis binding, emits `HandoffEvent`), `MigrationPayload`/`TrackLatent` (latent-state migration). Tyler's router/binding is orchestrator-centric = Model C. We adopt it rather than diverge. The B-vs-C analysis and the morning's `-eo` peer-mesh rewrite in [multi_edge_locale_handoff.md](../../agent_plans/multi_edge_locale_handoff.md) are retained for history but are now superseded by "build on Tyler's primitives."
+**Direction = Hybrid model (confirmed 2026-06-07 with Tyler):** peer ownership ping/ack + central state store + continuous per-tick upload. EdgeWarp's architecture. Separates mechanism (instant, shared memory in sequential) from measurement (modeled cost from payload bytes + simulated edge geometry via `LatencyModel`). Tyler's `migration/` primitives reused throughout.
 
-**What we build (the pieces Tyler left "forthcoming"):** the trajectory trigger, the inter-locale link model (parametric, + the `ns3_cosim` 5G-LENA high-fidelity path = Network Model slot), the migration daemon, and the **`-eo` runtime wiring** (his primitives have zero runtime imports today). Our rectangular `locale_bounds` is superseded by his polygon `Locale`. Open question for Tyler: his `MigrationPayload` carries **neural latent state** (RNN hidden + attention cache) for the sequence-model stack; our validated `-eo` baseline is AB3DMOT + linear (KF state), so the cold-vs-warm baseline needs KF state mapped into `TrackLatent` or confirmation he's targeting the neural predictor.
+**Phase 1 primitives completed (2026-06-09):**
+- `migration/payload.py`: `KFState` dataclass (`state_vector (10,)`, `covariance (10,10)`, `hits`, `anchoring_age`); `TrackLatent.kf_state: Optional[KFState]` — separate slot; `hidden_state` reserved for recurrent/neural trackers.
+- `migration/binding.py`: `HandoffManager` alongside `HandoffEvent`; owns `_emit` + subscriber list; `evaluate(vid, tick, sim_time_s, *, source_locale_id, destination_locale_id, position) → Optional[HandoffEvent]`; Phase 1 = tick-based trigger; Phase 2 kwargs in signature for stable call site.
+- `migration/smoke_test.py`: all three scenarios (straight/bounce/gap) pass; `HandoffManager` and `VehicleLocaleTracker` fire on the same tick; assertions cover both.
+- **Next:** state store in `sim_api.py` (Step 1), then AB3DMOT export/import (Step 0 remainder).
+
+**What we build (the pieces Tyler left "forthcoming"):** inter-locale link model (`migration/link.py`), migration daemon (`migration/daemon.py`), and the `-eo` runtime wiring. The trajectory trigger (`VehicleLocaleTracker`) and locale primitives are already done by Tyler.
+
+**AB3DMOT correctness (resolved 2026-06-09):** export finds `KF` by `carla_id` in `self.tracker.trackers`; import creates new `KF` with source `x`/`P` and `hits >= tracker.min_hits` to skip confirmation dwell; destination assigns fresh `tid` from its own `ID_count`; `carla_id` is the stable cross-edge key. `KFState` carries the full Kalman state snapshot.
 
 Original courier-through-base idea was rejected earlier (centralized double-hop); that reasoning still holds and is moot under Model C anyway.
 
