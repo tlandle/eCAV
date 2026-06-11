@@ -1,7 +1,7 @@
 # Edge Hand-Off — Phase 1: State Transfer (Sequential / Single-Process)
 
 **Branch:** `develop`
-**Status:** In progress — Steps 0+1 done; link.py (Step 2) done; daemon next
+**Status:** In progress — Steps 0–4 done; integration scenario (Step 5) next
 **Created:** 2026-06-08
 **Updated:** 2026-06-10
 **Audience:** jrapp + Tyler (PhD research, Georgia Tech)
@@ -204,11 +204,11 @@ TransferCost(
 - [x] Serialization cost from `payload_bytes()` × configured rate; network cost from `LatencyModel.sample_ms()` (added public wrapper). Added `InterLocaleLink.from_cfg()` factory. `__init__.py` updated.
 
 ### Step 3 — Hand-off daemon (`migration/daemon.py`)
-- [ ] `SequentialMigrationDaemon.request_handoff(vid, src_edge, dst_edge, store, link, tick)`: ping/ack ownership move (member calls) + store-pull import + record `TransferCost`.
-- [ ] Ownership move: `src.relinquish(vid)` / `dst.accept(vid, vm)`.
+- [x] `SequentialMigrationDaemon.request_handoff(vid, src_edge, dst_edge, store, link, tick)`: ping/ack ownership move (member calls) + store-pull import + record `TransferCost`.
+- [x] Ownership move: `src.relinquish(vid)` / `dst.accept(vm)`. Fallback: direct export from src when store is empty.
 
 ### Step 4 — Smoke test (no CARLA) — fast loop
-- [ ] `tests/test_edge_state_handoff.py`: store round-trip; export→store→retrieve→import; ownership moved; `TransferCost` recorded and sensitive to configured geometry.
+- [x] `tests/test_edge_state_handoff.py`: store round-trip; export→store→retrieve→import; ownership moved; `TransferCost` recorded and sensitive to rate; fallback export path. All 6 assertions pass.
 
 ### Step 5 — Integration (2-edge sequential)
 - [ ] 2-edge sequential scenario YAML + `.py`; per-tick `store_vehicle_state`; scripted hand-off at tick N via `request_handoff`.

@@ -18,11 +18,12 @@ Module layout:
   link.
 * :mod:`link` -- :class:`InterLocaleLink` and :class:`TransferCost`:
   simulated serialization + network cost model for edge-to-edge transfer.
-
-The migration daemon is forthcoming (:mod:`daemon`).
+* :mod:`daemon` -- :class:`SequentialMigrationDaemon`: single-process
+  hand-off coordinator (mechanism + measurement wired together).
 """
 
 from .binding import HandoffEvent, HandoffManager, VehicleLocaleTracker
+from .daemon import SequentialMigrationDaemon
 from .link import InterLocaleLink, TransferCost
 from .locale import Locale
 from .payload import KFState, MigrationPayload, TrackLatent
@@ -37,6 +38,7 @@ __all__ = [
     "LocaleRegistry",
     "LocaleRouter",
     "MigrationPayload",
+    "SequentialMigrationDaemon",
     "TrackLatent",
     "TransferCost",
     "VehicleLocaleTracker",
