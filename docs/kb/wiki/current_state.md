@@ -161,11 +161,15 @@ Plan written and **revised 2026-06-01**: [multi_edge_locale_handoff.md](../../ag
 
 **Direction = Hybrid model (confirmed 2026-06-07 with Tyler):** peer ownership ping/ack + central state store + continuous per-tick upload. EdgeWarp's architecture. Separates mechanism (instant, shared memory in sequential) from measurement (modeled cost from payload bytes + simulated edge geometry via `LatencyModel`). Tyler's `migration/` primitives reused throughout.
 
-**Phase 1 primitives completed (2026-06-09):**
-- `migration/payload.py`: `KFState` dataclass (`state_vector (10,)`, `covariance (10,10)`, `hits`, `anchoring_age`); `TrackLatent.kf_state: Optional[KFState]` — separate slot; `hidden_state` reserved for recurrent/neural trackers.
-- `migration/binding.py`: `HandoffManager` alongside `HandoffEvent`; owns `_emit` + subscriber list; `evaluate(vid, tick, sim_time_s, *, source_locale_id, destination_locale_id, position) → Optional[HandoffEvent]`; Phase 1 = tick-based trigger; Phase 2 kwargs in signature for stable call site.
-- `migration/smoke_test.py`: all three scenarios (straight/bounce/gap) pass; `HandoffManager` and `VehicleLocaleTracker` fire on the same tick; assertions cover both.
-- **Next:** state store in `sim_api.py` (Step 1), then AB3DMOT export/import (Step 0 remainder).
+**Phase 1 progress (2026-06-10 — Steps 0+1+2 complete):**
+- `migration/payload.py`: `KFState` dataclass; `TrackLatent.kf_state`; `MigrationPayload.payload_bytes()`.
+- `migration/binding.py`: `HandoffManager`; `evaluate()` → `Optional[HandoffEvent]`.
+- `migration/smoke_test.py`: all three scenarios pass.
+- `edge_manager_base.py`: `export_vehicle_state`, `import_vehicle_state`, `relinquish`, `accept` on `_BaseEdgeManager` (base impl: minimal payload, no-op import).
+- `edge_manager_pluggable_base.py`: AB3DMOT-aware overrides — export finds KF by `carla_id`; import injects warm KF with `hits >= min_hits`, advances `ID_count`.
+- `sim_api.py`: `_vehicle_state_store: Dict[int, MigrationPayload]`; `store/retrieve_vehicle_state`.
+- `migration/link.py` *(new)*: `TransferCost` dataclass + `InterLocaleLink.model_transfer(payload, src, dst, tick)`. Serialization cost from `payload_bytes() × rate`; network cost from `LatencyModel.sample_ms()` (public wrapper added). `InterLocaleLink.from_cfg()` factory. `__init__.py` updated.
+- **Next:** `migration/daemon.py` (Step 3): `SequentialMigrationDaemon.request_handoff` — ping/ack ownership move + store-pull import + record `TransferCost`.
 
 **What we build (the pieces Tyler left "forthcoming"):** inter-locale link model (`migration/link.py`), migration daemon (`migration/daemon.py`), and the `-eo` runtime wiring. The trajectory trigger (`VehicleLocaleTracker`) and locale primitives are already done by Tyler.
 
