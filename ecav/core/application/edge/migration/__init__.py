@@ -16,12 +16,14 @@ Module layout:
 * :mod:`payload` -- :class:`MigrationPayload`, :class:`TrackLatent`, and
   :class:`KFState` for the serialized latent state crossing the inter-locale
   link.
+* :mod:`link` -- :class:`InterLocaleLink` and :class:`TransferCost`:
+  simulated serialization + network cost model for edge-to-edge transfer.
 
-The trajectory trigger, inter-locale link model, and migration daemon are
-forthcoming.
+The migration daemon is forthcoming (:mod:`daemon`).
 """
 
 from .binding import HandoffEvent, HandoffManager, VehicleLocaleTracker
+from .link import InterLocaleLink, TransferCost
 from .locale import Locale
 from .payload import KFState, MigrationPayload, TrackLatent
 from .registry import LocaleRegistry, LocaleRouter
@@ -29,11 +31,13 @@ from .registry import LocaleRegistry, LocaleRouter
 __all__ = [
     "HandoffEvent",
     "HandoffManager",
+    "InterLocaleLink",
     "KFState",
     "Locale",
     "LocaleRegistry",
     "LocaleRouter",
     "MigrationPayload",
     "TrackLatent",
+    "TransferCost",
     "VehicleLocaleTracker",
 ]

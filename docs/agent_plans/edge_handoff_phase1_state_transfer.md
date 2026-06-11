@@ -1,9 +1,9 @@
 # Edge Hand-Off — Phase 1: State Transfer (Sequential / Single-Process)
 
 **Branch:** `develop`
-**Status:** In progress — migration/ primitives done; sim_api state store next
+**Status:** In progress — Steps 0+1 done; link.py (Step 2) done; daemon next
 **Created:** 2026-06-08
-**Updated:** 2026-06-09
+**Updated:** 2026-06-10
 **Audience:** jrapp + Tyler (PhD research, Georgia Tech)
 **Source of truth:** [tyler_edge_handoff_architecture.md](../kb/raw/notes/tyler_edge_handoff_architecture.md) (2026-06-07 meeting)
 
@@ -139,7 +139,7 @@ sensitive to the configured edge geometry / latency model.
 | `ecav/core/application/edge/migration/payload.py` | Added `KFState` dataclass (`state_vector`, `covariance`, `hits`, `anchoring_age`); `TrackLatent.kf_state: Optional[KFState]` — separate slot, `hidden_state` reserved for recurrent/neural trackers; `nbytes()` updated. | **Done** |
 | `ecav/core/application/edge/migration/binding.py` | Added `HandoffManager` alongside `HandoffEvent`; owns `_emit` + subscriber list; `evaluate(vid, tick, sim_time_s, *, source_locale_id, destination_locale_id, position) -> Optional[HandoffEvent]`. | **Done** |
 | `ecav/core/application/edge/migration/smoke_test.py` | Integrated `HandoffManager` into all three scenarios; `evaluate()` called each tick (once per vehicle); manager events collected via `subscribe`; assertions verify manager and locale tracker fire on the same tick. | **Done** |
-| `ecav/scenario_testing/utils/sim_api.py` | Add `_vehicle_state_store: Dict[int, bytes]` to `ScenarioManager`; `store_vehicle_state(vid, payload)`, `retrieve_vehicle_state(vid)`, `retrieve_all_vehicle_states()`. API shaped to mirror the future gRPC `Store/Retrieve` so `-eo`/C++ slots in cleanly. | **Next** |
+| `ecav/scenario_testing/utils/sim_api.py` | Added `_vehicle_state_store: Dict[int, MigrationPayload]` to `ScenarioManager`; `store_vehicle_state(vid, payload)`, `retrieve_vehicle_state(vid)`, `retrieve_all_vehicle_states()`. Stores objects directly (no real pickle — avoids mechanism/measurement conflation); API shaped to mirror future gRPC `Store/Retrieve` for `-eo`/C++ upgrade. | **Done** |
 | `ecav/core/application/edge/edge_manager/edge_manager_base.py` | Add `export_vehicle_state(vehicle_id) -> MigrationPayload` / `import_vehicle_state(vehicle_id, payload)`; `relinquish(vehicle_id)` / `accept(vehicle_id, vm)` for ownership move. Base impl exports coarse slice; pluggable subclass overrides for AB3DMOT. | Pending |
 | `ecav/core/application/edge/edge_manager/edge_manager_pluggable_base.py` | AB3DMOT-aware export: find `KF` by `carla_id` in `self.tracker.trackers`; extract `kf.x`, `kf.P`, `hits`, `anchoring_age` into `KFState`; import injects new `KF` with source state + `hits >= min_hits`, advances `ID_count`, updates `track_to_carla`. | Pending |
 | `ecav/core/application/edge/migration/link.py` *(new)* | `InterLocaleLink` + `TransferCost`. `model_transfer(payload, src, dst, tick) -> TransferCost`: serialize cost = `payload_bytes() × rate`; network cost from `LatencyModel`. Pure model — no real I/O. | Pending |
@@ -191,17 +191,17 @@ TransferCost(
 - [x] Add `KFState` dataclass to `payload.py` (`state_vector`, `covariance`, `hits`, `anchoring_age`); `TrackLatent.kf_state: Optional[KFState]` — separate slot, not overloading `hidden_state`.
 - [x] Add `HandoffManager` to `binding.py`; `evaluate()` returns `Optional[HandoffEvent]`; owns `_emit` + subscribers.
 - [x] Integrate `HandoffManager` into `migration/smoke_test.py`; all three scenarios pass.
-- [ ] Define `export_vehicle_state(vid) -> MigrationPayload` / `import_vehicle_state(vid, payload)` on `_BaseEdgeManager` (coarse base impl; pluggable subclass overrides for AB3DMOT).
-- [ ] AB3DMOT export: find `KF` by `carla_id`; extract `kf.x`, `kf.P`, `hits`, `anchoring_age` into `KFState`.
-- [ ] AB3DMOT import: create new `KF` with source `x`/`P`; set `hits >= tracker.min_hits`; advance `ID_count`; update `track_to_carla[new_tid] = cid`.
+- [x] Define `export_vehicle_state(vid) -> MigrationPayload` / `import_vehicle_state(vid, payload)` on `_BaseEdgeManager` (coarse base impl; pluggable subclass overrides for AB3DMOT). Also `relinquish(vid)` / `accept(vm)`.
+- [x] AB3DMOT export: find `KF` by `carla_id`; extract `kf.x`, `kf.P`, `hits`, `anchoring_age` into `KFState`. (`_PluggableEdgeBase.export_vehicle_state`)
+- [x] AB3DMOT import: create new `KF` with source `x`/`P`; set `hits >= tracker.min_hits`; advance `ID_count`; update `track_to_carla[new_tid] = cid`. (`_PluggableEdgeBase.import_vehicle_state`)
 
 ### Step 1 — State store (sim_api)
-- [ ] Add `_vehicle_state_store` + `store_/retrieve_vehicle_state` + `retrieve_all_vehicle_states` to `ScenarioManager`.
-- [ ] Shape the API to mirror the future gRPC store/retrieve (forward-compat for `-eo`/C++).
+- [x] Add `_vehicle_state_store: Dict[int, MigrationPayload]` + `store_/retrieve_vehicle_state` + `retrieve_all_vehicle_states` to `ScenarioManager`.
+- [x] Stores `MigrationPayload` objects directly (no real pickle in mechanism path). API mirrors future gRPC store/retrieve for forward-compat.
 
 ### Step 2 — Cost model (`migration/link.py`)
-- [ ] `TransferCost` dataclass + `InterLocaleLink.model_transfer(payload, src, dst, tick)`.
-- [ ] Serialization cost from `payload_bytes()` × configured rate; network cost from `LatencyModel` + simulated edge geometry.
+- [x] `TransferCost` dataclass + `InterLocaleLink.model_transfer(payload, src, dst, tick)`.
+- [x] Serialization cost from `payload_bytes()` × configured rate; network cost from `LatencyModel.sample_ms()` (added public wrapper). Added `InterLocaleLink.from_cfg()` factory. `__init__.py` updated.
 
 ### Step 3 — Hand-off daemon (`migration/daemon.py`)
 - [ ] `SequentialMigrationDaemon.request_handoff(vid, src_edge, dst_edge, store, link, tick)`: ping/ack ownership move (member calls) + store-pull import + record `TransferCost`.
