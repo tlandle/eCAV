@@ -114,6 +114,40 @@ class SequentialMigrationDaemon:
         self._costs.append(cost)
         return cost
 
+    def transfer_obstacle_state(
+        self,
+        carla_id: int,
+        src_edge: "_BaseEdgeManager",
+        dst_edge: "_BaseEdgeManager",
+        link: InterLocaleLink,
+        tick: int,
+    ) -> Optional[TransferCost]:
+        """Share a tracked obstacle's KF state from src_edge to dst_edge.
+
+        Unlike request_handoff, there is no ownership transfer — no VehicleManager
+        is moved. Both edges continue tracking the obstacle independently after the
+        call. Dst_edge gets a warm KF (hits >= min_hits) so it can immediately
+        include the obstacle in predictions without a confirmation dwell.
+
+        Returns None (with a warning log) if src_edge has no KF for carla_id.
+        """
+        payload = src_edge.export_tracked_obstacle_state(carla_id)
+        if payload is None:
+            logger.warning(
+                "transfer_obstacle_state: no KF for carla_id=%d on edge %s",
+                carla_id, src_edge.edgeid,
+            )
+            return None
+        dst_edge.import_tracked_obstacle_state(carla_id, payload)
+        cost = link.model_transfer(payload, src_edge, dst_edge, tick)
+        self._costs.append(cost)
+        logger.info(
+            "[OBSTACLE_HANDOFF] carla_id=%d %s->%s tick=%d bytes=%d total_ms=%.3f",
+            carla_id, src_edge.edgeid, dst_edge.edgeid,
+            tick, cost.payload_bytes, cost.total_ms,
+        )
+        return cost
+
     @property
     def costs(self) -> List[TransferCost]:
         """All TransferCost records emitted by this daemon (newest last)."""

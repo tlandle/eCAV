@@ -35,20 +35,20 @@ echo "Stopping Base eCAV Process"
 echo "=========================================="
 echo ""
 
-# Check if base eCAV process is running (on host, not in container)
-if pgrep -f "python ecav.py.*-d" > /dev/null; then
+# Check if base eCAV process is running (any mode: -d, -eo, or sequential)
+if pgrep -f "ecav\.py" > /dev/null; then
     echo "Stopping base eCAV process..."
-    pkill -f "python ecav.py.*-d"
+    pkill -f "ecav\.py"
     sleep 2
 
     # Force kill if still running
-    if pgrep -f "python ecav.py.*-d" > /dev/null; then
+    if pgrep -f "ecav\.py" > /dev/null; then
         echo "Force killing base eCAV process..."
-        pkill -9 -f "python ecav.py.*-d"
+        pkill -9 -f "ecav\.py"
         sleep 1
     fi
 
-    if ! pgrep -f "python ecav.py.*-d" > /dev/null; then
+    if ! pgrep -f "ecav\.py" > /dev/null; then
         echo "✓ Base eCAV process stopped"
     else
         echo "⚠ Warning: Some eCAV processes may still be running"
@@ -144,26 +144,22 @@ echo "Killing Any Remaining Python Processes"
 echo "=========================================="
 echo ""
 
-# sometimes we just get python as a process still running. but this is ALWAYS a lingering scenario
-if pgrep -f "python .*-d" > /dev/null; then
-    echo "Stopping python process..."
-    pkill -f "python .*-d"
+# Catch any remaining scenario runner subprocesses
+if pgrep -f "scenario_runner" > /dev/null; then
+    echo "Stopping scenario_runner subprocess..."
+    pkill -f "scenario_runner"
     sleep 2
-
-    # Force kill if still running
-    if pgrep -f "python .*-d" > /dev/null; then
-        echo "Force killing python process..."
-        pkill -9 -f "python .*-d"
+    if pgrep -f "scenario_runner" > /dev/null; then
+        pkill -9 -f "scenario_runner"
         sleep 1
     fi
-
-    if ! pgrep -f "python .*-d" > /dev/null; then
-        echo "✓ All python processes stopped"
+    if ! pgrep -f "scenario_runner" > /dev/null; then
+        echo "✓ scenario_runner stopped"
     else
-        echo "⚠ Warning: Some python processes may still be running"
+        echo "⚠ Warning: scenario_runner may still be running"
     fi
 else
-    echo "No python processes are running."
+    echo "No scenario_runner processes found."
 fi
 
 
@@ -176,8 +172,8 @@ echo "Docker containers:"
 docker container ls -a
 echo ""
 echo "Base eCAV processes:"
-if pgrep -f "python ecav.py.*-d" > /dev/null; then
-    pgrep -af "python ecav.py.*-d"
+if pgrep -f "ecav\.py" > /dev/null; then
+    pgrep -af "ecav\.py"
 else
     echo "  No base eCAV processes running"
 fi

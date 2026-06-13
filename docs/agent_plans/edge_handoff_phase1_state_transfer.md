@@ -1,9 +1,9 @@
 # Edge Hand-Off — Phase 1: State Transfer (Sequential / Single-Process)
 
 **Branch:** `develop`
-**Status:** In progress — Steps 0–4 done; integration scenario (Step 5) next
+**Status:** Steps 0–5 complete; Step 6 (metrics) + Scenario B remaining
 **Created:** 2026-06-08
-**Updated:** 2026-06-10
+**Updated:** 2026-06-13
 **Audience:** jrapp + Tyler (PhD research, Georgia Tech)
 **Source of truth:** [tyler_edge_handoff_architecture.md](../kb/raw/notes/tyler_edge_handoff_architecture.md) (2026-06-07 meeting)
 
@@ -211,8 +211,10 @@ TransferCost(
 - [x] `tests/test_edge_state_handoff.py`: store round-trip; export→store→retrieve→import; ownership moved; `TransferCost` recorded and sensitive to rate; fallback export path. All 6 assertions pass.
 
 ### Step 5 — Integration (2-edge sequential)
-- [ ] 2-edge sequential scenario YAML + `.py`; per-tick `store_vehicle_state`; scripted hand-off at tick N via `request_handoff`.
-- [ ] Run end-to-end (clean CARLA); confirm destination edge holds state + hand-off cost record in metrics.
+- [x] `openscenario_3_multi_edge_late_fusion.yaml` — two edges in `scenario.edge_list`; RSU 0 at y=95, RSU 1 at y=120; cav1 in edge 0 only.
+- [x] `openscenario_3_multi_edge_late_fusion.py` — per-tick `store_vehicle_state` loop; `HandoffManager(trigger_tick=60)`; `daemon.request_handoff` at tick 60; cost logged in finally.
+- [x] Obstacle-export extension: `export/import_tracked_obstacle_state` on `_BaseEdgeManager` (no-op stubs) + `_PluggableEdgeBase` (AB3DMOT implementations); `daemon.transfer_obstacle_state` — no ownership move, one-shot KF share. (Required for Scenario B; built alongside Scenario A.)
+- [x] Run end-to-end (clean CARLA, 2026-06-13): `[HANDOFF]` tick=60 vid=109 bytes=98 total_ms=93.3; `[TRANSFER_COST]` logged; ghost_brake_events=0; true_positive_gt=4; SystemExit(0). All 5 criteria pass.
 
 ### Step 6 — Metrics
 - [ ] Add hand-off cost records to the metric output; one line per hand-off.

@@ -617,6 +617,19 @@ class _BaseEdgeManager:
         """Add a VehicleManager to this edge's vehicle_manager_list."""
         self.vehicle_manager_list.append(vm)
 
+    def export_tracked_obstacle_state(self, carla_id: int) -> Optional[MigrationPayload]:
+        """Export KF state for an AB3DMOT-tracked obstacle (no VehicleManager required).
+
+        Base no-op — override in AB3DMOT-aware subclasses.
+        """
+        return None
+
+    def import_tracked_obstacle_state(self, carla_id: int, payload: MigrationPayload) -> None:
+        """Inject a warm KF for a tracked obstacle into this edge's tracker.
+
+        Base no-op — override in AB3DMOT-aware subclasses.
+        """
+
     @staticmethod
     def _dict_extend(dest: Dict[str, list], src: Dict[str, list]) -> None:
         """`dest[k] += src[k]` for every key, creating lists if needed."""

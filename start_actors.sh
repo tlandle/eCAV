@@ -85,10 +85,11 @@ if (( auto_mode )); then
     use_ml="${USE_ML:-$default_ml}"
     use_litserve="${USE_LITSERVE:-$default_wf}"
     use_yolo_grpc="${USE_YOLO_GRPC:-$default_yolo}"
+    use_sequential="${USE_SEQUENTIAL:-n}"
     use_edge_only="${USE_EDGE_ONLY:-n}"
     rebuild="${REBUILD:-n}"
     use_verbose="${VERBOSE:-n}"
-    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc edge_only=$use_edge_only rebuild=$rebuild verbose=$use_verbose"
+    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc sequential=$use_sequential edge_only=$use_edge_only rebuild=$rebuild verbose=$use_verbose"
 else
     use_ml="$default_ml"
     if [[ "$fusion_type" == "worldfusion" ]]; then
@@ -106,8 +107,17 @@ else
         use_litserve="$default_wf"
         use_yolo_grpc="$default_yolo"
     fi
-    read -p "Edge-only distributed mode — edges in Docker, no vehicle/RSU containers (y/N)? " use_edge_only
-    read -p "Rebuild containers (Y/n)? " rebuild
+    read -p "Run mode — (s)equential, (e)dge-only, (d)istributed [d]: " _run_mode
+    _run_mode="${_run_mode:-d}"
+    case "${_run_mode,,}" in
+        s|seq|sequential) use_sequential=Y; use_edge_only=n ;;
+        e|eo|edge|edge-only) use_sequential=n; use_edge_only=Y ;;
+        *) use_sequential=n; use_edge_only=n ;;
+    esac
+    rebuild="${REBUILD:-n}"
+    if [[ "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
+        read -p "Rebuild containers (Y/n)? " rebuild
+    fi
     read -p "Enable verbose/debug logging (y/N)? " use_verbose
 fi
 
@@ -322,8 +332,10 @@ if [[ "$use_verbose" = "Y" || "$use_verbose" = "y" ]]; then
     verbose_flag="--verbose"
 fi
 
-# -eo (edge-only) replaces -d (fully-distributed) in the ecav.py invocation
-if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+# Determine run mode flag for ecav.py
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    mode_flag=""           # sequential: ScenarioRunner subprocess, no Docker actors
+elif [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
     mode_flag="-eo"
 else
     mode_flag="-d"
@@ -334,7 +346,7 @@ echo "=========================================="
 echo "Starting eCAV Distributed Scenario"
 echo "=========================================="
 echo "Scenario: $scenario_name"
-echo "Mode: $([ "$use_edge_only" = "Y" ] || [ "$use_edge_only" = "y" ] && echo "edge-only (-eo)" || echo "fully-distributed (-d)")"
+echo "Mode: $(if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then echo "sequential (no -d)"; elif [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then echo "edge-only (-eo)"; else echo "fully-distributed (-d)"; fi)"
 echo "Ego vehicles: $num_ego"
 echo "RSUs: $num_rsu"
 echo "Edges: $num_edges"
@@ -391,7 +403,12 @@ bash -c "source $CONDA_ROOT/etc/profile.d/conda.sh && conda activate $CONDA_ENV 
 ECAV_PID=$!
 
 echo "  ✓ Base process started (PID: $ECAV_PID)"
-if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    # Sequential mode: no gRPC handshake — process owns its own ScenarioRunner subprocess.
+    # Give it a moment to start then proceed straight to monitoring.
+    echo "  Sequential mode — no readiness gate; monitoring for completion."
+    sleep 3
+elif [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
     echo "  Monitoring log file for 'EdgeRegistrationServer' message..."
     ready_pattern="EdgeRegistrationServer"
     ready_msg="EdgeRegistrationServer ready"
@@ -401,54 +418,51 @@ else
     ready_msg="Scenario initialization complete"
 fi
 
-timeout=60  # 60 second timeout
-elapsed=0
-while [[ $elapsed -lt $timeout ]]; do
-    if grep -qi "$ready_pattern" "$ECAV_LOG" 2>/dev/null; then
-        echo "  ✓ $ready_msg!"
-        break
-    fi
+if [[ "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
+    timeout=60
+    elapsed=0
+    while [[ $elapsed -lt $timeout ]]; do
+        if grep -qi "$ready_pattern" "$ECAV_LOG" 2>/dev/null; then
+            echo "  ✓ $ready_msg!"
+            break
+        fi
 
-    sleep 2
-    ((elapsed+=2))
-    echo -n "."
-done
+        sleep 2
+        ((elapsed+=2))
+        echo -n "."
+    done
 
-echo ""
-
-if [[ $elapsed -ge $timeout ]]; then
-    echo "ERROR: Timeout waiting for '$ready_pattern' message."
-    echo "Check logs: tail -f $ECAV_LOG"
     echo ""
 
-    # Check if Carla is running
-    if pgrep -f "CarlaUE4" > /dev/null; then
-        echo "Stopping Carla processes..."
-        pkill -f "CarlaUE4"
-        sleep 2
+    if [[ $elapsed -ge $timeout ]]; then
+        echo "ERROR: Timeout waiting for '$ready_pattern' message."
+        echo "Check logs: tail -f $ECAV_LOG"
+        echo ""
 
-        # Force kill if still running
         if pgrep -f "CarlaUE4" > /dev/null; then
-            echo "Force killing Carla processes..."
-            pkill -9 -f "CarlaUE4"
-            sleep 1
-        fi
-
-        if ! pgrep -f "CarlaUE4" > /dev/null; then
-            echo "✓ Carla stopped"
+            echo "Stopping Carla processes..."
+            pkill -f "CarlaUE4"
+            sleep 2
+            if pgrep -f "CarlaUE4" > /dev/null; then
+                pkill -9 -f "CarlaUE4"
+                sleep 1
+            fi
+            if ! pgrep -f "CarlaUE4" > /dev/null; then
+                echo "✓ Carla stopped"
+            else
+                echo "⚠ Warning: Some Carla processes may still be running"
+            fi
         else
-            echo "⚠ Warning: Some Carla processes may still be running"
+            echo "Carla is not running."
         fi
-    else
-        echo "Carla is not running."
+        exit 1
     fi
-    exit 1
 fi
 
 echo ""
 
-# Start edge containers (if any)
-if [[ $num_edges -gt 0 ]]; then
+# Start edge containers (if any, and not sequential — sequential uses ScenarioRunner subprocess)
+if [[ $num_edges -gt 0 && "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
     echo "Starting $num_edges edge container(s)..."
 
     if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
@@ -527,7 +541,7 @@ if [[ $num_edges -gt 0 ]]; then
     echo ""
 fi
 
-if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
+if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" && "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
 # Start ego vehicle containers
 echo "Starting $num_ego ego vehicle container(s)..."
 for ((i=0; i<$num_ego; i++))
@@ -599,31 +613,39 @@ docker run $gpu_flag -d \
 
 echo "  ✓ $container_name started"
 
-fi  # end: not edge-only
+fi  # end: not edge-only and not sequential
 
 echo ""
 echo "=========================================="
-echo "All containers started successfully!"
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    echo "Sequential scenario running (no Docker containers)"
+else
+    echo "All containers started successfully!"
+fi
 echo "=========================================="
 echo ""
 echo "Container summary:"
-if [[ $num_edges -gt 0 ]]; then
-    if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
-        echo "  - edge_0 to edge_$((num_edges-1)): Edge fusion servers (ports 50060-$((50060+num_edges-1)))"
-        echo "  - (vehicles/RSUs run in base process — no separate containers)"
-    else
-        echo "  - edge_0 to edge_$((num_edges-1)): Edge servers (ports 50054-$((50054+num_edges-1)))"
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    echo "  - (sequential mode: all actors managed by ScenarioRunner subprocess — no Docker containers)"
+else
+    if [[ $num_edges -gt 0 ]]; then
+        if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+            echo "  - edge_0 to edge_$((num_edges-1)): Edge fusion servers (ports 50060-$((50060+num_edges-1)))"
+            echo "  - (vehicles/RSUs run in base process — no separate containers)"
+        else
+            echo "  - edge_0 to edge_$((num_edges-1)): Edge servers (ports 50054-$((50054+num_edges-1)))"
+        fi
     fi
-fi
-if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
-    echo "  - ego_vehicle_0 to ego_vehicle_$((num_ego-1)): Ego vehicles (indices 0-$((num_ego-1)))"
-    if [[ $num_rsu -gt 0 ]]; then
-        echo "  - rsu_0 to rsu_$((num_rsu-1)): RSUs (indices 0-$((num_rsu-1)))"
+    if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
+        echo "  - ego_vehicle_0 to ego_vehicle_$((num_ego-1)): Ego vehicles (indices 0-$((num_ego-1)))"
+        if [[ $num_rsu -gt 0 ]]; then
+            echo "  - rsu_0 to rsu_$((num_rsu-1)): RSUs (indices 0-$((num_rsu-1)))"
+        fi
+        echo "  - non_ego_vehicles: Non-ego vehicle controller (index -1)"
     fi
-    echo "  - non_ego_vehicles: Non-ego vehicle controller (index -1)"
+    echo ""
+    docker container ls
 fi
-echo ""
-docker container ls
 echo ""
 
 # Monitor for scenario completion or errors
@@ -632,7 +654,11 @@ echo "Monitoring scenario execution..."
 echo "=========================================="
 echo ""
 echo "Watching ecav_base logs for completion or errors..."
-echo "Waiting for 'pushed END' message (press Ctrl+C to stop monitoring)..."
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    echo "Sequential mode: monitoring for base process exit (PID $ECAV_PID)..."
+else
+    echo "Waiting for 'pushed END' message (press Ctrl+C to stop monitoring)..."
+fi
 echo ""
 
 # Monitor loop for completion
@@ -645,12 +671,22 @@ REPORTED_ERRORS_FILE=$(mktemp /tmp/reported_errors.XXXXXX)
 > "$REPORTED_ERRORS_FILE"
 
 while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
-    # Check for completion (log file is already being written to by base process)
-    if grep -qi "pushed END" "$ECAV_LOG"; then
-        echo ""
-        echo "✓ Scenario completed successfully!"
-        scenario_completed=true
-        break
+    # Check for completion
+    if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+        # Sequential: done when base process exits
+        if ! kill -0 "$ECAV_PID" 2>/dev/null; then
+            echo ""
+            echo "✓ Scenario completed (base process exited)"
+            scenario_completed=true
+            break
+        fi
+    else
+        if grep -qi "pushed END" "$ECAV_LOG"; then
+            echo ""
+            echo "✓ Scenario completed successfully!"
+            scenario_completed=true
+            break
+        fi
     fi
 
     # Check for errors (common Python error patterns) - only report new ones
@@ -680,8 +716,9 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
         fi
     fi
 
-    # Check container health every 30 seconds
-    if (( monitor_elapsed % 30 == 0 )) && (( monitor_elapsed > 0 )); then
+    # Check container health every 30 seconds (skip in sequential mode — no containers)
+    if [[ "$use_sequential" != "Y" && "$use_sequential" != "y" ]] \
+       && (( monitor_elapsed % 30 == 0 )) && (( monitor_elapsed > 0 )); then
         failed_containers=()
 
         # Check edges

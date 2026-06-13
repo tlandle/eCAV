@@ -216,3 +216,64 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         """Add a VehicleManager to this edge and wire up anchoring."""
         super().accept(vm)
         vm.agent._anchoring = self.anchoring
+
+    def export_tracked_obstacle_state(self, carla_id: int) -> Optional[MigrationPayload]:
+        """Export KF state for any AB3DMOT-tracked obstacle (no VehicleManager required)."""
+        kf_obj = next(
+            (t for t in self.tracker.trackers if t.carla_id == carla_id), None
+        )
+        if kf_obj is None:
+            return None
+        kf_state = KFState(
+            state_vector=kf_obj.kf.x.flatten().copy(),
+            covariance=kf_obj.kf.P.copy(),
+            hits=kf_obj.hits,
+            anchoring_age=kf_obj.anchoring_age,
+        )
+        tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
+        track = TrackLatent(
+            track_id=tid,
+            persistent_vehicle_id=carla_id,
+            hidden_state=np.zeros(1, dtype=np.float16),
+            kf_state=kf_state,
+        )
+        return MigrationPayload(
+            source_locale_id="",
+            destination_locale_id="",
+            trigger_time_s=0.0,
+            tracks=[track],
+        )
+
+    def import_tracked_obstacle_state(self, carla_id: int, payload: MigrationPayload) -> None:
+        """Inject a warm KF for a tracked obstacle into this edge's AB3DMOT tracker.
+
+        No relinquish/accept — locale 0 keeps tracking the obstacle concurrently.
+        Locale 1 gets a warm start: hits >= min_hits so the track appears immediately
+        in output without a confirmation dwell.
+        """
+        track = next(
+            (t for t in payload.tracks if t.persistent_vehicle_id == carla_id), None
+        )
+        if track is None or track.kf_state is None:
+            logger.warning(
+                "import_tracked_obstacle_state: no KF for carla_id %d", carla_id
+            )
+            return
+        ks = track.kf_state
+        new_tid = self.tracker.ID_count[0]
+        self.tracker.ID_count[0] += 1
+        info = np.array([0, -1, carla_id])
+        new_kf = _AB3DMOT_KF(ks.state_vector[:7], info, new_tid)
+        new_kf.kf.x = ks.state_vector.reshape(10, 1).copy()
+        new_kf.kf.P = ks.covariance.copy()
+        new_kf.carla_id = carla_id
+        new_kf.hits = max(ks.hits, self.tracker.min_hits)
+        new_kf.time_since_update = 0
+        new_kf.anchoring_age = ks.anchoring_age
+        self.tracker.trackers.append(new_kf)
+        self.track_to_carla[new_tid] = carla_id
+        logger.info(
+            "import_tracked_obstacle_state: carla_id=%d -> tid=%d (hits=%d, x=%.2f,%.2f)",
+            carla_id, new_tid, new_kf.hits,
+            float(new_kf.kf.x[0]), float(new_kf.kf.x[1]),
+        )

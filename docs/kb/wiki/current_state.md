@@ -168,8 +168,16 @@ Plan written and **revised 2026-06-01**: [multi_edge_locale_handoff.md](../../ag
 - `edge_manager_base.py`: `export_vehicle_state`, `import_vehicle_state`, `relinquish`, `accept` on `_BaseEdgeManager` (base impl: minimal payload, no-op import).
 - `edge_manager_pluggable_base.py`: AB3DMOT-aware overrides — export finds KF by `carla_id`; import injects warm KF with `hits >= min_hits`, advances `ID_count`.
 - `sim_api.py`: `_vehicle_state_store: Dict[int, MigrationPayload]`; `store/retrieve_vehicle_state`.
-- `migration/link.py` *(new)*: `TransferCost` dataclass + `InterLocaleLink.model_transfer(payload, src, dst, tick)`. Serialization cost from `payload_bytes() × rate`; network cost from `LatencyModel.sample_ms()` (public wrapper added). `InterLocaleLink.from_cfg()` factory. `__init__.py` updated.
-- **Next:** `migration/daemon.py` (Step 3): `SequentialMigrationDaemon.request_handoff` — ping/ack ownership move + store-pull import + record `TransferCost`.
+- `migration/link.py`: `TransferCost` + `InterLocaleLink.model_transfer`. `LatencyModel.sample_ms()` public wrapper added.
+- `migration/daemon.py`: `SequentialMigrationDaemon.request_handoff` (ownership move + cost record) + `transfer_obstacle_state` (obstacle KF share, no ownership move — for Scenario B).
+- `edge_manager_base.py`: `export/import_tracked_obstacle_state` no-op stubs (override in AB3DMOT subclasses).
+- `edge_manager_pluggable_base.py`: full `export/import_tracked_obstacle_state` implementations — bypass VehicleManager guard, inject KF directly into tracker.
+- `tests/test_edge_state_handoff.py`: 6 smoke tests, all pass.
+- **Scenario A built (pending CARLA run):** `openscenario_3_multi_edge_late_fusion.yaml` (two edges, RSU at y=95 and y=120) + `openscenario_3_multi_edge_late_fusion.py` (per-tick store, tick-60 handoff, cost log). Reuses `scenario_3.xml` and `scenario_3.py` unchanged.
+- **Scenario B plan written:** `docs/agent_plans/edge_handoff_scenarios.md`. Town06 left-merge, `SyncArrival`-coordinated fast NPC, geometry trigger via `VehicleLocaleTracker`. 4 new files required; build after Scenario A validates.
+- **Scenario A validated (2026-06-13):** `[HANDOFF]` tick=60 vid=109 bytes=98 total_ms=93.3; `[TRANSFER_COST]` logged; ghost_brake_events=0; true_positive_gt=4; clean exit. All 5 criteria pass.
+- `start_actors.sh` updated: sequential mode (`USE_SEQUENTIAL=y` or prompt `s`) — runs base process with no `-d` flag, skips Docker containers, monitors via PID instead of "pushed END". `stop_actors.sh` updated: catches ecav.py in any mode, also kills scenario_runner subprocesses.
+- **Next:** Scenario B (Town06 left-merge). 4 new files + `SyncArrival`-coordinated NPC. See `docs/agent_plans/edge_handoff_scenarios.md` for full plan.
 
 **What we build (the pieces Tyler left "forthcoming"):** inter-locale link model (`migration/link.py`), migration daemon (`migration/daemon.py`), and the `-eo` runtime wiring. The trajectory trigger (`VehicleLocaleTracker`) and locale primitives are already done by Tyler.
 
