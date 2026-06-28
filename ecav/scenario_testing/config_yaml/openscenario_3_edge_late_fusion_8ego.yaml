@@ -245,6 +245,21 @@ scenario:
               <<: *base_perception
               backend: default
           id: -1
+        # rsu2: second vantage across the intersection (east side) so its FOV
+        # overlaps rsu1 over the LTAP conflict zone. Two independent infra
+        # detectors -> the same physical vehicle is detected twice at slightly
+        # different positions, exercising multi-source disagreement on the
+        # infra side with zero vehicles involved. Placement provisional;
+        # verify it sees the conflict region at smoke test.
+        - <<: *rsu_base
+          name: rsu2
+          spawn_position: [-40.0, 140.0, 7.0]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: default
+          id: -2
 
       vehicles:
         # ── Ego 1: South approach (northbound), left_turn ──

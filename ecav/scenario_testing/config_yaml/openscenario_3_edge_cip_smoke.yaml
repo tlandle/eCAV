@@ -1,10 +1,7 @@
 yolo_endpoint: localhost:18001
-description: 'Minimal Late-Fusion smoke on Scenario 3 (LTAP).
-
-  1 RSU + 1 CAV with YOLO per-agent detection + box-level merge at edge.
-
-  Mirrors the WF smoke scenario so results are directly comparable.'
-scenario_name: openscenario_3_edge_late_fusion_smoke
+description: CIP-style edge (edge plans, vehicle actuates) on Scenario 3 LTAP. 2 RSU,
+  40km/h, conflict_kinematics on. Consumer boundary = actuation interface.
+scenario_name: openscenario_3_edge_cip_smoke
 distributed: false
 define: true
 perception_active: true
@@ -69,7 +66,6 @@ scenario_runner:
   list: false
   openscenarioparams:
   - ego_vehicle_max_speed=40
-  - oncoming_vehicle_speed=13.4
   output: false
   outputDir: ''
   randomize: false
@@ -259,7 +255,7 @@ scenario:
     uplink_packet_loss_pct: 0.0
     downlink_packet_loss_pct: 0.0
     mode: PREDICTION
-    manager_type: late_fusion
+    manager_type: cip
     world_anchor:
     - -78.0
     - 128.0
@@ -404,4 +400,3 @@ scenario:
       rho_s: 0.1
       a_brake: 6.0
       d_buf: 1.0
-    anchoring: false

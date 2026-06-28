@@ -4,7 +4,7 @@ description: 'Minimal Late-Fusion smoke on Scenario 3 (LTAP).
   1 RSU + 1 CAV with YOLO per-agent detection + box-level merge at edge.
 
   Mirrors the WF smoke scenario so results are directly comparable.'
-scenario_name: openscenario_3_edge_late_fusion_smoke
+scenario_name: openscenario_3_edge_late_fusion_boundary
 distributed: false
 define: true
 perception_active: true
@@ -252,7 +252,7 @@ scenario:
     target_speed: 100
     edge_dt: 0.2
     search_dt: 2
-    latency: 0.0
+    latency: 0.45
     jitter_std: 0.0
     latency_distribution: hybrid
     edge_sets_destination: false
@@ -404,4 +404,4 @@ scenario:
       rho_s: 0.1
       a_brake: 6.0
       d_buf: 1.0
-    anchoring: false
+    anchoring: true

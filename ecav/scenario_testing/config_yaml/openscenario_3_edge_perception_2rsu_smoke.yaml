@@ -1,10 +1,10 @@
 yolo_endpoint: localhost:18001
-description: 'Minimal Late-Fusion smoke on Scenario 3 (LTAP).
-
-  1 RSU + 1 CAV with YOLO per-agent detection + box-level merge at edge.
-
-  Mirrors the WF smoke scenario so results are directly comparable.'
-scenario_name: openscenario_3_edge_late_fusion_smoke
+description: Object-sharing I2V smoke on Scenario 3 (LTAP). 2 RSUs + 1 CAV. Edge SHIPS
+  DETECTIONS ONLY (PerceptionEdge); the vehicle runs its own AB3DMOT tracker + predictor
+  + planner on the edge-published object list. Tests whether multi-source object disagreement
+  still self-ghosts when the tracking/prediction stack is on the vehicle rather than
+  the edge.
+scenario_name: openscenario_3_edge_perception_2rsu_smoke
 distributed: false
 define: true
 perception_active: true
@@ -41,7 +41,7 @@ carla_traffic_manager:
     - 5
     - 5
     - 15
-ego_vehicle_max_speed: 40
+ego_vehicle_max_speed: 43
 scenario_runner:
   town: town03
   scenario: Scenario_3
@@ -68,8 +68,7 @@ scenario_runner:
   junit: false
   list: false
   openscenarioparams:
-  - ego_vehicle_max_speed=40
-  - oncoming_vehicle_speed=13.4
+  - ego_vehicle_max_speed=43
   output: false
   outputDir: ''
   randomize: false
@@ -127,7 +126,7 @@ vehicle_base:
         x_scale: 1.0
         y_scale: 1.0
   behavior: &id006
-    max_speed: 40
+    max_speed: 43
     tailgate_speed: 121
     speed_lim_dist: 3
     speed_decrease: 15
@@ -258,8 +257,8 @@ scenario:
     edge_sets_destination: false
     uplink_packet_loss_pct: 0.0
     downlink_packet_loss_pct: 0.0
-    mode: PREDICTION
-    manager_type: late_fusion
+    mode: PERCEPTION
+    manager_type: perception
     world_anchor:
     - -78.0
     - 128.0
@@ -394,14 +393,3 @@ scenario:
       - -28.8
       - 134.7
       - 0.5
-    conflict_kinematics:
-      enabled: true
-      out_path: /tmp/conflict_kin.csv
-      conflict_xy:
-      - -84.8
-      - 127.7
-      cross_traffic_type: tesla
-      rho_s: 0.1
-      a_brake: 6.0
-      d_buf: 1.0
-    anchoring: false

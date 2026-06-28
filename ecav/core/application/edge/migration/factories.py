@@ -34,10 +34,21 @@ def latent_from_tracklet(
     persistent_vehicle_id: int,
     risk_score: float = 0.0,
     last_observation_t: float = 0.0,
+    history_depth: Optional[int] = None,
 ) -> TrackLatent:
-    """Snapshot a live tracklet's per-track state into a TrackLatent."""
+    """Snapshot a live tracklet's per-track state into a TrackLatent.
+
+    ``history_depth`` truncates the migrated memo/diff banks to the
+    most-recent N frames. This is how the Reactive-Kalman baseline (B1) is
+    expressed: ``history_depth=1`` migrates only the latest bbox and the
+    latest diff, which is the information a Kalman filter carries. The
+    default (``None``) migrates the full history (the proposed design).
+    """
     memo = np.asarray(tracklet.memo_bank, dtype=np.float32)
     diff = np.asarray(tracklet.diff_memo_bank, dtype=np.float32)
+    if history_depth is not None and history_depth > 0:
+        memo = memo[-history_depth:]
+        diff = diff[-history_depth:]
     pred = (
         np.asarray(tracklet.predicted_last_bbox, dtype=np.float32).copy()
         if tracklet.predicted_last_bbox is not None

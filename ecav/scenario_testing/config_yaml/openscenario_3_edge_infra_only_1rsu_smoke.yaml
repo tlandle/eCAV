@@ -1,10 +1,16 @@
 yolo_endpoint: localhost:18001
-description: 'Minimal Late-Fusion smoke on Scenario 3 (LTAP).
+description: 'Infra-only (I2V) smoke on Scenario 3 (LTAP).
 
-  1 RSU + 1 CAV with YOLO per-agent detection + box-level merge at edge.
+  2 RSUs + 1 CAV. Edge fuses RSU detections only; no vehicle uplink.
 
-  Mirrors the WF smoke scenario so results are directly comparable.'
-scenario_name: openscenario_3_edge_late_fusion_smoke
+  Two independent RSU detectors exercise multi-source disagreement on the
+
+  infra side with zero vehicle participation: the same physical actor is
+
+  detected twice at slightly different positions, the discriminator for
+
+  self-ghosting. Mirrors the late-fusion smoke for direct comparison.'
+scenario_name: openscenario_3_edge_infra_only_1rsu_smoke
 distributed: false
 define: true
 perception_active: true
@@ -69,7 +75,6 @@ scenario_runner:
   list: false
   openscenarioparams:
   - ego_vehicle_max_speed=40
-  - oncoming_vehicle_speed=13.4
   output: false
   outputDir: ''
   randomize: false
@@ -259,7 +264,7 @@ scenario:
     uplink_packet_loss_pct: 0.0
     downlink_packet_loss_pct: 0.0
     mode: PREDICTION
-    manager_type: late_fusion
+    manager_type: infra_only
     world_anchor:
     - -78.0
     - 128.0
@@ -320,58 +325,6 @@ scenario:
       - 128.0
       - 4.3
       id: -1
-    - sensing:
-        perception:
-          activate: true
-          backend: default
-          camera:
-            visualize: 0
-            num: 4
-            image_width: 800
-            image_height: 600
-            fov: 70
-            positions:
-            - - 2.5
-              - 0.0
-              - 1.0
-              - 0
-            - - 0.0
-              - 0.3
-              - 1.8
-              - 100
-            - - 0.0
-              - -0.3
-              - 1.8
-              - -100
-            - - -2.0
-              - 0.0
-              - 1.5
-              - 180
-          lidar:
-            visualize: false
-            channels: 64
-            range: 120
-            points_per_second: 1300000
-            rotation_frequency: 20
-            upper_fov: 0.0
-            lower_fov: -40.0
-            dropoff_general_rate: 0.1
-            dropoff_intensity_limit: 0.7
-            dropoff_zero_intensity: 0.15
-            noise_stddev: 0.02
-        localization:
-          activate: true
-          dt: 0.05
-          gnss:
-            noise_alt_stddev: 0.05
-            noise_lat_stddev: 3.0e-06
-            noise_lon_stddev: 3.0e-06
-      name: rsu2
-      spawn_position:
-      - -40.0
-      - 140.0
-      - 7.0
-      id: -2
     vehicles:
     - sensing:
         perception:
@@ -404,4 +357,3 @@ scenario:
       rho_s: 0.1
       a_brake: 6.0
       d_buf: 1.0
-    anchoring: false

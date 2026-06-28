@@ -77,7 +77,15 @@ class AB3DMOT(object):
 
 		if cfg.dataset == 'KITTI':
 			if cfg.det_name == 'pvrcnn':				# tuned for PV-RCNN detections
-				if cat == 'Car': 			algm, metric, thres, min_hits, max_age = 'hungar', 'giou_3d', -0.2, 3, 2
+				# Car: BEV center / kinematic association (dist_2d). Object-level
+				# cooperative detections from roadside camera-lidar fusion have
+				# accurate centers but unstable extents/yaw (axis-aligned box fit
+				# to near-face LiDAR points), so a shape-overlap gate (giou_3d)
+				# treats viewpoint-induced extent error as association evidence
+				# and fragments fast cross-traffic tracks. Center distance plus
+				# the kinematic innovation gate matches the reliable part of the
+				# measurement. thres=4 -> 4 m gate after sign flip below.
+				if cat == 'Car': 			algm, metric, thres, min_hits, max_age = 'hungar', 'dist_2d', 4, 3, 2
 				elif cat == 'Pedestrian': 	algm, metric, thres, min_hits, max_age = 'greedy', 'giou_3d', -0.4, 1, 4 		
 				elif cat == 'Cyclist': 		algm, metric, thres, min_hits, max_age = 'hungar', 'dist_3d', 2, 3, 4
 				else: assert False, 'error'

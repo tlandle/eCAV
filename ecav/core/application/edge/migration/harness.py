@@ -266,7 +266,7 @@ def run(
     if verbose:
         print(f"payload bytes={len(wire_bytes)} (declared={payload.payload_bytes()})")
 
-    # ── Edge B: destination (receives migration) ───────────────────────
+    # ── Edge B: destination (receives FULL latent migration; ours) ─────
     edge_b = Mamba3DTracker(cfg, device=device)
     dst = inject_latent_into_tracker(edge_b, latent_b)
 
@@ -283,8 +283,6 @@ def run(
               f"(memo_bank {src_memo.shape}, diff {src_diff.shape})")
 
     # CHECK 2: prediction parity ────────────────────────────────────────
-    # Run predict on a deep copy of each tracker so we don't touch the
-    # state needed for downstream drives.
     src_clone = copy.deepcopy(src)
     src_clone.predict()
     dst_clone = copy.deepcopy(dst)
@@ -295,77 +293,90 @@ def run(
         print(f"CHECK 2 prediction parity: ||pred_A - pred_B|| = {pred_diff:.6e}")
     assert pred_diff < 1e-4, f"prediction parity failed: {pred_diff}"
 
-    # ── Continue both edges through the rest of the trajectory ─────────
-    b_results = _drive(edge_b, post, start_frame=handoff_frame)
+    # ── B1: Reactive Kalman baseline (single-frame latent) ─────────────
+    latent_b1 = latent_from_tracklet(
+        src, persistent_vehicle_id=42, last_observation_t=0.5, history_depth=1,
+    )
+    payload_b1 = MigrationPayload(
+        source_locale_id="A", destination_locale_id="B-Kalman",
+        trigger_time_s=handoff_frame * 0.05, tracks=[latent_b1],
+    )
+    bytes_b1 = len(payload_b1.serialize())
+    edge_b1 = Mamba3DTracker(cfg, device=device)
+    inject_latent_into_tracker(edge_b1, latent_b1)
 
-    # ── Edge C: cold start, no migration ───────────────────────────────
+    # ── Drive each destination through post-handoff frames ─────────────
+    b_results = _drive(edge_b, post, start_frame=handoff_frame)
+    b1_results = _drive(edge_b1, post, start_frame=handoff_frame)
+
+    # ── B0: Cold start, no migration ───────────────────────────────────
     edge_c = Mamba3DTracker(cfg, device=device)
     c_results = _drive(edge_c, post, start_frame=handoff_frame)
 
     # CHECK 3: cold-start delta ─────────────────────────────────────────
-    b_errors = [r.error_xy for r in b_results if not np.isnan(r.error_xy)]
-    c_errors = [r.error_xy for r in c_results if not np.isnan(r.error_xy)]
+    b_errors  = [r.error_xy for r in b_results  if not np.isnan(r.error_xy)]
+    b1_errors = [r.error_xy for r in b1_results if not np.isnan(r.error_xy)]
+    c_errors  = [r.error_xy for r in c_results  if not np.isnan(r.error_xy)]
     # The first few frames after cold start have no prediction at all (until
-    # the tracker accumulates enough history). Compare on overlap of frames
-    # for which both have a prediction.
-    overlap_len = min(len(b_errors), len(c_errors))
-    if overlap_len:
-        b_mean = float(np.mean(b_errors[:overlap_len]))
-        c_mean = float(np.mean(c_errors[:overlap_len]))
-        if verbose:
-            print(f"\nCHECK 3 cold-start delta over first {overlap_len} comparable post-handoff frames:")
-            print(f"  migrated edge B mean xy error: {b_mean:.4f} m")
-            print(f"  cold     edge C mean xy error: {c_mean:.4f} m")
-            print(f"  prediction gap (C - B): {c_mean - b_mean:+.4f} m")
+    # the tracker accumulates enough history). Compare on the overlap of
+    # frames for which all three destinations have a prediction.
+    overlap_len = min(len(b_errors), len(b1_errors), len(c_errors))
+    if overlap_len and verbose:
+        b_mean  = float(np.mean(b_errors[:overlap_len]))
+        b1_mean = float(np.mean(b1_errors[:overlap_len]))
+        c_mean  = float(np.mean(c_errors[:overlap_len]))
+        print(f"\nCHECK 3 over first {overlap_len} comparable post-handoff frames:")
+        print(f"  full-latent  edge B  mean xy error: {b_mean:.4f} m  (ours, full history)")
+        print(f"  Kalman (B1)  edge B1 mean xy error: {b1_mean:.4f} m  (history_depth=1)")
+        print(f"  cold (B0)    edge C  mean xy error: {c_mean:.4f} m  (no migration)")
+        print(f"  gap full-vs-cold   (C  - B): {c_mean - b_mean:+.4f} m")
+        print(f"  gap full-vs-Kalman (B1 - B): {b1_mean - b_mean:+.4f} m")
 
     return {
         "src_track": src,
         "dst_track": dst,
         "wire_bytes": len(wire_bytes),
+        "b1_bytes": bytes_b1,
         "a_results": a_results,
         "b_results": b_results,
+        "b1_results": b1_results,
         "c_results": c_results,
         "pred_diff": pred_diff,
     }
 
 
 def _summary_row(name: str, out: dict, gap_window: int = 5) -> dict:
-    """Frame-aligned comparison between migrated (b) and cold-start (c).
+    """Frame-aligned comparison: full-latent (b) vs Kalman (b1) vs cold (c).
 
-    Returns a dict of metrics. Frames where cold-start has no prediction
-    yet are counted as missing (and reported as such), not silently aligned
-    with a later cold-start prediction.
+    Returns a dict of metrics. Frames where a destination has no prediction
+    yet are counted as missing (NaN), not silently aligned with a later
+    prediction.
     """
     n_frames = len(out["b_results"])
-    b_full = np.array([r.error_xy for r in out["b_results"]])  # may contain NaN
-    c_full = np.array([r.error_xy for r in out["c_results"]])
+    b_full  = np.array([r.error_xy for r in out["b_results"]])   # may contain NaN
+    b1_full = np.array([r.error_xy for r in out["b1_results"]])
+    c_full  = np.array([r.error_xy for r in out["c_results"]])
 
-    # Migrated overall mean (NaN-aware)
-    b_mean = float(np.nanmean(b_full)) if np.any(~np.isnan(b_full)) else float("nan")
-    c_mean = float(np.nanmean(c_full)) if np.any(~np.isnan(c_full)) else float("nan")
+    def _nm(a):
+        return float(np.nanmean(a)) if np.any(~np.isnan(a)) else float("nan")
 
-    # First-N-frames gap window: this is where cold-start hurts most
+    # Overall mean (NaN-aware) and the first-N-frames gap window, where the
+    # cold and Kalman destinations hurt most.
     w = min(gap_window, n_frames)
-    b_window = b_full[:w]
-    c_window = c_full[:w]
-    b_win_mean = float(np.nanmean(b_window)) if np.any(~np.isnan(b_window)) else float("nan")
-    c_win_mean = float(np.nanmean(c_window)) if np.any(~np.isnan(c_window)) else float("nan")
+    b_mean,  b1_mean,  c_mean  = _nm(b_full),     _nm(b1_full),     _nm(c_full)
+    b_win,   b1_win,   c_win   = _nm(b_full[:w]), _nm(b1_full[:w]), _nm(c_full[:w])
+    b_cov,   b1_cov,   c_cov   = (float(np.mean(~np.isnan(x))) for x in (b_full, b1_full, c_full))
 
-    # Fraction of post-handoff frames where each had a prediction
-    b_cov = float(np.mean(~np.isnan(b_full)))
-    c_cov = float(np.mean(~np.isnan(c_full)))
-
-    ratio = c_mean / b_mean if (b_mean and b_mean > 0) else float("inf")
+    ratio   = c_mean  / b_mean if (b_mean and b_mean > 0) else float("inf")  # cold / full
+    k_ratio = b1_mean / b_mean if (b_mean and b_mean > 0) else float("inf")  # Kalman / full
     return {
         "name": name,
         "bytes": out["wire_bytes"],
-        "b_mean": b_mean,
-        "c_mean": c_mean,
-        "b_win": b_win_mean,
-        "c_win": c_win_mean,
-        "ratio": ratio,
-        "b_cov": b_cov,
-        "c_cov": c_cov,
+        "b1_bytes": out["b1_bytes"],
+        "b_mean": b_mean, "b1_mean": b1_mean, "c_mean": c_mean,
+        "b_win": b_win, "b1_win": b1_win, "c_win": c_win,
+        "b_cov": b_cov, "b1_cov": b1_cov, "c_cov": c_cov,
+        "ratio": ratio, "k_ratio": k_ratio,
     }
 
 
@@ -396,18 +407,16 @@ def main() -> int:
         if not args.quiet:
             print()
 
-    print("=" * 96)
-    print(f"{'trajectory':<13} {'bytes':>6}  "
-          f"{'mig mean':>10} {'cold mean':>10} {'ratio':>6}   "
-          f"{'mig 5-frame':>11} {'cold 5-frame':>12}   "
-          f"{'mig cov':>7} {'cold cov':>8}")
-    print("-" * 96)
+    print("=" * 104)
+    print(f"{'trajectory':<13} {'B bytes':>7} {'B1 bytes':>8}   "
+          f"{'5f full':>8} {'5f kalman':>9} {'5f cold':>8}   "
+          f"{'mean full':>9} {'mean kal':>8} {'mean cold':>9}")
+    print("-" * 104)
     for r in rows:
-        print(f"{r['name']:<13} {r['bytes']:>6d}  "
-              f"{r['b_mean']:>9.4f}m {r['c_mean']:>9.4f}m {r['ratio']:>5.2f}x   "
-              f"{r['b_win']:>10.4f}m {r['c_win']:>11.4f}m   "
-              f"{r['b_cov']:>6.0%} {r['c_cov']:>7.0%}")
-    print("=" * 96)
+        print(f"{r['name']:<13} {r['bytes']:>7d} {r['b1_bytes']:>8d}   "
+              f"{r['b_win']:>7.3f}m {r['b1_win']:>8.3f}m {r['c_win']:>7.3f}m   "
+              f"{r['b_mean']:>8.3f}m {r['b1_mean']:>7.3f}m {r['c_mean']:>8.3f}m")
+    print("=" * 104)
     return 0
 
 

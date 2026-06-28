@@ -1525,6 +1525,13 @@ class ScenarioManager:
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
 
+            # Propagate the run output dir onto the per-edge cfg so the edge's
+            # conflict-kinematics logger writes its CSV into this run's own dir.
+            _run_out = self.scenario_params.get('run_output_dir') \
+                if hasattr(self.scenario_params, 'get') else None
+            if _run_out is not None:
+                edge['run_output_dir'] = _run_out
+
             manager_cls  = _select_edge_manager(edge)
             edge_manager = manager_cls(
                 self.world, edge, self.cav_world,

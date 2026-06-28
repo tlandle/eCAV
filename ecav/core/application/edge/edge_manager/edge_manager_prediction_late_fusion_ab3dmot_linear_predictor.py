@@ -14,7 +14,7 @@ Pipeline:
 """
 from __future__ import annotations
 
-import math, random, time, logging, pickle
+import math, random, time, logging, pickle, os
 from collections import deque
 from typing import Any, Dict, List, Deque
 
@@ -37,14 +37,34 @@ from ecav.core.application.edge.edge_metrics import EdgeMetrics
 from ecav.core.application.edge.edge_profiler import EdgeProfiler
 from ecav.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
+from ecav.core.tracking.ab3dmot_format import (
+    stack_rows,
+    vehicles_to_ab3dmot_rows,
+)
+from ecav.core.application.edge.latency.ns3_lut_sampler import (
+    get_default as _get_lut_sampler,
+)
 
 from .edge_manager_base import _BaseEdgeManager, logger
+
+# Late-fusion uplink payload per source: 96 B self-beacon + object list.
+# Each 3D box ~48 B serialized; the paper reports mean ~7 boxes, <10 worst case.
+# This is ~430 B, far below WorldFusion's ~16.9 KB feature tensors, so the ns-3
+# Uu radio latency lands at the light-payload end of the LUT.
+_LF_BEACON_BYTES = 96
+_LF_PER_BOX_BYTES = 48
 
 
 # ──────────────────────────────────────────────────────────────────────
 #  Helpers
 # ──────────────────────────────────────────────────────────────────────
 _GUID = 0
+
+
+def _next_edge_guid() -> int:
+    global _GUID
+    _GUID += 1
+    return _GUID
 
 def _xyz(loc: carla.Location) -> np.ndarray:
     return np.asarray([loc.x, loc.y, loc.z], np.float32)
@@ -76,13 +96,17 @@ def _collect_ab3d_detections(edge,
     the raw ``carla_id``.  This lets the anchoring protocol inside
     ``matching.py`` work with pseudonymous identities.
     """
-    global _GUID
     det_rows, info_rows = [], []
 
     # a) beacons (one per managed vehicle) ----------------------------
     #    KITTI camera convention: x=right, y=down(height), z=front
     #    Map: KITTI_x=CARLA_x, KITTI_y=CARLA_z, KITTI_z=CARLA_y
     for vm in edge.vehicle_manager_list:
+        # Infra-only architectures have no vehicle uplink, so a managed
+        # vehicle may have no beacon this frame. Skip the beacon row for it;
+        # the RSU sees it (or not) as an anonymous sensor detection below.
+        if vm.vehicle.id not in beacons:
+            continue
         loc, ext = beacons[vm.vehicle.id]
         h,w,l = ext.z*2, ext.y*2, ext.x*2
         # Heading-align the exclusion zone: yaw=0 hardcoded puts the 2m
@@ -90,26 +114,42 @@ def _collect_ab3d_detections(edge,
         # through.  CARLA yaw (°, CW from +x) maps directly to KITTI theta.
         beacon_theta = math.radians(vm.vehicle.get_transform().rotation.yaw)
         det_rows.append([h,w,l, loc.x,loc.z,loc.y, beacon_theta, 1.0])
-        _GUID += 1
         # Use temp_id instead of raw carla_id when manager is present
         if beacon_id_mgr is not None:
             identity = beacon_id_mgr.get_temp_id(
                 vm.vehicle.id, loc, frame_idx)
         else:
             identity = vm.vehicle.id
-        info_rows.append([frame_idx, _GUID, identity])
+        info_rows.append([frame_idx, _next_edge_guid(), identity])
 
-    # b) sensor detections -------------------------------------------
-    for obj in objects.get("vehicles", []):
-        bbx = obj.bounding_box.extent
-        h,w,l = bbx.z*2, bbx.y*2, bbx.x*2
-        loc = obj.location
-        det_rows.append([h,w,l, loc.x,loc.z,loc.y, 0.0, 0.5])
-        _GUID += 1
-        info_rows.append([frame_idx, _GUID, -1])
+    # b) sensor detections -- shared library, see ab3dmot_format.py
+    sensor_dets, sensor_info = vehicles_to_ab3dmot_rows(
+        objects.get("vehicles", []),
+        frame_idx=frame_idx,
+        guid_provider=_next_edge_guid,
+    )
+    det_rows.extend(sensor_dets)
+    info_rows.extend(sensor_info)
 
-    dets_arr = np.asarray(det_rows, np.float32)
-    info_arr = np.asarray(info_rows, np.int64)
+    bundle = stack_rows(det_rows, info_rows)
+    dets_arr = bundle['dets']
+    info_arr = bundle['info']
+    # Box-quality normalization (class-conditioned size prior).
+    # Roadside camera-lidar fusion fits an axis-aligned box to the visible
+    # (near-face) LiDAR points, so a fast crossing vehicle yields degenerate
+    # extents (sliver widths, or giant road/wall artifacts) even when the
+    # CENTER is accurate. Clamp anonymous vehicle-detection extents
+    # [h, w, l] = cols 0,1,2 to plausible car bounds so an unstable extent is
+    # not treated as association/identity evidence and the downstream collision
+    # footprint is a real vehicle, not a 0.4 m sliver. Beacon rows (cid>0,
+    # known size) are left untouched. Centers/yaw are not modified.
+    if len(dets_arr) > 0:
+        _CAR_H, _CAR_W, _CAR_L = (1.2, 2.0), (1.6, 2.4), (3.5, 5.5)
+        for _i in range(len(dets_arr)):
+            if int(info_arr[_i, 2]) <= 0:  # anonymous sensor detection
+                dets_arr[_i, 0] = min(max(float(dets_arr[_i, 0]), _CAR_H[0]), _CAR_H[1])
+                dets_arr[_i, 1] = min(max(float(dets_arr[_i, 1]), _CAR_W[0]), _CAR_W[1])
+                dets_arr[_i, 2] = min(max(float(dets_arr[_i, 2]), _CAR_L[0]), _CAR_L[1])
     # Log raw detections with source tag
     # Beacon detections (from vehicle_manager_list) have cid > 0
     # Sensor detections come from objects["vehicles"] with _det_source tag
@@ -197,6 +237,15 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
         self.dt = world_dt
 
+        # ns-3 Uu radio LUT for the uplink (sources -> edge) delay. When on,
+        # per-source UL latency is sampled from the ns-3 5G-NR LUT (N- and
+        # payload-aware) instead of the SEE-V2X HybridModel, so radio delay
+        # grows with sender count and message size. Backhaul (RSU->edge wired)
+        # stays in the HybridModel/base. Gated by cfg use_ns3_lut (default on).
+        self._use_ns3_lut = bool(cfg.get("use_ns3_lut", False)) if not is_proxy else False
+        self._lut_sampler = _get_lut_sampler() if self._use_ns3_lut else None
+        self._sim_dt_ms = world_dt * 1000.0
+
         if is_proxy:
             self.profiler = None
             self.ego_monitor = None
@@ -230,6 +279,16 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
         # AB3DMOT tracker — persistent across ticks (jitter-buffer arch)
         self.anchoring = cfg.get("anchoring", True)
+        # LF-guarded: withhold coasting (stale) tracks from published collision
+        # predictions. Default off (LF-basic); on => LF-guarded. Orthogonal to SBA.
+        self.stale_track_suppression = bool(cfg.get('stale_track_suppression', False))
+        self.stale_track_n = int(cfg.get('stale_track_n', 2))
+        # Env override (for sweeps that cannot edit the YAML per arm):
+        # STALE_TRACK_SUPPRESSION=1/0 forces on/off; STALE_TRACK_N sets the gate.
+        _env_sts = os.environ.get('STALE_TRACK_SUPPRESSION')
+        if _env_sts is not None:
+            self.stale_track_suppression = _env_sts.strip() not in ('', '0', 'false', 'False')
+        self.stale_track_n = int(os.environ.get('STALE_TRACK_N', self.stale_track_n))
         self.mot_cfg = edict({
             'vis':False,'save_path':None,'use_3d_iou':True,'thres':2.0,
             'output_dir':None,'min_hits':3,'max_age':6,'ego_com':None,
@@ -258,6 +317,12 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         # Tracking metrics accumulators
         self._prev_track_ids: set = set()
         self._track_to_gt_mapping: Dict[int, int] = {}
+        # Per-track provenance history: track_id -> deque of nearest-GT actor
+        # ids over recent ticks. Used to classify a brake-triggering track as
+        # self_ghost (consistently ego) vs track_merge (ego AND non-ego appear)
+        # vs external_stale (consistently a non-ego actor), instead of the
+        # nearest-ego-NOW heuristic which mislabels stale/merged tracks.
+        self._track_provenance: Dict[int, Deque] = {}
         self._prediction_history: Deque[Dict] = deque(maxlen=50)
         self._last_ade_fde: Dict[str, float] = {
             'ade_1s': 0.0, 'ade_2s': 0.0, 'ade_3s': 0.0, 'fde': 0.0, 'miss_rate': 0.0
@@ -268,6 +333,12 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         self._latest_source_tick = None
         # Previous beacon locations for position-based ego_speed (Fix 2)
         self._prev_beacon_locs: Dict[int, Any] = {}
+        # Short rolling history of ego (x,y) per vehicle, for swept-path
+        # self-echo suppression. ~1s at edge_dt cadence. A stale ego-echo sits
+        # on this path; a VRU / occluder / stopped vehicle does not, so this
+        # discriminates self-echoes from real obstacles without spatial-only
+        # proximity suppression (which would blind the ego to nearby VRUs).
+        self._ego_path_hist: Dict[int, Deque] = {}
 
         # Compute-contention: cache of previous tick's per-vehicle predictions
         self._prev_per_vehicle_preds: Dict[int, list] = {}  # vehicle index -> preds
@@ -405,8 +476,42 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             self._dict_extend(objects, rsu.objects)
 
         # Stamp with per-packet arrival time and push to jitter buffer
-        arrival = self.latency_model.stamp(frame_idx)
+        if self._lut_sampler is not None:
+            # ns-3 Uu uplink: one packet per vehicle source (RSU is wired
+            # backhaul, not over Uu, so excluded from radio contention).
+            # "wait for slowest source" = max over per-source samples. Payload
+            # per source = 96 B beacon + object boxes it contributed.
+            n_cav = max(1, len(self.vehicle_manager_list))
+            n_boxes = len(objects.get('vehicles', []))
+            ul_bytes = _LF_BEACON_BYTES + n_boxes * _LF_PER_BOX_BYTES
+            ul_samples = [
+                self._lut_sampler.sample_ms(n_cav, ul_bytes, 'ul')
+                for _ in range(n_cav)
+            ]
+            ul_ms = max(ul_samples) if ul_samples else 0.0
+            ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
+            arrival = frame_idx + ul_ticks
+        else:
+            arrival = self.latency_model.stamp(frame_idx)
         self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+
+    # ------------------------------------------------------------------
+    def _collect_detections_for_frame(self, objects, beacons, source_tick):
+        """Build the AB3DMOT detection dict for one drained jitter-buffer frame.
+
+        Default = object-level perception (RSU/vehicle detections) with
+        cross-source NMS. A detector-mode subclass overrides this to source
+        detections from a ground-truth front-end (DETECTOR=oracle), which lets
+        the architecture comparison run without the perception-noise confound.
+        """
+        has_sensor_dets = bool(objects.get("vehicles")) if hasattr(objects, "get") else False
+        if not beacons and not has_sensor_dets:
+            return {'dets': np.empty((0, 7)), 'info': np.empty((0, 3))}
+        dets_all = _collect_ab3d_detections(
+            self, objects, beacons, frame_idx=source_tick,
+            beacon_id_mgr=self.beacon_id_mgr)
+        dets_all = _cross_source_nms(dets_all, cdist_thresh=3.0)
+        return dets_all
 
     # ------------------------------------------------------------------
     def run_step(self, tick:int):
@@ -424,26 +529,46 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                 num_dets = 0
 
                 for source_tick, (objects, beacons) in new_frames:
-                    if not beacons:
-                        dets_all = {'dets': np.empty((0, 7)),
-                                    'info': np.empty((0, 3))}
-                    else:
-                        dets_all = _collect_ab3d_detections(
-                            self, objects, beacons, frame_idx=source_tick,
-                            beacon_id_mgr=self.beacon_id_mgr)
-                        # Cross-source NMS: deduplicate detections from
-                        # multiple egos observing the same objects.
-                        n_before = len(dets_all['dets'])
-                        dets_all = _cross_source_nms(dets_all, cdist_thresh=3.0)
-                        n_after = len(dets_all['dets'])
-                        if n_before != n_after:
-                            logger.debug(
-                                "cross-source NMS: %d -> %d dets (-%d)",
-                                n_before, n_after, n_before - n_after)
-                        num_dets = max(num_dets, n_after)
+                    # Detection-source dispatch. Default = object-level
+                    # perception (RSU/vehicle detections) with cross-source NMS.
+                    # A detector-mode subclass (DETECTOR=oracle) overrides
+                    # _collect_detections_for_frame to source GT detections, so
+                    # the architecture comparison can be run without the
+                    # perception-noise confound.
+                    dets_all = self._collect_detections_for_frame(
+                        objects, beacons, source_tick)
+                    num_dets = max(num_dets, len(dets_all['dets']))
+
+                    # DET_TRACE: log fused detection world (x,y) per source tick
+                    # to separate detection dropout from tracker association
+                    # failure for the moving cross-traffic (CARLA x=det[3],
+                    # CARLA y=det[5]).
+                    if os.environ.get('DET_TRACE'):
+                        _dxy = [(round(float(d[3]), 1), round(float(d[5]), 1))
+                                for d in dets_all['dets']]
+                        _tesla = [p for p in _dxy if 125.0 <= p[1] <= 131.0]
+                        # box dims (l,w,yaw) for tesla-path dets to see if the
+                        # box is consistent enough for the GIoU gate
+                        _tbox = [(round(float(d[3]),1), round(float(d[5]),1),
+                                  round(float(d[2]),1), round(float(d[1]),1),
+                                  round(float(d[6]),2))
+                                 for d in dets_all['dets']
+                                 if 125.0 <= float(d[5]) <= 131.0]
+                        logger.warning("[DETS] src=%d n=%d tesla(x,y,l,w,yaw)=%s",
+                                       source_tick, len(_dxy), _tbox)
 
                     _t0 = time.perf_counter()
                     tracks, _ = self.tracker.track(dets_all, source_tick)
+                    if os.environ.get('DET_TRACE'):
+                        logger.warning(
+                            "[ASSOC] src=%d ntracks=%d birth_attempts=%s "
+                            "suppressed=%s births_after_gate=%s cull=%s",
+                            source_tick,
+                            len(getattr(self.tracker, 'trackers', [])),
+                            getattr(self.tracker, 'birth_attempts_anon', None),
+                            getattr(self.tracker, 'birth_suppressed_by_gate', None),
+                            getattr(self.tracker, 'births_anon_after_gate', None),
+                            getattr(self.tracker, 'anon_cull_count', None))
                     logger.debug("tracker.track() tick=%d src=%d dets=%d "
                                  "took %.1fms", tick, source_tick,
                                  len(dets_all['dets']),
@@ -608,9 +733,24 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             # IMPORTANT: Never mutate obs.carla_id — preds is shared across
             # all per-ego iterations.  Use ego-local `cid` override only.
             ego_suppress_sets = {}  # {vehicle_id: set of pred indices}
+            # LF-guarded: indices of coasting (stale) tracks to withhold from
+            # every ego, independent of anchoring. A track matched this tick has
+            # time_since_update==0, so a real detected obstacle is never withheld.
+            stale_pred_idx = set()
+            if getattr(self, 'stale_track_suppression', False):
+                _stale_tids = {trk.id + 1 for trk in self.tracker.trackers
+                               if trk.time_since_update >= self.stale_track_n}
+                stale_pred_idx = {
+                    i for i, p in enumerate(preds)
+                    if getattr(p.obstacle_trajectory.obstacle, 'track_id', None)
+                    in _stale_tids}
             _SWAP_MARGIN = 0.5   # metres — avoid borderline flips
             _FOOTPRINT_L = 1.2   # longitudinal margin beyond half-length
             _FOOTPRINT_W = 1.0   # lateral margin beyond half-width
+            # Swept-path tolerance: a stationary track within this distance of
+            # the ego's OWN recent (x,y) trace is a self-echo. Kept tight
+            # (~half a lane) so a vehicle one lane over is never matched.
+            _SWEPT_PATH_TOL = 1.5  # metres
             if self.anchoring:
                 managed_ids_supp = {vm.vehicle.id
                                     for vm in self.vehicle_manager_list}
@@ -650,6 +790,27 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                     n_speed_gate = 0   # suppressed by speed gate match
                     n_swap_detect = 0  # swaps detected (ID stripped)
                     n_stat_cand = 0    # stationary candidates examined
+                    n_swept = 0        # suppressed by swept-path self-echo
+
+                    # SAFETY CHECK: a suppressed track whose nearest GT actor is
+                    # NOT the ego is a real-obstacle suppression (a VRU / occluder
+                    # / stopped vehicle erased). This must never happen. We log
+                    # any such event loudly so the property is measurable.
+                    _gt_snap = (self._gt_snapshots.get(tick)
+                                or self._gt_snapshots.get(self._latest_source_tick)
+                                or {})
+                    def _nearest_gt_is_ego(px, py, ego_id=vm.vehicle.id):
+                        # Returns (is_ego, nearest_id, dist). If GT unavailable
+                        # this tick, returns (True, ...) so we do NOT raise a
+                        # spurious real-obstacle warning on missing data.
+                        if not _gt_snap:
+                            return True, None, float('inf')
+                        best_id, best_d = None, float('inf')
+                        for aid, vd in _gt_snap.items():
+                            d = ((vd['x'] - px) ** 2 + (vd['y'] - py) ** 2) ** 0.5
+                            if d < best_d:
+                                best_d, best_id = d, aid
+                        return best_id == ego_id, best_id, best_d
 
                     for i, pred in enumerate(preds):
                         obs = pred.obstacle_trajectory.obstacle
@@ -728,6 +889,14 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                                     abs(dy_ego) <= half_W:
                                 n_footprint += 1
                                 suppress_idx.add(i)
+                                _is_ego, _gid, _gd = _nearest_gt_is_ego(ploc.x, ploc.y)
+                                if not _is_ego:
+                                    logger.warning(
+                                        "[SUPP-REAL-OBSTACLE] FOOTPRINT tick=%d "
+                                        "ego=%d suppressed track near GT actor %s "
+                                        "(d=%.2fm) at (%.1f,%.1f) — NOT ego!",
+                                        tick, vm.vehicle.id, _gid, _gd,
+                                        ploc.x, ploc.y)
                                 logger.debug(
                                     "[FOOTPRINT] tick=%d ego=%d "
                                     "pred_idx=%d dx=%.2f dy=%.2f "
@@ -737,6 +906,36 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                                     dx_ego, dy_ego, half_L, half_W,
                                     obs_speed, d_to_us)
                                 continue
+                            # (a2) Swept-path self-echo: a stationary track
+                            #      outside the tight footprint but sitting on
+                            #      the ego's OWN recent trajectory is a stale
+                            #      self-echo (the ego physically occupied that
+                            #      point a moment ago). A VRU / occluder /
+                            #      stopped vehicle is never on the ego's just-
+                            #      traversed path, so this does not blind the
+                            #      ego to real obstacles near it.
+                            _hist = self._ego_path_hist.get(vm.vehicle.id)
+                            if _hist:
+                                _min_d = min(
+                                    ((ploc.x - hx) ** 2 + (ploc.y - hy) ** 2) ** 0.5
+                                    for (hx, hy) in _hist)
+                                if _min_d <= _SWEPT_PATH_TOL:
+                                    suppress_idx.add(i)
+                                    n_swept += 1
+                                    _is_ego, _gid, _gd = _nearest_gt_is_ego(ploc.x, ploc.y)
+                                    if not _is_ego:
+                                        logger.warning(
+                                            "[SUPP-REAL-OBSTACLE] SWEPT-PATH tick=%d "
+                                            "ego=%d suppressed track near GT actor %s "
+                                            "(d=%.2fm) at (%.1f,%.1f) path_d=%.2f — NOT ego!",
+                                            tick, vm.vehicle.id, _gid, _gd,
+                                            ploc.x, ploc.y, _min_d)
+                                    logger.debug(
+                                        "[SWEPT-PATH] tick=%d ego=%d pred_idx=%d "
+                                        "path_d=%.2f d_to_us=%.2f obs_spd=%.2f",
+                                        tick, vm.vehicle.id, i, _min_d,
+                                        d_to_us, obs_speed)
+                                    continue
                         # (b) Speed-gate: moving track whose speed
                         #     matches the ego (within tolerance).
                         if abs(obs_speed - ego_speed) >= \
@@ -744,6 +943,14 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                             continue
                         n_speed_gate += 1
                         suppress_idx.add(i)
+                        _is_ego, _gid, _gd = _nearest_gt_is_ego(ploc.x, ploc.y)
+                        if not _is_ego:
+                            logger.warning(
+                                "[SUPP-REAL-OBSTACLE] SPEED-GATE tick=%d "
+                                "ego=%d suppressed track near GT actor %s "
+                                "(d=%.2fm) at (%.1f,%.1f) — NOT ego!",
+                                tick, vm.vehicle.id, _gid, _gd,
+                                ploc.x, ploc.y)
                         logger.debug(
                             "[SPEED-GATE] tick=%d ego=%d "
                             "pred_idx=%d obs_spd=%.2f ego_spd=%.2f "
@@ -755,17 +962,23 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                     if suppress_idx or n_swap_detect:
                         logger.warning(
                             "[EGO-SUPPRESS] tick=%d ego=%d "
-                            "suppressed=%d (footprint=%d speed_gate=%d) "
+                            "suppressed=%d (footprint=%d swept=%d speed_gate=%d) "
                             "swaps_detected=%d stat_candidates=%d "
                             "r_pos=%.1f r_v=%.1f",
                             tick, vm.vehicle.id, len(suppress_idx),
-                            n_footprint, n_speed_gate, n_swap_detect,
+                            n_footprint, n_swept, n_speed_gate, n_swap_detect,
                             n_stat_cand, self._self_id_radius,
                             self._self_id_speed_gate)
 
             # Advance beacon position history for next tick's ego_speed estimate
             for vid, (loc, _ext) in beacons.items():
                 self._prev_beacon_locs[vid] = loc
+                # Append to the rolling swept-path history (~1s window).
+                hist = self._ego_path_hist.get(vid)
+                if hist is None:
+                    hist = deque(maxlen=20)
+                    self._ego_path_hist[vid] = hist
+                hist.append((loc.x, loc.y))
 
             # ===== 3. distribute predictions (with compute contention) =====
             with frame.time("distribution"):
@@ -792,7 +1005,7 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
 
                     # Per-ego filtered predictions (publish boundary)
                     suppress_set = ego_suppress_sets.get(
-                        vm.vehicle.id, set())
+                        vm.vehicle.id, set()) | stale_pred_idx
                     if suppress_set:
                         ego_preds = [p for i, p in enumerate(preds)
                                      if i not in suppress_set]
@@ -882,6 +1095,11 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             vm.vehicle.apply_control(vm.run_step())
             self._label_brake_attributions_gt(vm)
             self._record_time_to_events(tick, vm)
+        # Use the unfiltered live snapshot, not _gt_snapshots: the latter is
+        # range-limited to 50m of a managed vehicle and tick-keyed by source
+        # frame, so far/approaching cross-traffic is missing exactly when the
+        # closing geometry matters.
+        self._log_conflict_kinematics(tick, self._live_gt_snapshot())
         for rsu in self.rsu_manager_list:
             rsu.update_info()
             rsu.run_step()
@@ -891,6 +1109,21 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
     # ------------------------------------------------------------------
     def _ab3d_history_to_trajs(self, hist:Deque[np.ndarray], horizon:int=10):
         updated: set[int] = set()
+        # Only rebuild/publish tracks the tracker still considers ALIVE. The
+        # 30-frame history buffer outlives AB3DMOT's max_age pruning, so a track
+        # aged out of self.tracker.trackers can otherwise linger in `hist` and be
+        # republished as a frozen "zombie" at its last position, which the
+        # consumer planner then brakes for. Gate on the live tracker id set
+        # (published tid = trk.id + 1) so a pruned track stops being published.
+        live_tids = None
+        try:
+            live_tids = {trk.id + 1 for trk in self.tracker.trackers}
+        except Exception:
+            live_tids = None  # fail open if tracker state is unavailable
+        # Drop trajectories whose track is no longer alive.
+        if live_tids is not None:
+            for _dead in [t for t in self.tracked_trajectories if t not in live_tids]:
+                del self.tracked_trajectories[_dead]
         # Clear and rebuild from the last N track outputs in hist.
         for traj in self.tracked_trajectories.values():
             traj.trajectory.clear()
@@ -898,6 +1131,8 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             if frame is None or len(frame)==0: continue
             for trk in frame:
                 tid = int(trk[7]);  cid_raw = int(trk[8])
+                if live_tids is not None and tid not in live_tids:
+                    continue  # zombie: aged out of tracker, do not republish
 
                 if self.anchoring:
                     # With beacon anchoring: the vehicle knows its own
@@ -944,6 +1179,49 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             if tid not in updated:
                 del self.tracked_trajectories[tid]
 
+        # Per-track provenance: GT-match each live track's current position to
+        # the nearest GT actor this tick and record (ego/nonego). The history
+        # lets the brake classifier tell self_ghost (consistently ego) from
+        # track_merge (ego AND non-ego) and external_stale (consistently a
+        # non-ego actor), instead of nearest-ego-now which mislabels stale/
+        # merged tracks.
+        _gt_snap = self._gt_snapshots.get(self._latest_source_tick)
+        if os.environ.get('GUARD_TRACE'):
+            logger.warning(
+                "[PROV-POP] latest_source_tick=%s snap_keys=%s snap_hit=%s n_tracks=%d",
+                self._latest_source_tick,
+                sorted(self._gt_snapshots.keys())[-5:],
+                bool(_gt_snap), len(self.tracked_trajectories))
+        if _gt_snap:
+            _managed = {m.vehicle.id for m in self.vehicle_manager_list}
+            _gids = list(_gt_snap.keys())
+            if _gids:
+                _gx = np.array([_gt_snap[g]['x'] for g in _gids])
+                _gy = np.array([_gt_snap[g]['y'] for g in _gids])
+                for _tid, _traj in self.tracked_trajectories.items():
+                    if not _traj.trajectory:
+                        continue
+                    _loc = _traj.trajectory[0].location
+                    _d = np.hypot(_gx - _loc.x, _gy - _loc.y)
+                    _j = int(np.argmin(_d))
+                    _nid = _gids[_j]
+                    _h = self._track_provenance.get(_tid)
+                    if _h is None:
+                        _h = deque(maxlen=15)
+                        self._track_provenance[_tid] = _h
+                    _h.append(('ego' if _nid in _managed else 'nonego',
+                               _nid, float(_d[_j])))
+            # Retain provenance for recently-dead tracks: brakes can fire on a
+            # stale prediction whose edge track was already pruned, and the
+            # classifier needs that track's provenance to label it
+            # track_merge / external_stale instead of falling back to
+            # nearest-now (which mislabels it self_ghost). Cap to bound memory.
+            if len(self._track_provenance) > 256:
+                _live = set(self.tracked_trajectories)
+                _dead = [t for t in self._track_provenance if t not in _live]
+                for _tid in _dead[:len(self._track_provenance) - 256]:
+                    del self._track_provenance[_tid]
+
         # Temporary: log tracked trajectory summary for debugging
         if self.tracked_trajectories:
             summary = [(tid,
@@ -953,6 +1231,24 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                         len(t.trajectory))
                        for tid, t in self.tracked_trajectories.items()]
             logger.warning("[TRACKS] n=%d %s", len(summary), summary)
+
+        # ZOMBIE TRACE: for each PUBLISHED track, is its tid still alive in the
+        # AB3DMOT tracker (tracker.trackers), and what is its time_since_update?
+        # Published tid = trk.id + 1. A published track absent from tracker.trackers
+        # is a zombie (aged out of AB3DMOT but still rebuilt from the 30-frame
+        # _track_history). This is what the ego can brake for.
+        if os.environ.get('ZOMBIE_TRACE') and self.tracked_trajectories:
+            live = {}
+            try:
+                for trk in self.tracker.trackers:
+                    live[trk.id + 1] = getattr(trk, 'time_since_update', -1)
+            except Exception as _e:
+                live = {'ERR': str(_e)}
+            pub = sorted(self.tracked_trajectories.keys())
+            rows = [(tid, ('LIVE' if tid in live else 'ZOMBIE'),
+                     live.get(tid, None)) for tid in pub]
+            logger.warning("[ZOMBIE] hist_len=%d tracker_live=%s published=%s",
+                           len(self._track_history), sorted(live.items()), rows)
 
         # Anchoring OFF: no edge-side self-identification.
         # The edge sends all predictions unsuppressed.  The vehicle

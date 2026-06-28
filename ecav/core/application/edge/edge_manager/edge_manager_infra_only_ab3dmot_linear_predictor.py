@@ -25,6 +25,7 @@ SBA off.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Dict, List
 
 import numpy as np
@@ -32,6 +33,7 @@ import numpy as np
 from .edge_manager_prediction_late_fusion_ab3dmot_linear_predictor import (
     PredictionLateFusionEdge,
 )
+from .edge_manager_oracle_ab3dmot_linear_predictor import _collect_oracle_detections
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,16 @@ class InfraOnlyEdge(PredictionLateFusionEdge):
             logger.warning("InfraOnlyEdge ignoring enable_sba=True; no beacons in this architecture")
         cfg["enable_sba"] = False
         super().__init__(world, cfg, cav_world, carla_client, *args, **kwargs)
+        # Detector front-end: 'perception' (RSU camera-lidar, default) or
+        # 'oracle' (CARLA ground-truth boxes). Env DETECTOR overrides cfg so a
+        # sweep can isolate the architecture from perception noise. With the
+        # oracle detector this manager is I2V perception on clean detections;
+        # its CIP subclass becomes cooperative planning on clean detections.
+        self.detector = (os.environ.get("DETECTOR")
+                         or cfg.get("detector", "perception")).lower()
+        if self.detector == "oracle":
+            logger.warning("InfraOnly/%s: ORACLE detector front-end (GT boxes)",
+                            type(self).__name__)
 
     def update_information(self, frame_idx: int = 0):
         """Collect detections from RSUs only. No vehicle uplink, no beacons."""
@@ -71,6 +83,7 @@ class InfraOnlyEdge(PredictionLateFusionEdge):
         }
         carla_snapshot: dict = {}
         excluded_vehicles_snapshot: dict = {}
+        gt_actors: list = []   # populated only for the oracle detector front-end
         managed_locs = [vm.vehicle.get_location() for vm in self.vehicle_manager_list]
 
         try:
@@ -98,6 +111,13 @@ class InfraOnlyEdge(PredictionLateFusionEdge):
                 }
                 if is_valid_type:
                     carla_snapshot[actor.id] = vehicle_data
+                    bb = actor.bounding_box
+                    gt_actors.append({
+                        'carla_id': actor.id,
+                        'x': loc.x, 'y': loc.y, 'z': loc.z,
+                        'yaw': actor.get_transform().rotation.yaw,
+                        'hx': bb.extent.x, 'hy': bb.extent.y, 'hz': bb.extent.z,
+                    })
                 else:
                     excluded_vehicles_snapshot[actor.id] = vehicle_data
         except Exception as e:  # noqa: BLE001
@@ -111,11 +131,35 @@ class InfraOnlyEdge(PredictionLateFusionEdge):
 
         # --- The infra-only change: RSU only, no vehicle uplink, no beacons.
         beacons: dict = {}
+
+        if self.detector == "oracle":
+            # Oracle front-end: push GT actors; run_step's dispatch collects
+            # them via _collect_oracle_detections. No RSU perception, no beacons
+            # -> the ego appears as an anonymous GT detection, exactly what the
+            # RSU sees in this architecture. Isolates architecture from
+            # perception noise.
+            arrival = self.latency_model.stamp(frame_idx)
+            self._jitter_buffer.push(frame_idx, arrival, (gt_actors, beacons))
+            return
+
         for rsu in self.rsu_manager_list:
             rsu_id = getattr(rsu, 'id', 'rsu')
             for obj in rsu.objects.get('vehicles', []):
                 obj._det_source = f"rsu_{rsu_id}"
             self._dict_extend(objects, rsu.objects)
 
+        # Infra-only uplink is RSU -> edge over WIRED BACKHAUL, not the Uu
+        # radio. So we do NOT use the ns-3 Uu LUT here even when it is enabled
+        # for the vehicle-uplink arms; RSU backhaul delay is modeled by the
+        # base latency model. This keeps the architecture honest: I2V has no
+        # over-the-air vehicle uplink to contend.
         arrival = self.latency_model.stamp(frame_idx)
         self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+
+    def _collect_detections_for_frame(self, payload, beacons, source_tick):
+        """Oracle detector: collect from GT actors; else default perception."""
+        if self.detector == "oracle":
+            return _collect_oracle_detections(
+                self, payload, beacons, frame_idx=source_tick,
+                beacon_id_mgr=self.beacon_id_mgr)
+        return super()._collect_detections_for_frame(payload, beacons, source_tick)

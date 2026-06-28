@@ -29,6 +29,7 @@ time is profiled identically regardless of which process owns the agent.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any, Dict, List
 
 import carla
@@ -37,6 +38,9 @@ import numpy as np
 from .edge_manager_infra_only_ab3dmot_linear_predictor import InfraOnlyEdge
 
 logger = logging.getLogger(__name__)
+
+# Per-control unicast downlink payload (a carla.VehicleControl is a few floats).
+_CIP_CONTROL_BYTES = 64
 
 
 class CIPEdge(InfraOnlyEdge):
@@ -48,6 +52,14 @@ class CIPEdge(InfraOnlyEdge):
         # Additionally: vehicle does no onboard planning. Mark for diagnostics.
         cfg["cip_mode"] = True
         super().__init__(world, cfg, cav_world, carla_client, *args, **kwargs)
+        # Unicast-downlink command queue per vehicle. The edge plans a control
+        # at tick t; the vehicle (thin actuator) receives it after a UNICAST Uu
+        # downlink delay sampled from the ns-3 DL LUT (NOT the SEE-V2X sidelink
+        # trace, which is PC5 V2V/V2I, not edge->vehicle unicast). Until the new
+        # command arrives the vehicle holds its last delivered control. This is
+        # the CIP consumer boundary: AoI-at-use lives on the command downlink.
+        self._cip_pending_cmds: Dict[int, list] = {}   # vid -> [(deliver_tick, control)]
+        self._cip_last_control: Dict[int, Any] = {}     # vid -> last delivered control
 
     # ------------------------------------------------------------------
     # Override the per-tick vehicle-advance loop.
@@ -79,20 +91,58 @@ class CIPEdge(InfraOnlyEdge):
             # populated on vm.agent.edge_predictions during the publish step.
             # Provide an empty local objects dict — CIP vehicles have no
             # onboard perception; all obstacles come from edge predictions.
+            vid = vm.vehicle.id
             objects: Dict[str, List[Any]] = {"vehicles": [], "traffic_lights": [], "static": []}
             try:
                 vm.agent.update_information(ego_pos, ego_spd, objects)
-                control = vm.agent.run_step()
+                # agent.run_step() returns (target_speed, target_pos); the
+                # controller converts that to a carla.VehicleControl, exactly
+                # as the normal vehicle path does (vm.run_step). CIP runs this
+                # at the edge and ships the resulting control to the actuator.
+                vm.agent._current_global_tick = tick
+                target_speed, target_pos = vm.agent.run_step()
+                control = vm.controller.run_step(target_speed, target_pos)
             except Exception:  # noqa: BLE001
                 logger.exception("CIP: planner failed for vehicle %s; emergency-stopping",
                                  getattr(vm.vehicle, 'id', '?'))
                 control = carla.VehicleControl(throttle=0.0, brake=1.0, steer=0.0)
 
-            try:
-                vm.vehicle.apply_control(control)
-            except Exception:  # noqa: BLE001
-                logger.exception("CIP: apply_control failed for vehicle %s",
-                                 getattr(vm.vehicle, 'id', '?'))
+            # Queue the freshly-planned control for delivery after a unicast Uu
+            # downlink delay. CIP's consumer boundary IS this command downlink,
+            # so it must carry delay on the SAME controlled-AoI axis as every
+            # other arm. Default: use the edge latency model (controlled
+            # latency = the matrix's independent variable). Opt-in: the ns-3 DL
+            # LUT (unicast, payload/N-aware) for the secondary validation
+            # scatter only. Never zero-delay (that would make CIP falsely safe).
+            if self._lut_sampler is not None:
+                dl_ms = self._lut_sampler.sample_ms(
+                    max(1, len(self.vehicle_manager_list)),
+                    _CIP_CONTROL_BYTES, 'dl')
+                dl_ticks = int(math.ceil(dl_ms / self._sim_dt_ms))
+            else:
+                # Controlled latency: edge latency model maps source->arrival;
+                # the (arrival - tick) gap is the command downlink delay.
+                dl_ticks = max(0, self.latency_model.stamp(tick) - tick)
+            self._cip_pending_cmds.setdefault(vid, []).append(
+                (tick + dl_ticks, control))
+
+            # Deliver all commands whose downlink delay has elapsed; the most
+            # recent delivered command becomes the held control.
+            due = [(dt, c) for (dt, c) in self._cip_pending_cmds[vid] if dt <= tick]
+            if due:
+                due.sort(key=lambda x: x[0])
+                self._cip_last_control[vid] = due[-1][1]
+                self._cip_pending_cmds[vid] = [
+                    (dt, c) for (dt, c) in self._cip_pending_cmds[vid] if dt > tick]
+
+            # Apply the last DELIVERED control (thin actuator holds last command
+            # until a fresher one arrives over the downlink).
+            held = self._cip_last_control.get(vid)
+            if held is not None:
+                try:
+                    vm.vehicle.apply_control(held)
+                except Exception:  # noqa: BLE001
+                    logger.exception("CIP: apply_control failed for vehicle %s", vid)
 
             # Diagnostics still run on the parent's per-vm helpers.
             try:

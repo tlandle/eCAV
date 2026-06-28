@@ -1,10 +1,16 @@
 yolo_endpoint: localhost:18001
-description: 'Minimal Late-Fusion smoke on Scenario 3 (LTAP).
+description: 'Infra-only (I2V) smoke on Scenario 3 (LTAP).
 
-  1 RSU + 1 CAV with YOLO per-agent detection + box-level merge at edge.
+  2 RSUs + 1 CAV. Edge fuses RSU detections only; no vehicle uplink.
 
-  Mirrors the WF smoke scenario so results are directly comparable.'
-scenario_name: openscenario_3_edge_late_fusion_smoke
+  Two independent RSU detectors exercise multi-source disagreement on the
+
+  infra side with zero vehicle participation: the same physical actor is
+
+  detected twice at slightly different positions, the discriminator for
+
+  self-ghosting. Mirrors the late-fusion smoke for direct comparison.'
+scenario_name: openscenario_3_edge_infra_only_smoke
 distributed: false
 define: true
 perception_active: true
@@ -69,7 +75,6 @@ scenario_runner:
   list: false
   openscenarioparams:
   - ego_vehicle_max_speed=40
-  - oncoming_vehicle_speed=13.4
   output: false
   outputDir: ''
   randomize: false
@@ -259,7 +264,7 @@ scenario:
     uplink_packet_loss_pct: 0.0
     downlink_packet_loss_pct: 0.0
     mode: PREDICTION
-    manager_type: late_fusion
+    manager_type: infra_only
     world_anchor:
     - -78.0
     - 128.0
@@ -404,4 +409,3 @@ scenario:
       rho_s: 0.1
       a_brake: 6.0
       d_buf: 1.0
-    anchoring: false

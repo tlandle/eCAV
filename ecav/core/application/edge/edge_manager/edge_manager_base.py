@@ -14,6 +14,7 @@ Provides the base class with shared infrastructure:
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 import weakref
 import time
@@ -117,6 +118,34 @@ class _BaseEdgeManager:
         # Competing-risk time-to-event tracking
         # Records the first tick each failure class occurs per ego vehicle
         self._first_event_ticks = {}  # {vehicle_id: {class: tick}}
+
+        # Optional per-tick conflict-kinematics logger (LTAP fixture validation).
+        # Off unless cfg['conflict_kinematics'] is present. Pins the closing
+        # geometry so collisions can be classified as physics-limited (margin<0)
+        # vs timing artifacts (margin>0).
+        self._conflict_logger = None
+        self._cfg_latency_s = float(cfg.get("latency", 0.0))
+        _ck = cfg.get("conflict_kinematics") if not is_proxy else None
+        if _ck and _ck.get("enabled", False):
+            from ecav.core.application.edge.conflict_kinematics_logger import (
+                ConflictKinematicsLogger,
+            )
+            # Write the trace into this run's own output dir (set on cfg as
+            # run_output_dir) so each run/config has its own CSV that maps 1:1
+            # to its results, instead of a shared path that auto-uniquifies and
+            # cannot be attributed back to a run.
+            _run_dir = cfg.get("run_output_dir")
+            if _run_dir:
+                _ck_out = os.path.join(_run_dir, "conflict_kinematics.csv")
+            else:
+                _ck_out = _ck.get("out_path", "/tmp/conflict_kinematics.csv")
+            self._conflict_logger = ConflictKinematicsLogger(
+                out_path=_ck_out,
+                conflict_xy=tuple(_ck.get("conflict_xy", (-84.8, 127.7))),
+                cross_traffic_type=_ck.get("cross_traffic_type", "tesla"),
+                rho_s=float(_ck.get("rho_s", 0.1)),
+                a_brake=float(_ck.get("a_brake", 6.0)),
+            )
 
         # distributed mode flag (from cav_world)
         self.run_distributed = getattr(cav_world, 'run_distributed', False) if cav_world else False
@@ -285,6 +314,54 @@ class _BaseEdgeManager:
 
         return result
 
+    # ─── Conflict-kinematics logging (LTAP fixture validation) ───
+    def _live_gt_snapshot(self):
+        """Build a {actor_id: {type,x,y,vx,vy,speed}} snapshot from live CARLA
+        actors. Used by managers (e.g. PerceptionEdge) that do not precompute
+        per-tick GT snapshots, so the conflict logger can find cross-traffic.
+        """
+        snap = {}
+        try:
+            acts = self.world.get_actors().filter('vehicle.*')
+            for a in acts:
+                loc = a.get_location()
+                vel = a.get_velocity()
+                snap[a.id] = {
+                    # Full type_id (e.g. 'vehicle.tesla.model3') so the
+                    # cross-traffic picker can match on make OR model.
+                    'type': a.type_id,
+                    'x': loc.x, 'y': loc.y, 'z': loc.z,
+                    'vx': vel.x, 'vy': vel.y,
+                    'speed': (vel.x ** 2 + vel.y ** 2) ** 0.5,
+                }
+        except Exception:
+            pass
+        return snap
+
+    def _log_conflict_kinematics(self, tick, gt_snapshot=None):
+        """Log per-tick closing geometry for the focal ego, if enabled.
+
+        Focal ego = lowest managed vehicle id (the hero). gt_snapshot is the
+        per-tick CARLA actor snapshot the manager already builds; if None, the
+        logger falls back to live actor poses via the ego's world handle.
+        """
+        if self._conflict_logger is None or not self.vehicle_manager_list:
+            return
+        focal = min(self.vehicle_manager_list, key=lambda m: m.vehicle.id)
+        # Per-tick collision flag from client metrics, if available; the CSV
+        # mainly tracks the closing geometry, collision is cross-checked from
+        # the eval report. Latch once true.
+        coll = False
+        try:
+            cm = focal.client_metrics
+            coll = bool(getattr(cm, 'collision', False)) or \
+                len(getattr(cm, 'collision_event_list', []) or []) > 0
+        except Exception:
+            pass
+        self._conflict_logger.log_tick(
+            tick, focal, gt_snapshot or {}, coll,
+            delta_use_s=self._cfg_latency_s)
+
     # ─── Competing-risk time-to-event tracking ──────────────────
     def _record_time_to_events(self, tick, vm):
         """Record first-occurrence tick for each brake failure class."""
@@ -401,14 +478,77 @@ class _BaseEdgeManager:
             attr['gt_matched_actor_id'] = matched_id
             attr['gt_match_dist_m'] = match_dist
 
-            # Category 1: self-ghost (matched actor is the ego itself)
-            # If the nearest GT actor is the ego, the observation is a
-            # self-ghost regardless of distance.  At high latency the
-            # stale prediction drifts far from the ego's current GT
-            # position, but it is still an ego-ghost.  Identified
-            # non-ego tracks are already handled above by carla_id
-            # matching, so position-matched ego hits are genuine.
-            if matched_id == ego_id:
+            # DIAGNOSTIC (env GHOST_DEBUG=1): dump what the matcher compared,
+            # so we can tell a genuine ego self-echo from a stale cross-traffic
+            # track that the ego coincided with. Lists the nearest few GT actors
+            # to the stale track position with their types + distances.
+            if os.environ.get('GHOST_DEBUG') == '1':
+                order = np.argsort(dists)[:4]
+                near = []
+                for j in order:
+                    a = gt_actors[int(j)]
+                    is_ego = '<EGO>' if a['id'] == ego_id else ''
+                    near.append(f"id{a['id']}{is_ego}@({a['x']:.1f},{a['y']:.1f})"
+                                f"d{dists[int(j)]:.2f}spd{a['speed']:.1f}")
+                logger.warning(
+                    "[GHOST-MATCH] ego=%d trig_cid=%s obs_track=(%.1f,%.1f) "
+                    "ego_at=(%.1f,%.1f) matched=%s d=%.2f | nearest: %s",
+                    ego_id, trigger_cid, attr['obs_x'], attr['obs_y'],
+                    attr['ego_x'], attr['ego_y'], matched_id, match_dist,
+                    " ".join(near))
+
+            # ── Provenance-history taxonomy ──────────────────────────────
+            # A brake-triggering track is classified by what GT actor its
+            # position matched over its RECENT HISTORY, not by which actor is
+            # nearest NOW. nearest-now mislabels stale/merged tracks: a track
+            # that tracked the cross-traffic Tesla then froze at the conflict
+            # point gets called self_ghost only because the ego later drives
+            # through that point. Taxonomy (last K provenance tags):
+            #   consistently ego, no non-ego   -> self_ghost (true ego echo)
+            #   both ego AND non-ego present    -> track_merge_identity_switch
+            #   consistently non-ego           -> external_stale (real obstacle,
+            #                                      stale position)
+            #   no history                     -> fall back to nearest-now
+            prov = None
+            prov_hist = getattr(self, '_track_provenance', {}).get(
+                attr.get('trigger_track_id'))
+            if prov_hist:
+                tags = [t[0] for t in prov_hist]  # 'ego' / 'nonego'
+                n_ego = tags.count('ego')
+                n_non = tags.count('nonego')
+                if n_ego and n_non:
+                    prov = 'track_merge'
+                elif n_ego and not n_non:
+                    prov = 'self_ghost'
+                elif n_non and not n_ego:
+                    prov = 'external_stale'
+            attr['gt_provenance_class'] = prov
+
+            # is_self_ghost only when provenance says the track was consistently
+            # the ego (or, with no history, nearest-now is the ego as fallback).
+            if prov is not None:
+                is_self_ghost = (prov == 'self_ghost')
+                if not is_self_ghost and matched_id == ego_id:
+                    # nearest-now is ego but provenance says merge/external:
+                    # re-match to nearest NON-ego so hazard/FP classification
+                    # uses a real other actor, not the ego matched to itself.
+                    non_ego = [(d, a) for d, a in zip(dists, gt_actors)
+                               if a['id'] != ego_id]
+                    if non_ego:
+                        d2, a2 = min(non_ego, key=lambda t: t[0])
+                        matched, matched_id, match_dist = a2, a2['id'], float(d2)
+                        attr['gt_matched_actor_id'] = matched_id
+                        attr['gt_match_dist_m'] = match_dist
+                    logger.warning(
+                        "[GHOST-RECLASS] ego=%d track=%s prov=%s (ego=%d,non=%d)"
+                        " -> NOT self-ghost; rematched to %s",
+                        ego_id, attr.get('trigger_track_id'), prov,
+                        n_ego, n_non, matched_id)
+            else:
+                is_self_ghost = (matched_id == ego_id)
+
+            # Category 1: self-ghost
+            if is_self_ghost:
                 attr['ghost_brake_gt'] = True
                 attr['false_positive_gt'] = False
                 attr['true_positive_gt'] = False
@@ -419,7 +559,7 @@ class _BaseEdgeManager:
                     "(dist=%.2fm) obs=(%.1f,%.1f) ego=(%.1f,%.1f)",
                     ego_id, attr.get('trigger_track_id'),
                     attr.get('trigger_carla_id'),
-                    matched_id, dists[best_idx],
+                    matched_id, match_dist,
                     attr['obs_x'], attr['obs_y'],
                     attr['ego_x'], attr['ego_y'])
                 continue
@@ -458,7 +598,15 @@ class _BaseEdgeManager:
             else:
                 attr['false_positive_gt'] = True
                 attr['true_positive_gt'] = False
-                attr['gt_brake_class'] = 'other_fp'
+                # Promote the provenance class to a first-class brake label so
+                # track-merge / external-stale FPs are distinguished from
+                # generic other_fp (self_ghost handled above via continue).
+                if prov == 'track_merge':
+                    attr['gt_brake_class'] = 'track_merge_identity_switch'
+                elif prov == 'external_stale':
+                    attr['gt_brake_class'] = 'external_stale_fp'
+                else:
+                    attr['gt_brake_class'] = 'other_fp'
                 logger.warning(
                     "[GT OTHER-FP] ego %d: track=%s -> GT actor %d "
                     "(speed=%.1f m/s, DCA=%.2fm, t_ca=%.2fs prov=%s) "
@@ -479,6 +627,22 @@ class _BaseEdgeManager:
                     and attr.get('trigger_carla_id', 0) == -1):
                 self._reclassify_self_duplicate(
                     attr, ego_xy, ego_vx, ego_vy, ego_id)
+
+            # Reconcile gt_provenance_class with the final gt_brake_class so the
+            # two fields can never disagree (the early prov computation can be
+            # None when the deque lookup misses, but the brake-class branches
+            # below recompute the correct category). Derive from the consumer
+            # label, which is authoritative.
+            _final = attr.get('gt_brake_class')
+            _prov_map = {
+                'self_ghost': 'ego',
+                'track_merge_identity_switch': 'track_merge',
+                'external_stale_fp': 'external_stale',
+            }
+            if _final in _prov_map:
+                attr['gt_provenance_class'] = _prov_map[_final]
+            elif attr.get('gt_provenance_class') is None:
+                attr['gt_provenance_class'] = _final
 
     @classmethod
     def _is_gt_hazard(cls, actor: dict, ego_xy: np.ndarray,
