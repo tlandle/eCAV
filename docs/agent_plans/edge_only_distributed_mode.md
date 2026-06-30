@@ -266,28 +266,31 @@ After any proto change, recompile: `python ecav.py --build`.
 
 ### Phase 1: Edge Fusion Service
 
-- [ ] Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`
-- [ ] Add `rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult)` to `ecloud.proto`
-- [ ] Recompile stubs: `python ecav.py --build`
-- [ ] Add `Edge_PerformFusion` handler to `EdgeServer` in `edge_process.py` (reference: `run_edge_step()` from 787f4dac; lightweight actor stubs from payload — no CARLA init)
-- [ ] Add `Edge_EndScenario` handler to `EdgeServer` — finalize profiler, return `EdgeEvaluationResult`
-- [ ] Add tick-ID tracking to `EdgeProcess` (`expected_tick_id`, cached result for idempotent retries)
-- [ ] Change `register_with_orchestrator()` to connect to ecav.py's gRPC server instead of C++ server; receive `edge_id` + scenario config from registration response (no `--edge-index` arg)
-- [ ] Test: start edge process, call `Edge_PerformFusion` manually via grpcurl
+- [x] Add `bytes pickled_predictions = 5` to `FusionResult` in `ecloud.proto`
+- [x] Add `rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult)` to `ecloud.proto`
+- [x] Recompile stubs: `python ecav.py --build` (also fixed `--build` requiring a scenario arg — hoisted check to top of `main()`)
+- [x] Add `Edge_PerformFusion` handler to `EdgeServer` in `edge_process.py` — `_FeatureStub` for duck-typed actor stubs, inject into edge_manager lists, call `run_step()`
+- [x] Add `Edge_EndScenario` handler to `EdgeServer` — finalize profiler, return `EdgeEvaluationResult`
+- [x] Add tick-ID tracking to `EdgeProcess` (`expected_tick_id`, `_last_fusion_result` for idempotent retries)
+- [x] Add `--standalone` / `--config` args and `_run_standalone()` path (skips orchestrator, loads YAML from file, inits edge manager without CARLA) — `_setup_edge_manager_standalone()` uses `world=None, carla_client=None`
+- [x] Guard unguarded `self.world.get_actors()` in `WorldFusionEdge.run_step()` with `if self.world is not None:`
+- [x] Change `register_with_orchestrator()` to connect to ecav.py's gRPC server instead of C++ server — no code change needed: it uses `orchestrator_ip`/`orchestrator_port` CLI args; in edge-only mode those point at `EdgeRegistrationServer` (port 50055); `run()` branches on `carla_ip==""` after registration
+- [x] Test: start edge process in `--standalone` mode, call `Edge_PerformFusion` via `test_edge_standalone.py` — PASSED (2026-05-30): empty batch → early return, idempotency gate, Edge_EndScenario profiler (75 keys)
 
 ### Phase 2: Base Process Client
 
-- [ ] Add `-eo` flag to `ecav.py`; start asyncio gRPC server for edge registration
-- [ ] Implement `Edge_Register` handler in `ecav.py` — assign IDs, send scenario + actor assignments
-- [ ] Implement actor registration: `ecav.py` calls `Edge_ActorRegister` on each edge for its assigned actors
-- [ ] Write `ecav/scenario_testing/utils/edge_fusion_client.py` with retry-connect
-- [ ] Split `EdgeManager.run_step()` into `collect_features()` + `apply_predictions()`
-- [ ] Add `edge_only_distributed` branch to `openscenario_3_edge_worldfusion.py`
+- [x] Add `-eo` / `--edge_only` flag + `--edge_reg_port` to `ecav/ecav2/arg_utils.py`
+- [x] Write `ecav/scenario_testing/utils/edge_registration_server.py` — asyncio gRPC server handles `Edge_Register`, assigns sequential IDs, sends `EdgeScenarioConfig` (carla_ip="" signals no-CARLA to edge), signals completion when all edges registered
+- [x] Write `ecav/scenario_testing/utils/edge_fusion_client.py` — `EdgeFusionClient` with retry-connect, `fuse()`, `end_scenario()`, `close()`
+- [x] Add `WorldFusionEdge.collect_features(step)` — drives `update_information()`, serializes features + poses into `IntermediateFeaturesBatch` (RSUs first)
+- [x] Add `WorldFusionEdge.apply_predictions(step, fusion_result)` — unpacks pickled predictions from `FusionResult`, injects into vehicle managers, runs planning + control
+- [x] Add `-eo` branch to `openscenario_3_edge_worldfusion.py`: registration server startup + `collect_features/fuse/apply_predictions` tick loop + `end_scenario`/`close` teardown
+- [x] `edge_process.py` `run()`: after `register_with_orchestrator()`, if `carla_ip==""` → use `_setup_edge_manager_standalone()` path (no CARLA, no actor wait, serve fusion RPCs)
 
 ### Phase 3: Launch Script
 
-- [ ] Update `start_actors.sh`: spawn edges with no `--edge-index`; skip vehicle/RSU containers in edge-only mode
-- [ ] Replace "pushed scenario start" wait with ecav.py "all edges ready" signal
+- [x] Update `start_actors.sh`: spawn edges with `--orchestrator_ip localhost --orchestrator_port 50055` (no `--edge-index`); skip vehicle/RSU/non-ego containers in edge-only mode; use port base 50060 for fusion servers
+- [x] Replace "pushed scenario start" wait with mode-aware signals: wait for "EdgeRegistrationServer" before starting edges, then `[EDGE-ONLY]` after all edges connected
 - [ ] Test: `openscenario_3_edge_worldfusion` end-to-end in edge-only distributed mode
 
 ### Phase 4: Verification

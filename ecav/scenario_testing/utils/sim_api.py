@@ -29,7 +29,7 @@ from concurrent.futures import ThreadPoolExecutor, thread
 import logging
 import threading
 import time
-from typing import Iterable
+from typing import Dict, Iterable, Optional
 from queue import Queue
 import heapq
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -57,6 +57,7 @@ from ecav.core.common.rsu_manager import RSUManager
 from ecav.core.common.cav_world import CavWorld
 from ecav.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
+from ecav.core.application.edge.migration.payload import MigrationPayload
 # Edge-manager implementations ──────────────────────────────────────────────
 from ecav.core.application.edge.edge_manager import get_edge_class
 from ecav.sim_metrics import SimMetrics
@@ -574,6 +575,7 @@ class ScenarioManager:
 
         #self.config_file = config_file
         self.sim_metrics = SimMetrics(0)
+        self._vehicle_state_store: Dict[int, MigrationPayload] = {}
         self.ecloud_config = EcloudConfig(scenario_params, logger)
         self.sm_start_tstamp.GetCurrentTime()
         self.scenario_params = scenario_params
@@ -740,6 +742,23 @@ class ScenarioManager:
 
         else: # sequential
             self.sim_metrics.update_sim_start_timestamp(time.time())
+
+    # ------------------------------------------------------------------
+    # Vehicle state store — Phase 1 (sequential): in-process dict.
+    # Phase 2 (-eo): swap for registration-server RPC (Store/Retrieve).
+    # Phase 3 (distributed): swap for C++ server buffer.
+    # API is intentionally shaped to mirror the future gRPC interface so
+    # the call sites in the scenario loop need no changes when upgraded.
+    # ------------------------------------------------------------------
+
+    def store_vehicle_state(self, vehicle_id: int, payload: MigrationPayload) -> None:
+        self._vehicle_state_store[vehicle_id] = payload
+
+    def retrieve_vehicle_state(self, vehicle_id: int) -> Optional[MigrationPayload]:
+        return self._vehicle_state_store.get(vehicle_id)
+
+    def retrieve_all_vehicle_states(self) -> Dict[int, MigrationPayload]:
+        return dict(self._vehicle_state_store)
 
     async def run_comms(self):
         self.push_q = asyncio.Queue()

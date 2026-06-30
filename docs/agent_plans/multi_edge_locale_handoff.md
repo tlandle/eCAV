@@ -3,7 +3,23 @@
 **Branch:** `distributed-integration`  
 **Status:** Architecture plan — no implementation yet  
 **Created:** 2026-04-18  
+**Revised:** 2026-06-01 — added near-term `-eo`-based path (supersedes Model C for v1)  
 **Audience:** jrapp + Tyler (PhD research, Georgia Tech)
+
+> **Read this first (2026-06-01 revision).** This plan was originally written
+> against the *full-distributed* architecture (C++ orchestrator,
+> `vehicleToEdgeMapping_`, `ecloud_actor_client.py`, dynamic actor counts on the
+> C++ tick barrier). It predates the **edge-only (`-eo`) distributed mode**, which
+> is now complete (Phases 1–4) and is the substrate Tyler wants the *simplest*
+> handoff experiment built on. In `-eo`, none of the C++-orchestrator machinery is
+> in the path — the base process holds the CARLA world + ego + RSU and talks to
+> each edge fusion service via an `EdgeFusionClient`. The near-term path is
+> therefore much simpler than Models A/B/C below — it is **Model B (edge-driven,
+> peer-to-peer) realized on `-eo`**. See
+> **[§ Near-Term Path: Edge-to-Edge Handoff on `-eo`](#near-term-path-edge-to-edge-handoff-on--eo-supersedes-model-c-for-v1)**.
+> Parts 2 and 4 (the full Models A/B/C analysis + C++ proto infrastructure) are
+> retained as the **full-distributed variant**, deferred until after the `-eo`
+> baseline exists.
 
 ---
 
@@ -28,6 +44,148 @@ These are not merely implementation questions. The choice of handoff model direc
 - **`Client_GetConnectionInfo`**: Called once per actor at startup. Actor pins to its edge channel for the entire scenario. No re-query mechanism.
 - **Edge process tracks per-actor state**: `self.actors` dict with `EdgeActorInfo` (last_update, push_stub, etc.) — this state would need to be serialized and transferred during handoff.
 - **`fuse_predictions()` is still a placeholder**: passthrough only. Whatever real fusion logic goes here becomes the "state" that must transfer on handoff.
+
+---
+
+## Near-Term Path: Edge-to-Edge Handoff on `-eo` (supersedes Model C for v1)
+
+> **SUPERSEDED 2026-06-01 PM — pivot to Model C on Tyler's `migration/` module.**
+> develop already ships `ecav/core/application/edge/migration/` (polygon `Locale`,
+> `LocaleRouter`, hysteresis `VehicleLocaleTracker`, `MigrationPayload`), and its
+> router/binding is **orchestrator-centric = Model C**. jrapp's call: adopt Model C
+> and build on Tyler's primitives rather than diverge (pending Tyler confirmation).
+> The Model B (edge-peer) design in this section is **retained for history** but is
+> no longer the build path. What we build instead = Tyler's "forthcoming" pieces:
+> trajectory trigger, inter-locale link model (+ `ns3_cosim`), migration daemon,
+> and the `-eo` runtime wiring (his primitives have no runtime imports yet). Our
+> rectangular `locale_bounds` is superseded by his polygon `Locale`. See
+> [current_state.md](../kb/wiki/current_state.md) and the 2026-06-01 session log.
+
+This is the experiment to build *now*. It is the `-eo` realization of **Model B**
+(edge-driven, peer-to-peer), chosen as the correct v1 because the handoff logic
+and state belong with the entity that owns them — the edge. It is stripped of the
+full-distributed C++-orchestrator machinery because `-eo` doesn't use the C++
+orchestrator.
+
+> **Design decision (2026-06-01, jrapp):** the courier-through-base model
+> considered earlier was rejected. Routing the state transfer through the base
+> process bakes in the wrong topology (a centralized double-hop A→base→B) and
+> misplaces handoff logic. The correct v1 is an **edge-owned `handoff_manager`**
+> where each edge maintains a list of neighbor edges and communicates with them
+> **directly** (peer mesh). When a `handoff_manager` executes a handoff per its
+> configured behavior, it notifies the orchestrator of the handoff event with a
+> TBD payload.
+
+### Why `-eo` changes the picture
+
+In edge-only mode the topology is:
+
+- **Base process** (`ecav.py` + the scenario's `-eo` loop): owns the CARLA world,
+  the ego vehicle, the RSU(s), and **one `EdgeFusionClient` per edge container**.
+  It is the feature *router*: each tick it sends the ego's feature batch to the
+  current **primary** edge.
+- **Edge containers**: fusion services. Each serves `Edge_PerformFusion → FusionResult`
+  and `Edge_EndScenario`. The edge's tracking/prediction state (AB3DMOT KF state,
+  track history, beacon-ID map) lives *inside the container*, and each edge now
+  also runs a **`handoff_manager`** and holds **peer stubs to its neighbor edges**.
+- Per tick: base calls `collect_features()` → `client.fuse(tick, batch)` →
+  `apply_predictions()`.
+
+No `vehicleToEdgeMapping_` to mutate, no `Client_GetConnectionInfo` re-query, no
+vehicle-side HANDOFF state machine, no dynamic C++ tick-barrier actor count.
+
+### Simplest scenario
+
+One ego, two edges (two fusion-service containers), each owning a rectangular
+locale. The two locales **overlap by `N` meters** (the transition zone). The ego
+drives a straight corridor from edge A's locale, through the overlap, into edge
+B's locale. Single, controlled handoff. This is `openscenario_3_multi_edge` built
+for `-eo`.
+
+### Architecture: edge-owned handoff_manager + neighbor mesh
+
+1. **Decision is edge-local.** The ego's pose is serialized into the
+   `IntermediateFeaturesBatch` the primary edge receives every tick. So the
+   primary edge's `handoff_manager` runs its own containment check against its
+   `locale_bounds` and its neighbors' — no base involvement to *decide*.
+2. **Peer transfer is direct.** When the `handoff_manager` decides to hand off to
+   neighbor B (per its configured behavior), edge A calls `B.Edge_ReceiveHandoff(state)`
+   over a **direct edge-to-edge channel** (peer stub). No base courier, no
+   double-hop. State = serialized AB3DMOT tracker state + track→carla map.
+3. **Orchestrator is notified — and that notification re-points routing.** Because
+   the base routes features to exactly one *primary* edge, the base must learn the
+   primary changed. The registration server shuts down after registration, so
+   there is no standing edge→orchestrator channel — instead, A **piggybacks the
+   handoff event on the `FusionResult` it already returns to the base** that tick
+   (`handoff_complete{vehicle, to_edge, payload}`). The base, which *is* the
+   orchestrator process in `-eo`, (a) records the event (research metric) and
+   (b) flips its routing to B from the next tick. One signal, two consumers.
+4. **Base routing is the consistency backstop.** Even though the *decision* is
+   edge-local, the base routes to exactly one primary at a time, so there is no
+   split-brain — the base's routing target is the single source of truth for "who
+   is primary." This is what makes edge-driven handoff safe here without a
+   distributed-consensus protocol.
+
+### The handoff_manager is itself modular (pluggable handoff behavior)
+
+Per the modular-stack philosophy (ARCHITECTURE.md §2.5.1) applied one level down:
+the `handoff_manager` holds a **pluggable handoff behavior**, selected by config.
+The behavior decides *when* to transfer state and *who fuses during the overlap*.
+Build both for v1, in this order:
+
+1. **Hard-cut (1st).** Base routes to exactly one edge. A is primary through the
+   overlap; at the cut point A transfers state to B and signals the flip. Cold
+   variant: B starts fresh → visible *handoff gap* (the research signal). Warm
+   variant: A pre-transfers during the overlap so B is ready at the cut.
+2. **Dual-route (2nd).** In the overlap the base sends features to **both** A and
+   B; both fuse, so B warms continuously. The ego uses A's prediction (primary)
+   until the cut, then drops A. Costs 2× fusion in the overlap; needs a
+   primary-selection rule for whose prediction the ego consumes.
+
+A behavior is a strategy object on the `handoff_manager` — adding a third
+(predictive, broadcast-to-all-neighbors, etc.) is additive.
+
+### Conceptual reference: EdgeWarp (SEC '25)
+
+EdgeWarp is the principled version of this handoff and frames the behaviors
+(see session log 2026-06-01):
+
+- **Cold/reactive** handoff ↔ EdgeWarp's reactive baseline.
+- **Warm / dual-route** (Tyler's "broadcast state to keep neighbor edges warm")
+  ↔ EdgeWarp's `BackgroundSync`: proactively sync low-churn state to the neighbor
+  on a mobility hint.
+- **Final transfer at the cut** ↔ EdgeWarp's `BlockingSync`: move the remaining
+  high-churn dynamic state during the crossing, minimizing blocking time.
+- **Mobility hint = "ego entered the overlap zone."** EdgeWarp predicts the target
+  100 ms ahead with an LSTM; our edge sees the ego pose in the feature batch, so
+  the hint is exact and free — overlap width `N` is the tunable look-ahead.
+
+State split maps onto edge state: stable track metadata / track-ID map can be
+background-synced; live KF positions are the dynamic part transferred at the cut.
+
+### What this path needs vs. the full-distributed Models (Parts 2 & 4)
+
+| Full-distributed (Parts 2 & 4) | Near-term `-eo` path (Model B on `-eo`) |
+|---|---|
+| C++ `Server_UpdateEdgeMapping` delta RPC | none — base re-points routing in Python on the piggybacked event |
+| `vehicleToEdgeMapping_` runtime mutation | base routing table (Python) |
+| `Client_GetConnectionInfo` re-query | none — ego lives in the base |
+| Vehicle-side HANDOFF state machine | none — no vehicle process |
+| Dynamic C++ tick-barrier actor counts | none — no C++ orchestrator |
+| Edge-to-edge peer channels (Model B) | **yes** — direct `Edge_ReceiveHandoff` peer stubs |
+| **New:** | edge `handoff_manager` (pluggable behavior); `Edge_ReceiveHandoff` RPC; neighbor list + `locale_bounds` in `EdgeScenarioConfig`; `handoff_complete` field on `FusionResult` |
+
+### Near-term checklist (`-eo`)
+
+- [ ] Add `locale_bounds` (+ `transition_zone_width`) to edge YAML; build `openscenario_3_multi_edge` for `-eo` with two overlapping locales
+- [ ] Distribute neighbor-edge addresses + `locale_bounds` to each edge at registration (`EdgeScenarioConfig`); edge opens peer stubs to neighbors
+- [ ] Base multi-client wiring + routing table: hold N `EdgeFusionClient`s; route `collect_features` → current primary edge each tick
+- [ ] `handoff_manager` (edge-side): containment check on ego pose from the feature batch; pluggable handoff-behavior interface
+- [ ] `Edge_ReceiveHandoff(EdgeState)` peer RPC; serialize AB3DMOT tracker state + track→carla map
+- [ ] Add `handoff_complete{vehicle, to_edge, payload}` to `FusionResult`; base records the event and flips routing next tick
+- [ ] **Behavior 1 — hard-cut:** cold variant first (instrument handoff gap = ticks with no edge prediction + tracking error on first B output), then warm variant (pre-transfer in overlap); cold-vs-warm comparison
+- [ ] **Behavior 2 — dual-route:** base dual-routes in overlap; primary-selection rule; compare against hard-cut
+- [ ] (Later) Network Model slot injects transfer latency/jitter/loss on the peer hop; re-run warm experiments
 
 ---
 
@@ -115,6 +273,12 @@ def in_locale(vehicle_transform, locale_bounds) -> bool:
 ---
 
 ## Part 2: Handoff Architecture
+
+> **Full-distributed variant — deferred.** Models A/B/C below assume the C++
+> orchestrator and distributed actors. For the near-term experiment we use the
+> `-eo` path above (which is Model C reduced to the base process). Keep this
+> section as the design space for when handoff moves to the full-distributed
+> architecture; the A-vs-B-vs-C comparison remains the eventual contribution.
 
 The choice of handoff model determines the research question. All three should ultimately be implemented and compared — **the comparison is the contribution**.
 
@@ -226,9 +390,24 @@ Every tick: ecav.py queries CARLA for all actor positions (direct API call)
 
 **Decision D-H1:** Cold start is v1. Warm vs. cold comparison is Paper 2's core result.
 
+**`-eo` note:** In edge-only mode the transferred "state" is the AB3DMOT tracker
+state + track→carla map living inside the edge container, moved **directly
+edge-to-edge** via the `Edge_ReceiveHandoff` peer RPC (no base courier). The
+sending edge's `handoff_manager` then notifies the orchestrator by piggybacking a
+`handoff_complete` field on its `FusionResult`. See the near-term path above.
+EdgeWarp's two-step sync (proactive `BackgroundSync` warm + `BlockingSync` final)
+is the conceptual model for the warm case.
+
 ---
 
 ## Part 4: Required Infrastructure
+
+> **Full-distributed variant — deferred.** The proto/C++ infrastructure below is
+> for Models A/B/C on the C++ orchestrator. The near-term `-eo` path needs no C++
+> changes — only an edge-side `handoff_manager` (with pluggable behavior), a
+> direct `Edge_ReceiveHandoff` peer RPC, neighbor list + `locale_bounds` in
+> `EdgeScenarioConfig`, and a `handoff_complete` field on `FusionResult`. See the
+> near-term checklist above.
 
 ### New Proto Messages/RPCs (minimum for Model C)
 
@@ -331,6 +510,10 @@ rpc Edge_ActorInbound(EdgeActorInbound) returns (Empty);
 ---
 
 ## Implementation Checklist
+
+> **Near-term work uses the `-eo` checklist** in the near-term path section above.
+> Phases 0–5 below are the full-distributed (C++ orchestrator) roadmap, deferred
+> until after the `-eo` baseline exists.
 
 ### Phase 0: Locale Definition
 - [ ] Add `locale_bounds` field to edge YAML schema (min/max XYZ)

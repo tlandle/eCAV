@@ -18,12 +18,13 @@ import os
 import uuid
 import weakref
 import time
-from typing import Dict, List, Any
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 import carla
 
 from ecav.core.application.edge.edge_metrics import EdgeMetrics
+from ecav.core.application.edge.migration.payload import KFState, MigrationPayload, TrackLatent
 from ecav.core.application.edge.latency import create_latency_model
 from ecav.core.application.edge.latency import create_mac_model, reset_global_macs
 from ecav.core.prediction.linear_predictor_manager   import LinearPredictorManager
@@ -735,6 +736,63 @@ class _BaseEdgeManager:
                 attr.get('gt_matched_actor_id', -1),
                 attr.get('gt_match_dist_m', -1),
                 along, across)
+
+    # ─── State-transfer interface (Phase 1: sequential handoff) ────
+    def _vm_by_carla_id(self, vehicle_id: int) -> Optional[Any]:
+        for vm in self.vehicle_manager_list:
+            if vm.vehicle.id == vehicle_id:
+                return vm
+        return None
+
+    def export_vehicle_state(self, vehicle_id: int) -> Optional[MigrationPayload]:
+        """Return a MigrationPayload snapshot for vehicle_id.
+
+        Base implementation produces a minimal payload with no tracker state.
+        Override in pluggable subclasses for AB3DMOT-aware snapshots.
+        """
+        if self._vm_by_carla_id(vehicle_id) is None:
+            return None
+        track = TrackLatent(
+            track_id=-1,
+            persistent_vehicle_id=vehicle_id,
+            hidden_state=np.zeros(1, dtype=np.float16),
+        )
+        return MigrationPayload(
+            source_locale_id="",
+            destination_locale_id="",
+            trigger_time_s=0.0,
+            tracks=[track],
+        )
+
+    def import_vehicle_state(self, vehicle_id: int, payload: MigrationPayload) -> None:
+        """Restore per-vehicle tracker state from payload.
+
+        Base implementation is a no-op; override for tracker state restore.
+        """
+
+    def relinquish(self, vehicle_id: int) -> Any:
+        """Remove vehicle_id from vehicle_manager_list and return its VehicleManager."""
+        for i, vm in enumerate(self.vehicle_manager_list):
+            if vm.vehicle.id == vehicle_id:
+                return self.vehicle_manager_list.pop(i)
+        raise KeyError(f"vehicle {vehicle_id} not in vehicle_manager_list")
+
+    def accept(self, vm: Any) -> None:
+        """Add a VehicleManager to this edge's vehicle_manager_list."""
+        self.vehicle_manager_list.append(vm)
+
+    def export_tracked_obstacle_state(self, carla_id: int) -> Optional[MigrationPayload]:
+        """Export KF state for an AB3DMOT-tracked obstacle (no VehicleManager required).
+
+        Base no-op — override in AB3DMOT-aware subclasses.
+        """
+        return None
+
+    def import_tracked_obstacle_state(self, carla_id: int, payload: MigrationPayload) -> None:
+        """Inject a warm KF for a tracked obstacle into this edge's tracker.
+
+        Base no-op — override in AB3DMOT-aware subclasses.
+        """
 
     @staticmethod
     def _dict_extend(dest: Dict[str, list], src: Dict[str, list]) -> None:

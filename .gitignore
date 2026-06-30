@@ -22,6 +22,9 @@ models/multiv2x_mtr_wf/
 scripts/figures_real_aligned/
 scripts/figures_arch_aligned/
 
+# Claude Code local (per-machine) settings — not shared
+.claude/settings.local.json
+
 # C extensions
 *.so
 

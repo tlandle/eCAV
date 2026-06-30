@@ -21,6 +21,14 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
                              'from the ecloud server.')
     parser.add_argument('-d', "--distributed", action='store_true',
                         help='Enable distributed mode for multi-process vehicle/RSU simulation.')
+    parser.add_argument('-eo', "--edge_only", action='store_true',
+                        help='Edge-only distributed mode: edge container(s) run in Docker '
+                             'for isolated profiling; vehicle and RSU stay in the base process. '
+                             'Requires edge container(s) started with --orchestrator_port matching '
+                             '--edge_reg_port (default 50055).')
+    parser.add_argument("--edge_reg_port", type=int, default=50055,
+                        help='Port for the edge registration gRPC server in --edge_only mode '
+                             '(default: 50055).')
     parser.add_argument("--record", action='store_true',
                         help='Record and save the simulation process to a .log file.')
     parser.add_argument("--apply_ml", action='store_true',

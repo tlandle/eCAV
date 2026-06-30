@@ -248,6 +248,14 @@ class LatencyModel(ABC):
     def _sample_ms(self) -> float:
         """Return one random latency sample in milliseconds."""
 
+    def sample_ms(self) -> float:
+        """Public API: return one random latency sample in milliseconds.
+
+        Use this when the caller needs raw ms (e.g. cost modelling).
+        Use stamp() when the caller needs a tick offset.
+        """
+        return self._sample_ms()
+
     def stamp(self, source_tick: int) -> int:
         """Return the arrival tick for a packet sent at *source_tick*.
 

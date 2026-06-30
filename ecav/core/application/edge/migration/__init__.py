@@ -10,26 +10,36 @@ Module layout:
   signed distance, exit prediction).
 * :mod:`registry` -- :class:`LocaleRegistry`, :class:`LocaleRouter` for
   area-based vehicle-to-edge assignment.
-* :mod:`binding` -- :class:`VehicleLocaleTracker` and :class:`HandoffEvent`:
-  dynamic per-vehicle binding with hysteresis, with subscriber callbacks.
-* :mod:`payload` -- :class:`MigrationPayload`, :class:`TrackLatent` for the
-  serialized latent state crossing the inter-locale link.
-
-The trajectory trigger, inter-locale link model, and migration daemon are
-forthcoming.
+* :mod:`binding` -- :class:`VehicleLocaleTracker`, :class:`HandoffEvent`, and
+  :class:`HandoffManager`: dynamic per-vehicle binding with hysteresis,
+  subscriber callbacks, and the handoff decision interface.
+* :mod:`payload` -- :class:`MigrationPayload`, :class:`TrackLatent`, and
+  :class:`KFState` for the serialized latent state crossing the inter-locale
+  link.
+* :mod:`link` -- :class:`InterLocaleLink` and :class:`TransferCost`:
+  simulated serialization + network cost model for edge-to-edge transfer.
+* :mod:`daemon` -- :class:`SequentialMigrationDaemon`: single-process
+  hand-off coordinator (mechanism + measurement wired together).
 """
 
-from .binding import HandoffEvent, VehicleLocaleTracker
+from .binding import HandoffEvent, HandoffManager, VehicleLocaleTracker
+from .daemon import SequentialMigrationDaemon
+from .link import InterLocaleLink, TransferCost
 from .locale import Locale
-from .payload import MigrationPayload, TrackLatent
+from .payload import KFState, MigrationPayload, TrackLatent
 from .registry import LocaleRegistry, LocaleRouter
 
 __all__ = [
     "HandoffEvent",
+    "HandoffManager",
+    "InterLocaleLink",
+    "KFState",
     "Locale",
     "LocaleRegistry",
     "LocaleRouter",
     "MigrationPayload",
+    "SequentialMigrationDaemon",
     "TrackLatent",
+    "TransferCost",
     "VehicleLocaleTracker",
 ]

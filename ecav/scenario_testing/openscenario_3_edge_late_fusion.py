@@ -14,6 +14,8 @@ import ecav.scenario_testing.utils.sim_api as sim_api
 from ecav.core.common.cav_world import CavWorld
 from ecav.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from ecav.scenario_testing.utils.yaml_utils import add_current_time
+from ecav.scenario_testing.utils.edge_fusion_client import EdgeFusionClient
+from ecav.scenario_testing.utils.edge_registration_server import EdgeRegistrationServer
 
 MAX_STEP = 300
 SCENARIO_NAME = 'openscenario_3_edge_late_fusion'
@@ -81,6 +83,8 @@ def run_scenario(opt, scenario_params):
     edge_list = []
     step = 0
 
+    fusion_clients = []  # EdgeFusionClient list — populated in -eo mode
+
     try:
         scenario_params = add_current_time(scenario_params)
 
@@ -110,6 +114,20 @@ def run_scenario(opt, scenario_params):
         if opt.distributed:
             # Distributed mode: wait for actors to connect via gRPC
             asyncio.get_event_loop().run_until_complete(scenario_manager.run_comms())
+        elif getattr(opt, 'edge_only', False):
+            # Edge-only distributed mode: start registration server, wait for edge containers
+            reg_server = EdgeRegistrationServer(
+                scenario_params=dict(scenario_params),
+                port=getattr(opt, 'edge_reg_port', 50055),
+            )
+            fusion_clients = asyncio.get_event_loop().run_until_complete(
+                reg_server.start_and_wait(timeout_s=120.0)
+            )
+            for fc in fusion_clients:
+                fc.connect(retry_timeout_s=60.0)
+            print(f"[EDGE-ONLY] {len(fusion_clients)} edge(s) ready", flush=True)
+            sr_process = Process(target=exec_scenario_runner, args=(scenario_params,))
+            sr_process.start()
         else:
             # Sequential mode: launch ScenarioRunner in subprocess
             print("Scenario params Scenario Runner: %s" % scenario_params.scenario_runner)
@@ -203,8 +221,16 @@ def run_scenario(opt, scenario_params):
             view_transform.rotation.pitch = spectator_bird_pitch
             spectator.set_transform(view_transform)
 
-            # In distributed mode fusion runs in edge_process; skip here
-            if not opt.distributed:
+            # Fusion step:
+            #   sequential:      edge manager runs perception + fusion + planning locally
+            #   distributed (-d): fusion runs in edge_process containers; nothing to do here
+            #   edge-only (-eo): collect detections locally, fuse via RPC, apply predictions
+            if getattr(opt, 'edge_only', False):
+                for edge, fc in zip(edge_list, fusion_clients):
+                    batch = edge.collect_features(step)
+                    result = fc.fuse(step, batch)
+                    edge.apply_predictions(step, result)
+            elif not opt.distributed:
                 for edge in edge_list:
                     edge.run_step(step)
 
@@ -238,6 +264,10 @@ def run_scenario(opt, scenario_params):
             for i, vehicle_manager in enumerate(edge.vehicle_manager_list):
                 for vid, step_number in vehicle_manager.vehicles_detected.items():
                     print("VID: %s found VID %s at step %s" % (vehicle_manager.vehicle.id, vid, step_number))
+
+        for fc in fusion_clients:
+            fc.end_scenario()
+            fc.close()
 
         if opt.distributed and scenario_manager is not None:
             scenario_manager.end()

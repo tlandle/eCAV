@@ -11,6 +11,8 @@ import math
 import numpy as np
 import carla
 
+from ecav.ecav_carla import Location, Vector3D as _Vector3D
+
 
 class BoundingBox(object):
     """
@@ -36,8 +38,8 @@ class BoundingBox(object):
         extent_y = (np.max(corners[:, 1]) - np.min(corners[:, 1])) / 2
         extent_z = (np.max(corners[:, 2]) - np.min(corners[:, 2])) / 2
 
-        self.location = carla.Location(x=center_x, y=center_y, z=center_z)
-        self.extent = carla.Vector3D(x=extent_x, y=extent_y, z=extent_z)
+        self.location = Location(x=center_x, y=center_y, z=center_z)
+        self.extent = _Vector3D(x=extent_x, y=extent_y, z=extent_z)
 
 
 class StaticObstacle(object):

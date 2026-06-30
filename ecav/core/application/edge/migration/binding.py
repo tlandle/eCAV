@@ -26,12 +26,9 @@ Two design points address boundary-flap and gap conditions:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence
 
-import numpy as np
-
-from .locale import Locale
 from .registry import LocaleRouter
 
 logger = logging.getLogger(__name__)
@@ -173,5 +170,75 @@ class VehicleLocaleTracker:
         logger.info(
             "Handoff vehicle=%d %s -> %s at tick=%d (%.2fs)",
             vehicle_id, src, dst, tick, sim_time_s,
+        )
+        return event
+
+
+class HandoffManager:
+    """Owns the handoff decision and emits HandoffEvents when triggered.
+
+    Phase 1: fires at a fixed trigger tick — scripted, for testing the transfer
+    plumbing in isolation. The call site reads:
+
+        event = handoff_manager.evaluate(vehicle_id, tick, sim_time_s,
+                                         source_locale_id=src,
+                                         destination_locale_id=dst)
+        if event is not None:
+            daemon.request_handoff(event)
+
+    Phase 2: replace the tick check with locale geometry + exit-prediction logic
+    (``VehicleLocaleTracker`` feeds in locale context via the keyword args).
+    """
+
+    def __init__(self, trigger_tick: int) -> None:
+        self._trigger_tick = trigger_tick
+        self._subscribers: List[Callable[[HandoffEvent], None]] = []
+
+    def subscribe(self, cb: Callable[[HandoffEvent], None]) -> None:
+        self._subscribers.append(cb)
+
+    def evaluate(
+        self,
+        vehicle_id: int,
+        tick: int,
+        sim_time_s: float,
+        *,
+        source_locale_id: Optional[str] = None,
+        destination_locale_id: str = "",
+        position: Optional[Sequence[float]] = None,
+    ) -> Optional[HandoffEvent]:
+        """Evaluate whether to trigger a handoff; emit and return the event if so.
+
+        Phase 1: fires at trigger_tick regardless of locale state.
+        Phase 2: ``source_locale_id``, ``destination_locale_id``, and
+        ``position`` drive the locale geometry / exit-prediction check.
+        """
+        if tick < self._trigger_tick:
+            return None
+        return self._emit(vehicle_id, source_locale_id, destination_locale_id, tick, sim_time_s)
+
+    def _emit(
+        self,
+        vehicle_id: int,
+        src: Optional[str],
+        dst: str,
+        tick: int,
+        sim_time_s: float,
+    ) -> HandoffEvent:
+        event = HandoffEvent(
+            vehicle_id=vehicle_id,
+            source_locale_id=src,
+            destination_locale_id=dst,
+            tick=tick,
+            sim_time_s=sim_time_s,
+        )
+        for cb in self._subscribers:
+            try:
+                cb(event)
+            except Exception:  # noqa: BLE001
+                logger.exception("HandoffManager subscriber raised")
+        logger.info(
+            "HandoffManager triggered vehicle=%d tick=%d",
+            vehicle_id, tick,
         )
         return event

@@ -5,6 +5,23 @@ updated: 2026-06-15
 
 Primary context-switching artifact. Read this first after a gap.
 
+## Merged origin/develop into paper-closed-loop-recreate (2026-06-17)
+
+Brought develop's edge-only distributed mode work onto this branch (PR #18,
+tlandle/eCAV develop). Conflicts resolved in: `.gitignore` (union), this file
+(kept this branch's state), `edge_manager_prediction_late_fusion_ab3dmot_linear_predictor.py`
+(kept both method sets: our `_advance_actors` + conflict-kinematics logging AND
+develop's `collect_features`/`apply_predictions` edge-only collect/apply split), and
+`migration/payload.py`. The payload merge is the substantive one: `TrackLatent` now
+supports BOTH tracker backends. MambaTrack populates `memo_bank`/`diff_memo_bank` +
+bbox + bookkeeping (our migration harness path); AB3DMOT populates `kf_state`
+(develop's `KFState` Kalman snapshot, used by `edge_manager_pluggable_base`
+export/import). All backend-specific fields default so either construction site is
+valid. develop also adds `migration/{daemon,link}.py` (production handoff daemon +
+inter-locale link cost model) alongside our `factories.py`/`harness.py`. The in-sim
+migration is a model (pickle + bandwidth/latency); a real deployment would carry the
+same per-track state over a real protocol.
+
 ## Multi-Edge Predictive Latent Migration — harness + Kalman baseline (2026-06-15)
 
 Paper is SUBMITTED (safety_envelope_sensys). Back on the multi-edge / cross-edge

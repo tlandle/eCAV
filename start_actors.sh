@@ -5,7 +5,15 @@
 #                   edges, fusion type) are derived from config_yaml/<name>.yaml.
 #   --auto / -y   : skip all runtime prompts and use fusion-type-aware defaults.
 #                   Override via env vars: USE_ML, USE_LITSERVE, USE_YOLO_GRPC,
-#                   REBUILD, START_CARLA, HEADLESS, VERBOSE.
+#                   USE_EDGE_ONLY, REBUILD, START_CARLA, HEADLESS, VERBOSE.
+#
+# Environment knobs (apply in both interactive and auto mode):
+#   CONDA_ENV  : conda env for host-side processes (default: opencda)
+#   CONDA_ROOT : conda install root              (default: $HOME/anaconda3)
+#   CARLA_ROOT : CARLA install dir               (default: autodetect)
+
+CONDA_ENV="${CONDA_ENV:-ecav310}"
+CONDA_ROOT="${CONDA_ROOT:-$HOME/anaconda3}"
 
 auto_mode=0
 positional=()
@@ -77,9 +85,11 @@ if (( auto_mode )); then
     use_ml="${USE_ML:-$default_ml}"
     use_litserve="${USE_LITSERVE:-$default_wf}"
     use_yolo_grpc="${USE_YOLO_GRPC:-$default_yolo}"
+    use_sequential="${USE_SEQUENTIAL:-n}"
+    use_edge_only="${USE_EDGE_ONLY:-n}"
     rebuild="${REBUILD:-n}"
     use_verbose="${VERBOSE:-n}"
-    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc rebuild=$rebuild verbose=$use_verbose"
+    echo "Auto mode: ML=$use_ml WF-gRPC=$use_litserve YOLO-gRPC=$use_yolo_grpc sequential=$use_sequential edge_only=$use_edge_only rebuild=$rebuild verbose=$use_verbose"
 else
     use_ml="$default_ml"
     if [[ "$fusion_type" == "worldfusion" ]]; then
@@ -97,7 +107,17 @@ else
         use_litserve="$default_wf"
         use_yolo_grpc="$default_yolo"
     fi
-    read -p "Rebuild containers (Y/n)? " rebuild
+    read -p "Run mode — (s)equential, (e)dge-only, (d)istributed [d]: " _run_mode
+    _run_mode="${_run_mode:-d}"
+    case "${_run_mode,,}" in
+        s|seq|sequential) use_sequential=Y; use_edge_only=n ;;
+        e|eo|edge|edge-only) use_sequential=n; use_edge_only=Y ;;
+        *) use_sequential=n; use_edge_only=n ;;
+    esac
+    rebuild="${REBUILD:-n}"
+    if [[ "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
+        read -p "Rebuild containers (Y/n)? " rebuild
+    fi
     read -p "Enable verbose/debug logging (y/N)? " use_verbose
 fi
 
@@ -144,6 +164,8 @@ if [[ -z "$CARLA_ROOT" ]]; then
         fi
     done
 fi
+# Host path mounted into containers as /opt/carla-simulator/PythonAPI.
+CARLA_PYTHONAPI="${CARLA_ROOT:-/opt/carla-simulator}/PythonAPI"
 
 if [[ "$start_carla" = "Y" || "$start_carla" = "y" ]]; then
     if [[ -z "$CARLA_ROOT" ]]; then
@@ -195,9 +217,8 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
         exit 1
     fi
     echo "Starting WorldFusion gRPC inference server (port 18002)..."
-    _CONDA_ROOT="${HOME}/anaconda3"
     WF_GRPC_LOG=$(mktemp /tmp/worldfusion_grpc.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/worldfusion_grpc_server.py > '$WF_GRPC_LOG' 2>&1" &
+    bash -c "source $CONDA_ROOT/etc/profile.d/conda.sh && conda activate $CONDA_ENV && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/worldfusion_grpc_server.py > '$WF_GRPC_LOG' 2>&1" &
     WF_GRPC_PID=$!
     echo "  WorldFusion gRPC PID: $WF_GRPC_PID"
     echo "  Log file: $WF_GRPC_LOG"
@@ -206,7 +227,7 @@ if [[ "$use_litserve" = "Y" || "$use_litserve" = "y" ]]; then
     timeout=90
     elapsed=0
     while [[ $elapsed -lt $timeout ]]; do
-        if conda run -n opencda python -c "import grpc; c=grpc.insecure_channel('localhost:18002'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
+        if conda run -n "$CONDA_ENV" python -c "import grpc; c=grpc.insecure_channel('localhost:18002'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
             echo "  ✓ WorldFusion gRPC server is ready"
             break
         fi
@@ -231,9 +252,8 @@ if [[ "$use_yolo_grpc" = "Y" || "$use_yolo_grpc" = "y" ]]; then
         exit 1
     fi
     echo "Starting YOLO gRPC inference server (port 18001)..."
-    _CONDA_ROOT="${HOME}/anaconda3"
     YOLO_GRPC_LOG=$(mktemp /tmp/yolo_grpc.XXXXXX.log)
-    bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/yolo_grpc_server.py > '$YOLO_GRPC_LOG' 2>&1" &
+    bash -c "source $CONDA_ROOT/etc/profile.d/conda.sh && conda activate $CONDA_ENV && PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True python ecav/ml_manager/yolo_grpc_server.py > '$YOLO_GRPC_LOG' 2>&1" &
     YOLO_GRPC_PID=$!
     echo "  YOLO gRPC PID: $YOLO_GRPC_PID"
     echo "  Log file: $YOLO_GRPC_LOG"
@@ -242,7 +262,7 @@ if [[ "$use_yolo_grpc" = "Y" || "$use_yolo_grpc" = "y" ]]; then
     timeout=90
     elapsed=0
     while [[ $elapsed -lt $timeout ]]; do
-        if conda run -n opencda python -c "import grpc; c=grpc.insecure_channel('localhost:18001'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
+        if conda run -n "$CONDA_ENV" python -c "import grpc; c=grpc.insecure_channel('localhost:18001'); grpc.channel_ready_future(c).result(timeout=1)" 2>/dev/null; then
             echo "  ✓ YOLO gRPC server is ready"
             break
         fi
@@ -312,11 +332,21 @@ if [[ "$use_verbose" = "Y" || "$use_verbose" = "y" ]]; then
     verbose_flag="--verbose"
 fi
 
+# Determine run mode flag for ecav.py
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    mode_flag=""           # sequential: ScenarioRunner subprocess, no Docker actors
+elif [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+    mode_flag="-eo"
+else
+    mode_flag="-d"
+fi
+
 echo ""
 echo "=========================================="
 echo "Starting eCAV Distributed Scenario"
 echo "=========================================="
 echo "Scenario: $scenario_name"
+echo "Mode: $(if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then echo "sequential (no -d)"; elif [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then echo "edge-only (-eo)"; else echo "fully-distributed (-d)"; fi)"
 echo "Ego vehicles: $num_ego"
 echo "RSUs: $num_rsu"
 echo "Edges: $num_edges"
@@ -369,90 +399,149 @@ echo "  Log file: $ECAV_LOG"
 
 # Start base process in background using conda environment
 # Source conda.sh directly to enable conda commands
-_CONDA_ROOT="${HOME}/anaconda3"
-bash -c "source $_CONDA_ROOT/etc/profile.d/conda.sh && conda activate opencda310 && python -u ecav.py -t '$scenario_name' -v 0.9.15 -d $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
+bash -c "source $CONDA_ROOT/etc/profile.d/conda.sh && conda activate $CONDA_ENV && python -u ecav.py -t '$scenario_name' -v 0.9.15 $mode_flag $ml_flag $litserve_flag $verbose_flag > '$ECAV_LOG' 2>&1" &
 ECAV_PID=$!
 
 echo "  ✓ Base process started (PID: $ECAV_PID)"
-echo "  Monitoring log file for 'pushed scenario start' message..."
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    # Sequential mode: no gRPC handshake — process owns its own ScenarioRunner subprocess.
+    # Give it a moment to start then proceed straight to monitoring.
+    echo "  Sequential mode — no readiness gate; monitoring for completion."
+    sleep 3
+elif [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+    echo "  Monitoring log file for 'EdgeRegistrationServer' message..."
+    ready_pattern="EdgeRegistrationServer"
+    ready_msg="EdgeRegistrationServer ready"
+else
+    echo "  Monitoring log file for 'pushed scenario start' message..."
+    ready_pattern="pushed scenario start"
+    ready_msg="Scenario initialization complete"
+fi
 
-# Monitor the log file until we see "pushed scenario start"
-timeout=60  # 60 second timeout
-elapsed=0
-while [[ $elapsed -lt $timeout ]]; do
-    if grep -qi "pushed scenario start" "$ECAV_LOG" 2>/dev/null; then
-        echo "  ✓ Scenario initialization complete!"
-        break
+if [[ "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
+    timeout=60
+    elapsed=0
+    while [[ $elapsed -lt $timeout ]]; do
+        if grep -qi "$ready_pattern" "$ECAV_LOG" 2>/dev/null; then
+            echo "  ✓ $ready_msg!"
+            break
+        fi
+
+        sleep 2
+        ((elapsed+=2))
+        echo -n "."
+    done
+
+    echo ""
+
+    if [[ $elapsed -ge $timeout ]]; then
+        echo "ERROR: Timeout waiting for '$ready_pattern' message."
+        echo "Check logs: tail -f $ECAV_LOG"
+        echo ""
+
+        if pgrep -f "CarlaUE4" > /dev/null; then
+            echo "Stopping Carla processes..."
+            pkill -f "CarlaUE4"
+            sleep 2
+            if pgrep -f "CarlaUE4" > /dev/null; then
+                pkill -9 -f "CarlaUE4"
+                sleep 1
+            fi
+            if ! pgrep -f "CarlaUE4" > /dev/null; then
+                echo "✓ Carla stopped"
+            else
+                echo "⚠ Warning: Some Carla processes may still be running"
+            fi
+        else
+            echo "Carla is not running."
+        fi
+        exit 1
     fi
-
-    sleep 2
-    ((elapsed+=2))
-    echo -n "."
-done
+fi
 
 echo ""
 
-if [[ $elapsed -ge $timeout ]]; then
-    echo "ERROR: Timeout waiting for 'pushed scenario start' message."
-    echo "Check logs: tail -f $ECAV_LOG"
-    echo ""
-    
-    # Check if Carla is running
-    if pgrep -f "CarlaUE4" > /dev/null; then
-        echo "Stopping Carla processes..."
-        pkill -f "CarlaUE4"
-        sleep 2
+# Start edge containers (if any, and not sequential — sequential uses ScenarioRunner subprocess)
+if [[ $num_edges -gt 0 && "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
+    echo "Starting $num_edges edge container(s)..."
 
-        # Force kill if still running
-        if pgrep -f "CarlaUE4" > /dev/null; then
-            echo "Force killing Carla processes..."
-            pkill -9 -f "CarlaUE4"
-            sleep 1
-        fi
+    if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+        # Edge-only mode: edges register with ecav.py's EdgeRegistrationServer on port 50055.
+        # Use port base 50060 to avoid collision with the registration server (50055) and
+        # the C++ orchestrator port (50051).
+        EDGE_BASE_PORT=50060
+        for ((e=0; e<$num_edges; e++))
+        do
+            container_name="edge_$e"
+            edge_port=$((EDGE_BASE_PORT + e))
+            echo "  Starting $container_name (port: $edge_port, connects to registration server on 50055)..."
 
-        if ! pgrep -f "CarlaUE4" > /dev/null; then
-            echo "✓ Carla stopped"
-        else
-            echo "⚠ Warning: Some Carla processes may still be running"
+            docker run $gpu_flag -d \
+                --network=host \
+                --name="$container_name" \
+                -e "HOSTNAME=$container_name" \
+                -e IS_DOCKER=1 \
+                -v /tmp/.X11-unix:/tmp/.X11-unix \
+                -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
+                -e DISPLAY=$DISPLAY \
+                -e TERM \
+                ecav-python310:latest \
+                python3.10 -u ecav/ecav2/edge_process.py \
+                    --orchestrator_ip localhost \
+                    --orchestrator_port 50055 \
+                    -P $edge_port
+
+            echo "  ✓ $container_name started"
+            wait_for_container_log "$container_name" "edge-only ready" 120 || exit 1
+        done
+
+        echo ""
+        echo "  Waiting for ecav.py to connect to all edge fusion servers..."
+        timeout=60
+        elapsed=0
+        while [[ $elapsed -lt $timeout ]]; do
+            if grep -q "\[EDGE-ONLY\]" "$ECAV_LOG" 2>/dev/null; then
+                echo "  ✓ All edges connected — scenario starting"
+                break
+            fi
+            sleep 2
+            ((elapsed+=2))
+            echo -n "."
+        done
+        echo ""
+        if [[ $elapsed -ge $timeout ]]; then
+            echo "ERROR: Timeout waiting for '[EDGE-ONLY]' in ecav.py log."
+            echo "Check logs: tail -f $ECAV_LOG"
+            exit 1
         fi
     else
-        echo "Carla is not running."
+        EDGE_BASE_PORT=50054
+        for ((e=0; e<$num_edges; e++))
+        do
+            container_name="edge_$e"
+            edge_port=$((EDGE_BASE_PORT + e))
+            echo "  Starting $container_name (edge index: $e, port: $edge_port)..."
+
+            docker run $gpu_flag -d \
+                --network=host \
+                --name="$container_name" \
+                -e "HOSTNAME=$container_name" \
+                -e IS_DOCKER=1 \
+                -v /tmp/.X11-unix:/tmp/.X11-unix \
+                -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
+                -e DISPLAY=$DISPLAY \
+                -e TERM \
+                ecav-python310:latest \
+                python3.10 -u ecav/ecav2/edge_process.py -e $e -P $edge_port
+
+            echo "  ✓ $container_name started"
+            wait_for_container_log "$container_name" "registered successfully" 90 || exit 1
+        done
     fi
-    exit 1
-fi
-
-echo ""
-
-container_id=0
-
-# Start edge containers (if any)
-if [[ $num_edges -gt 0 ]]; then
-    echo "Starting $num_edges edge container(s)..."
-    EDGE_BASE_PORT=50054
-    for ((e=0; e<$num_edges; e++))
-    do
-        container_name="edge_$e"
-        edge_port=$((EDGE_BASE_PORT + e))
-        echo "  Starting $container_name (edge index: $e, port: $edge_port)..."
-
-        docker run $gpu_flag -d \
-            --network=host \
-            --name="$container_name" \
-            -e "HOSTNAME=$container_name" \
-            -e IS_DOCKER=1 \
-            -v /tmp/.X11-unix:/tmp/.X11-unix \
-            -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
-            -e DISPLAY=$DISPLAY \
-            -e TERM \
-            ecav-python310:latest \
-            python3.10 -u ecav/ecav2/edge_process.py -e $e -P $edge_port
-
-        echo "  ✓ $container_name started"
-        wait_for_container_log "$container_name" "registered successfully" 90 || exit 1
-    done
     echo ""
 fi
 
+if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" && "$use_sequential" != "Y" && "$use_sequential" != "y" ]]; then
 # Start ego vehicle containers
 echo "Starting $num_ego ego vehicle container(s)..."
 for ((i=0; i<$num_ego; i++))
@@ -467,7 +556,7 @@ do
         -e IS_DOCKER=1 \
         $wf_grpc_env \
         -v /tmp/.X11-unix:/tmp/.X11-unix \
-        -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
+        -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
         -e DISPLAY=$DISPLAY \
         -e TERM \
         -e QT_X11_NO_MITSHM=1 \
@@ -494,7 +583,7 @@ if [[ $num_rsu -gt 0 ]]; then
             -e IS_DOCKER=1 \
             $wf_grpc_env \
             -v /tmp/.X11-unix:/tmp/.X11-unix \
-            -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
+            -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
             -e DISPLAY=$DISPLAY \
             ecav-python310:latest \
             python3.10 -u ecav/ecav2/ecloud_actor_client.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -i $i
@@ -517,29 +606,46 @@ docker run $gpu_flag -d \
     -e "HOSTNAME=$container_name" \
     -e IS_DOCKER=1 \
     -v /tmp/.X11-unix:/tmp/.X11-unix \
-    -v "$CARLA_ROOT/PythonAPI":/opt/carla-simulator/PythonAPI:ro \
+    -v "$CARLA_PYTHONAPI":/opt/carla-simulator/PythonAPI:ro \
     -e DISPLAY=$DISPLAY \
     ecav-python310:latest \
     python3.10 -u ecav.py $ml_flag $litserve_flag $verbose_flag -v 0.9.15 -d -i -1 -T 8100
 
 echo "  ✓ $container_name started"
 
+fi  # end: not edge-only and not sequential
+
 echo ""
 echo "=========================================="
-echo "All containers started successfully!"
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    echo "Sequential scenario running (no Docker containers)"
+else
+    echo "All containers started successfully!"
+fi
 echo "=========================================="
 echo ""
 echo "Container summary:"
-if [[ $num_edges -gt 0 ]]; then
-    echo "  - edge_0 to edge_$((num_edges-1)): Edge servers (ports 50054-$((50054+num_edges-1)))"
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    echo "  - (sequential mode: all actors managed by ScenarioRunner subprocess — no Docker containers)"
+else
+    if [[ $num_edges -gt 0 ]]; then
+        if [[ "$use_edge_only" = "Y" || "$use_edge_only" = "y" ]]; then
+            echo "  - edge_0 to edge_$((num_edges-1)): Edge fusion servers (ports 50060-$((50060+num_edges-1)))"
+            echo "  - (vehicles/RSUs run in base process — no separate containers)"
+        else
+            echo "  - edge_0 to edge_$((num_edges-1)): Edge servers (ports 50054-$((50054+num_edges-1)))"
+        fi
+    fi
+    if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
+        echo "  - ego_vehicle_0 to ego_vehicle_$((num_ego-1)): Ego vehicles (indices 0-$((num_ego-1)))"
+        if [[ $num_rsu -gt 0 ]]; then
+            echo "  - rsu_0 to rsu_$((num_rsu-1)): RSUs (indices 0-$((num_rsu-1)))"
+        fi
+        echo "  - non_ego_vehicles: Non-ego vehicle controller (index -1)"
+    fi
+    echo ""
+    docker container ls
 fi
-echo "  - ego_vehicle_0 to ego_vehicle_$((num_ego-1)): Ego vehicles (indices 0-$((num_ego-1)))"
-if [[ $num_rsu -gt 0 ]]; then
-    echo "  - rsu_0 to rsu_$((num_rsu-1)): RSUs (indices 0-$((num_rsu-1)))"
-fi
-echo "  - non_ego_vehicles: Non-ego vehicle controller (index -1)"
-echo ""
-docker container ls
 echo ""
 
 # Monitor for scenario completion or errors
@@ -548,7 +654,11 @@ echo "Monitoring scenario execution..."
 echo "=========================================="
 echo ""
 echo "Watching ecav_base logs for completion or errors..."
-echo "Waiting for 'pushed END' message (press Ctrl+C to stop monitoring)..."
+if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+    echo "Sequential mode: monitoring for base process exit (PID $ECAV_PID)..."
+else
+    echo "Waiting for 'pushed END' message (press Ctrl+C to stop monitoring)..."
+fi
 echo ""
 
 # Monitor loop for completion
@@ -561,12 +671,22 @@ REPORTED_ERRORS_FILE=$(mktemp /tmp/reported_errors.XXXXXX)
 > "$REPORTED_ERRORS_FILE"
 
 while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
-    # Check for completion (log file is already being written to by base process)
-    if grep -qi "pushed END" "$ECAV_LOG"; then
-        echo ""
-        echo "✓ Scenario completed successfully!"
-        scenario_completed=true
-        break
+    # Check for completion
+    if [[ "$use_sequential" = "Y" || "$use_sequential" = "y" ]]; then
+        # Sequential: done when base process exits
+        if ! kill -0 "$ECAV_PID" 2>/dev/null; then
+            echo ""
+            echo "✓ Scenario completed (base process exited)"
+            scenario_completed=true
+            break
+        fi
+    else
+        if grep -qi "pushed END" "$ECAV_LOG"; then
+            echo ""
+            echo "✓ Scenario completed successfully!"
+            scenario_completed=true
+            break
+        fi
     fi
 
     # Check for errors (common Python error patterns) - only report new ones
@@ -596,8 +716,9 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
         fi
     fi
 
-    # Check container health every 30 seconds
-    if (( monitor_elapsed % 30 == 0 )) && (( monitor_elapsed > 0 )); then
+    # Check container health every 30 seconds (skip in sequential mode — no containers)
+    if [[ "$use_sequential" != "Y" && "$use_sequential" != "y" ]] \
+       && (( monitor_elapsed % 30 == 0 )) && (( monitor_elapsed > 0 )); then
         failed_containers=()
 
         # Check edges
@@ -609,28 +730,30 @@ while [[ $monitor_elapsed -lt $monitor_timeout ]]; do
             fi
         done
 
-        # Check ego vehicles
-        for ((i=0; i<$num_ego; i++)); do
-            container_name="ego_vehicle_$i"
-            status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
-            if [[ "$status" != "running" ]]; then
-                failed_containers+=("$container_name ($status)")
-            fi
-        done
+        if [[ "$use_edge_only" != "Y" && "$use_edge_only" != "y" ]]; then
+            # Check ego vehicles
+            for ((i=0; i<$num_ego; i++)); do
+                container_name="ego_vehicle_$i"
+                status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
+                if [[ "$status" != "running" ]]; then
+                    failed_containers+=("$container_name ($status)")
+                fi
+            done
 
-        # Check RSUs
-        for ((i=0; i<$num_rsu; i++)); do
-            container_name="rsu_$i"
-            status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
-            if [[ "$status" != "running" ]]; then
-                failed_containers+=("$container_name ($status)")
-            fi
-        done
+            # Check RSUs
+            for ((i=0; i<$num_rsu; i++)); do
+                container_name="rsu_$i"
+                status=$(docker inspect -f '{{.State.Status}}' "$container_name" 2>/dev/null)
+                if [[ "$status" != "running" ]]; then
+                    failed_containers+=("$container_name ($status)")
+                fi
+            done
 
-        # Check non-ego vehicles
-        status=$(docker inspect -f '{{.State.Status}}' "non_ego_vehicles" 2>/dev/null)
-        if [[ "$status" != "running" ]]; then
-            failed_containers+=("non_ego_vehicles ($status)")
+            # Check non-ego vehicles
+            status=$(docker inspect -f '{{.State.Status}}' "non_ego_vehicles" 2>/dev/null)
+            if [[ "$status" != "running" ]]; then
+                failed_containers+=("non_ego_vehicles ($status)")
+            fi
         fi
 
         # Report any failed containers and show their error logs

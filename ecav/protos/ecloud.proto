@@ -271,6 +271,9 @@ message IntermediateFeatures {
   // Camera features (optional, for camera-only or LiDAR+camera fusion)
   CompressedTensor camera_features = 8;
 
+  // Late fusion: pickled agent object detections (vehicles dict from YOLO)
+  bytes pickled_objects = 11;
+
   // Metadata
   int64 timestamp_ns = 9;            // Feature extraction timestamp
   float communication_rate = 10;     // Fraction of features transmitted (0-1)
@@ -288,6 +291,7 @@ message FusionResult {
   repeated EdgeObstacleObject detections = 2;  // Fused detections
   float communication_rate = 3;                 // Average communication rate
   int64 fusion_time_ns = 4;                     // Time spent on fusion
+  bytes pickled_predictions = 5;               // Per-vehicle ObstaclePrediction objects (edge-only distributed mode)
 }
 
 // Batch of intermediate features for fusion (sent to edge)
@@ -474,4 +478,12 @@ service Ecloud {
   // EDGE INTERNAL (batch fusion)
   // Edge performs batch fusion on all received features
   rpc Edge_PerformFusion(IntermediateFeaturesBatch) returns (FusionResult);
+
+  // ============================================
+  // Edge-Only Distributed Mode RPCs
+  // ============================================
+
+  // BASE PROCESS -> EDGE (edge-only distributed mode)
+  // ecav.py signals end of scenario; edge finalizes profiler and returns it
+  rpc Edge_EndScenario(Empty) returns (EdgeEvaluationResult);
 }

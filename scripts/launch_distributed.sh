@@ -27,8 +27,8 @@ LOCAL_IP=$(hostname -I | awk '{print $1}')
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(dirname "$SCRIPT_DIR")"
-CONDA_ACTIVATE="source ~/anaconda3/etc/profile.d/conda.sh && conda activate opencda310"
-EDGE_CONDA="source ~/miniconda3/etc/profile.d/conda.sh && conda activate opencda310"
+CONDA_ACTIVATE="source ~/anaconda3/etc/profile.d/conda.sh && conda activate ecav310"
+EDGE_CONDA="source ~/miniconda3/etc/profile.d/conda.sh && conda activate ecav310"
 
 echo "=== eCAV Distributed Launch ==="
 echo "Scenario:    $SCENARIO"

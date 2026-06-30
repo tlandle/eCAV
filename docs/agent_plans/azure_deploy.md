@@ -203,8 +203,8 @@ echo $! > /tmp/ecloud_server.pid
 ```bash
 #!/bin/bash
 cd /path/to/ecav
-conda run -n opencda python ecav/ml_manager/worldfusion_grpc_server.py &> /tmp/wf_grpc.log &
-conda run -n opencda python ecav/ml_manager/yolo_grpc_server.py &> /tmp/yolo_grpc.log &
+conda run -n ecav310 python ecav/ml_manager/worldfusion_grpc_server.py &> /tmp/wf_grpc.log &
+conda run -n ecav310 python ecav/ml_manager/yolo_grpc_server.py &> /tmp/yolo_grpc.log &
 # readiness check logic from start_actors.sh
 ```
 

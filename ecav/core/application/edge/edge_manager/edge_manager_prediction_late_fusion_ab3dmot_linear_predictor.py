@@ -1100,6 +1100,92 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         # frame, so far/approaching cross-traffic is missing exactly when the
         # closing geometry matters.
         self._log_conflict_kinematics(tick, self._live_gt_snapshot())
+
+    # ------------------------------------------------------------------
+    #  Edge-only distributed mode: collect / apply split
+    # ------------------------------------------------------------------
+    def collect_features(self, step: int):
+        """
+        Edge-only distributed mode: drive perception, then serialize each actor's
+        YOLO detections and pose into an IntermediateFeaturesBatch for the RPC.
+
+        RSUs are packed first (agent-0 convention, mirroring WorldFusion).
+        Callers pass the returned batch to EdgeFusionClient.fuse().
+        """
+        import pickle as _pickle
+        import ecloud_pb2 as ecloud
+
+        self.update_information(step)
+
+        batch = ecloud.IntermediateFeaturesBatch(tick_id=step)
+
+        for rsu in self.rsu_manager_list:
+            pos = rsu.localizer.get_ego_pos()
+            pose_list = [
+                pos.location.x, pos.location.y, pos.location.z,
+                pos.rotation.roll, pos.rotation.yaw, pos.rotation.pitch
+            ] if pos is not None else [0.0] * 6
+            actor_id = rsu.vehicle.id if hasattr(rsu, 'vehicle') else 0
+            objects = {k: v for k, v in getattr(rsu, 'objects', {}).items()
+                       if k != 'traffic_lights'}
+            batch.features.append(ecloud.IntermediateFeatures(
+                agent_id=actor_id,
+                agent_type=ecloud.RSU,
+                pose=ecloud.AgentPose(pose=pose_list),
+                pickled_objects=_pickle.dumps(objects),
+            ))
+
+        for vm in self.vehicle_manager_list:
+            pos = vm.localizer.get_ego_pos()
+            pose_list = [
+                pos.location.x, pos.location.y, pos.location.z,
+                pos.rotation.roll, pos.rotation.yaw, pos.rotation.pitch
+            ] if pos is not None else [0.0] * 6
+            objects = {k: v for k, v in getattr(vm.agent, 'objects', {}).items()
+                       if k != 'traffic_lights'}
+            batch.features.append(ecloud.IntermediateFeatures(
+                agent_id=vm.vehicle.id,
+                agent_type=ecloud.VEHICLE,
+                pose=ecloud.AgentPose(pose=pose_list),
+                pickled_objects=_pickle.dumps(objects),
+            ))
+
+        return batch
+
+    def apply_predictions(self, step: int, fusion_result):
+        """
+        Edge-only distributed mode: unpack per-vehicle FusionResult from edge
+        container, inject predictions, then run planning and control.
+
+        Late fusion uses per-ego filtered predictions (ego-suppression may differ
+        per vehicle), so each vehicle gets its own entry from all_preds.
+        """
+        import pickle as _pickle
+
+        all_preds = {}
+        if fusion_result is not None and fusion_result.pickled_predictions:
+            try:
+                all_preds = _pickle.loads(fusion_result.pickled_predictions)
+            except Exception as exc:
+                logger.warning("apply_predictions: failed to unpack FusionResult: %s", exc)
+
+        logger.debug("apply_predictions: tick=%d  vehicles=%d  pred_keys=%s",
+                     step, len(self.vehicle_manager_list), list(all_preds.keys()))
+
+        for idx, vm in enumerate(self.vehicle_manager_list):
+            preds_bytes = all_preds.get(idx)
+            if preds_bytes:
+                try:
+                    predictions = _pickle.loads(preds_bytes)
+                except Exception:
+                    predictions = []
+            else:
+                predictions = []
+            vm.agent.edge_predictions = list(predictions)
+            vm.update_info(step)
+            vm.vehicle.apply_control(vm.run_step())
+            self._label_brake_attributions_gt(vm)
+            self._record_time_to_events(step, vm)
         for rsu in self.rsu_manager_list:
             rsu.update_info()
             rsu.run_step()
