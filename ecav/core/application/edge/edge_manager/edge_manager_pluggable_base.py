@@ -12,6 +12,8 @@ import random
 from collections import deque
 from typing import Dict, Optional
 
+import numpy as np
+
 from ecav.core.application.edge.edge_manager.edge_manager_base import (
     _BaseEdgeManager)
 from ecav.core.application.edge.fusion import get_fusion

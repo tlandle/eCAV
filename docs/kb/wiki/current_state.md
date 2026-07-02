@@ -1,9 +1,126 @@
 ---
-updated: 2026-06-15
+updated: 2026-06-30
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## RELAY B0.1 DONE: live edge migrates KF state (2026-06-30)
+
+B0 step 1 built + unit-verified. Fixed the `import numpy` bug in
+`edge_manager_pluggable_base.py`. Added real `export_vehicle_state`/`import_vehicle_state`
+(AB3DMOT KFState: mean, covariance, hits>=min_hits, velocity) to the live
+`PredictionLateFusionEdge` so a handoff actually carries tracker state (was a base no-op).
+Round-trip verified under opencda310 (scratchpad `test_kf_migration.py`): destination KF
+resumes warm, matches source, migrated velocity present (cold start would be 0), payload
+~1.0 KB. This is the Reactive-Kalman baseline arm. The predictor on this edge is LINEAR so
+KF state suffices here; the learned-latent advantage needs B0.2 (Mamba+MTR eval edge, TODO).
+Not yet run in the live CARLA loop (B0.3). Changes uncommitted (commit only when asked).
+
+## RELAY (Paper 3 NSDI) eval plan + live-migration audit (2026-06-30)
+
+Paper `github.com/tlandle/scale_out_nsdi` expanded (architecture contract, Q1-Q6 eval,
+5-subsection related work, canonical shared bib). Wrote
+[scale_out_evaluation.md](../../agent_plans/scale_out_evaluation.md).
+
+Audit finding (critical): the live multi-edge scenario
+(`openscenario_3_multi_edge_late_fusion.py`) is a Phase-1 skeleton. It swaps VM
+ownership and logs a TransferCost but migrates NO tracker state (base `import_vehicle_state`
+is a no-op), triggers on a hardcoded tick (HANDOFF_TICK=60, not geometry), applies no
+backhaul delay (link computes cost, never gates), and persists no warm-vs-cold metrics.
+The AB3DMOT KFState path (`edge_manager_pluggable_base.py`) is unreachable live (only
+SOTA/Adaptive edges); the full Mamba latent path is only in `harness.py`. The live edge
+runs AB3DMOT+linear (stateless predictor), so NO gap appears there. Linchpin build (B0):
+run the learned stack (Mamba3DTracker + MTR) on the eval edge and wire the real
+export/inject so state actually migrates. Only then is any live paper claim backed. The
+synthetic harness B/B1/B0 microbenchmark stays the mechanism result; Q1/Q4 must come from
+the live closed loop. Minor bug: `edge_manager_pluggable_base.py` uses `np.*` with no
+`import numpy`.
+
+## WF→MTR (CMP-style) data generation — IN PROGRESS, key findings (2026-06-29)
+
+Goal: train MTR on WorldFusion fused BEV features (like CMP trains MTR on
+CoBEVT features), for Multi-V2X. Scaffolded PACE training planned
+(1→2→8 GPU). Plan artifacts written under `docs/agent_plans/` pending.
+
+**Pipeline pieces written (all in `ecav/core/prediction/mtr/`):**
+- `tools/export_wf_for_mtr.py` — WF forward per Multi-V2X frame → dumps
+  fused_feature `.npy` (float16, [1,256,176,176], ~8MB/frame) + AB3DMOT
+  tracks → pred_traj pickle. Plain `.npy`; transfer compression is plain
+  `tar` (NOT gz), per Tyler.
+- `datasets/multiv2x_multiego_dataset.py` (+ registered in `datasets/__init__.py`,
+  mirrored into CMP `MTR/mtr/datasets/`) — MTR loader. Loads gt/pred pickles,
+  lane PNG (Swin lane encoder kept — `models/lane_maps/` has 56 RSU-static
+  256x256 PNGs covering all 44 zones), WF fused feature, RSU pose.
+- `tools/build_multiv2x_intention_points.py` — K=64 endpoint clusters →
+  `multiv2x_cluster_64_center_dict.pkl`. DONE (149k endpoints).
+- `tools/cfgs/multiv2x/multiv2x_multiego_worldfusion.yaml` — MTR config,
+  FUTURE=25 (5s@5Hz), PAST=10, lane Swin, intention pkl. DONE.
+- `tools/rekey_pred_to_gt_ids.py` — Hungarian-match tracks to GT ids.
+  SUPERSEDED by the frame finding below; revisit.
+- Patched `point_pillar_worldfusion.py::forward` to return `fused_feature`.
+
+**CORRECT MODEL: `worldfusion_multiv2x_translaug_finetune`** (translation-aug
+fine-tune, fixes scene-overfit per [[project_wf_scene_overfit]]). Pulled from
+PACE `$PROJECT/worldfusion_translaug_finetune/...` to
+`ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/`
+(epochs 27,45 local). NOT `caronly_aug` epoch27 (that was a wrong earlier pick;
+its result.txt AP 0.674 was never re-evaluated and it scene-overfits).
+`result.txt` for translaug is empty (never AP-evaluated).
+
+**CORRECT DECODE (matches live `WorldFusionEdge._to_ab3dmot_format`):**
+- Use `WorldVoxelPostprocessor` (NOT the opv2v `VoxelPostprocessor` the
+  MultiV2X dataset builds — that ego-recenters → garbage x[6,54]).
+- world_anchor=[[0,0,0,0,0,0]], lidar_pose=origin, `corner_to_center(order='hwl')`.
+- Offline fusion is in RSU-LOCAL frame (dataset pairwise warps to RSU-ego),
+  so apply FULL `x_to_world(rsu_pose)` (rotation+translation). NOTE: live
+  edge manager adds translation ONLY because it pre-warps to world-aligned via
+  `_compute_world_pairwise_transforms` — offline does NOT, so rotation needed.
+  export_wf_for_mtr.py was edited to WorldVoxelPP + RSU translation; STILL
+  NEEDS the rotation (x_to_world) re-added — current code applies translation
+  only and is WRONG for offline.
+
+**RESOLVED (2026-06-30): build everything in RSU-EGO frame, GT-anchored.**
+The old `multiv2x_gt_traj` pickle WAS complete (matches yaml exactly) and in
+CARLA world. The recall-0 confusion was two compounding mistakes:
+(1) world-frame reconciliation (`x_to_world` + opv2v postprocessor) was wrong;
+(2) AB3DMOT fragmented the intermittent RSU-range detections into ~2 short
+ghost tracks/frame (this is the KNOWN live ~9-tick-track issue, NOT new).
+
+Final design (verified on rsu_66): everything in the RSU-EGO frame (static RSU
+→ ego frame is a fixed, world-consistent frame). Per frame:
+- GT boxes + CARLA ids straight from `item['ego']['object_bbx_center']` +
+  `object_ids` (order 'hwl' = [x,y,z,h,w,l,yaw]).
+- Pred detections via `WorldVoxelPostprocessor` (world_anchor+lidar_pose at
+  origin), `corner_to_center('hwl')`. NO transform — same ego frame as GT.
+- Associate detections → GT ids by gated Hungarian (gate 2.0m). Pred-past and
+  gt-future BOTH keyed by CARLA id. NO AB3DMOT, NO rekey step (dropped).
+  GT-anchored association is standard for building prediction training data;
+  detection POSITIONS stay the model's noisy output, only association uses GT.
+
+Verified rsu_66 numbers: detection pos error mean 0.42m / median 0.39m;
+per-frame recall 44%; 1086 lenient trainable center-samples/zone; 0 false
+centers (all pred keyed to real GT ids). CMP-strict (gapless 11-frame past) = 0
+because detection is intermittent at 44% — EXPECTED and FINE: MTR masks missing
+past via obj_trajs_mask; the loader selects centers leniently (current observed
++ future valid), not strict. CMP only used strict because OPV2V perception was
+dense.
+
+LIVE TRACKER NOTE (Tyler flagged): the AB3DMOT fragmentation that broke offline
+also degrades the LIVE pipeline (~9-tick tracks, known). Offline subsampling
+(~10Hz vs live 20Hz) makes it look worse offline. GT-anchored association is an
+OFFLINE data-gen choice only; it does NOT fix/mask the live tracker. Live
+fragmentation is a separate follow-up, not part of WF→MTR data gen.
+
+**Earlier wasted cycles (don't repeat):** ran wrong conda env (`opencda` 3.8 →
+must be `opencda310`); cited AP from wrong dir (`worldfusion_multiv2x_det_*`
+epoch2, 0.25, unrelated); paired x_to_world with opv2v postprocessor (double
+bug). The mechanical pipeline (feature dump, loader, intention pts, config)
+is sound; only the detection-frame + GT-source construction is unresolved.
+
+**Local artifacts:** prior full export (caronly_aug, WRONG model) at
+`models/multiv2x_mtr_wf/` (174GB, regenerate with translaug). PACE dataset
+intact: `$SCRATCH/Multi-V2X.tar` (plain tar), env `$PROJECT/miniconda3/envs/opencda310`.
 
 ## Merged origin/develop into paper-closed-loop-recreate (2026-06-17)
 

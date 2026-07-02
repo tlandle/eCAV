@@ -24,6 +24,9 @@ import carla
 
 from easydict import EasyDict as edict
 from AB3DMOT_libs.model import AB3DMOT
+from AB3DMOT_libs.kalman_filter import KF as _AB3DMOT_KF
+from ecav.core.application.edge.migration.payload import (
+    KFState, MigrationPayload, TrackLatent)
 
 import ecloud_pb2 as ecloud
 
@@ -373,6 +376,70 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
             return
         for vm in self.vehicle_manager_list:
             vm.agent._anchoring = self.anchoring
+
+    # ─── Migration state transfer (AB3DMOT KF snapshot) ───────────────
+    # Overrides the base minimal export / no-op import so a live handoff
+    # actually carries the tracker's Kalman state (the Reactive-Kalman
+    # baseline arm). The full learned-latent path lives on the Mamba/MTR
+    # eval edge; this edge's predictor is linear, so KF state is its state.
+    def export_vehicle_state(self, vehicle_id: int) -> Optional[MigrationPayload]:
+        """Export the AB3DMOT KF snapshot for vehicle_id (mean, covariance, hits)."""
+        if self._vm_by_carla_id(vehicle_id) is None:
+            return None
+        kf_obj = next(
+            (t for t in self.tracker.trackers if getattr(t, 'carla_id', None) == vehicle_id),
+            None,
+        )
+        kf_state = None
+        if kf_obj is not None:
+            kf_state = KFState(
+                state_vector=kf_obj.kf.x.flatten().copy(),
+                covariance=kf_obj.kf.P.copy(),
+                hits=kf_obj.hits,
+                anchoring_age=getattr(kf_obj, 'anchoring_age', 0),
+            )
+        tid = next(
+            (t for t, c in self.track_to_carla.items() if c == vehicle_id), -1,
+        )
+        track = TrackLatent(
+            track_id=tid,
+            persistent_vehicle_id=vehicle_id,
+            hidden_state=np.zeros(1, dtype=np.float16),
+            kf_state=kf_state,
+        )
+        return MigrationPayload(
+            source_locale_id="", destination_locale_id="",
+            trigger_time_s=0.0, tracks=[track],
+        )
+
+    def import_vehicle_state(self, vehicle_id: int, payload: MigrationPayload) -> None:
+        """Inject a warm AB3DMOT KF for vehicle_id so the destination resumes
+        without a cold-start confirmation dwell (hits >= min_hits)."""
+        track = next(
+            (t for t in payload.tracks if t.persistent_vehicle_id == vehicle_id),
+            None,
+        )
+        if track is None or track.kf_state is None:
+            logger.warning("import_vehicle_state: no KF state for vehicle %d", vehicle_id)
+            return
+        ks = track.kf_state
+        new_tid = self.tracker.ID_count[0]
+        self.tracker.ID_count[0] += 1
+        info = np.array([0, -1, vehicle_id])
+        new_kf = _AB3DMOT_KF(ks.state_vector[:7], info, new_tid)
+        new_kf.kf.x = ks.state_vector.reshape(10, 1).copy()
+        new_kf.kf.P = ks.covariance.copy()
+        new_kf.carla_id = vehicle_id
+        new_kf.hits = max(ks.hits, self.tracker.min_hits)
+        new_kf.time_since_update = 0
+        new_kf.anchoring_age = ks.anchoring_age
+        self.tracker.trackers.append(new_kf)
+        self.track_to_carla[new_tid] = vehicle_id
+        logger.info(
+            "import_vehicle_state: vehicle=%d -> tid=%d (hits=%d, x=%.2f,%.2f)",
+            vehicle_id, new_tid, new_kf.hits,
+            float(new_kf.kf.x[0]), float(new_kf.kf.x[1]),
+        )
 
     # ------------------------------------------------------------------
     def update_information(self, frame_idx:int=0):
