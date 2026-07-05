@@ -11,7 +11,7 @@ __pycache__/
 start_vehicles.sh
 experiment_results/*
 
-# Local-only paper artifacts: figure generator + illustrative/synthetic repro + run dumps (keep OUT of git)
+# Local-only paper figure tooling and run dumps (keep OUT of git)
 scripts/arch_envelope_pipeline.py
 scripts/figures_arch/
 docs/repro/
