@@ -142,14 +142,39 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                 rsu.update_info()
                 rsu.run_step()
 
-    # ─── State-transfer overrides (AB3DMOT-aware) ────────────────
-    def export_vehicle_state(self, vehicle_id: int) -> Optional[MigrationPayload]:
-        """Export KF state for vehicle_id from the AB3DMOT tracker."""
-        if self._vm_by_carla_id(vehicle_id) is None:
-            return None
+    # ─── State-transfer overrides (backend-dispatched) ────────────────
+    # self.tracker is a BaseTracker wrapper; the raw backend underneath is
+    # either AB3DMOT (KFState snapshot path) or Mamba3DTracker (full-latent
+    # path via migration.factories). Dispatch by duck-typing the raw tracker.
+    def _raw_tracker(self):
+        return getattr(self.tracker, 'tracker', self.tracker)
+
+    @staticmethod
+    def _is_mamba(raw) -> bool:
+        return hasattr(raw, 'tracked_tracklets')
+
+    def _export_track_latent(self, carla_id: int, tid: int) -> TrackLatent:
+        """Build a TrackLatent for carla_id from whichever backend runs."""
+        raw = self._raw_tracker()
+        if self._is_mamba(raw):
+            tracklet = next(
+                (t for t in raw.tracked_tracklets
+                 if getattr(t, 'carla_id', None) == carla_id),
+                None,
+            )
+            if tracklet is not None:
+                from ecav.core.application.edge.migration.factories import (
+                    latent_from_tracklet)
+                return latent_from_tracklet(
+                    tracklet, persistent_vehicle_id=carla_id)
+            logger.warning(
+                "_export_track_latent: no Mamba tracklet for carla_id %d",
+                carla_id)
+            return TrackLatent(track_id=tid, persistent_vehicle_id=carla_id)
 
         kf_obj = next(
-            (t for t in self.tracker.trackers if t.carla_id == vehicle_id),
+            (t for t in raw.trackers
+             if getattr(t, 'carla_id', None) == carla_id),
             None,
         )
         kf_state = None
@@ -158,19 +183,73 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                 state_vector=kf_obj.kf.x.flatten().copy(),
                 covariance=kf_obj.kf.P.copy(),
                 hits=kf_obj.hits,
-                anchoring_age=kf_obj.anchoring_age,
+                anchoring_age=getattr(kf_obj, 'anchoring_age', 0),
             )
+        return TrackLatent(
+            track_id=tid,
+            persistent_vehicle_id=carla_id,
+            hidden_state=np.zeros(1, dtype=np.float16),
+            kf_state=kf_state,
+        )
 
+    def _import_track_latent(self, carla_id: int, track: TrackLatent) -> None:
+        """Inject a migrated TrackLatent into whichever backend runs.
+
+        A record whose state does not match this backend (Mamba latent into
+        an AB3DMOT edge, or KF-only into a Mamba edge) is logged and skipped;
+        the destination cold-starts that track, per the fallback contract.
+        """
+        raw = self._raw_tracker()
+        if self._is_mamba(raw):
+            if track.memo_bank is None:
+                logger.warning(
+                    "_import_track_latent: no Mamba latent for carla_id %d "
+                    "(schema mismatch) — cold start", carla_id)
+                return
+            from ecav.core.application.edge.migration.factories import (
+                inject_latent_into_tracker)
+            injected = inject_latent_into_tracker(raw, track)
+            injected.carla_id = carla_id
+            self.track_to_carla[int(injected.track_id)] = carla_id
+            logger.info(
+                "_import_track_latent: carla_id=%d -> mamba tid=%d "
+                "(memo=%d frames)",
+                carla_id, injected.track_id, len(injected.memo_bank))
+            return
+
+        if track.kf_state is None:
+            logger.warning(
+                "_import_track_latent: no KF state for carla_id %d "
+                "(schema mismatch) — cold start", carla_id)
+            return
+        ks = track.kf_state
+        new_tid = raw.ID_count[0]
+        raw.ID_count[0] += 1
+        info = np.array([0, -1, carla_id])
+        new_kf = _AB3DMOT_KF(ks.state_vector[:7], info, new_tid)
+        new_kf.kf.x = ks.state_vector.reshape(10, 1).copy()
+        new_kf.kf.P = ks.covariance.copy()
+        new_kf.carla_id = carla_id
+        new_kf.hits = max(ks.hits, raw.min_hits)
+        new_kf.time_since_update = 0
+        new_kf.anchoring_age = ks.anchoring_age
+        raw.trackers.append(new_kf)
+        self.track_to_carla[new_tid] = carla_id
+        logger.info(
+            "_import_track_latent: carla_id=%d -> kf tid=%d (hits=%d, x=%.2f,%.2f)",
+            carla_id, new_tid, new_kf.hits,
+            float(new_kf.kf.x[0, 0]), float(new_kf.kf.x[1, 0]),
+        )
+
+    def export_vehicle_state(self, vehicle_id: int) -> Optional[MigrationPayload]:
+        """Export tracker state for vehicle_id (Mamba latent or KF snapshot)."""
+        if self._vm_by_carla_id(vehicle_id) is None:
+            return None
         tid = next(
             (t for t, c in self.track_to_carla.items() if c == vehicle_id),
             -1,
         )
-        track = TrackLatent(
-            track_id=tid,
-            persistent_vehicle_id=vehicle_id,
-            hidden_state=np.zeros(1, dtype=np.float16),
-            kf_state=kf_state,
-        )
+        track = self._export_track_latent(vehicle_id, tid)
         return MigrationPayload(
             source_locale_id="",
             destination_locale_id="",
@@ -179,40 +258,15 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         )
 
     def import_vehicle_state(self, vehicle_id: int, payload: MigrationPayload) -> None:
-        """Inject a warm KF for vehicle_id into this edge's AB3DMOT tracker.
-
-        Sets hits >= min_hits so the track appears in output immediately,
-        without a confirmation-dwell wait. Assigns a fresh tid from this
-        edge's own ID_count counter; carla_id is the stable cross-edge key.
-        """
+        """Inject a warm track for vehicle_id into this edge's tracker."""
         track = next(
             (t for t in payload.tracks if t.persistent_vehicle_id == vehicle_id),
             None,
         )
-        if track is None or track.kf_state is None:
-            logger.warning("import_vehicle_state: no KF state for vehicle %d", vehicle_id)
+        if track is None:
+            logger.warning("import_vehicle_state: no record for vehicle %d", vehicle_id)
             return
-
-        ks = track.kf_state
-        new_tid = self.tracker.ID_count[0]
-        self.tracker.ID_count[0] += 1
-
-        info = np.array([0, -1, vehicle_id])
-        new_kf = _AB3DMOT_KF(ks.state_vector[:7], info, new_tid)
-        new_kf.kf.x = ks.state_vector.reshape(10, 1).copy()
-        new_kf.kf.P = ks.covariance.copy()
-        new_kf.carla_id = vehicle_id
-        new_kf.hits = max(ks.hits, self.tracker.min_hits)
-        new_kf.time_since_update = 0
-        new_kf.anchoring_age = ks.anchoring_age
-
-        self.tracker.trackers.append(new_kf)
-        self.track_to_carla[new_tid] = vehicle_id
-        logger.info(
-            "import_vehicle_state: vehicle=%d -> tid=%d (hits=%d, x=%.2f,%.2f)",
-            vehicle_id, new_tid, new_kf.hits,
-            float(new_kf.kf.x[0]), float(new_kf.kf.x[1]),
-        )
+        self._import_track_latent(vehicle_id, track)
 
     def accept(self, vm) -> None:
         """Add a VehicleManager to this edge and wire up anchoring."""
@@ -220,25 +274,13 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         vm.agent._anchoring = self.anchoring
 
     def export_tracked_obstacle_state(self, carla_id: int) -> Optional[MigrationPayload]:
-        """Export KF state for any AB3DMOT-tracked obstacle (no VehicleManager required)."""
-        kf_obj = next(
-            (t for t in self.tracker.trackers if t.carla_id == carla_id), None
-        )
-        if kf_obj is None:
+        """Export tracker state for any tracked obstacle (no VehicleManager required)."""
+        raw = self._raw_tracker()
+        pool = raw.tracked_tracklets if self._is_mamba(raw) else raw.trackers
+        if not any(getattr(t, 'carla_id', None) == carla_id for t in pool):
             return None
-        kf_state = KFState(
-            state_vector=kf_obj.kf.x.flatten().copy(),
-            covariance=kf_obj.kf.P.copy(),
-            hits=kf_obj.hits,
-            anchoring_age=kf_obj.anchoring_age,
-        )
         tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
-        track = TrackLatent(
-            track_id=tid,
-            persistent_vehicle_id=carla_id,
-            hidden_state=np.zeros(1, dtype=np.float16),
-            kf_state=kf_state,
-        )
+        track = self._export_track_latent(carla_id, tid)
         return MigrationPayload(
             source_locale_id="",
             destination_locale_id="",
@@ -247,35 +289,18 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         )
 
     def import_tracked_obstacle_state(self, carla_id: int, payload: MigrationPayload) -> None:
-        """Inject a warm KF for a tracked obstacle into this edge's AB3DMOT tracker.
+        """Inject a warm track for a tracked obstacle into this edge's tracker.
 
-        No relinquish/accept — locale 0 keeps tracking the obstacle concurrently.
-        Locale 1 gets a warm start: hits >= min_hits so the track appears immediately
-        in output without a confirmation dwell.
+        No relinquish/accept — the source locale keeps tracking the obstacle
+        concurrently. The destination gets a warm start without a
+        confirmation dwell.
         """
         track = next(
             (t for t in payload.tracks if t.persistent_vehicle_id == carla_id), None
         )
-        if track is None or track.kf_state is None:
+        if track is None:
             logger.warning(
-                "import_tracked_obstacle_state: no KF for carla_id %d", carla_id
+                "import_tracked_obstacle_state: no record for carla_id %d", carla_id
             )
             return
-        ks = track.kf_state
-        new_tid = self.tracker.ID_count[0]
-        self.tracker.ID_count[0] += 1
-        info = np.array([0, -1, carla_id])
-        new_kf = _AB3DMOT_KF(ks.state_vector[:7], info, new_tid)
-        new_kf.kf.x = ks.state_vector.reshape(10, 1).copy()
-        new_kf.kf.P = ks.covariance.copy()
-        new_kf.carla_id = carla_id
-        new_kf.hits = max(ks.hits, self.tracker.min_hits)
-        new_kf.time_since_update = 0
-        new_kf.anchoring_age = ks.anchoring_age
-        self.tracker.trackers.append(new_kf)
-        self.track_to_carla[new_tid] = carla_id
-        logger.info(
-            "import_tracked_obstacle_state: carla_id=%d -> tid=%d (hits=%d, x=%.2f,%.2f)",
-            carla_id, new_tid, new_kf.hits,
-            float(new_kf.kf.x[0]), float(new_kf.kf.x[1]),
-        )
+        self._import_track_latent(carla_id, track)

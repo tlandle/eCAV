@@ -5,6 +5,17 @@ updated: 2026-07-05
 
 Primary context-switching artifact. Read this first after a gap.
 
+## Scale-out B0.2 DONE (unit level): Mamba latent migrates through the edge dispatch (2026-07-05)
+
+Mamba3DMOT registered in the tracker registry (lazy torch import; AB3DMOT-only
+processes stay torch-free). Wrapper now carries carla_id (nearest-det assoc, 2 m
+gate) and exposes `.tracker`. `_PluggableEdgeBase` export/import dispatches on
+backend: Mamba -> full latent via factories, AB3DMOT -> KFState; fixes the
+pre-existing `self.tracker.trackers` wrapper-indirection bug. Schema-mismatch
+records cold-start cleanly. Both branches verified under opencda310
+(test_mamba_edge_migration.py): banks byte-identical, id preserved, ~1.3 KB.
+Next: B0.3 live two-edge run with `tracker: mamba3dmot` YAML. Uncommitted -> committed this session.
+
 ## Dissertation proposal alignment (2026-07-02, repo tlandle/Dissertation_proposal)
 
 Pushed through `2388679`. P1 skeleton: five research thrusts standardized (eCAV
@@ -151,9 +162,42 @@ lock before resubmitting. Two build failures fixed in ALL four sbatches:
    `ImportError: libcupti.so.12` (module resolves cudart from lib64 but CUPTI
    lives in `extras/CUPTI/lib64`; the env ships no pip-side cupti). Fix:
    `export LD_LIBRARY_PATH="$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH"`.
-Jobs 10649347/8 (fail 1), 10664466/7 (fail 2, h100 sibling scanceled),
-10676504/5 = current attempt. Untar of 174GB to node NVMe takes ~15 min.
+Jobs 10649347/8 (fail 1), 10664466/7 (fail 2, h100 sibling scanceled).
+Untar of 174GB to node NVMe takes ~15 min.
 Next after smoke: 2-GPU 3-epoch, then 8-GPU 30-epoch (`mtr_wf_ddp_*.sbatch`).
+
+**Fail 3 (job 10676504) + fixes (2026-07-03..05), all verified by a LOCAL
+end-to-end training run (4080, 0.16 s/iter, loss decreasing over 3k iters):**
+- `No module named transformers`: train_multiego routed MultiV2X to
+  models_v2v4real, which has NO lane encoder (dead transformers import) and
+  no BEV aggregator. Fixed routing: MultiV2X now uses models_opv2v (Swin lane
+  encoder + MotionAggregator over fused BEV), the tree the loader was written
+  against.
+- `MotionAggregatorTransformer` hard-coded 50 future frames (ours 25) and a
+  Linear over 48x176 BEV (WF is 176x176). Parameterized num_future_frames
+  from MOTION_DECODER.NUM_FUTURE_FRAMES; added AdaptiveAvgPool2d((48,176)),
+  a no-op for CoBEVT-shaped input.
+- Loader emitted homegrown 8-attr trajs + 2D masks; model needs CMP's 22-attr
+  layout (6 box + 2 onehot + T+1 time embed + 2 heading) and 3D masks. Ported
+  CMP's create_agent_data_for_center_objects / generate_centered_trajs /
+  transform_trajs_to_center_coords verbatim (opencood-free) into
+  multiv2x_multiego_dataset.py.
+- Yaw bug: pickles store RADIANS (verified range ±3.9); loader applied
+  deg2rad. Removed.
+- BatchNorm crash on records with a single valid past obs point (intermittent
+  RSU detections; OPV2V never hits this). Loader skips records with <2 valid
+  past points.
+- CMP recipe is TWO-STAGE: stage 1 `_no_agg.yaml` (TYPE None, from scratch),
+  stage 2 loads stage-1 best_model with TYPE Transformer. Created the yaml
+  pair; smoke runs the stage-2 yaml with empty-pretrained fallback (joint,
+  exercises the full code path).
+- Swin weights staged offline at MTR/pretrained/swin-base-patch4-window7-224
+  (332MB, inside mtr_code.tar; compute nodes have no internet).
+- PACE transformers: 5.x needs torch>=2.4; 4.57/4.53 break on torch 2.2.2
+  (`torch.compiler.is_compiling` missing). **transformers==4.51.3 works**
+  (ViTImageProcessorFast, Swin forward OK); installed in opencda310.
+Current attempt: jobs 10799892 (h200) + 10799893 (h100); code tar (367M,
+includes Swin weights) re-uploaded with all fixes.
 
 **Local artifacts:** prior full export (caronly_aug, WRONG model) at
 `models/multiv2x_mtr_wf/` (174GB, regenerate with translaug). PACE dataset

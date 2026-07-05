@@ -108,10 +108,17 @@ Ordered by dependency. Each item names the files to touch.
     payload ~1.0 KB. This is the Reactive-Kalman baseline arm and proves export->serialize->
     import->warm end to end. NOTE: on this edge the predictor is LINEAR, so KF state is
     sufficient here; the learned-latent advantage requires B0.2.
-  - B0.2 LEARNED TRACKER ARM (MTR-independent) [TODO]. Stand up a Mamba3DTracker eval edge that
-    overrides export/import to call `factories.latent_from_tracklet` / `inject_latent_into_tracker`
-    (full memo/diff banks). This is the ready learned-state arm and does NOT need MTR. First
-    place full-latent >> Kalman can appear live, on the tracker.
+  - B0.2 LEARNED TRACKER ARM (MTR-independent) [DONE 2026-07-05, unit level]. Mamba3DMOT is now
+    a registered tracker (`get_tracker('mamba3dmot', cfg)`, lazy torch import); the wrapper carries
+    carla_id through tracking (nearest-det association, 2 m gate) and exposes `.tracker`;
+    `_PluggableEdgeBase` export/import now DISPATCHES on backend: Mamba -> full latent via
+    `factories.latent_from_tracklet`/`inject_latent_into_tracker`, AB3DMOT -> KFState snapshot
+    (also fixes the pre-existing wrapper-indirection bug: `self.tracker.trackers` never existed
+    on the wrapper). Schema-mismatch records fall back to cold start (contract behavior).
+    Verified under opencda310 (scratchpad `test_mamba_edge_migration.py`): both branches pass;
+    Mamba banks byte-identical post-import, track_id preserved, ~1.3 KB payload. REMAINING for
+    B0.2-live: a pluggable-edge YAML with `tracker: mamba3dmot` + weights path, exercised in the
+    two-edge scenario (part of B0.3).
   - B0.2b MTR PREDICTOR-CONTEXT ARM [BLOCKED on P0]. Add MTR predictor-context migration once
     MTR is trained+validated on WorldFusion (P0). Until then do not report any live number that
     runs MTR as the predictor.
