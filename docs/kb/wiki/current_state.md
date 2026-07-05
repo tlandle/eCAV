@@ -1,11 +1,31 @@
 ---
-updated: 2026-06-30
+updated: 2026-07-05
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
 
-## RELAY B0.1 DONE: live edge migrates KF state (2026-06-30)
+## Dissertation proposal alignment (2026-07-02, repo tlandle/Dissertation_proposal)
+
+Pushed through `2388679`. P1 skeleton: five research thrusts standardized (eCAV
+platform is its own thrust per Tyler), chapter order fixed (communication before
+scale-up), paper4 file renamed, 64-agent claim corrected to 33, dup bib entry +
+dup labels removed. P2: scale-out chapter rewritten to match the expanded NSDI
+paper (architecture contract, Q1-Q6, measured microbenchmark, honest one-frame
+labeling; NO codename, Tyler rejected "RELAY"). P3: correctness chapter rewritten
+as completed work with the submitted paper's real numbers (100-150ms logic cliff,
+350-400ms physics boundary, 220-450ms budgets, m(a,u,N), ~10KB/s + <0.2ms).
+Kishore methodology adopted: visible \ptag paragraph-intent tags (59 tags across
+abstract/intro/paper1/paper5), sentence-builds-on-previous rule, eval overview +
+takeaways. ALL PHASES DONE (pushed ad7ee57, 2026-07-05): P4 related-work rebuilt (one thread
+per thrust, mis-citations fixed, definitions added); P5 all chapters tagged (111
+visible Intent tags), eCAV chapter rewritten to prose, paper3/paper4 cited,
+timeline dedup, em-dashes/banned words swept; P6 13 shared bib entries reconciled
+to the papers' canonical definitions. Clean build, 60 pages, 0 warnings.
+research-plan.tex stays in repo unused (Tyler's call). Tags stay visible until
+advisors approve, then flip the one-line macro in main.tex.
+
+## Scale-out B0.1 DONE: live edge migrates KF state (2026-06-30)
 
 B0 step 1 built + unit-verified. Fixed the `import numpy` bug in
 `edge_manager_pluggable_base.py`. Added real `export_vehicle_state`/`import_vehicle_state`
@@ -117,6 +137,23 @@ must be `opencda310`); cited AP from wrong dir (`worldfusion_multiv2x_det_*`
 epoch2, 0.25, unrelated); paired x_to_world with opv2v postprocessor (double
 bug). The mechanical pipeline (feature dump, loader, intention pts, config)
 is sound; only the detection-frame + GT-source construction is unresolved.
+
+**PACE training status (2026-07-02).** Full export done (11760 features, 52
+zones, 174GB). Uploaded to `$PROJECT/wf_mtr_translaug.tar` (plain tar) +
+`$PROJECT/mtr_code.tar`; sbatches in `$PROJECT/mtr_sbatch/` (local copies in
+`ecav/core/prediction/mtr/tools/scripts/`). Smoke submitted in h200+h100 pairs
+with a `$PROJECT/mtr_wf_smoke.lock` claim-lock (noclobber); ALWAYS `rm -f` the
+lock before resubmitting. Two build failures fixed in ALL four sbatches:
+1. `pip install -e . --use-pep517` → isolated build env has no torch, and env
+   has no nvcc. Fix: `module load cuda/12.1.1` (matches torch 2.2.2+cu121),
+   `pip install -e . --no-build-isolation`, `TORCH_CUDA_ARCH_LIST=9.0`.
+2. With the module on LD_LIBRARY_PATH, torch import dies with
+   `ImportError: libcupti.so.12` (module resolves cudart from lib64 but CUPTI
+   lives in `extras/CUPTI/lib64`; the env ships no pip-side cupti). Fix:
+   `export LD_LIBRARY_PATH="$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH"`.
+Jobs 10649347/8 (fail 1), 10664466/7 (fail 2, h100 sibling scanceled),
+10676504/5 = current attempt. Untar of 174GB to node NVMe takes ~15 min.
+Next after smoke: 2-GPU 3-epoch, then 8-GPU 30-epoch (`mtr_wf_ddp_*.sbatch`).
 
 **Local artifacts:** prior full export (caronly_aug, WRONG model) at
 `models/multiv2x_mtr_wf/` (174GB, regenerate with translaug). PACE dataset
