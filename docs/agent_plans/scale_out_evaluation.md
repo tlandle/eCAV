@@ -122,8 +122,20 @@ Ordered by dependency. Each item names the files to touch.
   - B0.2b MTR PREDICTOR-CONTEXT ARM [BLOCKED on P0]. Add MTR predictor-context migration once
     MTR is trained+validated on WorldFusion (P0). Until then do not report any live number that
     runs MTR as the predictor.
-  - B0.3 INTEGRATION [TODO]. Run `openscenario_3_multi_edge_late_fusion` under opencda310, confirm
-    `[HANDOFF]`/`import_vehicle_state` logs and a warm-vs-cold delta on one crossing.
+  - B0.3 INTEGRATION [DONE 2026-07-05, mechanism level]. New scenario
+    `openscenario_3_multi_edge_mamba` (SOTA pluggable edges, tracker: mamba3dmot, late-fusion
+    backend, linear predictor, visualize off for headless). LIVE RESULT: at HANDOFF_TICK=60 the
+    full learned latent (10-frame memo bank, 776 B) exported from edge0, transferred, and
+    injected warm at edge1 (`_import_track_latent: carla_id=333 -> mamba tid=1 (memo=10
+    frames)`); injected tracklet survived subsequent ticks; zero post-handoff exceptions.
+    Two live bugs fixed to get here: (1) `late_fusion_backend.detect` KeyError'd on a
+    freshly-migrated VM whose beacon wasn't in pre-handoff frames (now tolerated); (2) live
+    identities are rotating BSM temp ids, so the pluggable export now resolves tracklet ids
+    through `BeaconIdManager.get_carla_id_for_temp` (same reverse map anchoring uses).
+    REMAINING for full B0.3: warm-vs-cold prediction-error DELTA needs B4 metrics (persisted
+    per-frame post-handoff error), and `SOTAEdge` lacks `evaluate()` (NotImplementedError at
+    cleanup, non-fatal). Run recipe: CarlaUE4 -RenderOffScreen; then under opencda310
+    `python ecav.py -t openscenario_3_multi_edge_mamba --apply_ml`.
   - Acceptance: destination resumes warm; a warm-vs-cold prediction-error delta is
     observable in one live boundary crossing (needs B0.2 for the learned-latent arm).
 - B1 REAL TRIGGER + LOCALES. Wire `Locale`/`LocaleRegistry`/`VehicleLocaleTracker`

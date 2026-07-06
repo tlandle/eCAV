@@ -153,13 +153,28 @@ class _PluggableEdgeBase(_BaseEdgeManager):
     def _is_mamba(raw) -> bool:
         return hasattr(raw, 'tracked_tracklets')
 
+    def _resolved_carla_id(self, raw_id) -> Optional[int]:
+        """Resolve a tracklet's stamped identity to a persistent carla_id.
+
+        Live detections carry rotating BSM temp ids (BeaconIdManager), so the
+        id the wrapper stamps on a tracklet is a temp id, not the persistent
+        actor id. Resolve through the same reverse map anchoring uses.
+        """
+        if raw_id is None:
+            return None
+        if self.beacon_id_mgr is not None:
+            real = self.beacon_id_mgr.get_carla_id_for_temp(int(raw_id))
+            if real is not None:
+                return int(real)
+        return int(raw_id)
+
     def _export_track_latent(self, carla_id: int, tid: int) -> TrackLatent:
         """Build a TrackLatent for carla_id from whichever backend runs."""
         raw = self._raw_tracker()
         if self._is_mamba(raw):
             tracklet = next(
                 (t for t in raw.tracked_tracklets
-                 if getattr(t, 'carla_id', None) == carla_id),
+                 if self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id),
                 None,
             )
             if tracklet is not None:
@@ -174,7 +189,7 @@ class _PluggableEdgeBase(_BaseEdgeManager):
 
         kf_obj = next(
             (t for t in raw.trackers
-             if getattr(t, 'carla_id', None) == carla_id),
+             if self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id),
             None,
         )
         kf_state = None
@@ -277,7 +292,8 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         """Export tracker state for any tracked obstacle (no VehicleManager required)."""
         raw = self._raw_tracker()
         pool = raw.tracked_tracklets if self._is_mamba(raw) else raw.trackers
-        if not any(getattr(t, 'carla_id', None) == carla_id for t in pool):
+        if not any(self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
+                   for t in pool):
             return None
         tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
         track = self._export_track_latent(carla_id, tid)

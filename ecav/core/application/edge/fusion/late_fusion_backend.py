@@ -61,10 +61,15 @@ class LateFusionBackend(BaseFusionBackend):
         objects, beacons = payload
         det_rows, info_rows = [], []
 
-        # Beacons (one per managed vehicle)
+        # Beacons (one per managed vehicle). A vehicle accepted mid-run via
+        # migration has no beacon in frames collected before the handoff, so
+        # tolerate a miss instead of raising.
         if vehicle_managers:
             for vm in vehicle_managers:
-                loc, ext = beacons[vm.vehicle.id]
+                loc_ext = beacons.get(vm.vehicle.id)
+                if loc_ext is None:
+                    continue
+                loc, ext = loc_ext
                 h, w, l = ext.z * 2, ext.y * 2, ext.x * 2
                 det_rows.append([h, w, l, loc.x, loc.z, loc.y, 0.0, 1.0])
                 _GUID += 1

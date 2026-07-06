@@ -5,6 +5,17 @@ updated: 2026-07-05
 
 Primary context-switching artifact. Read this first after a gap.
 
+## Scale-out B0.3 DONE (mechanism): LIVE full-latent migration in CARLA (2026-07-05)
+
+First live learned-state handoff: scenario `openscenario_3_multi_edge_mamba` (both
+edges SOTA pluggable + mamba3dmot + late-fusion + linear). At tick 60 the ego's
+full memo bank (10 frames, 776 B) exported from edge0 and injected warm at edge1;
+tracklet survived; no post-handoff exceptions. Fixes en route: beacon KeyError on
+freshly-migrated VM in late_fusion_backend.detect (tolerate miss); temp-id vs
+carla_id mismatch (pluggable export resolves via get_carla_id_for_temp). Known
+gaps: warm-vs-cold DELTA needs B4 metrics; SOTAEdge.evaluate() NotImplementedError
+at cleanup (non-fatal). CARLA left running headless for further live analysis.
+
 ## Scale-out B0.2 DONE (unit level): Mamba latent migrates through the edge dispatch (2026-07-05)
 
 Mamba3DMOT registered in the tracker registry (lazy torch import; AB3DMOT-only
@@ -196,8 +207,30 @@ end-to-end training run (4080, 0.16 s/iter, loss decreasing over 3k iters):**
 - PACE transformers: 5.x needs torch>=2.4; 4.57/4.53 break on torch 2.2.2
   (`torch.compiler.is_compiling` missing). **transformers==4.51.3 works**
   (ViTImageProcessorFast, Swin forward OK); installed in opencda310.
-Current attempt: jobs 10799892 (h200) + 10799893 (h100); code tar (367M,
-includes Swin weights) re-uploaded with all fixes.
+Attempt 4 (job 10799892): died importing models_opv2v — module-level
+`from torch_geometric.nn import GCNConv` resolves a broken ~/.local copy
+(missing psutil). Guarded with try/except in BOTH model trees (only
+MotionAggregatorGCN needs it). Also stripped locally built *.so from the code
+tar (torch 2.9.1 ABI, undefined symbols vs PACE torch 2.2.2; node rebuilds).
+
+**Attempt 5 (job 10801234, 2026-07-05): TRAINING SMOKE PASSED.** Full 1-epoch
+run on H200: 4820 iters, 0.20 s/iter (16 min epoch), loss ~196 at end,
+checkpoint saved. Crashed only in the POST-epoch eval import:
+tools/eval_utils/eval_utils.py had module-level psutil + pympler (both absent
+on PACE) and `from mtr.datasets.opv2v_multiego_dataset import ...` (imports
+cmp_opencood, absent on PACE). Eval fixes, all validated LOCALLY by a
+functional eval run over the test split (344 records, ADE/FDE/MR computed):
+- psutil/pympler moved inside eval_one_epoch (only user); OPV2V import moved
+  inside its dispatch branch.
+- eval_one_epoch_custom now calls `dataloader.dataset.generate_prediction_dicts`
+  (was hard-coded OPV2VMultiEgoDataset). MultiV2X dataset got an opencood-free
+  port of generate_prediction_dicts (assert num_feat in (5,7) so the TYPE-None
+  stage-1 7-dim trajs also pass).
+- Horizon indices were hard-coded for 50 frames @10 Hz (`gt_trajs[-50:]`,
+  min(30/10, ...)); now derived from mask length (both datasets are 5 s
+  horizons: OPV2V 50f, MultiV2X 25f).
+Current: 2-GPU 3-epoch DDP job 10802480 queued (validates DDP + on-cluster
+eval). After it: adapt the 8-GPU sbatch to the two-stage recipe and launch.
 
 **Local artifacts:** prior full export (caronly_aug, WRONG model) at
 `models/multiv2x_mtr_wf/` (174GB, regenerate with translaug). PACE dataset
