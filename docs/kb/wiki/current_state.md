@@ -1,5 +1,5 @@
 ---
-updated: 2026-07-05
+updated: 2026-07-07
 ---
 # Current State
 
@@ -26,6 +26,23 @@ pre-existing `self.tracker.trackers` wrapper-indirection bug. Schema-mismatch
 records cold-start cleanly. Both branches verified under opencda310
 (test_mamba_edge_migration.py): banks byte-identical, id preserved, ~1.3 KB.
 Next: B0.3 live two-edge run with `tracker: mamba3dmot` YAML. Uncommitted -> committed this session.
+
+## NSDI paper: systems positioning + Kishore methodology complete (2026-07-07)
+
+Pushed through 33c8a07 (scale_out_nsdi). Related work opens with the problem-class
+abstraction (pre-copy/post-copy, TCP/QUIC cwnd, stream-processor state shipping vs
+replay, leases, 802.11r; all citations verified) + camera-networks subsection
+(Javed ICCV'03, smart-camera handoff, Spatula SEC'20) + ClairvoyantEdge (Kishore's
+group, SEC'22, prepare-ahead pattern; distinction: content re-fetchable, our state
+exists only at source). System model corrected per Tyler: locale anchors to the
+CONFLICT ZONE (map), not the RSU; RSU = viewpoint; edge = base-station server
+(memory: project_locale_definition). Boundary framing after Alex's pushback:
+"static canvas, dynamic assignment, ASYMMETRIC elasticity" (shrink = crop, growth
+capped by trained extent + edge budget ~8MB/frame BEV; dynamic policies generate
+migration workload). 74 visible \ptag intent tags + AV-term glosses for systems
+reviewers (planner, tracking, ADE/FDE/minADE/miss/NLL defined, LTAP-OD/SCP
+expanded, ns-3/CARLA/AoI/V2X/backhaul glossed). 15pp clean build. Tyler reading
+both manuscripts next. Professor email drafted in chat (bulleted, with data audit).
 
 ## Dissertation proposal alignment (2026-07-02, repo tlandle/Dissertation_proposal)
 
@@ -229,8 +246,59 @@ functional eval run over the test split (344 records, ADE/FDE/MR computed):
 - Horizon indices were hard-coded for 50 frames @10 Hz (`gt_trajs[-50:]`,
   min(30/10, ...)); now derived from mask length (both datasets are 5 s
   horizons: OPV2V 50f, MultiV2X 25f).
-Current: 2-GPU 3-epoch DDP job 10802480 queued (validates DDP + on-cluster
-eval). After it: adapt the 8-GPU sbatch to the two-stage recipe and launch.
+**2-GPU DDP validation (job 10802480, 2026-07-05): PASSED.** 3 epochs on
+2x H200 (2410 iters/epoch, 0.24 s/iter), eval after every epoch (472 traj/rank),
+best_model saved, zero tracebacks, clean exit at 52 min. One defect: minADE=nan.
+Cause: 3/931 test objects have center_gt_final_valid_idx==0 → empty ADE slice
+[:0] → nan poisons the accumulator (FDE indexes [idx], stays finite; OPV2V's
+dense GT never hits this). Fixed: eval skips objects with final_valid_idx<1
+(counted as Filtered). Verified by a full local test-split eval: finite
+metrics, Filtered: 3, Total: 928.
+
+**8-GPU run 10804312 COMPLETED (3h19m) but the MODEL IS INVALID — training
+data was corrupted by train-mode augmentation.** Both stages plateaued at
+ADE ~31 m / MR ~0.98 (the static-baseline score). Diagnosis chain:
+intention-point spread was lateral-dominant (±143 m) → GT pickle per-object
+sequences jump 30-60 m per 0.2 s frame with yaw uniformly random vs motion →
+source world-frame GT (ecav/ml_manager/models/multiv2x_mtr) is smooth
+(median step 0.19 m) → ROOT CAUSE: export_wf_for_mtr.py called
+`build_dataset(hypes, train=True)`; in train mode get_item_single_car applies
+the translaug augmentors (random world flip / ±45° rotation / scaling /
+translation) per frame, jointly to lidar + GT. Every frame sits in an
+independently randomized frame: self-consistent WITHIN the frame (which is
+why the 0.42 m det-vs-GT check passed) but scrambled ACROSS frames. All
+exported trajectories, features, and intention points were noise; the model
+correctly learned the only invariant (predict near current position).
+Fixes applied:
+- export_wf_for_mtr.py: `train=False` (comment explains why).
+- build_multiv2x_intention_points.py: removed deg2rad on already-radian yaw
+  (same bug class as the loader fix).
+Regeneration DONE (2026-07-07): all 52 zones re-exported in place. Verified
+across every zone: GT per-step displacement median ~0-0.8 m, max 3.1 m, zero
+zones with >8 m steps (corrupted version was 30-60 m median). Intention
+points rebuilt from clean GT: dx in [0, 40.8] forward-only, dy ±23 m,
+longitudinal-dominant (mean |dx| 18.6 vs |dy| 6.0) — physically correct.
+New 174 GB tar uploaded to $PROJECT. Run 10804312's invalid checkpoints
+deleted on PACE (kept eval records/logs/tensorboard, 49 MB); PROJECT at
+622G/1T. Infrastructure validation from that run still stands (DDP, eval,
+staging, copy-back all work).
+
+**Retrain job 10846208 submitted** (8x H200 two-stage, est start 17:55
+07-07). Sbatch gained a READY-marker gate: it blocks (8 h max) on
+`$DATA_TAR.READY`, which the uploader drops after the stream completes, so
+an early-scheduled job can't untar a partial tar. Marker touched 15:38.
+Success bar: eval minADE must land well under the ~31 m static-baseline
+plateau of the corrupted run.
+
+**Prior run details (10804312, infra reference):** (8x H200, 12 h limit).
+`mtr_wf_ddp_8gpu.sbatch` rewritten for the CMP recipe: stage 1 `_no_agg` 30
+epochs (extra_tag wf_stage1) → stage 2 Transformer aggregator 30 epochs
+initialized from stage-1 best_model (lowest eval MR; falls back to newest
+epoch ckpt). Output layout is `output/<TAG>/<extra_tag>/ckpt/` (NO
+EXP_GROUP_PATH); yaml PRETRAINED path fixed accordingly. EXIT trap copies
+output back to `$PROJECT/mtr_wf_runs/<jobid>/` (node NVMe is wiped), plus an
+explicit copy between stages. ~10 min/epoch at 2 GPUs → 8 GPUs ≈ 2.5 min/epoch;
+both stages plus untar fit well inside 12 h.
 
 **Local artifacts:** prior full export (caronly_aug, WRONG model) at
 `models/multiv2x_mtr_wf/` (174GB, regenerate with translaug). PACE dataset
