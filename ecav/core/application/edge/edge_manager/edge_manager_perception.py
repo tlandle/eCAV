@@ -101,6 +101,24 @@ class PerceptionEdge(_BaseEdgeManager):
         self.objects_deque.appendleft(objects)
 
     # ------------------------------------------------------------------
+    def evaluate(self):
+        """Minimal edge-eval hook.
+
+        PerceptionEdge ships only detections; tracking, prediction, and
+        planning happen on the vehicle, so the self-ghost / brake metrics
+        are produced by the per-vehicle brake-attribution path, not by an
+        edge-side profiler. Return an empty figure/text and a small metrics
+        dict so EvaluationManager can finish and write simulation_metrics.json.
+        """
+        if self.is_proxy:
+            return None, "", self._proxy_metrics
+        metrics = {
+            'mode': 'PERCEPTION',
+            'edge_publishes': 'detections_only',
+        }
+        return None, "", metrics
+
+    # ------------------------------------------------------------------
     def run_step(self, tick: int):
         """
         Called from the simulation supervisor once every world tick.
@@ -143,6 +161,14 @@ class PerceptionEdge(_BaseEdgeManager):
             for vm in self.vehicle_manager_list:
                 vm.update_info(tick)
                 vm.vehicle.apply_control(vm.run_step())
+                # GT-label brake events so self-ghost / other-FP / TP are
+                # measured. The edge ships only detections here; the vehicle
+                # tracks and predicts locally, so any self-ghost that appears
+                # is produced by multi-source object disagreement reaching the
+                # on-board tracker, not by edge-side prediction.
+                self._label_brake_attributions_gt(vm)
+
+            self._log_conflict_kinematics(tick, self._live_gt_snapshot())
 
             for rsu in self.rsu_manager_list:
                 rsu.update_info()

@@ -11,6 +11,17 @@ __pycache__/
 start_vehicles.sh
 experiment_results/*
 
+# Local-only paper figure tooling and run dumps (keep OUT of git)
+scripts/arch_envelope_pipeline.py
+scripts/figures_arch/
+docs/repro/
+*.bak
+
+# Generated MTR/WorldFusion dataset caches/outputs and rendered figures (regenerated, not for git)
+models/multiv2x_mtr_wf/
+scripts/figures_real_aligned/
+scripts/figures_arch_aligned/
+
 # Claude Code local (per-machine) settings — not shared
 .claude/settings.local.json
 

@@ -15,11 +15,13 @@ from mtr.utils import common_utils
 from mtr.datasets.waymo.waymo_dataset import WaymoDataset
 from mtr.datasets.opv2v_multiego_dataset import OPV2VMultiEgoDataset
 from mtr.datasets.v2v4real_multiego_dataset import V2V4RealMultiEgoDataset
+from mtr.datasets.multiv2x_multiego_dataset import MultiV2XMultiEgoDataset
 
 __all__ = {
     'WaymoDataset': WaymoDataset,
     'OPV2VMultiEgoDataset': OPV2VMultiEgoDataset,
     'V2V4RealMultiEgoDataset': V2V4RealMultiEgoDataset,
+    'MultiV2XMultiEgoDataset': MultiV2XMultiEgoDataset,
 }
 
 

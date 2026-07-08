@@ -63,6 +63,33 @@ class Mamba3DMOTWrapper(BaseTracker):
         self._cfg = merged
         self._tracker = Mamba3DTracker(merged, self.device)
 
+    @property
+    def tracker(self) -> Mamba3DTracker:
+        """Access the underlying Mamba3DTracker (for migration state transfer)."""
+        return self._tracker
+
+    # Gate for associating an updated tracklet back to the detection that
+    # fed it this tick, to recover the detection's carla_id.
+    _CARLA_ID_GATE_M = 2.0
+
+    def _associate_carla_ids(self, dets_3d: np.ndarray, info: np.ndarray) -> None:
+        """Stamp carla_id on tracklets updated this tick by nearest detection.
+
+        Mamba3DTracker.update() does not see the info array, so the stable
+        CARLA actor id would otherwise be lost. Migration export needs it to
+        find a vehicle's tracklet by persistent id.
+        """
+        if len(dets_3d) == 0 or info is None or len(info) == 0:
+            return
+        det_xyz = dets_3d[:, :3]
+        for trk in self._tracker.tracked_tracklets:
+            if trk.time_since_update != 0:
+                continue
+            d = np.linalg.norm(det_xyz - np.asarray(trk.state[:3]), axis=1)
+            j = int(np.argmin(d))
+            if d[j] <= self._CARLA_ID_GATE_M:
+                trk.carla_id = int(info[j, 2])
+
     def track(self, dets_all: dict, frame: int) -> Tuple[List[np.ndarray], Any]:
         """
         Run one tracking step.
@@ -94,6 +121,7 @@ class Mamba3DMOTWrapper(BaseTracker):
             ])
 
         active_tracklets = self._tracker.update(dets_3d, scores)
+        self._associate_carla_ids(dets_3d, info)
 
         # Convert output to AB3DMOT format
         results = []
@@ -118,7 +146,7 @@ class Mamba3DMOTWrapper(BaseTracker):
                     trk.track_id,
                     frame,
                     0,   # det_idx
-                    -1,  # carla_id
+                    getattr(trk, 'carla_id', -1),
                     vel[0],  # vx
                     vel[1],  # vy
                     vel[2],  # vz

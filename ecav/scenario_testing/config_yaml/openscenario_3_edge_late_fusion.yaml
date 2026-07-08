@@ -278,6 +278,10 @@ scenario:
           # RSU spawn position: at intersection center
           spawn_position: [-82.0, 126.0, 7.0]
           id: -1
+        - <<: *rsu_base
+          name: rsu2
+          spawn_position: [-40.0, 140.0, 7.0]
+          id: -2
       vehicles:
         - <<: *vehicle_base
           name: cav1

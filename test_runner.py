@@ -171,8 +171,12 @@ def oncoming_speed_for(ego_kmh: int) -> float:
     The Lincoln spawns at X=-35 and drives west to X=-84.8 (ego lane
     center, 49.8 m).  With WaypointFollower accel ~5 m/s² the Lincoln
     needs ~18 m to reach 13.4 m/s (48 km/h).
+
+    ONCOMING_SPEED_MPS env var overrides the default (boundary-scenario
+    sweeps that need faster cross-traffic to expose the collision boundary).
     """
-    return 13.4
+    import os
+    return float(os.environ.get("ONCOMING_SPEED_MPS", 13.4))
 
 def carla_running() -> bool:
     """True if server proc exists AND port answers."""
@@ -187,16 +191,18 @@ def carla_running() -> bool:
 
 def start_carla():
     print("    (re)starting CARLA ...", flush=True)
-    subprocess.Popen([str(CARLA_SH)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.Popen([str(CARLA_SH), "-RenderOffScreen"],
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     t0 = time.time()
-    while time.time() - t0 < 30:
+    while time.time() - t0 < 120:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.5)
             if s.connect_ex(("127.0.0.1", CARLA_PORT)) == 0:
                 print("      CARLA ready", flush=True)
+                time.sleep(3)  # let the RPC layer settle past port-open
                 return
         time.sleep(1)
-    raise RuntimeError("CARLA failed to open port 2000 within 30 s")
+    raise RuntimeError("CARLA failed to open port 2000 within 120 s")
 
 def kill_carla():
     print("    stopping CARLA ...", flush=True)

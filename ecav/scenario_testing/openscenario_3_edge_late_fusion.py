@@ -88,6 +88,12 @@ def run_scenario(opt, scenario_params):
     try:
         scenario_params = add_current_time(scenario_params)
 
+        # Expose the run's output dir on the config so downstream components
+        # (e.g. the conflict-kinematics logger in the edge manager) can write
+        # their traces into this run's own directory instead of a shared path.
+        if getattr(opt, 'output_dir', None):
+            scenario_params['run_output_dir'] = opt.output_dir
+
         # Create CAV world with config for ML manager settings
         cav_world = CavWorld(
             apply_ml=opt.apply_ml,
@@ -170,9 +176,14 @@ def run_scenario(opt, scenario_params):
             traceback.print_exc()
             sys.exit(1)
 
+        # Prefer the YAML's scenario_name so delegated runners (infra_only,
+        # perception, etc. that reuse this run_scenario) tag their eval output
+        # with the actual scenario, not this module's late_fusion constant.
+        _script_name = scenario_params.get('scenario_name', SCENARIO_NAME) \
+            if hasattr(scenario_params, 'get') else SCENARIO_NAME
         eval_manager = EvaluationManager(
             scenario_manager.cav_world,
-            script_name=SCENARIO_NAME,
+            script_name=_script_name,
             scenario_params=scenario_params,
             current_time=scenario_params['current_time'],
             output_dir=opt.output_dir
