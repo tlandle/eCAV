@@ -38,6 +38,7 @@ from ecav.core.application.edge.edge_profiler import EdgeProfiler
 from ecav.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
 
+from .ab3dmot_state_transfer import AB3DMOTStateTransferMixin
 from .edge_manager_base import _BaseEdgeManager, logger
 
 
@@ -184,7 +185,7 @@ def _cross_source_nms(dets_dict, cdist_thresh=3.0):
 # ──────────────────────────────────────────────────────────────────────
 #  Main edge-manager subclass
 # ──────────────────────────────────────────────────────────────────────
-class PredictionLateFusionEdge(_BaseEdgeManager):
+class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     """
     Back-end for *mode: PREDICTION* (late-fusion with AB3DMOT).
     """

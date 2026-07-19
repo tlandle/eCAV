@@ -2,20 +2,26 @@
 # Author: Jordan Rapp + Tyler Landle <tlandle3@gatech.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
-"""Scenario B — Town06 left-merge / obstacle hand-off.
+"""Scenario B — Town06 right-merge / obstacle hand-off.
 
-The research scenario. A fast NPC crosses from locale 0 into locale 1 (where
-ego is forced into a left merge around a stationary emergency vehicle). A
-geometry trigger (VehicleLocaleTracker) fires an obstacle hand-off
-(daemon.transfer_obstacle_state) so locale 1 receives the NPC's KF history
-BEFORE its own RSU can directly detect it — no VehicleManager ownership moves,
-both edges keep tracking the NPC.
+The research scenario. Hand-off is geometry-driven for EVERY vehicle that
+crosses the locale 0 -> locale 1 boundary (VehicleLocaleTracker):
 
-Contrast with Scenario A (openscenario_3_multi_edge_late_fusion): that scenario
-hands off a managed vehicle (ownership move) on a scripted tick; this one shares
-a tracked obstacle's KF on a geometry crossing.
+* Managed vehicles (ego) -> ``daemon.request_handoff``: ownership moves from
+  edge 0 to edge 1 (Scenario A's mechanism, now triggered by geometry rather
+  than a scripted tick).
+* Tracked obstacles (the fast NPC) -> ``daemon.transfer_obstacle_state``: KF
+  share, no ownership move — locale 1 receives the NPC's KF history BEFORE
+  its own RSU can directly detect it; both edges keep tracking it.
 
-Reuses Scenario_MultiEdgeLeftMerge (scenario_multi_edge_left_merge.xml/.py).
+Ego drives the LEFTMOST eastbound lane -3 (solid line to the shoulder on its
+left — no left escape). A stationary emergency vehicle blocks lane -3 ahead;
+the NPC overtakes in the adjacent lane -4. After its own handoff, ego is
+served by edge 1, whose RSU sees the parked blockage long before ego's local
+sensors — the edge-detection story. Once the NPC passes, ego merges right and
+continues to its far destination.
+
+Reuses Scenario_MultiEdgeRightMerge (scenario_multi_edge_right_merge.xml/.py).
 """
 
 import asyncio
@@ -46,7 +52,7 @@ from ecav.core.application.edge.migration import (
 logger = logging.getLogger(__name__)
 
 MAX_STEP = 500
-SCENARIO_NAME = 'openscenario_multi_edge_left_merge'
+SCENARIO_NAME = 'openscenario_multi_edge_right_merge'
 
 # Speed (m/s) above which a non-hero vehicle is taken to be the fast NPC.
 # The emergency vehicle is stationary, so this cleanly disambiguates the two.
@@ -85,22 +91,26 @@ def run_vehicle(opt, scenario_params):
 def _build_locale_router(edge_cfgs, edge_list):
     """Build a LocaleRouter from each edge's YAML `locale` block.
 
-    Each locale is bound to its edge's runtime edgeid so the router's
-    destination_locale_id maps back to a concrete edge instance.
+    Returns ``(router, edge_by_locale)`` where ``edge_by_locale`` maps
+    ``locale_id`` to its hosting edge instance, so a HandoffEvent's locale ids
+    resolve directly to the src/dst edges of the transfer.
     """
     registry = LocaleRegistry()
+    edge_by_locale = {}
     for i, edge_cfg in enumerate(edge_cfgs):
         if 'locale' not in edge_cfg:
             continue
         lc = edge_cfg['locale']
         polygon = np.array([[float(v) for v in row] for row in lc['polygon']],
                            dtype=np.float64)
+        locale_id = str(lc['id'])
         registry.register(Locale(
-            locale_id=str(lc['id']),
+            locale_id=locale_id,
             polygon=polygon,
             edge_host_id=edge_list[i].edgeid,
         ))
-    return LocaleRouter(registry)
+        edge_by_locale[locale_id] = edge_list[i]
+    return LocaleRouter(registry), edge_by_locale
 
 
 def run_scenario(opt, scenario_params):
@@ -116,6 +126,7 @@ def run_scenario(opt, scenario_params):
 
     npc_carla_id = None
     obstacle_handoff_done = False
+    obstacle_handoff_pending = None  # (src_edge, dst_edge) after the crossing fires
     handoff_tick = None
     rsu1_first_detect_tick = None
 
@@ -197,7 +208,7 @@ def run_scenario(opt, scenario_params):
 
         # Handoff primitives (after edge_list is populated so edgeid/latency_model exist).
         edge_cfgs = scenario_params['scenario']['edge_list']
-        router = _build_locale_router(edge_cfgs, edge_list)
+        router, edge_by_locale = _build_locale_router(edge_cfgs, edge_list)
         locale_tracker = VehicleLocaleTracker(router, min_dwell_ticks=LOCALE_MIN_DWELL_TICKS)
         daemon = SequentialMigrationDaemon()
         link = InterLocaleLink(edge_list[0].latency_model)
@@ -236,6 +247,33 @@ def run_scenario(opt, scenario_params):
                     if payload:
                         scenario_manager.store_vehicle_state(vm.vehicle.id, payload)
 
+            # ── Geometry-driven handoff: EVERY vehicle that crosses the locale
+            # boundary is handed off. Managed vehicles move ownership
+            # (request_handoff); tracked obstacles share KF state
+            # (transfer_obstacle_state). Iterate over snapshots because
+            # relinquish/accept mutate the vehicle_manager_lists.
+            for edge in list(edge_list):
+                for vm in list(edge.vehicle_manager_list):
+                    vloc = vm.vehicle.get_transform().location
+                    event = locale_tracker.update(
+                        vm.vehicle.id, (vloc.x, vloc.y), step, step * world_dt)
+                    if event is None or event.source_locale_id is None:
+                        continue  # no crossing (or initial bind)
+                    src_edge = edge_by_locale.get(event.source_locale_id)
+                    dst_edge = edge_by_locale.get(event.destination_locale_id)
+                    if src_edge is None or dst_edge is None or src_edge is dst_edge:
+                        continue
+                    cost = daemon.request_handoff(
+                        vm.vehicle.id, src_edge, dst_edge,
+                        scenario_manager, link, step)
+                    scenario_manager.record_handoff_cost(cost)
+                    logger.info(
+                        "[SCENB] VEHICLE HANDOFF tick=%d vid=%d %s->%s "
+                        "bytes=%d total_ms=%.3f",
+                        step, vm.vehicle.id,
+                        event.source_locale_id, event.destination_locale_id,
+                        cost.payload_bytes, cost.total_ms)
+
             # Resolve the fast NPC (moving, non-hero) once it is up and moving.
             if npc_carla_id is None and step > 10:
                 for v in world.get_actors().filter('vehicle.*'):
@@ -265,32 +303,65 @@ def run_scenario(opt, scenario_params):
                     if not obstacle_handoff_done:
                         event = locale_tracker.update(
                             npc_carla_id, npc_xy, step, step * world_dt)
-                        if event is not None and event.destination_locale_id == 'locale_1':
+                        if event is not None and event.source_locale_id is not None:
+                            src_edge = edge_by_locale.get(event.source_locale_id)
+                            dst_edge = edge_by_locale.get(event.destination_locale_id)
+                            if src_edge is not None and dst_edge is not None \
+                                    and src_edge is not dst_edge:
+                                # Crossing fired: mark the transfer pending. The
+                                # source edge's track of the NPC lags its true
+                                # position, so the export may not succeed on the
+                                # crossing tick itself — retry below each tick.
+                                obstacle_handoff_pending = (src_edge, dst_edge)
+                        if obstacle_handoff_pending is not None:
+                            src_edge, dst_edge = obstacle_handoff_pending
                             cost = daemon.transfer_obstacle_state(
-                                npc_carla_id, edge_list[0], edge_list[1], link, step)
+                                npc_carla_id, src_edge, dst_edge, link, step,
+                                position=npc_xy)
                             if cost is not None:
                                 scenario_manager.record_handoff_cost(cost)
                                 obstacle_handoff_done = True
+                                obstacle_handoff_pending = None
                                 handoff_tick = step
                                 logger.info(
                                     "[SCENB] OBSTACLE HANDOFF tick=%d carla_id=%d "
                                     "bytes=%d total_ms=%.3f",
                                     step, npc_carla_id, cost.payload_bytes, cost.total_ms)
-                            else:
-                                logger.warning(
-                                    "[SCENB] locale crossing at tick=%d but edge 0 has no "
-                                    "KF for NPC carla_id=%d — nothing to hand off",
-                                    step, npc_carla_id)
 
-            # Ego is not handed off in Scenario B — it stays in edge 0. Find it there.
+            # Find ego wherever it currently lives (it moves edges on handoff).
             ego_cav = None
+            ego_vm = None
             for edge in edge_list:
                 if edge.vehicle_manager_list:
-                    ego_cav = edge.vehicle_manager_list[0].vehicle
+                    ego_vm = edge.vehicle_manager_list[0]
+                    ego_cav = ego_vm.vehicle
                     break
             if ego_cav is None:
                 logger.warning("[SCENB] no ego vehicle found in any edge at tick %d", step)
                 break
+
+            # TEMP DIAGNOSTIC: sample ego behavior-agent decision state (merge
+            # progress, overtake state machine). Remove once Scenario B validates.
+            if ego_vm is not None and step % 5 == 0:
+                a = ego_vm.agent
+                eloc = ego_cav.get_transform().location
+                evel = ego_cav.get_velocity()
+                logger.warning(
+                    "[EGO-DBG] tick=%d pos=(%.1f,%.1f) spd=%.1f ttc=%s "
+                    "hazard_flag=%s ov_allowed=%s ov_ctr=%s ov_wait=%s do_ov=%s "
+                    "brake_ttl=%s curved=%s push=%s",
+                    step, eloc.x, eloc.y,
+                    (evel.x ** 2 + evel.y ** 2) ** 0.5,
+                    getattr(a, 'ttc', '?'),
+                    getattr(a, 'hazard_flag', '?'),
+                    getattr(a, 'overtake_allowed', '?'),
+                    getattr(a, 'overtake_counter', '?'),
+                    getattr(a, 'overtake_wait_counter', '?'),
+                    getattr(a, 'do_overtake', '?'),
+                    getattr(a, '_committed_brake_ttl', '?'),
+                    getattr(a.get_local_planner(), 'potential_curved_road', '?'),
+                    getattr(a, 'destination_push_flag', '?'),
+                )
 
             loc = ego_cav.get_transform().location
             if loc.x == 0 and loc.y == 0:

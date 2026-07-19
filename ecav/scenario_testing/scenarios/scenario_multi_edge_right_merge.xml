@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<scenarios>
+    <!-- Scenario B: Town06 right-merge / obstacle hand-off.
+         Ego drives east in the LEFTMOST eastbound lane -3 (y~136.5; shoulder
+         with a solid line on its left, so no left escape exists). A stationary
+         emergency vehicle blocks lane -3 ahead, so ego's only way onward is a
+         RIGHT merge into lane -4 (y~140) - the lane a fast NPC approaches in
+         from behind. The NPC crosses the locale 0 -> locale 1 boundary,
+         triggering an obstacle KF hand-off so locale 1 sees the NPC before its
+         own RSU can. 'name' matches the YAML scenario field; 'type' matches
+         the .py class name. -->
+    <scenario name="Scenario_MultiEdgeRightMerge" type="Scenario_MultiEdgeRightMerge" town="Town06">
+        <ego_vehicle x="100.0" y="136.3" z="1.0" yaw="0" model="vehicle.nissan.patrol" />
+        <!-- other_actors[0] = emergency vehicle (stationary, blocks ego's lane -3).
+             Underground (z=-500) until ActorTransformSetter teleports it up. -->
+        <other_actor x="280.0" y="137.1" z="-500" yaw="0" model="vehicle.ford.ambulance" />
+        <!-- other_actors[1] = fast NPC (lane -4, eastbound). Underground until teleported. -->
+        <other_actor x="0.0" y="139.6" z="-500" yaw="0" model="vehicle.tesla.model3" />
+        <weather cloudiness="10" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" fog_density="0" />
+    </scenario>
+</scenarios>

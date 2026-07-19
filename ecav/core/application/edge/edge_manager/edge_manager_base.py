@@ -617,10 +617,15 @@ class _BaseEdgeManager:
         """Add a VehicleManager to this edge's vehicle_manager_list."""
         self.vehicle_manager_list.append(vm)
 
-    def export_tracked_obstacle_state(self, carla_id: int) -> Optional[MigrationPayload]:
+    def export_tracked_obstacle_state(
+        self, carla_id: int, position=None
+    ) -> Optional[MigrationPayload]:
         """Export KF state for an AB3DMOT-tracked obstacle (no VehicleManager required).
 
-        Base no-op — override in AB3DMOT-aware subclasses.
+        ``position`` is the obstacle's true (x, y) in the map frame. Unmanaged
+        obstacles never beacon, so the tracker cannot tag their KF with a
+        ``carla_id`` — the caller supplies the true position and the AB3DMOT
+        override locates the nearest track. Base no-op.
         """
         return None
 

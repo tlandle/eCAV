@@ -911,7 +911,11 @@ class BehaviorAgent(object):
                 elif left_turn != carla.LaneChange.NONE:
                     if set_destination:
                         self.overtake_other_direction = False
-                    next_wpt_list = left_wpt.next(self._ego_speed / 3.6 * 6)
+                    # Floor the lookahead: at crawl/standstill speeds a
+                    # speed-proportional plan degenerates to a few meters
+                    # (and next(0) raises), leaving the ego wedged mid-merge.
+                    next_wpt_list = left_wpt.next(
+                        max(self._ego_speed / 3.6 * 6, 15.0))
                     if len(next_wpt_list) == 0:
                         return True
 
@@ -1013,7 +1017,10 @@ class BehaviorAgent(object):
                     self._ego_pos.location), True)
             if not vehicle_state:
                 logger.debug("right overtake is operated")
-                next_wpt_list = right_wpt.next(self._ego_speed / 3.6 * 6)
+                # Same floor as the left branch: keep the merge plan viable
+                # from standstill.
+                next_wpt_list = right_wpt.next(
+                    max(self._ego_speed / 3.6 * 6, 15.0))
                 if len(next_wpt_list) == 0:
                     return True
 

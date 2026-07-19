@@ -43,6 +43,7 @@ from ecav.core.application.edge.edge_profiler import EdgeProfiler
 from ecav.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
 
+from .ab3dmot_state_transfer import AB3DMOTStateTransferMixin
 from .edge_manager_base import _BaseEdgeManager, logger
 
 
@@ -123,7 +124,7 @@ def _collect_oracle_detections(edge,
 # ──────────────────────────────────────────────────────────────────────
 #  Main edge-manager subclass
 # ──────────────────────────────────────────────────────────────────────
-class OracleEdge(_BaseEdgeManager):
+class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     """
     Oracle front-end: CARLA ground-truth detections fed through the
     standard AB3DMOT + linear-predictor pipeline.

@@ -121,6 +121,7 @@ class SequentialMigrationDaemon:
         dst_edge: "_BaseEdgeManager",
         link: InterLocaleLink,
         tick: int,
+        position=None,
     ) -> Optional[TransferCost]:
         """Share a tracked obstacle's KF state from src_edge to dst_edge.
 
@@ -129,9 +130,12 @@ class SequentialMigrationDaemon:
         call. Dst_edge gets a warm KF (hits >= min_hits) so it can immediately
         include the obstacle in predictions without a confirmation dwell.
 
-        Returns None (with a warning log) if src_edge has no KF for carla_id.
+        ``position`` is the obstacle's true (x, y); it lets the source edge locate
+        the KF by position when the tracker has not labelled it with carla_id
+        (unmanaged obstacles never beacon). Returns None (with a warning log) if
+        src_edge has no KF for the obstacle.
         """
-        payload = src_edge.export_tracked_obstacle_state(carla_id)
+        payload = src_edge.export_tracked_obstacle_state(carla_id, position=position)
         if payload is None:
             logger.warning(
                 "transfer_obstacle_state: no KF for carla_id=%d on edge %s",

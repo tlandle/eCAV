@@ -1,14 +1,19 @@
 description: |-
   Author: Jordan Rapp + Tyler Landle <tlandle3@gatech.edu>
-  Content: Scenario B — Town06 left-merge / obstacle hand-off (Late Fusion).
-           Ego (right lane) is forced to merge left around a stationary emergency
-           vehicle; a fast NPC crosses from locale 0 into locale 1. A geometry
-           trigger (VehicleLocaleTracker) fires an obstacle hand-off
-           (daemon.transfer_obstacle_state) so locale 1 receives the NPC's KF
-           history before its own RSU can directly detect it. Uses
-           Scenario_MultiEdgeLeftMerge (scenario_multi_edge_left_merge.xml/.py).
+  Content: Scenario B — Town06 right-merge / obstacle hand-off (Late Fusion).
+           Ego drives the LEFTMOST eastbound lane -3 (solid line to the
+           shoulder on its left — no left escape). A stationary emergency
+           vehicle blocks lane -3 ahead; a fast NPC overtakes in the adjacent
+           lane -4. Every vehicle crossing the locale 0 -> locale 1 boundary
+           is handed off: managed vehicles via daemon.request_handoff
+           (ownership move), the NPC obstacle via
+           daemon.transfer_obstacle_state (KF share) so locale 1 sees it
+           before its own RSU can. Ego detects the blockage via edge
+           predictions, waits for the NPC to pass, merges right, and
+           continues to its destination. Uses Scenario_MultiEdgeRightMerge
+           (scenario_multi_edge_right_merge.xml/.py).
 
-scenario_name: openscenario_multi_edge_left_merge
+scenario_name: openscenario_multi_edge_right_merge
 
 # Carla server settings
 distributed: false
@@ -52,10 +57,10 @@ ego_vehicle_max_speed: 43 # km/h
 scenario_runner:
   town: Town06
 
-  scenario: Scenario_MultiEdgeLeftMerge
+  scenario: Scenario_MultiEdgeRightMerge
   num_actors: 3
-  configFile: ecav/scenario_testing/scenarios/scenario_multi_edge_left_merge.xml
-  additionalScenario: ecav/scenario_testing/scenarios/scenario_multi_edge_left_merge.py
+  configFile: ecav/scenario_testing/scenarios/scenario_multi_edge_right_merge.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_multi_edge_right_merge.py
 
   host: *host
   port: *port
