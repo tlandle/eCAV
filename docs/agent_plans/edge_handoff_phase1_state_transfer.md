@@ -241,7 +241,60 @@ its own RSU can see it. Geometry-based trigger via `VehicleLocaleTracker`; obsta
 - [x] **Ego path VALIDATED live (runs 5/7/8/9):** ego brakes on edge predictions of the blockage (17 m out, post-handoff via edge 1's RSU), waits for the NPC to pass, merges right, continues to destination. Geometry handoff fires at the crossing (tick 63 with final polygons) with the full KF payload (986 bytes) and cost recorded. Robust across seeds; run 6's visible failure was MAX_STEP=500 truncating a slow-approach merge (→ 700).
 - [x] **`behavior_agent.py` overtake fix (required for the merge):** plan lookahead floored at 15 m — speed-proportional `next(speed*6)` degenerates to 3–6 m at crawl speed (and `next(0)` raises), wedging ego mid-merge forever.
 - [x] **Warm import gated OFF by default** (`handoff_warm_import` attr; Phase 1.5): injecting a snapshot into a tracker that also sees the object risks stale-duplicate ghosts until import-side reconciliation exists. Payloads + costs recorded; destination tracker untouched.
-- [ ] **OPEN — obstacle handoff never fires live.** Three stacked findings: (1) RSU0 has a near-field blind donut (x≈20–110 in every run; camera geometry at 7 m height); (2) locale boundaries must be drawn inside reliable tracking coverage — fixed, boundary 152→115 puts the crossing in the reacquisition zone; (3) **unresolved:** reacquisition detections (x≈110–130) produce ZERO tracker entries — `n_trk=0` at every retry — a track-birth failure in `LateFusionEdge`'s detect→track path. Trace this first next session; also consider RSU placement/aiming for continuous NPC coverage, and the Phase 2 predictive trigger (`Locale.predicted_to_exit_within`) as the architecturally-correct fix.
+- [ ] **OPEN — obstacle handoff never fires live: the track-birth bug.** Full derivation (2026-07-19, runs 8+9) so next session starts at the trace, not the rederivation:
+
+  **Expected flow.** For the obstacle handoff to fire, edge 0 must hold a live KF
+  track of the NPC at the crossing. Pipeline: RSU0 camera → YOLO detect (`[DET]`
+  logged here) → jitter buffer → `tracker.track(dets)` → AB3DMOT birth. AB3DMOT's
+  contract: any unmatched detection **births a tentative track immediately** — it
+  sits in `tracker.trackers` from that instant (`min_hits` only gates *output*,
+  not existence) and survives `max_age` update cycles unseen. Detections at ticks
+  180–188 ⇒ a track should exist through ~tick 200.
+
+  **Established facts.** (1) Detections exist: 9 `[DET]` entries from RSU0 in the
+  NPC's lane at x=110–130, source ticks 180–188 — consistent across runs 8 and 9.
+  (2) The tracker is empty: `[SCENB-DBG]` sampled `edge0.tracker.trackers` at
+  ticks 190…280 → `n_trk=0` every time — a zero-length list, not "nearest too
+  far". (3) The export logic (identity → `track_to_carla` → 15 m position
+  fallback) is unit-tested and sound; it has nothing to search. So: detections
+  in, no tracks out — something between `[DET]` and a surviving `trackers` entry
+  eats them.
+
+  **Hypotheses, ranked.**
+  - **(a) Detections never reach `tracker.track()`.** `[DET]` logs inside
+    `fusion.detect()`, upstream of the tracker call. Untraced between them:
+    confidence gates, NMS, the beacon-fusion merge (the NPC has NO beacon — a
+    merge step may drop unbeaconed detections), format conversion. Suspicious
+    wrinkle: after ego's handoff (tick 63) **edge 0 has zero vehicles** — if any
+    part of the drain/track path gates on `vehicle_manager_list`, RSU detections
+    get computed-and-logged but discarded.
+  - **(b) Births happen but die faster than the sampling.** If `max_age` counts
+    *world ticks* rather than edge frames — or edge 0 calls `track([])` every
+    tick instead of every 4th once it has no vehicles — a fragment born at 185 is
+    dead by 187–189. `[SCENB-DBG]` sampled every 10th failed tick; a chain of
+    1–2-tick fragments could slip entirely between samples. Not excluded.
+  - **(c) Birth is gated by a local modification.** This AB3DMOT is modified
+    (anchoring, `carla_id`/`guid` plumbing); a gate requiring beacon-associated /
+    qualified detections would pass ego's and silently reject the anonymous NPC's.
+
+  **Decisive trace (cheap — do this first).** One log line at the mouth of
+  `tracker.track()` in
+  `edge_manager_prediction_late_fusion_ab3dmot_linear_predictor.py` (~line 446):
+  per edge frame log `n_dets_in, n_trackers_before, n_trackers_after`. One run
+  discriminates: dets_in=0 at ticks 184–196 → **(a)**, walk detect→track for the
+  dropping filter; dets_in>0 and trackers_after>0 but gone next frame → **(b)**,
+  fix `max_age` semantics / empty-frame cadence; dets_in>0, trackers_after=0 →
+  **(c)**, find the birth gate.
+
+  **Research implication regardless of fix.** By the time a fast target exits
+  locale 0, the source edge's knowledge of it has already decayed (RSU0's
+  near-field blind donut x≈20–110 means the crossing sits in a marginal
+  reacquisition zone). Fixing the birth path makes the *reactive* boundary
+  handoff work; the architecturally-robust answer is Tyler's Phase 2
+  **predictive trigger** (`Locale.predicted_to_exit_within`): hand off while the
+  track is alive and fresh, *before* exit. Also on the table: RSU
+  placement/aiming for continuous NPC-lane coverage. Bring both to the Tyler
+  sync.
 - [ ] Remove TEMP diagnostics (`[EGO-DBG]`, `[SCENB-DBG]` in the scenario loop) once the obstacle path validates.
 
 ### Step 8 — Phase 2 `-eo` distribution (PLANNING PLACEHOLDER — not yet planned)
