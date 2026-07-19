@@ -1,7 +1,7 @@
 # Edge Hand-Off — Phase 1: State Transfer (Sequential / Single-Process)
 
 **Branch:** `develop`
-**Status:** Steps 0–6 complete; Scenario B (Step 7) files built + unit-verified — live CARLA validation pending
+**Status:** Steps 0–6 complete (Step 6 live gate closed); Step 7 ego path VALIDATED live (runs 5/7/8/9); obstacle handoff blocked on a track-birth bug — see Step 7 open items
 **Created:** 2026-06-08
 **Updated:** 2026-07-19
 **Audience:** jrapp + Tyler (PhD research, Georgia Tech)
@@ -220,7 +220,8 @@ TransferCost(
 - [x] Hand-off cost sink on `ScenarioManager`: `record_handoff_cost(cost)` / `get_handoff_costs()` (mirrors `sim_metrics`; `_handoff_costs: List[TransferCost]`). Scenario loop records each cost; finally-block trace reads the sink (single source of truth).
 - [x] `summarize_handoff_costs(costs)` — pure, JSON-serializable aggregation (per-hand-off records + count/totals/mean); unit-tested empty + populated.
 - [x] `EvaluationManager.handoff_eval()` drains the sink into `global_metrics['handoffs']` + `['handoff_summary']`, one `lprint` line per hand-off; `HAND-OFF MIGRATION` section added to `evaluation_report.txt`. Wired into `evaluate()` after `edge_eval`.
-- [x] Unit validation: `tests/test_edge_state_handoff.py` extended (8/8 pass) — summary shape, JSON round-trip, daemon→cost→summary chain. **Live CARLA gate** (block appears in a real `simulation_metrics.json`) folds into the next Scenario A/B run.
+- [x] Unit validation: `tests/test_edge_state_handoff.py` extended (8/8 pass) — summary shape, JSON round-trip, daemon→cost→summary chain.
+- [x] **Live CARLA gate closed (2026-07-19, Scenario B run 9):** `HAND-OFF MIGRATION` block present in the real `evaluation_report.txt` + `handoff_summary`/`handoffs` in `simulation_metrics.json` (1 hand-off, 986 bytes, serialize 0.0099 ms + network 88.03 ms).
 
 ### Step 7 — Scenario B (Town06 left-merge / obstacle handoff)
 
@@ -236,8 +237,12 @@ its own RSU can see it. Geometry-based trigger via `VehicleLocaleTracker`; obsta
 - [x] Scenario B YAML — `openscenario_multi_edge_left_merge.yaml` (Town06; `num_actors: 3`; two edges each with a `locale` polygon block; RSU0 at (75,141), RSU1 at (230,141); cav1 in edge 0 only).
 - [x] Scenario B ecav `.py` — `openscenario_multi_edge_left_merge.py` (`_build_locale_router` from YAML `locale` blocks; `VehicleLocaleTracker(min_dwell_ticks=4)`; resolve fast-NPC `carla_id` by velocity; on `locale_1` crossing → `daemon.transfer_obstacle_state` → `record_handoff_cost`; geometric advance-warning proxy = first tick NPC enters RSU1's `RSU1_DETECT_RANGE_M` radius vs. hand-off tick).
 - [x] Geometry-trigger unit check (no CARLA): with the real YAML polygons the NPC binds `locale_0` at spawn and fires exactly one `locale_0→locale_1` crossing inside the overlap (x=156). Router nearest-centroid tiebreak confirmed at the overlap boundaries.
-- [ ] **Validate Scenario B** (clean CARLA + YOLO litserve on :18001) — the 7 criteria in `edge_handoff_scenarios.md` § Verification (B): NPC id resolved early; `HandoffEvent` fires on the crossing; `edge_list[1].tracker` has warm KF (`hits >= min_hits`) immediately post-handoff; `TransferCost` emitted (`bytes>0`, `total_ms>0`); no ego↔NPC collision; advance-warning window > 0. This is where the tuning iteration happens.
-- [ ] Tuning pass (expected — plan flags these as one-iteration items): Town06 lane coords (y≈139.5/143.5) and drivable extents; `sync_target`/`sync_end_distance` for TTC≈3s at the merge; `min_dwell_ticks`; `RSU1_DETECT_RANGE_M`; emergency-vehicle blueprint fallback (`vehicle.ford.ambulance` → `vehicle.dodge.charger_2020`); ego destination reachability.
+- [x] **Scenario redesigned during live tuning (2026-07-19; 9 runs).** Renamed `left_merge` → `right_merge` (CARLA's left-handed frame: heading east, +y is the vehicle's RIGHT — every original lane comment was backwards). Final geometry: ego + emergency vehicle in the LEFTMOST eastbound lane -3 (solid line to shoulder — no left escape, no blocker actor needed); NPC in adjacent lane -4 on an explicit `WaypointFollower` plan (plan-less follower stalls; `SyncArrival` steers 0 and drifts out of lane). Hand-off is geometry-driven for EVERY boundary crossing: managed vehicles → `request_handoff`, obstacles → `transfer_obstacle_state` (pending-retry).
+- [x] **Ego path VALIDATED live (runs 5/7/8/9):** ego brakes on edge predictions of the blockage (17 m out, post-handoff via edge 1's RSU), waits for the NPC to pass, merges right, continues to destination. Geometry handoff fires at the crossing (tick 63 with final polygons) with the full KF payload (986 bytes) and cost recorded. Robust across seeds; run 6's visible failure was MAX_STEP=500 truncating a slow-approach merge (→ 700).
+- [x] **`behavior_agent.py` overtake fix (required for the merge):** plan lookahead floored at 15 m — speed-proportional `next(speed*6)` degenerates to 3–6 m at crawl speed (and `next(0)` raises), wedging ego mid-merge forever.
+- [x] **Warm import gated OFF by default** (`handoff_warm_import` attr; Phase 1.5): injecting a snapshot into a tracker that also sees the object risks stale-duplicate ghosts until import-side reconciliation exists. Payloads + costs recorded; destination tracker untouched.
+- [ ] **OPEN — obstacle handoff never fires live.** Three stacked findings: (1) RSU0 has a near-field blind donut (x≈20–110 in every run; camera geometry at 7 m height); (2) locale boundaries must be drawn inside reliable tracking coverage — fixed, boundary 152→115 puts the crossing in the reacquisition zone; (3) **unresolved:** reacquisition detections (x≈110–130) produce ZERO tracker entries — `n_trk=0` at every retry — a track-birth failure in `LateFusionEdge`'s detect→track path. Trace this first next session; also consider RSU placement/aiming for continuous NPC coverage, and the Phase 2 predictive trigger (`Locale.predicted_to_exit_within`) as the architecturally-correct fix.
+- [ ] Remove TEMP diagnostics (`[EGO-DBG]`, `[SCENB-DBG]` in the scenario loop) once the obstacle path validates.
 
 ### Step 8 — Phase 2 `-eo` distribution (PLANNING PLACEHOLDER — not yet planned)
 
