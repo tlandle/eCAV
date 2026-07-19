@@ -8,6 +8,7 @@ Evaluation manager.
 
 import subprocess
 import os
+from dataclasses import asdict
 from datetime import datetime
 from ecav.scenario_testing.evaluations.utils import lprint
 import json
@@ -17,6 +18,28 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import numpy as np
 from omegaconf import OmegaConf
+
+def summarize_handoff_costs(costs):
+    """Aggregate TransferCost records into a JSON-serializable summary.
+
+    Pure function — no I/O, no CARLA — so the aggregation logic is unit-testable
+    in isolation. ``costs`` is an iterable of ``TransferCost`` dataclasses (from
+    ``migration.link``). Returns a dict with per-hand-off records plus
+    scenario-level totals/means. Empty input yields a zeroed summary.
+    """
+    records = [asdict(c) for c in costs]
+    n = len(records)
+    total_ms = sum(r["total_ms"] for r in records)
+    summary = {
+        "handoff_count": n,
+        "total_payload_bytes": sum(r["payload_bytes"] for r in records),
+        "total_serialize_ms": sum(r["sim_serialize_ms"] for r in records),
+        "total_network_ms": sum(r["sim_network_ms"] for r in records),
+        "total_transfer_ms": total_ms,
+        "mean_transfer_ms": (total_ms / n) if n else 0.0,
+    }
+    return {"handoffs": records, "handoff_summary": summary}
+
 
 class EvaluationManager(object):
     """
@@ -103,6 +126,9 @@ class EvaluationManager(object):
 
         self.edge_eval(log_file)
         print('Edge Evaluation Done.')
+
+        self.handoff_eval(log_file)
+        print('Hand-Off Evaluation Done.')
 
         self.lane_invasion_eval(log_file)
         print("Lane Invasion Eval Done.")
@@ -371,6 +397,50 @@ class EvaluationManager(object):
             if perform_txt:
                 lprint(log_file, perform_txt)
             
+    def handoff_eval(self, log_file):
+        """
+        Edge-to-edge hand-off migration cost evaluation.
+
+        Reads the TransferCost records accumulated on the scenario manager
+        during the run (via record_handoff_cost) and writes one line per
+        hand-off plus a scenario-level summary. Mirrors sim_timing_eval:
+        the scenario loop accumulates, this method drains into the report.
+
+        Args:
+            log_file (File): The log file to write the data.
+        """
+        lprint(log_file, "***********Hand-Off Migration Module***********")
+
+        scenario_manager = self.cav_world.get_scenario_manager()
+        if scenario_manager is None or not hasattr(scenario_manager, 'get_handoff_costs'):
+            lprint(log_file, "No scenario manager / hand-off sink; skipping.")
+            return
+
+        costs = scenario_manager.get_handoff_costs()
+        result = summarize_handoff_costs(costs)
+        self.global_metrics["handoffs"] = result["handoffs"]
+        self.global_metrics["handoff_summary"] = result["handoff_summary"]
+
+        if not costs:
+            lprint(log_file, "No hand-offs recorded this scenario.")
+            return
+
+        for r in result["handoffs"]:
+            lprint(
+                log_file,
+                f"Hand-off vid={r['vehicle_id']} {r['src_edge_id']}->{r['dst_edge_id']} "
+                f"tick={r['tick']} bytes={r['payload_bytes']} "
+                f"serialize={r['sim_serialize_ms']:.4f}ms "
+                f"network={r['sim_network_ms']:.4f}ms total={r['total_ms']:.4f}ms",
+            )
+        s = result["handoff_summary"]
+        lprint(
+            log_file,
+            f"Hand-off Summary: count={s['handoff_count']} "
+            f"total_bytes={s['total_payload_bytes']} "
+            f"mean_total_ms={s['mean_transfer_ms']:.4f}",
+        )
+
     def client_perception_tracking_eval(self, log_file):
         """
         Measure client-side perception, tracking, localization, and control latency.
@@ -876,6 +946,24 @@ class EvaluationManager(object):
                     f.write(f"    Duplicate Lifetime (mean): {eu.get('duplicate_lifetime_mean_ticks', 0):.1f} ticks\n")
                     f.write(f"    Duplicate Lifetime (p95): {eu.get('duplicate_lifetime_p95_ticks', 0):.1f} ticks\n")
                     f.write(f"    Ego Ghost Violations: {eu.get('ego_ghost_violation_count', 0)}\n")
+
+            # Hand-Off Migration
+            f.write("\n")
+            f.write("HAND-OFF MIGRATION\n")
+            f.write("-" * 40 + "\n")
+            handoff_summary = self.global_metrics.get('handoff_summary', {})
+            handoffs = self.global_metrics.get('handoffs', [])
+            if handoff_summary.get('handoff_count', 0) > 0:
+                f.write(f"Total Hand-offs: {handoff_summary.get('handoff_count', 0)}\n")
+                f.write(f"Total Payload: {handoff_summary.get('total_payload_bytes', 0)} bytes\n")
+                f.write(f"Total Transfer Time: {handoff_summary.get('total_transfer_ms', 0):.4f} ms\n")
+                f.write(f"Mean Transfer Time: {handoff_summary.get('mean_transfer_ms', 0):.4f} ms\n")
+                for r in handoffs:
+                    f.write(f"  vid={r['vehicle_id']} {r['src_edge_id']}->{r['dst_edge_id']} "
+                            f"tick={r['tick']} bytes={r['payload_bytes']} "
+                            f"total={r['total_ms']:.4f}ms\n")
+            else:
+                f.write("No hand-offs recorded this scenario.\n")
 
             # Simulation Timing
             f.write("\n")

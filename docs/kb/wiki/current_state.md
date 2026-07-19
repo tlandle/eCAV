@@ -1,5 +1,5 @@
 ---
-updated: 2026-06-09
+updated: 2026-07-19
 ---
 # Current State
 
@@ -161,7 +161,7 @@ Plan written and **revised 2026-06-01**: [multi_edge_locale_handoff.md](../../ag
 
 **Direction = Hybrid model (confirmed 2026-06-07 with Tyler):** peer ownership ping/ack + central state store + continuous per-tick upload. EdgeWarp's architecture. Separates mechanism (instant, shared memory in sequential) from measurement (modeled cost from payload bytes + simulated edge geometry via `LatencyModel`). Tyler's `migration/` primitives reused throughout.
 
-**Phase 1 progress (2026-06-10 — Steps 0+1+2 complete):**
+**Phase 1 progress (2026-07-19 — Steps 0–6 complete; Scenario B remaining):**
 - `migration/payload.py`: `KFState` dataclass; `TrackLatent.kf_state`; `MigrationPayload.payload_bytes()`.
 - `migration/binding.py`: `HandoffManager`; `evaluate()` → `Optional[HandoffEvent]`.
 - `migration/smoke_test.py`: all three scenarios pass.
@@ -172,12 +172,12 @@ Plan written and **revised 2026-06-01**: [multi_edge_locale_handoff.md](../../ag
 - `migration/daemon.py`: `SequentialMigrationDaemon.request_handoff` (ownership move + cost record) + `transfer_obstacle_state` (obstacle KF share, no ownership move — for Scenario B).
 - `edge_manager_base.py`: `export/import_tracked_obstacle_state` no-op stubs (override in AB3DMOT subclasses).
 - `edge_manager_pluggable_base.py`: full `export/import_tracked_obstacle_state` implementations — bypass VehicleManager guard, inject KF directly into tracker.
-- `tests/test_edge_state_handoff.py`: 6 smoke tests, all pass.
-- **Scenario A built (pending CARLA run):** `openscenario_3_multi_edge_late_fusion.yaml` (two edges, RSU at y=95 and y=120) + `openscenario_3_multi_edge_late_fusion.py` (per-tick store, tick-60 handoff, cost log). Reuses `scenario_3.xml` and `scenario_3.py` unchanged.
-- **Scenario B plan written:** `docs/agent_plans/edge_handoff_scenarios.md`. Town06 left-merge, `SyncArrival`-coordinated fast NPC, geometry trigger via `VehicleLocaleTracker`. 4 new files required; build after Scenario A validates.
-- **Scenario A validated (2026-06-13):** `[HANDOFF]` tick=60 vid=109 bytes=98 total_ms=93.3; `[TRANSFER_COST]` logged; ghost_brake_events=0; true_positive_gt=4; clean exit. All 5 criteria pass.
+- **Step 6 metrics (2026-07-19):** hand-off cost sink on `ScenarioManager` (`record_handoff_cost`/`get_handoff_costs`, mirrors `sim_metrics`); pure `summarize_handoff_costs` in `evaluate_manager.py`; `EvaluationManager.handoff_eval` drains into `global_metrics['handoffs']`/`['handoff_summary']` + `HAND-OFF MIGRATION` section in `evaluation_report.txt`. Scenario loop records each cost; finally-block trace reads the sink (single source of truth).
+- `tests/test_edge_state_handoff.py`: **8** smoke tests, all pass (added summary-shape + JSON round-trip). Step 6 live CARLA gate (block in a real `simulation_metrics.json`) folds into the next Scenario A/B run.
+- **Scenario A validated (2026-06-13):** `[HANDOFF]` tick=60 vid=109 bytes=98 total_ms=93.3; `[TRANSFER_COST]` logged; ghost_brake_events=0; true_positive_gt=4; clean exit. All 5 criteria pass. (Validated before the Step 6 metric-sink wiring.)
+- **Scenario B plan written:** `docs/agent_plans/edge_handoff_scenarios.md` + checklist added to Phase 1 plan Step 7. Town06 left-merge, `SyncArrival`-coordinated fast NPC, geometry trigger via `VehicleLocaleTracker`. 4 new files required; obstacle-export extension already built.
 - `start_actors.sh` updated: sequential mode (`USE_SEQUENTIAL=y` or prompt `s`) — runs base process with no `-d` flag, skips Docker containers, monitors via PID instead of "pushed END". `stop_actors.sh` updated: catches ecav.py in any mode, also kills scenario_runner subprocesses.
-- **Next:** Scenario B (Town06 left-merge). 4 new files + `SyncArrival`-coordinated NPC. See `docs/agent_plans/edge_handoff_scenarios.md` for full plan.
+- **Next:** Scenario B (Town06 left-merge) — Step 7 in the Phase 1 plan. 4 new files + `SyncArrival`-coordinated NPC. See `docs/agent_plans/edge_handoff_scenarios.md` for full plan. After B validates: separate Phase 2 `-eo` distribution plan (placeholder = Step 8); actor distribution `-d` is a distinct Phase 3.
 
 **What we build (the pieces Tyler left "forthcoming"):** inter-locale link model (`migration/link.py`), migration daemon (`migration/daemon.py`), and the `-eo` runtime wiring. The trajectory trigger (`VehicleLocaleTracker`) and locale primitives are already done by Tyler.
 

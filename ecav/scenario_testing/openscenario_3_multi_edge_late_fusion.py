@@ -75,7 +75,6 @@ def run_scenario(opt, scenario_params):
     fusion_clients = []
 
     handoff_done = False
-    transfer_costs = []
     vid = None
 
     try:
@@ -199,7 +198,7 @@ def run_scenario(opt, scenario_params):
                             vid, edge_list[0], edge_list[1],
                             scenario_manager, link, step
                         )
-                        transfer_costs.append(cost)
+                        scenario_manager.record_handoff_cost(cost)
                         handoff_done = True
                         logger.info(
                             "[HANDOFF] tick=%d vid=%d bytes=%d total_ms=%.3f",
@@ -266,6 +265,10 @@ def run_scenario(opt, scenario_params):
                 for vid_det, step_num in vm.vehicles_detected.items():
                     print(f"VID: {vm.vehicle.id} found VID {vid_det} at step {step_num}")
 
+        transfer_costs = (
+            scenario_manager.get_handoff_costs()
+            if scenario_manager is not None else []
+        )
         for cost in transfer_costs:
             logger.info(
                 "[TRANSFER_COST] vid=%d tick=%d bytes=%d "

@@ -1,9 +1,9 @@
 # Edge Hand-Off — Phase 1: State Transfer (Sequential / Single-Process)
 
 **Branch:** `develop`
-**Status:** Steps 0–5 complete; Step 6 (metrics) + Scenario B remaining
+**Status:** Steps 0–6 complete (Scenario A + metrics); Scenario B remaining (Step 7)
 **Created:** 2026-06-08
-**Updated:** 2026-06-13
+**Updated:** 2026-07-19
 **Audience:** jrapp + Tyler (PhD research, Georgia Tech)
 **Source of truth:** [tyler_edge_handoff_architecture.md](../kb/raw/notes/tyler_edge_handoff_architecture.md) (2026-06-07 meeting)
 
@@ -140,13 +140,13 @@ sensitive to the configured edge geometry / latency model.
 | `ecav/core/application/edge/migration/binding.py` | Added `HandoffManager` alongside `HandoffEvent`; owns `_emit` + subscriber list; `evaluate(vid, tick, sim_time_s, *, source_locale_id, destination_locale_id, position) -> Optional[HandoffEvent]`. | **Done** |
 | `ecav/core/application/edge/migration/smoke_test.py` | Integrated `HandoffManager` into all three scenarios; `evaluate()` called each tick (once per vehicle); manager events collected via `subscribe`; assertions verify manager and locale tracker fire on the same tick. | **Done** |
 | `ecav/scenario_testing/utils/sim_api.py` | Added `_vehicle_state_store: Dict[int, MigrationPayload]` to `ScenarioManager`; `store_vehicle_state(vid, payload)`, `retrieve_vehicle_state(vid)`, `retrieve_all_vehicle_states()`. Stores objects directly (no real pickle — avoids mechanism/measurement conflation); API shaped to mirror future gRPC `Store/Retrieve` for `-eo`/C++ upgrade. | **Done** |
-| `ecav/core/application/edge/edge_manager/edge_manager_base.py` | Add `export_vehicle_state(vehicle_id) -> MigrationPayload` / `import_vehicle_state(vehicle_id, payload)`; `relinquish(vehicle_id)` / `accept(vehicle_id, vm)` for ownership move. Base impl exports coarse slice; pluggable subclass overrides for AB3DMOT. | Pending |
-| `ecav/core/application/edge/edge_manager/edge_manager_pluggable_base.py` | AB3DMOT-aware export: find `KF` by `carla_id` in `self.tracker.trackers`; extract `kf.x`, `kf.P`, `hits`, `anchoring_age` into `KFState`; import injects new `KF` with source state + `hits >= min_hits`, advances `ID_count`, updates `track_to_carla`. | Pending |
-| `ecav/core/application/edge/migration/link.py` *(new)* | `InterLocaleLink` + `TransferCost`. `model_transfer(payload, src, dst, tick) -> TransferCost`: serialize cost = `payload_bytes() × rate`; network cost from `LatencyModel`. Pure model — no real I/O. | Pending |
-| `ecav/core/application/edge/migration/daemon.py` *(new)* | `SequentialMigrationDaemon.request_handoff(vid, src_edge, dst_edge, store, link, tick)`: `src.relinquish(vid)` → `dst.accept(vid, vm)` → store-pull import → `InterLocaleLink.model_transfer()` → record `TransferCost`. | Pending |
-| `ecav/scenario_testing/…/openscenario_3_multi_edge_late_fusion.py` *(new)* + YAML | 2-edge sequential scenario; per-tick `store_vehicle_state`; scripted hand-off at tick N via `daemon.request_handoff`. | Pending |
-| `tests/test_edge_state_handoff.py` *(new)* | No-CARLA smoke test: store round-trip; export→store→retrieve→import; ownership moved; `TransferCost` recorded and sensitive to configured geometry. | Pending |
-| Metrics (`PlanningMetrics` / `sim_metrics`) | Add hand-off cost records; one line per hand-off in scenario metric output. | Pending |
+| `ecav/core/application/edge/edge_manager/edge_manager_base.py` | Add `export_vehicle_state(vehicle_id) -> MigrationPayload` / `import_vehicle_state(vehicle_id, payload)`; `relinquish(vehicle_id)` / `accept(vm)` for ownership move; obstacle no-op stubs. Base impl exports coarse slice; pluggable subclass overrides for AB3DMOT. | **Done** |
+| `ecav/core/application/edge/edge_manager/edge_manager_pluggable_base.py` | AB3DMOT-aware export: find `KF` by `carla_id` in `self.tracker.trackers`; extract `kf.x`, `kf.P`, `hits`, `anchoring_age` into `KFState`; import injects new `KF` with source state + `hits >= min_hits`, advances `ID_count`, updates `track_to_carla`. Plus `export/import_tracked_obstacle_state`. | **Done** |
+| `ecav/core/application/edge/migration/link.py` *(new)* | `InterLocaleLink` + `TransferCost`. `model_transfer(payload, src, dst, tick) -> TransferCost`: serialize cost = `payload_bytes() × rate`; network cost from `LatencyModel`. Pure model — no real I/O. | **Done** |
+| `ecav/core/application/edge/migration/daemon.py` *(new)* | `SequentialMigrationDaemon.request_handoff(vid, src_edge, dst_edge, store, link, tick)`: `src.relinquish(vid)` → `dst.accept(vm)` → store-pull import → `InterLocaleLink.model_transfer()` → record `TransferCost`. Plus `transfer_obstacle_state` (no ownership move). | **Done** |
+| `ecav/scenario_testing/…/openscenario_3_multi_edge_late_fusion.py` *(new)* + YAML | 2-edge sequential scenario (Scenario A); per-tick `store_vehicle_state`; scripted hand-off at `HANDOFF_TICK` via `daemon.request_handoff`; `record_handoff_cost`. | **Done** |
+| `tests/test_edge_state_handoff.py` *(new)* | No-CARLA smoke test: store round-trip; export→store→retrieve→import; ownership moved; `TransferCost` recorded and sensitive to rate; metric-summary shape + JSON round-trip. 8/8 pass. | **Done** |
+| Metrics (`sim_api.ScenarioManager` + `EvaluationManager`) | `record_handoff_cost`/`get_handoff_costs` sink on the manager; `summarize_handoff_costs` (pure); `handoff_eval` drains into `global_metrics` + `evaluation_report.txt` `HAND-OFF MIGRATION` section. | **Done** |
 
 ### Per-tick snapshot write (where)
 The sequential loop lives in the scenario `.py` (`while flag: tick_world(); tick();
@@ -217,7 +217,39 @@ TransferCost(
 - [x] Run end-to-end (clean CARLA, 2026-06-13): `[HANDOFF]` tick=60 vid=109 bytes=98 total_ms=93.3; `[TRANSFER_COST]` logged; ghost_brake_events=0; true_positive_gt=4; SystemExit(0). All 5 criteria pass.
 
 ### Step 6 — Metrics
-- [ ] Add hand-off cost records to the metric output; one line per hand-off.
+- [x] Hand-off cost sink on `ScenarioManager`: `record_handoff_cost(cost)` / `get_handoff_costs()` (mirrors `sim_metrics`; `_handoff_costs: List[TransferCost]`). Scenario loop records each cost; finally-block trace reads the sink (single source of truth).
+- [x] `summarize_handoff_costs(costs)` — pure, JSON-serializable aggregation (per-hand-off records + count/totals/mean); unit-tested empty + populated.
+- [x] `EvaluationManager.handoff_eval()` drains the sink into `global_metrics['handoffs']` + `['handoff_summary']`, one `lprint` line per hand-off; `HAND-OFF MIGRATION` section added to `evaluation_report.txt`. Wired into `evaluate()` after `edge_eval`.
+- [x] Unit validation: `tests/test_edge_state_handoff.py` extended (8/8 pass) — summary shape, JSON round-trip, daemon→cost→summary chain. **Live CARLA gate** (block appears in a real `simulation_metrics.json`) folds into the next Scenario A/B run.
+
+### Step 7 — Scenario B (Town06 left-merge / obstacle handoff)
+
+Detailed design: [edge_handoff_scenarios.md](edge_handoff_scenarios.md) (§ Scenario B). The
+research scenario: a fast NPC crosses from locale 0 into locale 1 (where ego is forced into a
+left merge by a stationary emergency vehicle); locale 1 receives the NPC's KF history *before*
+its own RSU can see it. Geometry-based trigger via `VehicleLocaleTracker`; obstacle transfer
+(no ownership move) via `daemon.transfer_obstacle_state`.
+
+- [x] Obstacle-export extension (`export/import_tracked_obstacle_state` on base + pluggable; `daemon.transfer_obstacle_state`) — **already built in Step 5** alongside Scenario A; no VehicleManager required, one-shot KF share, no relinquish/accept.
+- [ ] Scenario B XML — `scenario_multi_edge_left_merge.xml` (Town06; ego + emergency vehicle + fast NPC; underground→visible teleport pattern from `scenario_3.xml`).
+- [ ] Scenario B runner `.py` — `scenario_multi_edge_left_merge.py` (`BasicScenario` subclass; `SyncArrival` coordinates NPC arrival at the locale boundary with ego's merge-decision point; `WaypointFollower` at 22 m/s post-sync; `CollisionTest` criteria).
+- [ ] Scenario B YAML — `openscenario_multi_edge_left_merge.yaml` (Town06; `num_actors: 3`; two edges each with a `locale` polygon block; RSU0 at (75,141), RSU1 at (230,141); cav1 in edge 0 only).
+- [ ] Scenario B ecav `.py` — `openscenario_multi_edge_left_merge.py` (build `LocaleRegistry`/`LocaleRouter` from YAML `locale` blocks; `VehicleLocaleTracker(min_dwell_ticks=4)`; resolve fast-NPC `carla_id` by velocity; on `locale_1` crossing → `daemon.transfer_obstacle_state` → `scenario_manager.record_handoff_cost`).
+- [ ] **Validate Scenario B** (clean CARLA) — all 7 criteria in `edge_handoff_scenarios.md` § Verification (B): NPC id resolved ≤ tick 15; `HandoffEvent` fires ~tick 126±10; `edge_list[1].tracker` has warm KF (`hits >= min_hits`) immediately post-handoff; `TransferCost` emitted (`bytes>0`, `total_ms>0`); no ego↔NPC collision; locale-1 RSU direct-detect tick confirms the advance-warning window.
+- [ ] Tuning pass (expect one iteration): `SyncArrival` waypoints (NPC x=220 / ego x=250) for TTC≈3s at merge; `min_dwell_ticks`; emergency-vehicle blueprint fallback (`vehicle.ford.ambulance` → `vehicle.dodge.charger_2020`).
+
+### Step 8 — Phase 2 `-eo` distribution (PLANNING PLACEHOLDER — not yet planned)
+
+> **Note only — no implementation here.** After Scenario B validates, we need a *separate*
+> plan to lift **both** Scenarios A & B into **Phase 2: edge-only (`-eo`) distribution**.
+> The lift swaps the in-process store + member-call ping/ack for the registration-server
+> do-tick state array + a peer RPC; the cost model (`InterLocaleLink`/`TransferCost`) and the
+> snapshot contract (`MigrationPayload`/`KFState`) are unchanged across the boundary. Write that
+> plan when we get there — do not fold it into this doc.
+>
+> **Actor distribution** (`-d`, Docker-containerized vehicle clients) is a **distinct Phase 3**,
+> planned separately again. `-eo` (edge distribution) and `-d` (actor distribution) are
+> orthogonal axes; Phase 2 covers only the former.
 
 ---
 
@@ -227,7 +259,7 @@ TransferCost(
 |----|----------|----------|
 | D-1 | Snapshot granularity + AB3DMOT correctness? | **Per-vehicle** `MigrationPayload`; correctness required from Phase 1. Export finds `KF` by `carla_id`; import creates new `KF` with source `x`/`P` and `hits >= min_hits`. `carla_id` is the stable cross-edge key; `tid` is ephemeral and reassigned at destination. **Resolved.** |
 | D-2 | KF state vs neural latent in `TrackLatent`? | `KFState` is its own dataclass (`state_vector`, `covariance`, `hits`, `anchoring_age`) stored in `TrackLatent.kf_state`. `hidden_state` reserved for sequence-model trackers (Mamba etc.). **Resolved; implemented.** |
-| D-3 | Where does the hand-off coordinator live? | New `migration/daemon.py` (completes Tyler's stubbed daemon), invoked from the sequential loop. **Pending.** |
+| D-3 | Where does the hand-off coordinator live? | New `migration/daemon.py` (completes Tyler's stubbed daemon), invoked from the sequential loop. **Resolved; implemented.** |
 | D-4 | Single vs double barrier for retrieval? | **Single barrier** (retrieve on subsequent tick) per Tyler's default. **Resolved.** |
 | D-5 | Trigger for Phase 1? | **`HandoffManager.evaluate()`** (tick-based stub) in `migration/binding.py` alongside `HandoffEvent`. Extension path is clear: replace tick check with locale geometry without changing the call site. **Resolved; implemented.** |
 | D-6 | New 2-edge sequential scenario, or smoke-test-only for Phase 1? | Build both — no-CARLA smoke test for fast iteration, 2-edge scenario for end-to-end integration. **Resolved.** |
