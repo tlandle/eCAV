@@ -1,7 +1,7 @@
 # Edge Hand-Off — Phase 1: State Transfer (Sequential / Single-Process)
 
 **Branch:** `develop`
-**Status:** Steps 0–6 complete (Scenario A + metrics); Scenario B remaining (Step 7)
+**Status:** Steps 0–6 complete; Scenario B (Step 7) files built + unit-verified — live CARLA validation pending
 **Created:** 2026-06-08
 **Updated:** 2026-07-19
 **Audience:** jrapp + Tyler (PhD research, Georgia Tech)
@@ -231,12 +231,13 @@ its own RSU can see it. Geometry-based trigger via `VehicleLocaleTracker`; obsta
 (no ownership move) via `daemon.transfer_obstacle_state`.
 
 - [x] Obstacle-export extension (`export/import_tracked_obstacle_state` on base + pluggable; `daemon.transfer_obstacle_state`) — **already built in Step 5** alongside Scenario A; no VehicleManager required, one-shot KF share, no relinquish/accept.
-- [ ] Scenario B XML — `scenario_multi_edge_left_merge.xml` (Town06; ego + emergency vehicle + fast NPC; underground→visible teleport pattern from `scenario_3.xml`).
-- [ ] Scenario B runner `.py` — `scenario_multi_edge_left_merge.py` (`BasicScenario` subclass; `SyncArrival` coordinates NPC arrival at the locale boundary with ego's merge-decision point; `WaypointFollower` at 22 m/s post-sync; `CollisionTest` criteria).
-- [ ] Scenario B YAML — `openscenario_multi_edge_left_merge.yaml` (Town06; `num_actors: 3`; two edges each with a `locale` polygon block; RSU0 at (75,141), RSU1 at (230,141); cav1 in edge 0 only).
-- [ ] Scenario B ecav `.py` — `openscenario_multi_edge_left_merge.py` (build `LocaleRegistry`/`LocaleRouter` from YAML `locale` blocks; `VehicleLocaleTracker(min_dwell_ticks=4)`; resolve fast-NPC `carla_id` by velocity; on `locale_1` crossing → `daemon.transfer_obstacle_state` → `scenario_manager.record_handoff_cost`).
-- [ ] **Validate Scenario B** (clean CARLA) — all 7 criteria in `edge_handoff_scenarios.md` § Verification (B): NPC id resolved ≤ tick 15; `HandoffEvent` fires ~tick 126±10; `edge_list[1].tracker` has warm KF (`hits >= min_hits`) immediately post-handoff; `TransferCost` emitted (`bytes>0`, `total_ms>0`); no ego↔NPC collision; locale-1 RSU direct-detect tick confirms the advance-warning window.
-- [ ] Tuning pass (expect one iteration): `SyncArrival` waypoints (NPC x=220 / ego x=250) for TTC≈3s at merge; `min_dwell_ticks`; emergency-vehicle blueprint fallback (`vehicle.ford.ambulance` → `vehicle.dodge.charger_2020`).
+- [x] Scenario B XML — `scenario_multi_edge_left_merge.xml` (Town06; ego + emergency vehicle + fast NPC; underground→visible teleport pattern from `scenario_3.xml`).
+- [x] Scenario B runner `.py` — `scenario_multi_edge_left_merge.py` (`BasicScenario` subclass; `CollisionTest` criteria). **Two fixes vs. the sketch in `edge_handoff_scenarios.md`:** (1) real `SyncArrival(actor, reference, target_location, gain)` takes ONE shared target, not two waypoints; (2) `SyncArrival.update()` never returns SUCCESS, so it is wrapped in a `SUCCESS_ON_ONE` Parallel with an `InTriggerDistanceToLocation` that ends the sync phase before `WaypointFollower(22 m/s)`.
+- [x] Scenario B YAML — `openscenario_multi_edge_left_merge.yaml` (Town06; `num_actors: 3`; two edges each with a `locale` polygon block; RSU0 at (75,141), RSU1 at (230,141); cav1 in edge 0 only).
+- [x] Scenario B ecav `.py` — `openscenario_multi_edge_left_merge.py` (`_build_locale_router` from YAML `locale` blocks; `VehicleLocaleTracker(min_dwell_ticks=4)`; resolve fast-NPC `carla_id` by velocity; on `locale_1` crossing → `daemon.transfer_obstacle_state` → `record_handoff_cost`; geometric advance-warning proxy = first tick NPC enters RSU1's `RSU1_DETECT_RANGE_M` radius vs. hand-off tick).
+- [x] Geometry-trigger unit check (no CARLA): with the real YAML polygons the NPC binds `locale_0` at spawn and fires exactly one `locale_0→locale_1` crossing inside the overlap (x=156). Router nearest-centroid tiebreak confirmed at the overlap boundaries.
+- [ ] **Validate Scenario B** (clean CARLA + YOLO litserve on :18001) — the 7 criteria in `edge_handoff_scenarios.md` § Verification (B): NPC id resolved early; `HandoffEvent` fires on the crossing; `edge_list[1].tracker` has warm KF (`hits >= min_hits`) immediately post-handoff; `TransferCost` emitted (`bytes>0`, `total_ms>0`); no ego↔NPC collision; advance-warning window > 0. This is where the tuning iteration happens.
+- [ ] Tuning pass (expected — plan flags these as one-iteration items): Town06 lane coords (y≈139.5/143.5) and drivable extents; `sync_target`/`sync_end_distance` for TTC≈3s at the merge; `min_dwell_ticks`; `RSU1_DETECT_RANGE_M`; emergency-vehicle blueprint fallback (`vehicle.ford.ambulance` → `vehicle.dodge.charger_2020`); ego destination reachability.
 
 ### Step 8 — Phase 2 `-eo` distribution (PLANNING PLACEHOLDER — not yet planned)
 
