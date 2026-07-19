@@ -51,7 +51,7 @@ from ecav.core.application.edge.migration import (
 
 logger = logging.getLogger(__name__)
 
-MAX_STEP = 500
+MAX_STEP = 700  # headroom: a slow stop-start approach can push the merge past tick 450
 SCENARIO_NAME = 'openscenario_multi_edge_right_merge'
 
 # Speed (m/s) above which a non-hero vehicle is taken to be the fast NPC.
@@ -318,6 +318,22 @@ def run_scenario(opt, scenario_params):
                             cost = daemon.transfer_obstacle_state(
                                 npc_carla_id, src_edge, dst_edge, link, step,
                                 position=npc_xy)
+                            # TEMP DIAGNOSTIC: on failure, dump the source
+                            # tracker's nearest candidates. Remove after fix.
+                            if cost is None and step % 10 == 0:
+                                trks = [
+                                    (t.id, float(t.kf.x[0]), float(t.kf.x[1]),
+                                     t.hits, t.time_since_update)
+                                    for t in src_edge.tracker.trackers]
+                                near = sorted(
+                                    ((((tx - npc_xy[0]) ** 2
+                                       + (ty - npc_xy[1]) ** 2) ** 0.5,
+                                      tid, round(tx, 1), round(ty, 1), h, tsu)
+                                     for tid, tx, ty, h, tsu in trks))[:3]
+                                logger.warning(
+                                    "[SCENB-DBG] retry tick=%d npc=(%.1f,%.1f) "
+                                    "n_trk=%d nearest=%s",
+                                    step, npc_xy[0], npc_xy[1], len(trks), near)
                             if cost is not None:
                                 scenario_manager.record_handoff_cost(cost)
                                 obstacle_handoff_done = True

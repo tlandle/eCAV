@@ -43,18 +43,34 @@ class AB3DMOTStateTransferMixin:
         """Proxy-mode edges construct without a tracker; transfers are no-ops."""
         return getattr(self, 'tracker', None) is not None
 
-    def _find_obstacle_kf(self, carla_id: int, position, max_dist_m: float):
-        """Locate the tracker KF for an obstacle.
+    def _kf_for_carla_id(self, carla_id: int):
+        """Resolve a carla_id to its live tracker KF.
 
-        Managed vehicles beacon and get a stable ``carla_id`` on their KF, so we
-        try that first. Unmanaged obstacles (Scenario B's NPC) are tracked
-        anonymously (carla_id == -1), so when a true ``position`` is supplied we
-        fall back to the nearest KF within ``max_dist_m`` — the scenario knows
-        where the obstacle is even though the edge's tracker does not label it.
+        Camera-detection KFs are constructed with ``carla_id = -1``; the
+        beacon-anchored identity lives in ``track_to_carla`` (tid -> cid), not
+        on the KF. Try the direct field first (beacon-constructed / imported
+        tracks), then resolve through the anchoring map via ``KF.id``.
         """
         kf_obj = next(
             (t for t in self.tracker.trackers if t.carla_id == carla_id), None
         )
+        if kf_obj is not None:
+            return kf_obj
+        tids = {t for t, c in self.track_to_carla.items() if c == carla_id}
+        if not tids:
+            return None
+        return next((t for t in self.tracker.trackers if t.id in tids), None)
+
+    def _find_obstacle_kf(self, carla_id: int, position, max_dist_m: float):
+        """Locate the tracker KF for an obstacle.
+
+        Identity resolution first (:meth:`_kf_for_carla_id`). Unmanaged
+        obstacles (Scenario B's NPC) never beacon, so when a true ``position``
+        is supplied we fall back to the nearest KF within ``max_dist_m`` — the
+        scenario knows where the obstacle is even though the edge's tracker
+        does not label it.
+        """
+        kf_obj = self._kf_for_carla_id(carla_id)
         if kf_obj is not None or position is None:
             return kf_obj
         px, py = float(position[0]), float(position[1])
@@ -117,10 +133,20 @@ class AB3DMOTStateTransferMixin:
         """Export KF state for a managed vehicle from the AB3DMOT tracker."""
         if not self._has_tracker() or self._vm_by_carla_id(vehicle_id) is None:
             return None
-        kf_obj = next(
-            (t for t in self.tracker.trackers if t.carla_id == vehicle_id), None
-        )
-        return self._kf_to_payload(kf_obj, vehicle_id)
+        return self._kf_to_payload(self._kf_for_carla_id(vehicle_id), vehicle_id)
+
+    def _warm_import_enabled(self) -> bool:
+        """Destination-side KF injection is a Phase 1.5 concern.
+
+        Injecting a snapshot track into a tracker that also sees the same
+        object through its own sensors risks stale-duplicate ghosts until
+        import-side reconciliation exists. Default OFF: transfers still
+        export real payloads (mechanism + cost measurement intact); the
+        destination tracker is left untouched. Enable per-edge by setting
+        ``handoff_warm_import = True`` (e.g. from YAML) once Phase 1.5
+        lands reconciliation.
+        """
+        return getattr(self, 'handoff_warm_import', False)
 
     def import_vehicle_state(self, vehicle_id: int, payload: MigrationPayload) -> None:
         """Inject a warm KF for a managed vehicle into this edge's tracker."""
@@ -130,6 +156,11 @@ class AB3DMOTStateTransferMixin:
         )
         if not self._has_tracker() or track is None or track.kf_state is None:
             logger.warning("import_vehicle_state: no KF state for vehicle %d", vehicle_id)
+            return
+        if not self._warm_import_enabled():
+            logger.info(
+                "import_vehicle_state: warm import disabled (Phase 1.5) — "
+                "vehicle=%d payload received, tracker untouched", vehicle_id)
             return
         new_tid = self._inject_warm_kf(vehicle_id, track.kf_state)
         logger.info(
@@ -167,6 +198,11 @@ class AB3DMOTStateTransferMixin:
             logger.warning(
                 "import_tracked_obstacle_state: no KF for carla_id %d", carla_id
             )
+            return
+        if not self._warm_import_enabled():
+            logger.info(
+                "import_tracked_obstacle_state: warm import disabled (Phase 1.5) — "
+                "carla_id=%d payload received, tracker untouched", carla_id)
             return
         new_tid = self._inject_warm_kf(carla_id, track.kf_state)
         logger.info(

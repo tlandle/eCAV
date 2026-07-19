@@ -260,7 +260,10 @@ scenario:
       predictor_type: linear
       locale:
         id: "locale_0"
-        polygon: [[0, 134], [160, 134], [160, 150], [0, 150]]
+        # Drawn to match RSU0's reliable tracking reach (~x=120 for a fast
+        # target): the boundary must sit inside coverage or the edge has no
+        # state left to hand off by the time a vehicle crosses (run-7 finding).
+        polygon: [[0, 134], [115, 134], [115, 150], [0, 150]]
       rsus:
         - <<: *rsu_base
           name: rsu0
@@ -309,7 +312,7 @@ scenario:
       predictor_type: linear
       locale:
         id: "locale_1"
-        polygon: [[140, 134], [310, 134], [310, 150], [140, 150]]
+        polygon: [[105, 134], [310, 134], [310, 150], [105, 150]]
       rsus:
         - <<: *rsu_base
           name: rsu1
