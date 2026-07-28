@@ -84,6 +84,8 @@ def _collect_ab3d_detections(edge,
     #    KITTI camera convention: x=right, y=down(height), z=front
     #    Map: KITTI_x=CARLA_x, KITTI_y=CARLA_z, KITTI_z=CARLA_y
     for vm in edge.vehicle_manager_list:
+        if vm.vehicle.id not in beacons:
+            continue  # VM handed off between update_information and drain; skip beacon
         loc, ext = beacons[vm.vehicle.id]
         h,w,l = ext.z*2, ext.y*2, ext.x*2
         # Heading-align the exclusion zone: yaw=0 hardcoded puts the 2m
@@ -425,9 +427,9 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 num_dets = 0
 
                 for source_tick, (objects, beacons) in new_frames:
-                    if not beacons:
-                        dets_all = {'dets': np.empty((0, 7)),
-                                    'info': np.empty((0, 3))}
+                    if not beacons and not objects.get('vehicles'):
+                        dets_all = {'dets': np.empty((0, 8), np.float32),
+                                    'info': np.empty((0, 3), np.int64)}
                     else:
                         dets_all = _collect_ab3d_detections(
                             self, objects, beacons, frame_idx=source_tick,

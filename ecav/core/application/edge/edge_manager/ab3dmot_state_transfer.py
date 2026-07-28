@@ -76,7 +76,9 @@ class AB3DMOTStateTransferMixin:
         px, py = float(position[0]), float(position[1])
         best, best_d = None, max_dist_m
         for t in self.tracker.trackers:
-            d = ((float(t.kf.x[0]) - px) ** 2 + (float(t.kf.x[1]) - py) ** 2) ** 0.5
+            # kf.x layout: [x, y, z, theta, l, w, h, dx, dy, dz]
+            # x[0]=CARLA_x, x[1]=CARLA_z(height), x[2]=CARLA_y(lateral)
+            d = ((float(t.kf.x[0]) - px) ** 2 + (float(t.kf.x[2]) - py) ** 2) ** 0.5
             if d <= best_d:
                 best, best_d = t, d
         return best
