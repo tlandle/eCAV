@@ -68,6 +68,12 @@ RSU1_DETECT_RANGE_M = 60.0
 # tracker fires the crossing event (0.2 s at 20 Hz).
 LOCALE_MIN_DWELL_TICKS = 4
 
+# Predictive handoff: fire the obstacle transfer this many seconds before the
+# NPC's constant-velocity trajectory exits locale 0. Chosen to fire while RSU0
+# still has an active NPC track (~1.0s = 18m at cruising speed, inside the
+# x=90-115 reacquisition window after moving RSU0 to x=55).
+OBSTACLE_HANDOFF_LOOKAHEAD_S = 1.0
+
 scenario_runner = None
 
 
@@ -91,12 +97,14 @@ def run_vehicle(opt, scenario_params):
 def _build_locale_router(edge_cfgs, edge_list):
     """Build a LocaleRouter from each edge's YAML `locale` block.
 
-    Returns ``(router, edge_by_locale)`` where ``edge_by_locale`` maps
-    ``locale_id`` to its hosting edge instance, so a HandoffEvent's locale ids
-    resolve directly to the src/dst edges of the transfer.
+    Returns ``(router, edge_by_locale, locale_by_id)`` where
+    ``edge_by_locale`` maps ``locale_id`` to its hosting edge instance and
+    ``locale_by_id`` maps ``locale_id`` to the ``Locale`` object (needed by
+    the predictive trigger to call ``predicted_to_exit_within``).
     """
     registry = LocaleRegistry()
     edge_by_locale = {}
+    locale_by_id = {}
     for i, edge_cfg in enumerate(edge_cfgs):
         if 'locale' not in edge_cfg:
             continue
@@ -104,13 +112,15 @@ def _build_locale_router(edge_cfgs, edge_list):
         polygon = np.array([[float(v) for v in row] for row in lc['polygon']],
                            dtype=np.float64)
         locale_id = str(lc['id'])
-        registry.register(Locale(
+        locale = Locale(
             locale_id=locale_id,
             polygon=polygon,
             edge_host_id=edge_list[i].edgeid,
-        ))
+        )
+        registry.register(locale)
         edge_by_locale[locale_id] = edge_list[i]
-    return LocaleRouter(registry), edge_by_locale
+        locale_by_id[locale_id] = locale
+    return LocaleRouter(registry), edge_by_locale, locale_by_id
 
 
 def run_scenario(opt, scenario_params):
@@ -208,7 +218,7 @@ def run_scenario(opt, scenario_params):
 
         # Handoff primitives (after edge_list is populated so edgeid/latency_model exist).
         edge_cfgs = scenario_params['scenario']['edge_list']
-        router, edge_by_locale = _build_locale_router(edge_cfgs, edge_list)
+        router, edge_by_locale, locale_by_id = _build_locale_router(edge_cfgs, edge_list)
         locale_tracker = VehicleLocaleTracker(router, min_dwell_ticks=LOCALE_MIN_DWELL_TICKS)
         daemon = SequentialMigrationDaemon()
         link = InterLocaleLink(edge_list[0].latency_model)
@@ -285,11 +295,12 @@ def run_scenario(opt, scenario_params):
                                         npc_carla_id, step)
                             break
 
-            # NPC-driven advance-warning proxy + obstacle handoff on locale crossing.
+            # NPC-driven advance-warning proxy + obstacle handoff.
             if npc_carla_id is not None:
                 npc_actor = world.get_actor(npc_carla_id)
                 if npc_actor is not None:
                     nloc = npc_actor.get_transform().location
+                    nvel = npc_actor.get_velocity()
                     npc_xy = (nloc.x, nloc.y)
 
                     if rsu1_first_detect_tick is None and rsu1_pos is not None:
@@ -301,48 +312,88 @@ def run_scenario(opt, scenario_params):
                                         RSU1_DETECT_RANGE_M, d, step)
 
                     if not obstacle_handoff_done:
-                        event = locale_tracker.update(
-                            npc_carla_id, npc_xy, step, step * world_dt)
-                        if event is not None and event.source_locale_id is not None:
-                            src_edge = edge_by_locale.get(event.source_locale_id)
-                            dst_edge = edge_by_locale.get(event.destination_locale_id)
-                            if src_edge is not None and dst_edge is not None \
-                                    and src_edge is not dst_edge:
-                                # Crossing fired: mark the transfer pending. The
-                                # source edge's track of the NPC lags its true
-                                # position, so the export may not succeed on the
-                                # crossing tick itself — retry below each tick.
-                                obstacle_handoff_pending = (src_edge, dst_edge)
-                        if obstacle_handoff_pending is not None:
-                            src_edge, dst_edge = obstacle_handoff_pending
-                            cost = daemon.transfer_obstacle_state(
-                                npc_carla_id, src_edge, dst_edge, link, step,
-                                position=npc_xy)
-                            # TEMP DIAGNOSTIC: on failure, dump the source
-                            # tracker's nearest candidates. Remove after fix.
-                            if cost is None and step % 10 == 0:
-                                trks = [
-                                    (t.id, float(t.kf.x[0]), float(t.kf.x[1]),
-                                     t.hits, t.time_since_update)
-                                    for t in src_edge.tracker.trackers]
-                                near = sorted(
-                                    ((((tx - npc_xy[0]) ** 2
-                                       + (ty - npc_xy[1]) ** 2) ** 0.5,
-                                      tid, round(tx, 1), round(ty, 1), h, tsu)
-                                     for tid, tx, ty, h, tsu in trks))[:3]
-                                logger.warning(
-                                    "[SCENB-DBG] retry tick=%d npc=(%.1f,%.1f) "
-                                    "n_trk=%d nearest=%s",
-                                    step, npc_xy[0], npc_xy[1], len(trks), near)
-                            if cost is not None:
-                                scenario_manager.record_handoff_cost(cost)
-                                obstacle_handoff_done = True
-                                obstacle_handoff_pending = None
-                                handoff_tick = step
-                                logger.info(
-                                    "[SCENB] OBSTACLE HANDOFF tick=%d carla_id=%d "
-                                    "bytes=%d total_ms=%.3f",
-                                    step, npc_carla_id, cost.payload_bytes, cost.total_ms)
+                        # ── PREDICTIVE TRIGGER ────────────────────────────
+                        # Project NPC forward at constant velocity. If the
+                        # trajectory exits locale 0 within LOOKAHEAD_S, fire
+                        # the transfer NOW while edge 0 still has a live track.
+                        # Reactive fallback below handles the case where the
+                        # predictive attempt finds no track yet.
+                        if obstacle_handoff_pending is None:
+                            src_locale = locale_by_id.get('locale_0')
+                            if src_locale is not None and src_locale.contains(npc_xy):
+                                n_steps = int(OBSTACLE_HANDOFF_LOOKAHEAD_S / world_dt) + 1
+                                t_arr = np.arange(n_steps, dtype=np.float64) * world_dt
+                                traj = np.column_stack([
+                                    nloc.x + nvel.x * t_arr,
+                                    nloc.y + nvel.y * t_arr,
+                                ])
+                                if src_locale.predicted_to_exit_within(
+                                        traj, OBSTACLE_HANDOFF_LOOKAHEAD_S, world_dt):
+                                    src_edge = edge_by_locale.get('locale_0')
+                                    dst_edge = edge_by_locale.get('locale_1')
+                                    if src_edge is not None and dst_edge is not None:
+                                        cost = daemon.transfer_obstacle_state(
+                                            npc_carla_id, src_edge, dst_edge, link,
+                                            step, position=npc_xy)
+                                        if cost is not None:
+                                            scenario_manager.record_handoff_cost(cost)
+                                            obstacle_handoff_done = True
+                                            handoff_tick = step
+                                            logger.info(
+                                                "[SCENB] PREDICTIVE OBSTACLE HANDOFF "
+                                                "tick=%d carla_id=%d npc_x=%.1f "
+                                                "horizon_s=%.1f bytes=%d total_ms=%.3f",
+                                                step, npc_carla_id, npc_xy[0],
+                                                OBSTACLE_HANDOFF_LOOKAHEAD_S,
+                                                cost.payload_bytes, cost.total_ms)
+                                        elif step % 5 == 0:
+                                            logger.warning(
+                                                "[SCENB-DBG] predictive tick=%d "
+                                                "npc=(%.1f,%.1f) — no track on "
+                                                "src_edge yet",
+                                                step, npc_xy[0], npc_xy[1])
+
+                        # ── REACTIVE FALLBACK ─────────────────────────────
+                        # Fires on the locale-crossing event if the predictive
+                        # trigger didn't fire or found no track.
+                        if not obstacle_handoff_done:
+                            event = locale_tracker.update(
+                                npc_carla_id, npc_xy, step, step * world_dt)
+                            if event is not None and event.source_locale_id is not None:
+                                src_edge = edge_by_locale.get(event.source_locale_id)
+                                dst_edge = edge_by_locale.get(event.destination_locale_id)
+                                if src_edge is not None and dst_edge is not None \
+                                        and src_edge is not dst_edge:
+                                    obstacle_handoff_pending = (src_edge, dst_edge)
+                            if obstacle_handoff_pending is not None:
+                                src_edge, dst_edge = obstacle_handoff_pending
+                                cost = daemon.transfer_obstacle_state(
+                                    npc_carla_id, src_edge, dst_edge, link, step,
+                                    position=npc_xy)
+                                if cost is None and step % 10 == 0:
+                                    trks = [
+                                        (t.id, float(t.kf.x[0]), float(t.kf.x[1]),
+                                         t.hits, t.time_since_update)
+                                        for t in src_edge.tracker.trackers]
+                                    near = sorted(
+                                        ((((tx - npc_xy[0]) ** 2
+                                           + (ty - npc_xy[1]) ** 2) ** 0.5,
+                                          tid, round(tx, 1), round(ty, 1), h, tsu)
+                                         for tid, tx, ty, h, tsu in trks))[:3]
+                                    logger.warning(
+                                        "[SCENB-DBG] reactive retry tick=%d "
+                                        "npc=(%.1f,%.1f) n_trk=%d nearest=%s",
+                                        step, npc_xy[0], npc_xy[1], len(trks), near)
+                                if cost is not None:
+                                    scenario_manager.record_handoff_cost(cost)
+                                    obstacle_handoff_done = True
+                                    obstacle_handoff_pending = None
+                                    handoff_tick = step
+                                    logger.info(
+                                        "[SCENB] REACTIVE OBSTACLE HANDOFF tick=%d "
+                                        "carla_id=%d bytes=%d total_ms=%.3f",
+                                        step, npc_carla_id,
+                                        cost.payload_bytes, cost.total_ms)
 
             # Find ego wherever it currently lives (it moves edges on handoff).
             ego_cav = None

@@ -444,11 +444,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         num_dets = max(num_dets, n_after)
 
                     _t0 = time.perf_counter()
+                    _n_trk_before = len(self.tracker.trackers)
                     tracks, _ = self.tracker.track(dets_all, source_tick)
-                    logger.debug("tracker.track() tick=%d src=%d dets=%d "
-                                 "took %.1fms", tick, source_tick,
-                                 len(dets_all['dets']),
-                                 (time.perf_counter() - _t0) * 1000)
+                    logger.warning("[TRACK-DBG] edge_id=%s tick=%d src=%d dets_in=%d "
+                                   "trk_before=%d trk_after=%d took=%.1fms",
+                                   self.edgeid, tick, source_tick,
+                                   len(dets_all['dets']),
+                                   _n_trk_before,
+                                   len(self.tracker.trackers),
+                                   (time.perf_counter() - _t0) * 1000)
                     if tracks and len(tracks[0]) > 0:
                         self._track_history.append(tracks[0])
                     latest_dets = dets_all

@@ -137,7 +137,9 @@ vehicle_base: &vehicle_base
     emergency_param: .4
     ignore_traffic_light: true
     overtake_allowed: true
-    collision_time_ahead: 2
+    collision_time_ahead: 4  # was 2; raised so hazard fires ~44m out at cruise speed,
+                             # giving enough run-up for the right-lane merge to complete
+                             # before ego reaches the ambulance (run-10 finding)
     overtake_counter_recover: 35
     sample_resolution: 4.5
     local_planner: &base_local_planner
@@ -254,20 +256,18 @@ edge_base: &edge_base
 scenario:
   edge_list:
     # Edge 0 — locale 0, west corridor. RSU0 covers the NPC's approach; ego (cav1)
-    # starts here. Locale polygon x in [0,160], y in [134,150]; overlap x in [140,160].
+    # starts here. RSU0 at x=55 puts the reacquisition zone at ~x=90-110, giving
+    # the predictive trigger a live track window before the boundary at x=115.
     - <<: *edge_base
       manager_type: late_fusion
       predictor_type: linear
       locale:
         id: "locale_0"
-        # Drawn to match RSU0's reliable tracking reach (~x=120 for a fast
-        # target): the boundary must sit inside coverage or the edge has no
-        # state left to hand off by the time a vehicle crosses (run-7 finding).
         polygon: [[0, 134], [115, 134], [115, 150], [0, 150]]
       rsus:
         - <<: *rsu_base
           name: rsu0
-          spawn_position: [75.0, 141.0, 7.0]
+          spawn_position: [55.0, 141.0, 7.0]
           id: 0
       vehicles:
         - <<: *vehicle_base
