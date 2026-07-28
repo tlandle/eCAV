@@ -32,6 +32,8 @@ from .edge_manager_adaptive import AdaptiveEdge
 from .edge_manager_worldfusion_ab3dmot_mtr_adaptive import (
     WorldFusionAdaptiveEdge,
 )
+from .edge_manager_infra_only_ab3dmot_linear_predictor import InfraOnlyEdge
+from .edge_manager_cip_ab3dmot_linear_predictor import CIPEdge
 
 __all__ = [
     "BaseEdgeManager",
@@ -65,6 +67,8 @@ _EDGE_REGISTRY = {
     "ADAPTIVE": AdaptiveEdge,
     "WORLDFUSION_ADAPTIVE": WorldFusionAdaptiveEdge,
     "WORLDFUSION_ADAPTIVE_EDGE": WorldFusionAdaptiveEdge,
+    "INFRA_ONLY": InfraOnlyEdge,
+    "CIP": CIPEdge,
 }
 
 

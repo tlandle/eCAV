@@ -45,6 +45,7 @@ from ecav.core.prediction.obstacle_prediction \
     import ObstaclePrediction
 from ecav.core.sensing.tracking.obstacle_trajectory \
     import ObstacleTrajectory
+from ecav.core.tracking.ab3dmot_format import vehicles_to_ab3dmot_dets
 from ecav.core.prediction.linear_predictor_manager import LinearPredictorManager
 from ecav.core.map.map_manager import MapManager
 from ecav.core.common.data_dumper import DataDumper
@@ -70,6 +71,14 @@ elif cloud_config["log_level"] == "warning":
 elif cloud_config["log_level"] == "info":
     logger.setLevel(logging.INFO)
 
+
+_VEHICLE_DET_GUID = 0
+
+
+def _next_vehicle_guid() -> int:
+    global _VEHICLE_DET_GUID
+    _VEHICLE_DET_GUID += 1
+    return _VEHICLE_DET_GUID
 
 
 class VehicleManager(object):
@@ -491,6 +500,17 @@ class VehicleManager(object):
             self.agent = BehaviorAgent(self.vehicle, self.carla_map, behavior_config, is_dist=self.run_distributed)
             logger.debug("BehaviorAgent created")
 
+        # Vehicle-side tracker + predictor. Always on: every real AV has
+        # local detect -> track -> predict as the fallback regardless of
+        # cooperative input. Cooperative input is an overlay that takes
+        # priority when present; if edge predictions are absent or stale,
+        # the planner falls back to local predictions produced here.
+        from ecav.core.sensing.tracking.vehicle_side_tracker import (
+            VehicleSideTracker,
+        )
+        self.local_tracker = VehicleSideTracker(
+            cav_config.get('local_tracker', {}) or {})
+
         # Control module
         self.controller = ControlManager(control_config)
         logger.debug("ControlManager created")
@@ -755,6 +775,25 @@ class VehicleManager(object):
         logger.debug("Perception time: %s" %(end_time - start_time))
         self.client_metrics.update_perception_time((end_time-start_time)*1000)
 
+        # ── Vehicle-side tracker + predictor ──
+        # Always-on fallback. Feed it the combined detection set
+        # (local perception merged with any edge-shipped detections in
+        # self.edge_objects). Its output is the local-prediction list the
+        # planner uses when edge_predictions is empty or stale.
+        try:
+            ab3d_dets = vehicles_to_ab3dmot_dets(
+                objects.get('vehicles', []),
+                frame_idx=self.step_id or 0,
+                guid_provider=_next_vehicle_guid,
+            )
+            self.agent.local_predictions = self.local_tracker.process_detections(
+                ab3d_dets, tick=self.step_id or 0,
+            )
+        except Exception:
+            logger.exception("Vehicle-side tracker step failed; "
+                             "planner will see empty local predictions")
+            self.agent.local_predictions = []
+
         #assignments = self.tracking_manager.deactivate_mode(objects, ego_pos)
         
         #for vid in assignments:
@@ -805,6 +844,10 @@ class VehicleManager(object):
 
         pre_vehicle_step_time = time.time()
         try:
+            # Hand the agent the global sim tick so brake-event AoI-at-use is
+            # measured on the edge clock (publish/source ticks), not the
+            # agent's private _step_count which starts at 0 on agent creation.
+            self.agent._current_global_tick = self.step_id
             target_speed, target_pos = self.agent.run_step(target_speed)
             # visualize the bev map if needed
             self.map_manager.run_step()

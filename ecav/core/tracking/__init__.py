@@ -18,6 +18,15 @@ def get_tracker(name: str, cfg: dict) -> BaseTracker:
     """Instantiate a tracker by name from config dict."""
     key = name.upper()
     if key not in _TRACKER_REGISTRY:
+        # Torch-backed trackers register lazily so AB3DMOT-only processes
+        # never import torch.
+        if key == 'MAMBA3DMOT':
+            from ecav.core.tracking.mamba3dmot.wrapper import Mamba3DMOTWrapper
+            register_tracker('MAMBA3DMOT', Mamba3DMOTWrapper)
+        elif key == 'SSM3DMOT':
+            from ecav.core.tracking.ssm3dmot import SSM3DMOT
+            register_tracker('SSM3DMOT', SSM3DMOT)
+    if key not in _TRACKER_REGISTRY:
         raise KeyError(
             f"Unknown tracker: {name!r}. "
             f"Available: {list(_TRACKER_REGISTRY.keys())}")

@@ -257,7 +257,16 @@ class Scenario_3(BasicScenario):
         self.vehicle_04_velocity = 0
         self.vehicle_05_velocity = 0
         self.vehicle_06_velocity = 0
-        self._trigger_distance = 80
+        # Trigger distance gates when the cross-traffic launches: the Lincoln
+        # starts driving once the ego is within this many metres of the trigger
+        # point. Smaller => Lincoln launches later => it reaches the conflict
+        # later, closer to the ego's arrival (phasing knob for the collision-
+        # boundary scenario). Env-overridable so boundary sweeps need no edit.
+        import os
+        self._trigger_distance = float(os.environ.get("CROSS_TRIGGER_DIST", 80))
+        print(f"[SCENARIO_3] trigger_distance={self._trigger_distance} "
+              f"(CROSS_TRIGGER_DIST env={os.environ.get('CROSS_TRIGGER_DIST')})",
+              flush=True)
         self.agents = []
 
         # scenario_params is now **a list of "key=value" strings**

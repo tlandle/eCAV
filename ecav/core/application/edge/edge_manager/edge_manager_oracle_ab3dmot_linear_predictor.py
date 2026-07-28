@@ -88,6 +88,12 @@ def _collect_oracle_detections(edge,
     #    KITTI camera convention: KITTI_x=CARLA_x, KITTI_y=CARLA_z, KITTI_z=CARLA_y
     managed_ids = set()
     for vm in edge.vehicle_manager_list:
+        # Infra-only / perception architectures have no vehicle uplink, so a
+        # managed vehicle may have no beacon. Skip the beacon row for it; it
+        # then appears as an anonymous ground-truth detection below, which is
+        # exactly what the RSU sees.
+        if vm.vehicle.id not in beacons:
+            continue
         loc, ext = beacons[vm.vehicle.id]
         managed_ids.add(vm.vehicle.id)
         h, w, l = ext.z * 2, ext.y * 2, ext.x * 2

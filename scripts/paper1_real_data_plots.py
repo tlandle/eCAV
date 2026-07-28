@@ -259,7 +259,7 @@ def _has_manager(runs, mgr):
 
 # ══════════════════════════════════════════════════════════════════════
 # FIGURE 1: S_op vs Configured Latency
-# Synthetic format: 1x3 panels (Oracle, LF, VIPS), SBA on vs off per panel
+# Layout: 1x3 panels (Oracle, LF, VIPS), SBA on vs off per panel
 # ══════════════════════════════════════════════════════════════════════
 
 def fig1_sop_vs_latency(runs):
@@ -292,7 +292,7 @@ def fig1_sop_vs_latency(runs):
 
 # ══════════════════════════════════════════════════════════════════════
 # FIGURE 2: Failure Decomposition
-# Synthetic format: 1x4 panels (S_ghost, S_coll, S_fp, S_prog),
+# Layout: 1x4 panels (S_ghost, S_coll, S_fp, S_prog),
 #   SBA on = solid, SBA off = dashed, same color per component.
 #   Late Fusion as representative manager.
 # ══════════════════════════════════════════════════════════════════════
@@ -334,7 +334,7 @@ def fig2_failure_decomposition(runs):
 
 # ══════════════════════════════════════════════════════════════════════
 # FIGURE 3: First-Failure Stacked Bars
-# Synthetic format: 3x2 grid (managers x SBA off/on), stacked bars per latency
+# Layout: 3x2 grid (managers x SBA off/on), stacked bars per latency
 # ══════════════════════════════════════════════════════════════════════
 
 def fig3_first_failure_stacked(runs):
@@ -385,7 +385,7 @@ def fig3_first_failure_stacked(runs):
 
 # ══════════════════════════════════════════════════════════════════════
 # FIGURE 4: Oracle Isolation
-# Synthetic format: 1x2 panels (S_ghost, S_coll). Oracle on/off + LF/VIPS
+# Layout: 1x2 panels (S_ghost, S_coll). Oracle on/off + LF/VIPS
 #   off as dotted comparison lines.
 # ══════════════════════════════════════════════════════════════════════
 
@@ -469,7 +469,7 @@ def fig5_aoi_cdf(runs):
 
 # ══════════════════════════════════════════════════════════════════════
 # FIGURE 8: Brake Provenance
-# Synthetic format: 1x2 panels (SBA OFF / SBA ON), stacked bars showing
+# Layout: 1x2 panels (SBA OFF / SBA ON), stacked bars showing
 #   brake source fractions (self-ghost, NPC hazard, parked, unknown).
 #   Real data categories: self_ghost, true_positive (= NPC hazard),
 #   other_fp (= parked/other), unknown (remainder).
@@ -523,7 +523,7 @@ def fig8_brake_provenance(runs):
 
 # ══════════════════════════════════════════════════════════════════════
 # FIGURE 9: Brake Episodes per km
-# Synthetic format: single panel, 6 lines (ghost/fp/tp x SBA off/on).
+# Layout: single panel, 6 lines (ghost/fp/tp x SBA off/on).
 #   SBA OFF = solid, SBA ON = dashed. Color by category.
 # ══════════════════════════════════════════════════════════════════════
 
@@ -557,7 +557,7 @@ def fig9_brake_episodes_per_km(runs):
 
 # ══════════════════════════════════════════════════════════════════════
 # FIGURE 12: System Overhead (Edge Frame Time)
-# Synthetic format: 2-panel (a) vs latency N=1 all managers, (b) vs N.
+# Layout: 2-panel (a) vs latency N=1 all managers, (b) vs N.
 #   We only have N=1 data, so panel (b) is placeholder or omitted.
 # ══════════════════════════════════════════════════════════════════════
 

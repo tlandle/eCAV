@@ -181,6 +181,10 @@ class BehaviorAgent(object):
         self._rss_lateral_growing_ticks = 0
         # Step counter for AoI tracking (incremented each run_step call)
         self._step_count = 0
+        # Global sim tick, set by VehicleManager before run_step. Used as the
+        # brake trigger timestamp so AoI-at-use shares the edge clock with the
+        # prediction's source_tick. Falls back to _step_count if unset.
+        self._current_global_tick = None
 
         # route planner related
         self._global_planner = None
@@ -305,9 +309,14 @@ class BehaviorAgent(object):
         if self.edge_predictions:            # → edge is active; trust it exclusively
             self.generated_predictions = self.edge_predictions.copy()
 
-        else:                                # → no edge data; run local predictor
-            #self._maintain_tracks_and_predict(dt=0.05)   # ≈ sim-step seconds
-            #self.generated_predictions = self.local_predictions
+        elif getattr(self, 'local_predictions', None):
+            # Edge silent or absent; fall back to the vehicle's local
+            # tracker + predictor output. This is always-on in real AV
+            # stacks and ensures the planner has predictions even when
+            # cooperative input is unavailable.
+            self.generated_predictions = list(self.local_predictions)
+
+        else:
             self.generated_predictions = []
 
         # current version only consider about vehicles
@@ -790,7 +799,15 @@ class BehaviorAgent(object):
                     # trigger_tick = when brake decision was made
                     'source_tick': getattr(pred, 'source_tick', None),
                     'publish_tick': getattr(pred, 'publish_tick', None),
-                    'trigger_tick': self._step_count,
+                    'trigger_tick': (self._current_global_tick
+                                     if self._current_global_tick is not None
+                                     else self._step_count),
+                    'ego_speed_mps': ego_speed_mps,
+                    'delta_use_ticks': (
+                        (self._current_global_tick - getattr(pred, 'source_tick'))
+                        if (self._current_global_tick is not None
+                            and getattr(pred, 'source_tick', None) is not None)
+                        else None),
                     # Prediction horizon in seconds
                     'prediction_horizon_s': len(pred.predicted_trajectory) * 0.05 if pred.predicted_trajectory else None,
                     # Position for GT matching (edge manager will label)
