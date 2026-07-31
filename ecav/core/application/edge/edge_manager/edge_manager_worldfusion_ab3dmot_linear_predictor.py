@@ -53,6 +53,7 @@ from ecav.core.application.edge.latency import JitterBuffer
 from ecav.core.application.edge.latency.ns3_lut_sampler import (
     get_default as _get_lut_sampler,
 )
+from .ab3dmot_state_transfer import AB3DMOTStateTransferMixin
 from .edge_manager_base import _BaseEdgeManager
 
 import logging
@@ -67,7 +68,7 @@ def _box_to_transform(box: np.ndarray):
     return _Tf(location=loc, rotation=rot)
 
 
-class WorldFusionEdge(_BaseEdgeManager):
+class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     """
     Edge manager implementing WorldFusion with AB3DMOT tracking and linear prediction.
 

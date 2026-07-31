@@ -29,7 +29,7 @@ from concurrent.futures import ThreadPoolExecutor, thread
 import logging
 import threading
 import time
-from typing import Dict, Iterable, Optional
+from typing import Dict, Iterable, List, Optional
 from queue import Queue
 import heapq
 from google.protobuf.timestamp_pb2 import Timestamp
@@ -58,6 +58,7 @@ from ecav.core.common.cav_world import CavWorld
 from ecav.scenario_testing.utils.customized_map_api import \
     load_customized_world, bcolors
 from ecav.core.application.edge.migration.payload import MigrationPayload
+from ecav.core.application.edge.migration.link import TransferCost
 # Edge-manager implementations ──────────────────────────────────────────────
 from ecav.core.application.edge.edge_manager import get_edge_class
 from ecav.sim_metrics import SimMetrics
@@ -576,6 +577,7 @@ class ScenarioManager:
         #self.config_file = config_file
         self.sim_metrics = SimMetrics(0)
         self._vehicle_state_store: Dict[int, MigrationPayload] = {}
+        self._handoff_costs: List[TransferCost] = []
         self.ecloud_config = EcloudConfig(scenario_params, logger)
         self.sm_start_tstamp.GetCurrentTime()
         self.scenario_params = scenario_params
@@ -759,6 +761,20 @@ class ScenarioManager:
 
     def retrieve_all_vehicle_states(self) -> Dict[int, MigrationPayload]:
         return dict(self._vehicle_state_store)
+
+    # ------------------------------------------------------------------
+    # Hand-off cost sink — one TransferCost per edge-to-edge transfer.
+    # Recorded by the scenario loop, read by EvaluationManager. Mirrors
+    # the sim_metrics pattern (accumulate here, drain in evaluate()).
+    # Phase-agnostic: the daemon produces TransferCost the same way in
+    # -eo and C++ modes; only the transfer mechanism changes, not this.
+    # ------------------------------------------------------------------
+
+    def record_handoff_cost(self, cost: TransferCost) -> None:
+        self._handoff_costs.append(cost)
+
+    def get_handoff_costs(self) -> List[TransferCost]:
+        return list(self._handoff_costs)
 
     async def run_comms(self):
         self.push_q = asyncio.Queue()

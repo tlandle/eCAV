@@ -1,0 +1,321 @@
+description: |-
+  Author: Jordan Rapp + Tyler Landle <tlandle3@gatech.edu>
+  Content: Scenario B — Town06 right-merge / obstacle hand-off (Late Fusion).
+           Ego drives the LEFTMOST eastbound lane -3 (solid line to the
+           shoulder on its left — no left escape). A stationary emergency
+           vehicle blocks lane -3 ahead; a fast NPC overtakes in the adjacent
+           lane -4. Every vehicle crossing the locale 0 -> locale 1 boundary
+           is handed off: managed vehicles via daemon.request_handoff
+           (ownership move), the NPC obstacle via
+           daemon.transfer_obstacle_state (KF share) so locale 1 sees it
+           before its own RSU can. Ego detects the blockage via edge
+           predictions, waits for the NPC to pass, merges right, and
+           continues to its destination. Uses Scenario_MultiEdgeRightMerge
+           (scenario_multi_edge_right_merge.xml/.py).
+
+scenario_name: openscenario_multi_edge_right_merge
+
+# Carla server settings
+distributed: false
+define: &perception_is_active true
+perception_active: *perception_is_active
+
+ml_manager:
+  yolo_endpoint: 'localhost:18001'
+
+world:
+  sync_mode: true
+  client_host: &host localhost
+  client_port: &port 2000
+  fixed_delta_seconds: 0.05
+  seed: 11
+  weather:
+    sun_altitude_angle: 75
+    cloudiness: 10
+    precipitation: 0
+    precipitation_deposits: 0
+    wind_intensity: 0
+    fog_density: 0
+    fog_distance: 0
+    fog_falloff: 0
+    wetness: 0
+
+
+carla_traffic_manager:
+  sync_mode: true
+  global_distance: 5.0
+  global_speed_perc: -50
+  set_osm_mode: true
+  auto_lane_change: false
+  random: false
+  ignore_lights_percentage: 0
+  vehicle_list:
+  range: []
+
+ego_vehicle_max_speed: 43 # km/h
+
+scenario_runner:
+  town: Town06
+
+  scenario: Scenario_MultiEdgeRightMerge
+  num_actors: 3
+  configFile: ecav/scenario_testing/scenarios/scenario_multi_edge_right_merge.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_multi_edge_right_merge.py
+
+  host: *host
+  port: *port
+  timeout: 10
+  debug: false
+  sync: false
+  repetitions: 1
+  agent: null
+  openscenario: null
+  route: null
+  reloadWorld: false
+  waitForEgo: false
+  trafficManagerPort: '8000'
+  trafficManagerSeed: '0'
+  record: ''
+  agentConfig: ''
+  file: false
+  json: false
+  junit: false
+  list: false
+  openscenarioparams:
+    - ego_vehicle_max_speed=43
+  output: false
+  outputDir: ''
+  randomize: false
+  vehicle_index: -2
+
+
+vehicle_base: &vehicle_base
+  sensing: &base_sensing
+    perception: &base_perception
+      activate: true
+      camera:
+        visualize: 4
+        num: 4
+        image_width: 640
+        image_height: 480
+        positions:
+          - [ 1.5,  0.0, 1.7,   0]
+          - [ 0.0, -1.5, 1.7, -90]
+          - [ 0.0,  1.5, 1.7,  90]
+          - [-1.5,  0.0, 1.7, 180]
+      lidar:
+        visualize: false
+        channels: 64
+        range: 50
+        points_per_second: 1150000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -30.0
+        dropoff_general_rate: 0.0
+        dropoff_intensity_limit: 1.0
+        dropoff_zero_intensity: 0.0
+        noise_stddev: 0.0
+    localization: &base_localize
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.5
+        noise_lat_stddev: 1.5e-6
+        noise_lon_stddev: 1.5e-6
+        heading_direction_stddev: 1.0
+        speed_stddev: 0.5
+      debug_helper: &loc_debug_helper
+        show_animation: false
+        x_scale: 1.0
+        y_scale: 1.0
+  behavior: &base_behavior
+    max_speed: 43
+    tailgate_speed: 121
+    speed_lim_dist: 3
+    speed_decrease: 15
+    safety_time: 4
+    emergency_param: .4
+    ignore_traffic_light: true
+    overtake_allowed: true
+    collision_time_ahead: 4  # was 2; raised so hazard fires ~44m out at cruise speed,
+                             # giving enough run-up for the right-lane merge to complete
+                             # before ego reaches the ambulance (run-10 finding)
+    overtake_counter_recover: 35
+    sample_resolution: 4.5
+    local_planner: &base_local_planner
+      buffer_size: 12
+      trajectory_update_freq: 15
+      waypoint_update_freq: 9
+      min_dist: 3
+      trajectory_dt: 0.20
+      debug: true
+      debug_trajectory: true
+  controller: &base_controller
+    type: pid_controller
+    args: &control_args
+      lat:
+        k_p: 0.75
+        k_d: 0.02
+        k_i: 0.4
+      lon:
+        k_p: 0.37
+        k_d: 0.024
+        k_i: 0.032
+      dynamic: false
+      dt: ${world.fixed_delta_seconds}
+      max_brake: 1.0
+      max_throttle: 1.0
+      max_steering: 0.3
+  v2x: &base_v2x
+    enabled: true
+    communication_range: 35
+    loc_noise: 0.0
+    yaw_noise: 0.0
+    speed_noise: 0.0
+    lag: 0
+  map_manager:
+    pixels_per_meter: 2
+    raster_size: [224, 224]
+    lane_sample_resolution: 0.1
+    visualize: false
+    activate: true
+  safety_manager:
+    print_message: true
+    collision_sensor:
+      history_size: 30
+      col_thresh: 1
+    stuck_dector:
+      len_thresh: 500
+      speed_thresh: 0.5
+    offroad_dector: [ ]
+    traffic_light_detector:
+      light_dist_thresh: 20
+
+rsu_base: &rsu_base
+  sensing:
+    perception:
+      activate: true
+      backend: default
+      camera:
+        visualize: 4
+        num: 4
+        image_width: 640
+        image_height: 480
+        positions:
+          - [2.5, 0, 1.0, 0]
+          - [0.0, 0.3, 1.8, 100]
+          - [0.0, -0.3, 1.8, -100]
+          - [-2.0, 0.0, 1.5, 180]
+      lidar:
+        visualize: false
+        channels: 32
+        range: 120
+        points_per_second: 1000000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -70.0
+        dropoff_general_rate: 0.0
+        dropoff_intensity_limit: 1.0
+        dropoff_zero_intensity: 0.0
+        noise_stddev: 0.0
+    localization:
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+
+
+ecloud:
+  num_servers: 2
+  server_ping_time_s: 0.005
+  client_world_time_factor: 0.9
+  client_ping_spawn_s: 0.05
+  client_ping_tick_s: 0.005
+
+edge_base: &edge_base
+  max_capacity: 10
+  inter_gap: 0.6
+  open_gap: 1.2
+  warm_up_speed: 55
+  change_leader_speed: true
+  leader_speeds_profile: [ 85, 95 ]
+  stage_duration: 10
+  target_speed: 100
+  edge_dt: 0.2
+  search_dt: 2
+  latency: 0.0
+  jitter_std: 0.0
+  latency_distribution: hybrid
+  edge_sets_destination: false
+  uplink_packet_loss_pct: 0.0
+  downlink_packet_loss_pct: 0.0
+  mode: PREDICTION
+
+scenario:
+  edge_list:
+    # Edge 0 — locale 0, west corridor. RSU0 covers the NPC's approach; ego (cav1)
+    # starts here. RSU0 at x=55 puts the reacquisition zone at ~x=90-110, giving
+    # the predictive trigger a live track window before the boundary at x=115.
+    - <<: *edge_base
+      manager_type: late_fusion
+      predictor_type: linear
+      locale:
+        id: "locale_0"
+        polygon: [[0, 134], [115, 134], [115, 150], [0, 150]]
+      rsus:
+        - <<: *rsu_base
+          name: rsu0
+          spawn_position: [55.0, 141.0, 7.0]
+          id: 0
+      vehicles:
+        - <<: *vehicle_base
+          name: cav1
+          destination: [600.0, 139.5, 0.3]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              camera:
+                visualize: 4
+                num: 4
+                image_width: 640
+                image_height: 480
+                positions:
+                  - [ 1.5,  0.0, 1.7,   0]
+                  - [ 0.0, -1.5, 1.7, -90]
+                  - [ 0.0,  1.5, 1.7,  90]
+                  - [-1.5,  0.0, 1.7, 180]
+              backend: default
+            localization:
+              <<: *base_localize
+              debug_helper:
+                <<: *loc_debug_helper
+                show_animation: false
+          v2x:
+            <<: *base_v2x
+            enabled: false
+            communication_range: 35
+          behavior:
+            <<: *base_behavior
+            local_planner:
+              <<: *base_local_planner
+              debug_trajectory: false
+              debug: false
+
+    # Edge 1 — locale 1, east corridor / merge zone. RSU1 covers the merge zone;
+    # the NPC's KF is injected here on the locale crossing, before RSU1 sees it.
+    # Locale polygon x in [140,310], y in [134,150].
+    - <<: *edge_base
+      manager_type: late_fusion
+      predictor_type: linear
+      locale:
+        id: "locale_1"
+        polygon: [[105, 134], [310, 134], [310, 150], [105, 150]]
+      rsus:
+        - <<: *rsu_base
+          name: rsu1
+          spawn_position: [230.0, 141.0, 7.0]
+          id: 1
+      # No vehicles at start — edge 1 tracks via RSU1 and receives the NPC KF hand-off.

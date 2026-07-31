@@ -257,6 +257,48 @@ def test_daemon_fallback_to_direct_export():
     assert cost.payload_bytes > 0
 
 
+# ── Step 6: metric aggregation (pure function, no CARLA) ──────────
+
+def test_summarize_handoff_costs_empty():
+    from ecav.scenario_testing.evaluations.evaluate_manager import summarize_handoff_costs
+    import json
+
+    result = summarize_handoff_costs([])
+    assert result["handoffs"] == []
+    s = result["handoff_summary"]
+    assert s["handoff_count"] == 0
+    assert s["total_payload_bytes"] == 0
+    assert s["mean_transfer_ms"] == 0.0
+    json.dumps(result)  # must be JSON-serializable for simulation_metrics.json
+
+
+def test_summarize_handoff_costs_from_daemon():
+    from ecav.scenario_testing.evaluations.evaluate_manager import summarize_handoff_costs
+    import json
+
+    src = _StubEdge("e0")
+    src.seed_vehicle(VID, state=STATE)
+    dst = _StubEdge("e1", tracker_id_start=10)
+    store = _StubStore()
+    store.store_vehicle_state(VID, src.export_vehicle_state(VID))
+    daemon = SequentialMigrationDaemon()
+    daemon.request_handoff(VID, src, dst, store, _make_link(latency_ms=5.0), tick=7)
+
+    result = summarize_handoff_costs(daemon.costs)
+    assert len(result["handoffs"]) == 1
+    rec = result["handoffs"][0]
+    assert rec["vehicle_id"] == VID
+    assert rec["tick"] == 7
+    assert rec["src_edge_id"] == "e0" and rec["dst_edge_id"] == "e1"
+
+    s = result["handoff_summary"]
+    assert s["handoff_count"] == 1
+    assert s["total_payload_bytes"] == rec["payload_bytes"]
+    assert s["total_transfer_ms"] == rec["total_ms"]
+    assert s["mean_transfer_ms"] == rec["total_ms"]
+    json.dumps(result)  # JSON round-trip must not raise
+
+
 # ──────────────────────────────────────────────────────────────
 #  Standalone entry point
 # ──────────────────────────────────────────────────────────────
@@ -269,6 +311,8 @@ def main() -> int:
         test_transfer_cost_recorded,
         test_cost_sensitive_to_serialize_rate,
         test_daemon_fallback_to_direct_export,
+        test_summarize_handoff_costs_empty,
+        test_summarize_handoff_costs_from_daemon,
     ]
     passed = 0
     for fn in tests:

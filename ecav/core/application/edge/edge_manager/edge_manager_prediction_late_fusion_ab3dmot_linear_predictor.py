@@ -48,6 +48,7 @@ from ecav.core.application.edge.latency.ns3_lut_sampler import (
     get_default as _get_lut_sampler,
 )
 
+from .ab3dmot_state_transfer import AB3DMOTStateTransferMixin
 from .edge_manager_base import _BaseEdgeManager, logger
 
 # Late-fusion uplink payload per source: 96 B self-beacon + object list.
@@ -227,7 +228,7 @@ def _cross_source_nms(dets_dict, cdist_thresh=3.0):
 # ──────────────────────────────────────────────────────────────────────
 #  Main edge-manager subclass
 # ──────────────────────────────────────────────────────────────────────
-class PredictionLateFusionEdge(_BaseEdgeManager):
+class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     """
     Back-end for *mode: PREDICTION* (late-fusion with AB3DMOT).
     """
@@ -573,7 +574,7 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
         """
         has_sensor_dets = bool(objects.get("vehicles")) if hasattr(objects, "get") else False
         if not beacons and not has_sensor_dets:
-            return {'dets': np.empty((0, 7)), 'info': np.empty((0, 3))}
+            return {'dets': np.empty((0, 8), np.float32), 'info': np.empty((0, 3), np.int64)}
         dets_all = _collect_ab3d_detections(
             self, objects, beacons, frame_idx=source_tick,
             beacon_id_mgr=self.beacon_id_mgr)
@@ -613,9 +614,6 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                     if os.environ.get('DET_TRACE'):
                         _dxy = [(round(float(d[3]), 1), round(float(d[5]), 1))
                                 for d in dets_all['dets']]
-                        _tesla = [p for p in _dxy if 125.0 <= p[1] <= 131.0]
-                        # box dims (l,w,yaw) for tesla-path dets to see if the
-                        # box is consistent enough for the GIoU gate
                         _tbox = [(round(float(d[3]),1), round(float(d[5]),1),
                                   round(float(d[2]),1), round(float(d[1]),1),
                                   round(float(d[6]),2))
@@ -625,6 +623,7 @@ class PredictionLateFusionEdge(_BaseEdgeManager):
                                        source_tick, len(_dxy), _tbox)
 
                     _t0 = time.perf_counter()
+                    _n_trk_before = len(self.tracker.trackers)
                     tracks, _ = self.tracker.track(dets_all, source_tick)
                     if os.environ.get('DET_TRACE'):
                         logger.warning(

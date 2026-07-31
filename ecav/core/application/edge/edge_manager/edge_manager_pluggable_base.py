@@ -14,6 +14,9 @@ from typing import Dict, Optional
 
 import numpy as np
 
+from AB3DMOT_libs.kalman_filter import KF as _AB3DMOT_KF
+from ecav.core.application.edge.migration.payload import (
+    KFState, MigrationPayload, TrackLatent)
 from ecav.core.application.edge.edge_manager.edge_manager_base import (
     _BaseEdgeManager)
 from ecav.core.application.edge.fusion import get_fusion
@@ -22,15 +25,17 @@ from ecav.core.application.edge.track_utils import ab3d_tracks_to_trajectories
 from ecav.core.application.edge.latency import JitterBuffer
 from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
 from ecav.core.application.edge.edge_profiler import EdgeProfiler
-from ecav.core.application.edge.migration.payload import KFState, MigrationPayload, TrackLatent
 from ecav.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
-from AB3DMOT_libs.kalman_filter import KF as _AB3DMOT_KF
 
 logger = logging.getLogger(__name__)
 
 
 class _PluggableEdgeBase(_BaseEdgeManager):
-    """Common init and pipeline plumbing for SOTAEdge and AdaptiveEdge."""
+    """Common init and pipeline plumbing for SOTAEdge and AdaptiveEdge.
+
+    State-transfer dispatches on the active tracker backend: AB3DMOT (KFState
+    snapshot) or Mamba3DTracker (full memo-bank latent via migration.factories).
+    """
 
     def __init__(self, world, cfg, cav_world, carla_client, *,
                  world_dt=0.05, **kwargs):
@@ -294,15 +299,65 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         super().accept(vm)
         vm.agent._anchoring = self.anchoring
 
-    def export_tracked_obstacle_state(self, carla_id: int) -> Optional[MigrationPayload]:
-        """Export tracker state for any tracked obstacle (no VehicleManager required)."""
+    def export_tracked_obstacle_state(
+        self, carla_id: int, position=None, max_dist_m: float = 15.0
+    ) -> Optional[MigrationPayload]:
+        """Export tracker state for any tracked obstacle (no VehicleManager).
+
+        For Mamba backends: identity lookup only.
+        For AB3DMOT backends: identity lookup first; falls back to nearest-KF
+        within max_dist_m when position is supplied. This handles unmanaged NPCs
+        that never beacon (kf.carla_id stays -1; only the scenario knows where
+        they are).
+
+        kf.x layout for the position fallback:
+            [x, y, z, theta, l, w, h, dx, dy, dz]
+            x[0]=CARLA_x, x[2]=CARLA_y (lateral) — NOT x[1] (height).
+        """
         raw = self._raw_tracker()
-        pool = raw.tracked_tracklets if self._is_mamba(raw) else raw.trackers
-        if not any(self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
-                   for t in pool):
+        if self._is_mamba(raw):
+            if not any(self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
+                       for t in raw.tracked_tracklets):
+                return None
+            tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
+            track = self._export_track_latent(carla_id, tid)
+            return MigrationPayload(
+                source_locale_id="",
+                destination_locale_id="",
+                trigger_time_s=0.0,
+                tracks=[track],
+            )
+
+        # AB3DMOT path — identity lookup first, then position fallback.
+        kf_obj = next(
+            (t for t in raw.trackers
+             if self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id),
+            None,
+        )
+        if kf_obj is None and position is not None:
+            px, py = float(position[0]), float(position[1])
+            best, best_d = None, max_dist_m
+            for t in raw.trackers:
+                d = ((float(t.kf.x[0]) - px) ** 2 + (float(t.kf.x[2]) - py) ** 2) ** 0.5
+                if d < best_d:
+                    best, best_d = t, d
+            kf_obj = best
+        if kf_obj is None:
             return None
+
         tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
-        track = self._export_track_latent(carla_id, tid)
+        kf_state = KFState(
+            state_vector=kf_obj.kf.x.flatten().copy(),
+            covariance=kf_obj.kf.P.copy(),
+            hits=kf_obj.hits,
+            anchoring_age=getattr(kf_obj, 'anchoring_age', 0),
+        )
+        track = TrackLatent(
+            track_id=tid,
+            persistent_vehicle_id=carla_id,
+            hidden_state=np.zeros(1, dtype=np.float16),
+            kf_state=kf_state,
+        )
         return MigrationPayload(
             source_locale_id="",
             destination_locale_id="",
