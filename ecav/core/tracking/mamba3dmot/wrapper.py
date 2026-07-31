@@ -23,7 +23,10 @@ class Mamba3DMOTWrapper(BaseTracker):
     Wraps Mamba3DTracker with AB3DMOT-compatible input/output format.
 
     Input:  dets_all = {'dets': (N, 8) [h,w,l,x,y,z,yaw,score], 'info': (N, 3)}
-    Output: tracks_list = [(M, 14) [h,w,l,x,y,z,yaw,id,frame,det_idx,carla_id,vx,vy,vz]]
+    Output: tracks_list = [(M, 14)
+            [h,w,l,x,y,z,yaw,id,carla_id,det_idx,vx,vz,vy,0]]
+            (AB3DMOT-consumer layout: ab3d_tracks_to_trajectories reads
+            carla_id at col 8 and velocities at cols 10/12)
     """
 
     _DEFAULTS = {
@@ -135,6 +138,10 @@ class Mamba3DMOTWrapper(BaseTracker):
                 else:
                     vel = np.zeros(3)
 
+                # Column layout matches what ab3d_tracks_to_trajectories
+                # parses for AB3DMOT rows: carla_id at 8, vx at 10, vy at 12
+                # (previously carla_id sat at 10 and frame at 8, so replay
+                # stamped carla_id=frame and kf_speed from (carla_id, vy)).
                 out = np.array([
                     state[5],  # h
                     state[4],  # w
@@ -144,12 +151,12 @@ class Mamba3DMOTWrapper(BaseTracker):
                     state[2],  # z
                     state[6],  # yaw
                     trk.track_id,
-                    frame,
-                    0,   # det_idx
                     getattr(trk, 'carla_id', -1),
-                    vel[0],  # vx
-                    vel[1],  # vy
+                    0,       # det_idx
+                    vel[0],  # vx  (m/tick, consumer divides by dt)
                     vel[2],  # vz
+                    vel[1],  # vy
+                    0.0,
                 ], dtype=np.float64)
                 results.append(out)
 

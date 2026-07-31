@@ -1,9 +1,10 @@
 description: |-
-  Minimal WorldFusion smoke test: 1 RSU + 2 CAVs on Scenario 3 (LTAP).
-  Uses Multi-V2X trained checkpoint. Designed for 16 GB VRAM with CARLA.
-  Edge manager: worldfusion_adaptive (Where2Comm fusion + AB3DMOT + MTR).
+  Blind overtake (Scenario 1, Town01) on the WorldFusion + MTR stack.
+  Ego overtakes a stopped firetruck using the oncoming lane; oncoming
+  traffic is occluded by the truck. Single-locale stage; two-locale
+  (cross-edge handoff) variant follows.
 
-scenario_name: openscenario_3_edge_worldfusion_smoke
+scenario_name: openscenario_1_edge_worldfusion
 
 distributed: false
 define: &perception_is_active true
@@ -36,21 +37,16 @@ carla_traffic_manager:
   auto_lane_change: false
   random: true
   ignore_lights_percentage: 0
-  vehicle_list:
-  # Spawn ~15 waypoint-snapped cars in the RSU 40m zone to match the
-  # scene density the Multi-V2X augmented model trained on.
-  # Format: [x_min, x_max, y_min, y_max, x_step, y_step, count]
-  range:
-    - [-122, -42, 88, 168, 5, 5, 15]
+  vehicle_list: []
 
 ego_vehicle_max_speed: 43
 
 scenario_runner:
-  town: town03
-  scenario: Scenario_3
-  num_actors: 6
-  configFile: ecav/scenario_testing/scenarios/scenario_3.xml
-  additionalScenario: ecav/scenario_testing/scenarios/scenario_3.py
+  town: town01
+  scenario: Scenario_1
+  num_actors: 4
+  configFile: ecav/scenario_testing/scenarios/scenario_1.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_1.py
   host: *host
   port: *port
   timeout: 120
@@ -70,8 +66,7 @@ scenario_runner:
   json: false
   junit: false
   list: false
-  openscenarioparams:
-    - ego_vehicle_max_speed=43
+  openscenarioparams: null
   output: false
   outputDir: ''
   randomize: false
@@ -237,7 +232,15 @@ edge_base: &edge_base
 scenario:
   edge_list:
     - <<: *edge_base
-      manager_type: worldfusion_adaptive
+      manager_type: worldfusion_mamba_adaptive
+      tracker_cfg:
+        motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
+        filter_thresh: 0.05
+        new_track_thresh: 0.2
+        match_thresh: 5.0
+        max_time_lost: 60
+        enable_time_thresh: 5
+        max_window: 10
 
       # Multi-V2X trained WorldFusion checkpoint
       worldfusion_model:
@@ -249,9 +252,9 @@ scenario:
         cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
         # Stage-1 MTR trained on WorldFusion detections (Multi-V2X, no
         # aggregator). minADE 1.39 m / MR 0.221 offline (job 10856291).
-        checkpoint: ecav/ml_manager/models/mtr_wf_stage1/best_model.pth
-        cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg.yaml
-        intention_points_file: ecav/ml_manager/models/mtr_wf_stage1/multiv2x_cluster_64_center_dict.pkl
+        checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth
+        cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml
+        intention_points_file: ecav/ml_manager/models/mtr_wf_mamba/multiv2x_cluster_64_center_dict.pkl
         dataset: multiv2x
         aggregator: 'None'
         past_frames: 10
@@ -278,12 +281,12 @@ scenario:
         max_range_m: 70.0
         exclude_managed: true
 
-      world_anchor: [-78.0, 128.0, 0.0, 0.0, 0.0, 0.0]
+      world_anchor: [295.0, 200.0, 0.0, 0.0, 0.0, 0.0]
 
       rsus:
         - <<: *rsu_base
           name: rsu1
-          spawn_position: [-82.0, 128.0, 4.3]
+          spawn_position: [295.0, 200.0, 3.0]
           sensing:
             perception:
               activate: true
@@ -324,7 +327,7 @@ scenario:
           id: -1
 
       vehicles:
-        # Ego vehicle (cav1): drives north through intersection
+        # Ego vehicle (cav1): westbound, overtakes the stopped truck
         - <<: *vehicle_base
           name: cav1
           destination: [-28.8, 134.7, 0.5]

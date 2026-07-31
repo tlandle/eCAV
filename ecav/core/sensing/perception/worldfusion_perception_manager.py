@@ -644,8 +644,11 @@ class WorldFusionPerceptionManager(PerceptionManager):
         }
         bd = sensor.scatter(sensor.pillar_vfe(bd))
 
-        # Camera branch (if model supports it and image_inputs available)
-        if (hasattr(sensor, 'camenc') and 'image_inputs' in batch
+        # Camera branch (if model supports it and image_inputs available).
+        # LiDAR-only checkpoints (e.g. translaug fine-tune) set camenc=None,
+        # so hasattr alone is not a valid support check.
+        if (getattr(sensor, 'camenc', None) is not None
+                and 'image_inputs' in batch
                 and batch['image_inputs'] is not None):
             from einops import rearrange
             imgs = batch['image_inputs']['imgs']

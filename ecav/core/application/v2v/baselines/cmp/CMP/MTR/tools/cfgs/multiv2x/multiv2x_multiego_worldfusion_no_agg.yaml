@@ -6,10 +6,9 @@ DATA_CONFIG:
     # lane_maps/, multiv2x_cluster_64_center_dict.pkl
     root_dir: '/storage/scratch1/4/tlandle3/wf_mtr'
 
-    # Stage 2 of the CMP recipe: load the stage-1 (no-aggregator) best model,
-    # then train with the Transformer aggregator over the WF fused feature.
-    # Empty path -> falls back to joint training from scratch (smoke mode).
-    PRETRAINED_MOTION_TRANSFORMER: 'output/multiv2x_multiego_worldfusion_no_agg/wf_stage1/ckpt/best_model.pth'
+    # Stage 1 of the CMP recipe: train the base MTR (Swin lane encoder +
+    # decoder) with no motion aggregator; stage 2 loads this best model.
+    PRETRAINED_MOTION_TRANSFORMER: ''
 
     # 5 Hz native; 10 past = 2 s, 25 future = 5 s (matches CMP's 5 s horizon)
     PAST_FRAMES: 10
@@ -87,7 +86,7 @@ MODEL:
 
     MOTION_AGGREGATOR:
         NAME: MotionAggregator
-        TYPE: 'Transformer'
+        TYPE: 'None'
 
 OPTIMIZATION:
     BATCH_SIZE_PER_GPU: 1

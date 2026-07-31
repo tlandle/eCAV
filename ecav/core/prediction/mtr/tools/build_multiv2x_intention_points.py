@@ -72,17 +72,14 @@ def main():
                 fx, fy = fut[0], fut[1]
 
                 if args.use_yaw_from_state:
-                    yaw_deg = cur[6]
-                    yaw = np.deg2rad(yaw_deg)
+                    # pickle yaw is already radians (opencood boxes)
+                    yaw = cur[6]
                 else:
                     prev = seq[t - 1] if t >= 1 else cur
                     dx_h = cur[0] - prev[0]
                     dy_h = cur[1] - prev[1]
                     if abs(dx_h) < 1e-6 and abs(dy_h) < 1e-6:
-                        if args.use_yaw_from_state:
-                            yaw = np.deg2rad(cur[6])
-                        else:
-                            yaw = np.deg2rad(cur[6])
+                        yaw = cur[6]
                     else:
                         yaw = np.arctan2(dy_h, dx_h)
 

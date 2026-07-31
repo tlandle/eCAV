@@ -159,6 +159,10 @@ class BehaviorAgent(object):
         # safety related
         self.safety_time = config_yaml['safety_time']
         self.emergency_param = config_yaml['emergency_param']
+        # How many prediction modes (by score) the collision check sweeps
+        # for multimodal predictors; 1 = argmax-only, 6 = full mode set.
+        self.prediction_mode_top_k = config_yaml.get(
+            'prediction_mode_top_k', 2)
         self.break_distance = 0
         self.ttc = 1000
         # collision checker
@@ -729,21 +733,55 @@ class BehaviorAgent(object):
             else:
                 obs_speed = 0.0
 
-            # First pass: check collision WITHOUT drawing (world=None)
-            collision, ttc = self._collision_check.trajectory_collision_check(
-                rx, ry, ego_speed_mps,
-                pred.predicted_trajectory, obs_speed,
-                time_step=time_step,
-                world=None)
+            # Candidate futures: multimodal predictors (MTR) attach all
+            # modes + scores; check the top-K by score and act on the
+            # earliest conflict (Apollo/Autoware pattern — the score head
+            # picks the truly best mode only ~63% of the time, so a
+            # single-mode check misses conflicts the model did predict).
+            # Predictors without modes fall back to the one trajectory.
+            all_modes = getattr(pred, 'predicted_trajectories_all', None)
+            scores = getattr(pred, 'mode_scores', None)
+            if all_modes and scores and len(all_modes) == len(scores):
+                order = sorted(range(len(all_modes)),
+                               key=lambda m: -scores[m])
+                candidates = [all_modes[m]
+                              for m in order[:self.prediction_mode_top_k]
+                              if all_modes[m]]
+            else:
+                candidates = [pred.predicted_trajectory]
+
+            # First pass: check collision WITHOUT drawing (world=None);
+            # keep the earliest-TTC conflict across candidate modes.
+            collision, ttc, conflict_traj = False, None, None
+            conflict_rank = -1
+            for rank, cand in enumerate(candidates):
+                c, t = self._collision_check.trajectory_collision_check(
+                    rx, ry, ego_speed_mps,
+                    cand, obs_speed,
+                    time_step=time_step,
+                    world=None)
+                if c and (ttc is None or t < ttc):
+                    collision, ttc, conflict_traj = True, t, cand
+                    conflict_rank = rank
+            if ttc is None:
+                ttc = 1e9
+            elif conflict_rank > 0:
+                # The argmax mode did NOT produce this conflict: the sweep
+                # caught something single-mode consumption would miss.
+                logger.info("[MODE SWEEP] earliest conflict from mode "
+                            "rank %d (of %d), ttc=%.2fs track=%s",
+                            conflict_rank, len(candidates), ttc,
+                            pred.obstacle_trajectory.obstacle.track_id)
 
             # Only act on time-synchronized collisions (valid TTC).
             # TTC=1000 means only the spatial-overlap fallback triggered
             # (e.g. parked cars near the path) — not a real collision course.
             if collision and ttc < self._collision_check.time_ahead:
-                # Re-run WITH drawing for confirmed collisions only
+                # Re-run WITH drawing for confirmed collisions only,
+                # on the mode that actually conflicted
                 self._collision_check.trajectory_collision_check(
                     rx, ry, ego_speed_mps,
-                    pred.predicted_trajectory, obs_speed,
+                    conflict_traj, obs_speed,
                     time_step=time_step,
                     world=world)
 

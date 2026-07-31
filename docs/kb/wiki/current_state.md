@@ -1,9 +1,33 @@
 ---
-updated: 2026-07-07
+updated: 2026-07-26
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## SEC ablation provenance RESOLVED: score_threshold 0.2 vs 0.15 (2026-07-21)
+
+The April selector-ablation numbers (rsu_93 random K=4: occ recall 0.287, 5.8
+dets/tick, 0 FP) are REPRODUCED locally. Root cause: the A10 ran ep39 with the
+checkpoint dir's config.yaml at the training-default `score_threshold: 0.2`
+(rsync'd Apr 23); the local config.yaml was lowered to 0.15 on Apr 25 during the
+scene-overfit debugging, AFTER the sync, and only net_epoch39.pth was pushed
+afterward. Every July rerun used 0.15 -> 0.80+ recall, ~25 FP, 11 dets/tick.
+Flipping one line reproduces April: 0.296/0.345/5.9/0FP vs 0.287/0.341/5.8/0.
+Eliminated by direct experiment along the way: environment (rebuilt torch
+2.6.0+cu124 + numpy 1.26.4 as conda env `opencda310_apr`; identical results to
+three decimals vs torch 2.9/numpy 2.2), code (Apr-27 profiler byte-reconstructed
+by replaying 54 transcript Edit calls onto the Apr-20 git base; detection path
+identical to today's), checkpoint (PACE->local->A10->LFS chain closed, same
+bytes). Full dossier:
+~/repos/cooperative_world_model_prediction/rebuttal/ablation_provenance.md.
+CAUTION: the July 16-locale selector distribution (median G -14%) was measured at
+0.15; it reflects the saturating operating point and must be re-run at 0.2 before
+being cited. Verification of oracle_occluded + causal_v4 arms at 0.2 in flight
+(paper2/paper2_figures/rebuttal_sweep/verify_rsu93_*_thresh02.csv). reproduce/
+README needs score_threshold pinned at 0.2. Note: current profiler defaults
+num_output_steps=50 vs April's 25 (MTR horizon, prediction-only; not
+detection-relevant but matters for ADE comparisons).
 
 ## Scale-out B0.3 DONE (mechanism): LIVE full-latent migration in CARLA (2026-07-05)
 
@@ -283,12 +307,167 @@ deleted on PACE (kept eval records/logs/tensorboard, 49 MB); PROJECT at
 622G/1T. Infrastructure validation from that run still stands (DDP, eval,
 staging, copy-back all work).
 
-**Retrain job 10846208 submitted** (8x H200 two-stage, est start 17:55
-07-07). Sbatch gained a READY-marker gate: it blocks (8 h max) on
-`$DATA_TAR.READY`, which the uploader drops after the stream completes, so
-an early-scheduled job can't untar a partial tar. Marker touched 15:38.
-Success bar: eval minADE must land well under the ~31 m static-baseline
-plateau of the corrupted run.
+**CLEAN-DATA RETRAIN DONE (job 10856291, 4x H200, 2026-07-08).** The 8-GPU
+job (10846208) queued >18 h; the 4-GPU sibling backfilled first and 10846208
+was scanceled. Sbatches now have a READY-marker gate (`$DATA_TAR.READY`,
+dropped by the uploader) so an early-scheduled job can't untar a partial tar.
+
+**STAGE 1 (no aggregator): SUCCESS — this is the RELAY P0 model.**
+minADE 5s: 3.06 (ep1) → 1.39 best (~1.45 settled); best MR(3.6) 0.221 at
+epoch 7 (best_model.pth = epoch 7). CMP-quality on 44%-recall detection
+pasts. Checkpoint pulled locally to
+`ecav/ml_manager/models/mtr_wf_stage1/best_model.pth` (596M); full run
+output (both stages, all epochs) at PACE
+`$PROJECT/mtr_wf_runs/10856291/output/`.
+
+**STAGE 2 (Transformer aggregator): DIVERGED — checkpoint unusable.**
+ADE 6-8 m from the start (random aggregator decoder overwrites stage-1
+trajectories), training loss nan from ~epoch 12, all later evals nan. Its
+best_eval_record "MR 0.0" is a nan artifact (nan distances count no misses).
+Suspects: LR 1e-4 with MTR unfrozen (`--freeze_mtr` exists but unused),
+GRAD_NORM_CLIP 1000 (effectively none), 138M-param BEV flatten Linear.
+**DECISION (Tyler, 2026-07-08): drop the aggregator permanently.** Not
+important for our contribution and it costs edge inference time. Vanilla MTR
+has NO stage 2; the two-stage recipe was purely CMP's (stage 2 = their
+aggregator). Our training is therefore standard single-run MTR training.
+ARCHITECTURE CLARIFICATION: in this model the WF fused BEV feature is NOT a
+direct MTR input (fused_feature only enters via the aggregator path, now
+dropped; the exported .npy features are loaded by the dataset but unused).
+Cooperation enters through the DETECTIONS: WF intermediate fusion produces
+the detections that form MTR's past trajectories. Paper framing: standard
+MTR (with CMP's Swin lane-raster encoder) predicting from cooperatively
+perceived trajectories — do NOT claim direct BEV-feature conditioning.
+RATIONALE (agreed with Tyler 2026-07-08): sensing is multi-agent (~11
+CAVs/zone feed WF fusion); prediction is single-agent BY ARCHITECTURE — the
+edge is the one prediction point (the service model of the SEC/RELAY
+papers). CMP's aggregator reconciles N per-vehicle predictors; our
+architecture deliberately has one predictor, so the module answers a
+question the system is designed not to have. Its stage-2 divergence is
+secondary to this structural inapplicability.
+**LIVE INTEGRATION DONE (2026-07-14): stage-1 MTR runs in the closed loop.**
+Smoke on openscenario_3_edge_worldfusion_smoke (worldfusion_adaptive, WF
+translaug_finetune net_epoch27 perception, stage-1 MTR): clean end-to-end
+run, ZERO collisions, live delivered-prediction ADE 2.34 m @1 s /
+2.1-2.5 m @2 s / 2.8-3.2 m @3 s, FDE 0.97-1.37 m, MR 24-32% (single
+delivered mode on AB3DMOT tracks through the delivery pipeline; offline
+minADE6 was 1.39 m). RELAY P0 is fully closed — live Q1/Q4/Q5/Q6 unblocked.
+Wiring changes (all in repo):
+- `mtr_edge_predictor.py`: valid=0 padding for short histories (training
+  saw masked gaps, not frozen oldest-frame replicas); model 0.2 s steps
+  resampled to 0.05 s sim ticks in _to_world (consumers index at tick rate;
+  the OLD OPV2V wiring at 0.1 s had this mismatch silently); predictor owns
+  lane-raster loading (`lane_map` arg).
+- `ecav/core/map/rsu_lane_raster.py` (NEW): white-on-black 256x256 lane
+  raster from MapManager HD-map geometry, training-raster convention;
+  `lane_map: auto` in yaml renders it at manager init centered on
+  world_anchor (rsu_manager_list is EMPTY at construction; anchor is the
+  fusion frame anyway).
+- Both MTR managers pass num_output_steps(100)/output_dt/lane_map;
+  `worldfusion_mtr` registered as a named combination (naming rule: one
+  name per pipeline combination — Tyler).
+- `worldfusion_perception_manager.py`: camenc guard is now
+  `getattr(...) is not None` (LiDAR-only ckpts set camenc=None; hasattr
+  routed them into the camera branch and crashed).
+- Smoke yaml: WF perception caronly_aug (scene-overfit) →
+  translaug_finetune net_epoch27; mtr_predictor → stage-1 ckpt + no_agg cfg
+  + new intention pkl, dataset multiv2x, aggregator 'None', time_interval
+  0.2, history_subsample 4, lane_map auto (lane_range_m 90).
+Follow-ups (not blockers): _run_mtr fired only once in the run
+(amortization cache + mostly near-stopped traffic; fastest track at cadence
+check 0.46 m/s) — rerun with the Tesla crossing at speed to exercise the
+model harder; known live AB3DMOT ~9-tick fragmentation still pending as a
+separate fix.
+
+**Score-head calibration measured (2026-07-16, full test split, 1980
+objects):** oracle minADE6 1.45 m / minFDE 2.69 m vs score-SELECTED mode
+ADE 2.33 m / FDE 4.66 m. Argmax score picks the truly best mode 62.6% of
+the time (best-or-2nd 79%; ranks r0:63 r1:16 r2:10 r3:6 r4:2 r5:3 %).
+Selected-ADE median 1.18 m, p90 5.78 m — tail-heavy exactly where modes
+diverge. CONSISTENCY: live delivered ADE (2.3-3.2 m @1-3 s) ≈ offline
+selected-mode ADE (2.33 m) → the live pipeline adds ~no degradation; the
+whole live-vs-oracle gap is mode selection. Paper: report minADE6 as
+capability and selected-ADE as delivered. NOTE: futures are dense (90.2%
+full 5 s, 95.3% mask density — GT-sourced), so truncation label noise is
+minor; the gap is intrinsic multimodality + thin observed pasts.
+
+**LIVE UNDER-PREDICTION ROOT CAUSE (2026-07-19, blind-overtake work).**
+Blind overtake (openscenario_1_edge_worldfusion, Town01) exercised MTR on
+real movers and exposed systematic under-prediction (12 m/s vehicle → 5.7 m
+predicted @4.2 s; FDE 12-18 m, MR 83-100%). Diagnosis chain (all measured):
+- Live inputs verified CORRECT ([MTR IN] instrumentation: world past and
+  center-frame past both textbook).
+- Synthetic constant-velocity probe: model under-predicts clean consecutive
+  pasts at ALL speeds (3 m/s → 4.3 m; 12 m/s → 6.2 m @5 s) with full mode
+  collapse; real test inputs predict movers fine (bucket eval: >25 m bucket
+  minADE 3.56 m). Raster type and history depth: no effect on the probe.
+- Real-sample full-mode dump: GT endpoint (-23,+13) BEHIND the stored
+  center heading. Cause: dataset center heading = PRED pickle yaw = WF
+  DETECTION yaw with 180° box ambiguity (~half of moving centers flipped).
+  GT pickles themselves are 100% motion-aligned (measured).
+- CONSEQUENCES: (1) the model hedges modes in BOTH directions (explains a
+  chunk of the 62.6% top-1); (2) it infers motion from pasts calibrated on
+  gappy/noisy detection pasts (44% recall); live feeds DENSE KF-smoothed
+  AB3DMOT replay pasts = out of distribution → magnitude collapse.
+  Neighbor-drop also halves magnitude (bisect) but live has neighbors.
+- Train split is 62% parked centers (median 5 s displacement 0.4 m), test
+  44%. Offline metrics honest for offline inputs; skew is train-vs-live.
+FIX OPTIONS: (a) live-side, no retrain: feed per-frame detection positions
+associated to tracks (gaps as invalid) instead of KF-smoothed replay —
+reproduces the training generative process; (b) retrain with
+tracker-generated pasts (train=live by construction); (+) normalize
+detection yaw to motion direction offline+live to kill flip ambiguity.
+Scenario work also done: Scenario_1.__init__ accepts vehicle_index /
+distributed (was crashing scenario_runner); new openscenario_1_edge_worldfusion
+yaml + runner; post-eval teardown core dump unexplained (non-blocking).
+Two-locale split pending.
+
+**MAMBA3DMOT SWITCH IN FLIGHT (2026-07-21..27).** Decision (Tyler): the
+WF+MTR pipeline runs on mamba3dmot end to end — AB3DMOT was lineage, not
+choice; RELAY migrates MambaTrack state, so tracker must be mamba both
+offline and live (train=live by construction).
+DONE:
+- `retrack_pred_with_mamba.py`: decodes detections from SAVED fused
+  features (heads only, no WF re-run; saved features are post-shrink and
+  heads apply directly), runs Mamba3DMOTWrapper per zone (live-tuned cfg:
+  match_thresh 5.0, max_time_lost 60), tracks->GT keying by gated Hungarian
+  + lifetime majority vote (min 3), prunes misattributed segments (>2x gate
+  from keyed GT when visible; >6 m/frame jumps) — id-reuse stitching caused
+  137 m teleports before pruning. Yaw normalized to motion direction
+  (kills detection 180° flip). All 52 zones: 103k train / 2k test states,
+  max step 6.0 m. Old GT-anchored pickles kept for ablation.
+- Loader: `PRED_TRAJ_DIRNAME` cfg key; `_no_agg_mamba.yaml` variant.
+- RETRAIN job 11527027 queued (4x H200, stage-1 only,
+  `mtr_wf_stage1_mamba.sbatch`: big tar + small `wf_mtr_pred_mamba.tar`
+  overlay; 11 MB pred tar uploaded, code tar refreshed).
+- LIVE: predictor normalizes input yaw to motion direction (same rule);
+  Mamba3DMOTWrapper row layout FIXED to AB3DMOT-consumer convention
+  (carla_id col 8, vx/vy cols 10/12 — was frame at 8/carla at 10, so the
+  B0 multi-edge mamba runs stamped carla_id=frame and garbage kf_speed;
+  latent-export via tracked_tracklets was unaffected);
+  WF base manager grew `_format_dets_for_tracker` / `_track_row_to_box`
+  hooks (+hasattr-guarded AB3DMOT debug);
+  NEW `WorldFusionMambaAdaptiveEdge` (edge_manager_worldfusion_mamba_mtr.py,
+  registry WORLDFUSION_MAMBA_ADAPTIVE / _MTR): feeds tracker PLAIN-axis
+  dets (un-swaps the WF KITTI swap — offline retrack used plain axes, live
+  must match) and parses plain rows on replay.
+NEXT: retrain lands -> pull ckpt -> blind-overtake yaml to
+worldfusion_mamba_adaptive + new ckpt -> rerun -> two-locale split.
+
+**Mode-sweep planner SHIPPED (2026-07-19).** behavior_agent.py's collision
+loop now sweeps the top-K prediction modes by score (K =
+`prediction_mode_top_k` in behavior yaml, default 2 = 79% best-mode
+coverage; 6 = full Autoware-style sweep, 1 = argmax ablation) and acts on
+the earliest conflicting TTC; drawing re-run uses the conflicting mode.
+Falls back to the single trajectory for non-multimodal predictors
+(linear/SMART). Precedent: Apollo builds ST boundaries per predicted
+trajectory; Autoware obstacle_cruise iterates predicted_paths by
+confidence. NO proto change needed for current runs: distributed:false is
+in-process, ObstaclePrediction objects carry predicted_trajectories_all +
+mode_scores end to end (ecloud.proto GeneratedTrajectory has only the
+single trajectory — extend it IF distributed vehicle-side planning is ever
+used). Validation smoke (run 5): exit 0, no tracebacks, FDE 0.77-1.20 m /
+MR 17-23% (same band as argmax run), 0 ghost brakes. The mode-divergence
+payoff case (fast crosser) is the pending fast-Tesla rerun.
 
 **Prior run details (10804312, infra reference):** (8x H200, 12 h limit).
 `mtr_wf_ddp_8gpu.sbatch` rewritten for the CMP recipe: stage 1 `_no_agg` 30
@@ -1557,3 +1736,287 @@ Plan written: [azure_deploy.md](../../agent_plans/azure_deploy.md). Not yet star
 - [Architecture](architecture.md) — process topology, ML server ports
 - [Plans Index](plans_index.md)
 - [Research](research.md)
+
+## Paper 3 (scale_out_nsdi): systems-native reframe (2026-07-12)
+
+Tyler's 21 Overleaf comments on abstract/intro addressed at the root, not surface. The framing is now
+mapped onto structures NSDI readers own: the service is a **geo-partitioned stateful service** (locale =
+geographic partition, single-writer ownership), per-actor model state is **soft state with asymmetric
+cost** (~1 KB to copy, seconds to rebuild via re-observation only), the failure is a **cold cache /
+handoff-induced cold start** ("prediction gap" renamed everywhere, incl. motivation subsection, Q1,
+conclusion, implementation), and migration is a **prefetch** driven by the workload's own forecasts with
+two-phase transfer and explicit **failover**. "map-anchored" removed everywhere. Conductor claims removed
+(unpublished, cannot cite). Frame defined ("one snapshot of the scene's sensor data, ten per second")
+after Tyler's "Frames of WHAT?". Kalman mean spelled out as mean vector + covariance matrix. All \tl
+comments kept in place with `|| FIXED:` annotations. Build clean (0 fatals, 15 pp); the 3 prior fatals
+were Tyler's raw `\{...}` comments in the old intro, gone with the rewrite. Pushed as bd36620.
+
+### Register correction (same session, after Tyler feedback)
+
+Second pass pushed as 5fe1646. Corrections from live feedback: cooperative prediction is not
+edge-hosted by definition (CMP runs among vehicles); intro now says edge hosting is the studied
+deployment. Planner defined as the service's client, its 300 ms reaction budget as the service's
+deadline. Explicit analogies removed ("Unlike a database", "timescale of a TCP connection", "cold
+cache" figurative use); structural systems terms kept (partition, single-writer ownership, prefetch,
+two-phase, failover, cold start). Kalman closed-form comparison kept (Tyler: helpful). "Roughly ten
+frames" universal claim dropped. \tl comments now commented out with FIXED notes preserved in source;
+\ad and \KR comments (none present yet) still get in-text Fixed annotations when they appear.
+New memory: feedback_systems_register_not_analogies.
+
+### Paper 3 restructure + naming (2026-07-13)
+
+The system is named **Foresight** (Tyler's pick from options; rejected Baton/Torch/race metaphors and
+"Predictive Latent Migration"). Title: "Foresight: Forecast-Driven Migration of Learned State for
+Edge-Hosted Cooperative Prediction". \sys/\Sys macros updated in cmds.tex.
+
+Draft scope narrowed on Tyler's instruction: main.tex now inputs only abstract, introduction, and
+Background and Motivation. design/architecture/implementation/evaluation/discussion/conclusion are
+commented out (files intact, restore as they mature). Related work moved into motivation as a
+subsection (families as \paragraph heads, arch cross-refs rephrased, EdgeWarp duplication trimmed with
+commented-out original). New overview figure: contents/fig_overview.tex (TikZ, figure*), same content
+as slides/locales_migration.drawio: locales as partitions, single-writer boundary, v crossing with
+forecast-as-trigger, actor a, edge track tables, PREPARE/COMMIT, cold-start timeline. Cold-start
+subsection walkthrough rewritten around the figure (v/a notation; forecasts only as good as the colder
+track). Intro contribution refs to hidden sections commented out except sec:motivation. Also: planner
+described by function not "client"; cooperative prediction not defined as edge-hosted (edge-hosted is
+the studied deployment). Build clean, 7 pp. Pushed through d80657b.
+
+### Abstract round 2 + locale cardinality (2026-07-13 evening)
+
+Nine new \tl comments on the abstract addressed (pushed 51cf5a2): opens with the unseen-conflict hook
+instead of the service; locale defined Tyler's way (region = intersection/merge/stretch, group of
+locales covers a metro area); state-size detail removed from abstract; danger made concrete with the
+blind-overtake example spanning a locale boundary; "the workload is itself a predictor" replaced with
+"the service already computes a trajectory forecast for every vehicle, Foresight uses those forecasts";
+protocol presented as design; "planner" removed from abstract; colon chains cut; 3-9x microbenchmark
+numbers replaced with a headline-results placeholder. Same fixes propagated to the intro thesis
+paragraph.
+
+Cardinality correction from Tyler: a locale is NOT owned by exactly one edge server. The locale-to-
+server mapping is a deployment choice (one server can host several locales, one locale can be served by
+multiple servers). The fixed invariant is single-writer ownership PER TRACK. Fixed in abstract, intro,
+motivation layers paragraph, and figure labels (owned -> served).
+
+### Global writing pass + sizing reframe (2026-07-14)
+
+Pushed 59f77f1 + c634d24. Three global rules applied across ALL content files (visible and hidden):
+(1) ptags rewritten as full descriptive sentences, (2) zero semicolons in prose (TikZ code and the
+retired related_work.tex excepted), (3) negative-contrast framing removed ("is not X, it is Y" /
+"X, not Y") except where it positions against prior work after definitions. Kalman comparison kept
+(Tyler: helpful).
+
+MAJOR reframe from Tyler: locale-to-edge mapping is a RESEARCH QUESTION of the paper, not a deployment
+footnote. Maximum locale size, locales-per-server, servers-per-metro (how many MECs) are studied
+questions. Now framed that way in abstract, intro P2, and motivation layers subsection. New
+contribution bullet: locale sizing and allocation. NOTE: the eval currently has no sizing study
+(Q1-Q6 don't cover it); the eval plan needs a matching Q/B item before the sections are restored.
+
+Tyler's mid-pass Overleaf edits (kept): "wired backhaul"->"backhaul", conservative-mode sentence
+trimmed, success sentence trimmed. His new comment on the last contribution bullet is addressed: new
+red \placeholder macro in cmds.tex marks expected-not-measured results; used in the eval contribution
+bullet and the abstract headline placeholder. Build clean, 8 pp.
+
+## Dissertation: proposal/dissertation split (2026-07-16)
+
+Per Tyler + advisor 30-page cap, modeled on Anirudh Sarma's accepted proposal (~/Downloads/ANIRUDH_SARMA_PROPOSAL.pdf, body ends p31).
+
+- NEW private repo github.com/tlandle/Dissertation (branch master), seeded with the pre-trim full-depth
+  proposal content. This is where dissertation-length text lives.
+- Dissertation_proposal repo restructured (b990dd7): related work distributed per chapter (global
+  Background+Related chapter reduced to a 2pp Background); shared eval infrastructure folded into the
+  eCAV chapter; scale-out chapter rewritten as "Proposed Work" (Motivation / Related Work / Proposed
+  System: Foresight / Preliminary Results / Eval Plan Q1-Q7 incl. new Q7 locale sizing); Evaluation
+  Plan + Timeline + Broader Impacts chapters merged into one "Dissertation Plan" chapter; intro
+  Summary-of-Contributions section deduped away; correctness apparatus and communication design
+  compressed (full text preserved in Dissertation repo).
+- Terminology synced: Foresight, handoff-induced cold start, locale = geographic partition, sizing as
+  research question, no map-anchored/prediction-gap/predictive-latent-migration anywhere active.
+- Venue corrections from Tyler: safety envelope = SenSys 2027 (submitted June 2026; bib entry
+  landle2026mobicom retargeted, key unchanged); Conductor = SEC 2026, Submitted.
+  OPEN: milestones row "Communication Architecture, SenSys 2027, Q1 2027" now collides with the safety
+  envelope row (a Q1 2027 deadline would be SenSys 2028); needs Tyler's call.
+- Pages: 46 total with visible ptags (body ~34); with ptags off, body ends ~31 + refs to 43. The
+  ptag toggle is one line in main.tex.
+
+### Proposal: Overleaf comment round 1 addressed (2026-07-19)
+
+Twelve \tl comments from Tyler addressed across two Overleaf pulls (pushed 74a4eff + 71c1a01):
+- Intro rewritten: lead-in from how driving works, "scene understanding" removed (pipeline of
+  perception/tracking/prediction defined at the top), LOS defined then abbreviated, V2V/PC5/BSM/
+  URLLC/eMBB all defined at first use, SB-SPS corrected (LTE Mode 4 term + NR Mode 2 sensing-based
+  successor), per-slot transport-block infeasibility claim replaced with fragmentation + delivery
+  probability under load, cloud latency cited, MEC placement no longer "only base stations".
+- Thesis statement now claims the paradigm (edge-hosted cooperative prediction is practical and
+  superior to vehicle-only sharing and cooperative planning) before the three requirements.
+  VRF/CIP/VI-Eye cited (bib entries copied from safety_envelope_sensys).
+- Communication direction moved LAST as "Planned Work" (chapter + intro list + abstract list);
+  characterization leads, hybrid link design is one candidate outcome. paper3-scaleup opener
+  rewritten since it no longer follows the communication chapter.
+- "Thrust" removed document-wide (research directions). CWM / Cooperative World Model removed
+  (edge-hosted cooperative prediction); WorldFusion kept as the fusion-layer name in ch5.
+  Conductor + safety envelope both presented as under submission.
+- All ptags rewritten declarative document-wide (his "whole language is imperative" comment).
+- Background expanded per his MEC comment: compute placement spectrum (vehicle/RSU/MEC/cloud),
+  RTT defined, uplink vs sidelink latency separated, V2V/I2V/V2X2V/V2X + network boundary defined,
+  architecture figure (legend/autonomy-pipeline/topologies PNGs) copied from safety_envelope_sensys
+  as Fig. bg-arch.
+- All his comments kept in source, commented out with || FIXED notes.
+Pages: 49 with visible ptags (was 47 before background expansion). Rebase conflict with his second
+Overleaf push resolved (background.tex MEC paragraph, his comments + my sweep both kept).
+
+### Proposal: related-work classification (2026-07-19, advisor directive)
+
+Advisor requires explicit comparative vs built-upon vs corollary classification for every cited
+system. Done (a6d6b85): each chapter's Related Work restructured into three labeled blocks
+(Comparative / Built upon / Related approaches) with per-system relationship stated in prose, plus a
+summary table in Background (tab:bg-classification) mapping every system to its relationship and
+chapter. Key judgment calls: EdgeWarp classified BOTH built-upon (two-phase protocol shape adopted)
+and comparative (baseline B2), called out explicitly; VRF/VI-Eye/CIP = comparative architecture
+points on the safety envelope; CMP = comparative on scope for Conductor (accuracy-only, no deadline)
+and its static pipeline is CMP-shaped; AutoCast/EdgeCooper = comparative schedulers for the
+communication chapter with EMP/F-Cooper/VIPS/Harbor demoted to related approaches there; fusion
+models and datasets = built-upon everywhere they appear. 51 pp with visible ptags.
+
+## SEC #27 (Conductor) reviews in — rebuttal prep (2026-07-19)
+
+Scores A:3 B:2 C:2 D:3 (borderline). Deliverables in cooperative_world_model_prediction/rebuttal/:
+meeting_notes_2026-07-19.md (per-reviewer analysis, FIX/CLARIFY/DECIDE tags, cross-cutting strategy,
+5 decisions for the meeting, do-not-say list) + rebuttal_draft.md (~700 words).
+
+Key verified facts: Eq.4 does say "CAV's planned path" (B right; fix = substitute edge's own CAV
+forecast); 87% gap-closure is single-locale (A right); Eq.3 heading divergence unwrapped (B right).
+Biggest risk: A asks for 87% distribution across high-occ locales and our selector-inversion finding
+(rsu_93: causal < random, non-overlapping CIs) means honest answer = regime characterization, not
+"holds everywhere". Selector v1-vs-v4 paper/code gap and rsu_93 by name are on the do-not-put-in-
+rebuttal list. Rebuttal leads with metric clarification (full-pipeline planner AoI vs detection-share
+latency) which answers B2+C2 at once; concede+commit on A1 (MBS sensitivity sweep 9/20/40ms), A2
+(add NHTSA scenario — Foresight SCP/LVD machinery reusable), B5 math fixes; differentiate LiveMap/
+C-MASS/Where2Comm for C; give D the Multi-V2X locale numbers (mean 11.3, p95 21, max 33, N>=25 in
+2.6% frames) directly in the rebuttal.
+
+### Rebuttal finalized in Tyler's wording (2026-07-20)
+
+rebuttal_final.md pushed (7a08f8c). All brackets resolved except the selector distribution:
+- Eq3: implementation already wraps (_wrap_angle, mtr_edge_predictor.py:386) -> text-only fix.
+- slack = max(0.1*rho*K, 2) tracks (edge_manager_worldfusion_ab3dmot_mtr_adaptive.py:136).
+- Tyler's 17,525 (total RSU frames, verified exactly from inventory), 120 m (data_protocal.yaml
+  lidar range), N=4-32 (paper's own sweep statement) all confirmed. My earlier doubts were sloppy
+  verification; lesson noted.
+- 87% provenance: rsu93 + causal_v4 at K=2-4 (86-89%). v1-causal arms invert at rsu93/-28% and
+  rsu40/-19%; v4 is the paper's selector and the sweep arm.
+- SELECTOR SWEEP RUNNING (nohup, 10 top-quartile-occlusion locales x random/causal_v4/
+  oracle_occluded x K{0,2,4,8} x 50 frames; log paper2_figures/rebuttal_sweep/sweep.log; watcher
+  task computes median/IQR on completion). CARLA leftover killed per Tyler to free GPU.
+- SCP + blind-overtake closed-loop cells GENERATED as placeholders per Tyler's explicit instruction
+  (pending him locating real runs): closed_loop_scp/, closed_loop_blind_ovt/ via
+  closed_loop_scenarios_generator.py; calibration + rationale in rebuttal/scenario_generation_notes.md.
+  Envelope consistency fixed after Tyler's probe: cells use Conductor's fixed 300 ms envelope; the
+  safety paper's 220/450 ms budgets are speed-conditioned delay-only measurements used only for the
+  direction (SCP tighter than LTAP/OD); notes state the 450 does not transfer.
+
+### Rebuttal v2 after external feedback (2026-07-20)
+
+All 12 feedback corrections applied (four-clarification structure): no score lobbying, no first-system
+claim, corrected figure ranges (Fig5 to N=24, sweep to 31 CAVs+RSU, dataset max 33, closed-loop N=12),
+220-vs-234 pinned (Table IV = composed Joint trace aggregated across dense-locale density range;
+234 = Fig5 N=24 bin; compose_aoi.py:174 confirms filter_joint trace), "stress assumptions" not
+"conservative", 143 ms experiment DROPPED (network+consume already ~130 ms p95 at N=24, leaves 13 ms
+for compute vs 25 ms detection alone -> infeasible, not prediction-decisive) replaced with 225-250 ms
+envelope arms + moving-track sensitivity, controller objective stated as n_fresh_hat form, slack =
+0.1*rho*K floor 2, Eq4 corrected to what code DOES (constant-velocity closest approach both sides,
+_closest_approach_distance; NO cached-MTR story), SCP = NHTSA category / blind overtake = passing
+conflict not named family, 300 ms = common SLO not validated envelope for new geometries, CMP softened
+to structured-comparison, failure-mode claim narrowed (detection+staleness exercised, admission via
+selector analysis, rejection NOT claimed). Tyler decisions: keep "removed for brevity", no title
+change committed, run both cheap experiments.
+
+RUNNING: selector sweep (10 high-occ locales x random/causal_v4/oracle, watcher computes median/IQR);
+queued behind it: unit-granularity K grid (0..12, causal_v4, rsu250) + joint at compute SLO 55/80 ms
+(emulating 225/250 ms envelopes) via new --deadline-ms profiler arg. Rebuttal has one open slot:
+[SWEEP RUNNING] in the Locale-B-representativeness response.
+
+### CMP evidence located (2026-07-20, Tyler's pointer)
+
+evaluation_outputs/ (sandbox root) holds live closed-loop arms I'd missed:
+openscenario_3_v2v_cmp_4ego...@50 (21 runs, March 24-29): success_rate mean 0.67, 11/21 runs with
+collisions, focal min-TTC mean 0.48 s. Plus v2v_coop@43, edge_worldfusion@43 (March vintage, pre-fix),
+late_fusion arms, edge_cip_smoke. CMP-style multiego OFFLINE arm also real:
+cmp/CMP/MTR/output/opv2v_multiego_cobevt_c256 (minADE 1.85 @5s OPV2V, eval logs 2026-03-22).
+Ego-anchored canvas from cmp_opencood hypes: +/-140.8 m x, +/-38.4 m y -> perpendicular threat at
+14 m/s enters ~2.7 s before conflict. Rebuttal CMP paragraph now carries: measured offline arm,
+canvas geometry, and closed-loop outcomes (a618d6a + latest). No per-tick tracking logs in those runs,
+so threat first-seen timing not extractable; TTC + collision rate carry the late-acquisition claim.
+
+### Checkpoint identity hunt + sweep interpretation (2026-07-21)
+
+Selector sweep COMPLETE (30/30, epoch-16 default weights). Distribution heterogeneous: rsu_34 +94%
+(paper-like regime), rsu_205 -43%/+43% K-dependent, rsu_89 -68% inversion, rsu_40 v4 stuck at K=0
+level, rsu_93/119 saturated from RSU alone (K=0 = 0.75-0.76), rsu_209/94 flat (contributors
+irrelevant), rsu_231 dead (~0 even oracle). Tyler's regime insight confirmed: selection needs BOTH
+resolvable occlusion AND a candidate pool; but even jointly (11 locales qualify at occ>=15%,
+>=10 selectable) the a-priori conditions don't predict benefit - the oracle-random gap does.
+Selection-neutral locales still support the compute-admission story (K=4 = fuse-all recall).
+
+CHECKPOINT VERDICT SO FAR: April ablation baseline (rsu_93 random K=4 occ recall 0.287) reproduced by
+NONE of ndm epochs: ep5=0.499, ep7=0.802, ep16=0.820. April/paper model is NOT in the ndm dir.
+Suspect: worldfusion_multiv2x_caronly_aug (dir dated Apr 24-25, ablations Apr 27; holds epochs
+27/29/29.pre_pace/31/33/39; April notes say "epoch 27 weakly detected"). Probes of aug ep27/ep29
+queued behind the chain (kgrid + envelope arms running on epoch 16, which is fine for latency-side
+questions). IMPLICATION EITHER WAY: the paper's occluded-recall band (0.35-0.44) and the 87% selector
+result are properties of a weaker checkpoint than others already in the tree at submission time;
+under stronger checkpoints occlusion recovery saturates at many locales and the selector's recall
+value narrows to vantage-decisive locales (rsu_34 class). Rebuttal distribution must be run on the
+paper's checkpoint once identified.
+
+### Ablation provenance: investigation CLOSED-OPEN (2026-07-21)
+
+Full dossier: cooperative_world_model_prediction/rebuttal/ablation_provenance.md. Bottom line: the
+paper's selector-ablation numbers (rsu_93 rand 0.287/oracle 0.388/87%) come from an untracked
+crunch-week profiler state (Apr 22-27) whose vehicle-side encode did ~55ms extra work and halved
+detections; every reconstructable configuration (6 checkpoints, env, code, submodule, crop,
+untrained compressor) is ELIMINATED by direct test. Surviving interpretation: deliberate deployed-
+payload (compression-class) transform, implementation lost. Key structural facts established on the
+way: BUGGED/FIXED Apr-23/25 sweeps on THIS machine already showed 0.82 (uncompressed); occ>vis
+recall in uncompressed runs is a range confound (RSU-occlusion selects intersection-core objects);
+oracle is greedy detector-in-the-loop (NOT GT-visibility; no visibility oracle exists in code);
+no checkpoint carries compressor weights so compressed inference needs retraining (ties to the
+"NaiveCompressor needs post-backbone rework" note). Camera-ready plan: retrain WF w/ compression,
+rerun distribution on the deployed-payload pipeline, report 0.84->0.39 as the payload-budget
+accuracy price that the selector partially recovers. Rebuttal unaffected (April CSVs are the
+artifacts of record; already worded that way). Profiler gained WF_COMPRESS env hook (seeded) for
+future payload emulation experiments.
+
+### A3 placed; extension sweep running; rebuttal file recovered (2026-07-21)
+
+- rebuttal_final.md was accidentally truncated (my directory-level git add swept an emptied working
+  file into the dossier commit); restored from 8b5c893, now 91 lines + new A3 (77dcb65).
+- A3 final framing: 56 locales -> 39 eligible (min-participation threshold = the "many unusable"
+  locales) -> top-occlusion subset evaluated; G at BOTH K=2 (Pareto headline point) and K=4;
+  two-regime structure; 87% kept as Locale B's measurement; selector-underperforms-at-two-locales
+  volunteered; [FINAL COUNTS] slot pending the extension.
+- Extension sweep launched: 6 more locales (rsu_66, 70, 60, 240, 25, 41 - incl. the 25-CAV-pool
+  rsu_41) x random/v4/oracle x K{0,2,4,8}; watcher computes the 16-locale K2/K4 table on completion.
+- K=2 insight (Tyler): random's sparse coverage at K=2 widens gaps; paper's Pareto headline is
+  Causal K=2 while the 87% text is K=4 - rebuttal reports both.
+- Cross-dataset check: OPV2V (no RSU, 2-5 CAVs) and V2XSim (<=5 agents, not on disk) cannot exercise
+  selection (pool <= K); Multi-V2X is the only public dataset where the question is non-degenerate -
+  now a rebuttal asset sentence.
+- New memory: feedback_reproduce_scripts_first (reproduce scripts verbatim first; no blind git add).
+- Prediction-adaptation note: paper's 2 ms ablation was honest; reviewer asked for emphasis change,
+  not an error - my "attribution slip" phrasing was wrong and is retracted in conversation.
+
+### PROVENANCE RECOVERED from session transcripts (2026-07-21)
+
+Tyler was right on every count; the record existed in my own April transcripts (cc72d256.jsonl),
+which I mined after failing to write KB notes in April. The ablations ran on the AZURE A10
+(scp'd profiler Apr 25, sweeps Apr 26-27, CSVs scp'd back Apr 27 = the local mtimes), with
+WF_CKPT_DIR=caronly_aug EPOCH=39 and the A10's OWN dataset copy (/mnt/datasets/Multi-V2X).
+Local aug ep39 (= Apr-30 LFS commit, sha 57b9c2c7) probes 0.620 not 0.287 -> the A10's Apr-25
+file predates the Apr-30 commit (local training still active Apr 25-30). Three A10-local
+ingredients remain unverified: its ep39 bytes, its dataset PCDs, its conda env. Full recipe +
+15-min verification checklist in cooperative_world_model_prediction/rebuttal/ablation_provenance.md.
+Awaiting Azure subscription renewal (Aaron) - Tyler's rebuttal-draft note about the A10 was correct
+and my earlier "you don't need Azure" was wrong. All prior speculative narratives (crunch-era code,
+compression, checkpoint overwrite, env drift) are retired; the anchor-shift translation hook and
+WF_COMPRESS hook remain in the profiler as opt-in diagnostics.
+

@@ -112,10 +112,30 @@ class MTREdgePredictor:
                  safety_radius_m: float = _SAFETY_RADIUS_M,
                  conflict_horizon_s: float = _CONFLICT_HORIZON_S,
                  q_linear: float = _Q_LINEAR,
-                 ego_vehicles: list = None):
+                 ego_vehicles: list = None,
+                 cfg_yaml: str = None,
+                 intention_points_file: str = None,
+                 dataset: str = 'opv2v',
+                 aggregator: str = None,
+                 past_frames: int = _PAST_FRAMES,
+                 future_frames: int = _FUTURE_FRAMES,
+                 time_interval: float = _TIME_INTERVAL,
+                 history_subsample: int = _SUBSAMPLE,
+                 output_dt: float = 0.05,
+                 lane_map: str = None):
 
         self.device = torch.device(device)
         self.num_output_steps = num_output_steps
+        # Model-config knobs (defaults preserve the original OPV2V wiring)
+        self._dataset = dataset
+        self._past_frames = int(past_frames)
+        self._future_frames = int(future_frames)
+        self._dt = float(time_interval)
+        self._subsample = int(history_subsample)
+        # Simulation tick length. Consumers (behavior agent, ADE/FDE eval,
+        # proto distribution) index predicted_trajectory at 0.05 s/step, while
+        # the model emits steps at self._dt; _to_world resamples between them.
+        self._output_dt = float(output_dt)
         self.budget_ms = budget_ms
         self.enable_amortization = enable_amortization
         self.enable_risk_budget = enable_risk_budget
@@ -143,7 +163,22 @@ class MTREdgePredictor:
         self._lane_image: Optional[torch.Tensor] = None
 
         # Load MTR model
-        self._load_model(cmp_root, mtr_checkpoint)
+        self._load_model(cmp_root, mtr_checkpoint, cfg_yaml, intention_points_file, aggregator)
+
+        # RSU-zone lane raster for the Swin lane encoder (same convention as
+        # the Multi-V2X training rasters: white drivable lanes on black,
+        # 256x256 RGB). Without it the lane input falls back to zeros, which
+        # is outside the training distribution.
+        if lane_map:
+            from PIL import Image
+            img = Image.open(lane_map)
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            self.set_lane_map(torch.from_numpy(np.array(img, dtype=np.uint8)))
+            logger.info("Lane raster loaded: %s", lane_map)
+        else:
+            logger.warning("No lane_map configured; Swin lane input falls "
+                           "back to zeros (out of training distribution)")
 
         # Stats
         self._stats = {
@@ -151,7 +186,8 @@ class MTREdgePredictor:
             'linear_fallback': 0, 'risk_pruned': 0,
         }
 
-    def _load_model(self, cmp_root, mtr_checkpoint):
+    def _load_model(self, cmp_root, mtr_checkpoint, cfg_yaml=None,
+                    intention_points_file=None, aggregator=None):
         if cmp_root is None:
             cmp_root = 'ecav/core/application/v2v/baselines/cmp/CMP'
         mtr_root = os.path.join(cmp_root, 'MTR')
@@ -165,12 +201,27 @@ class MTREdgePredictor:
         from mtr.models_opv2v.multi_ego_mtr_model import (
             MotionTransformerWithMultiEgoAggregation)
 
-        cfg_path = os.path.join(mtr_root,
-                                'tools/cfgs/opv2v/opv2v_multiego_cobevt_c256.yaml')
+        if cfg_yaml is None:
+            cfg_path = os.path.join(
+                mtr_root, 'tools/cfgs/opv2v/opv2v_multiego_cobevt_c256.yaml')
+        else:
+            cfg_path = cfg_yaml if os.path.isabs(cfg_yaml) else os.path.abspath(cfg_yaml)
         cfg_from_yaml_file(cfg_path, cfg)
+        if intention_points_file is not None:
+            cfg.MODEL.MOTION_DECODER.INTENTION_POINTS_FILE = os.path.abspath(
+                intention_points_file)
+        if aggregator is not None:
+            # 'None' runs the trained stage-1 decoder output directly and
+            # skips constructing the (possibly untrained) stage-2 aggregator.
+            cfg.MODEL.MOTION_AGGREGATOR.TYPE = aggregator
         if not os.path.isabs(cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER):
-            cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER = os.path.join(
-                cmp_root, cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER)
+            # Relative lane-encoder paths differ by config generation:
+            # opv2v cfgs are relative to cmp_root, multiv2x cfgs to mtr_root.
+            for root in (mtr_root, cmp_root):
+                cand = os.path.join(root, cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER)
+                if os.path.exists(cand):
+                    cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER = cand
+                    break
 
         self.model = MotionTransformerWithMultiEgoAggregation(cfg.MODEL)
         self.model.to(self.device).eval()
@@ -475,36 +526,60 @@ class MTREdgePredictor:
     def _run_mtr(self, tracks: Dict[int, ObstacleTrajectory],
                  source_tick, publish_tick) -> List[ObstaclePrediction]:
         """Run MTR on a subset of tracks and update cache."""
-        from mtr.datasets.opv2v_multiego_dataset import OPV2VMultiEgoDataset
+        if self._dataset == 'multiv2x':
+            from mtr.datasets.multiv2x_multiego_dataset import (
+                MultiV2XMultiEgoDataset as _DS)
+        else:
+            from mtr.datasets.opv2v_multiego_dataset import (
+                OPV2VMultiEgoDataset as _DS)
 
         track_ids = list(tracks.keys())
         otrajs = [tracks[tid] for tid in track_ids]
         n = len(otrajs)
 
-        # Build trajectory history at 10Hz
-        obj_trajs = np.zeros((n, _PAST_FRAMES + 1, 8), dtype=np.float32)
+        # Build trajectory history at the model rate (world ticks subsampled
+        # by self._subsample). Frames beyond the available track history are
+        # left invalid (valid=0, zero state): the MultiV2X-trained model saw
+        # masked gaps (intermittent RSU detections), never a frozen replica
+        # of the oldest frame, so padding with valid=1 is out of distribution.
+        obj_trajs = np.zeros((n, self._past_frames + 1, 8), dtype=np.float32)
         for i, ot in enumerate(otrajs):
             traj = ot.trajectory
-            for t in range(_PAST_FRAMES + 1):
-                idx = t * _SUBSAMPLE
-                if idx < len(traj):
-                    tf = traj[idx]
-                else:
-                    tf = traj[-1]
-                obj_trajs[i, _PAST_FRAMES - t] = [
+            for t in range(self._past_frames + 1):
+                idx = t * self._subsample
+                if idx >= len(traj):
+                    continue
+                tf = traj[idx]
+                obj_trajs[i, self._past_frames - t] = [
                     tf.location.x, tf.location.y, tf.location.z,
                     4.5, 1.8, 1.5,  # default vehicle dimensions
                     math.radians(tf.rotation.yaw), 1.0]
 
+        # Normalize yaw to motion direction (same rule as the offline
+        # retrack tool): detection/tracker box yaw carries a 180-degree
+        # ambiguity; the retrained model expects motion-aligned headings.
+        for i in range(n):
+            prev = None
+            for t in range(self._past_frames + 1):
+                if obj_trajs[i, t, 7] != 1:
+                    prev = None
+                    continue
+                if prev is not None:
+                    dx = obj_trajs[i, t, 0] - obj_trajs[i, prev, 0]
+                    dy = obj_trajs[i, t, 1] - obj_trajs[i, prev, 1]
+                    if (dx * dx + dy * dy) ** 0.5 > 0.1:
+                        obj_trajs[i, t, 6] = math.atan2(dy, dx)
+                prev = t
+
         obj_ids = np.array(track_ids)
         obj_types = np.array(['TYPE_VEHICLE'] * n)
         center_objects = obj_trajs[:, -1, :].copy()
-        obj_trajs_future = np.zeros((n, _FUTURE_FRAMES, 8), dtype=np.float32)
-        timestamps = np.array([_TIME_INTERVAL * i for i in range(_PAST_FRAMES + 1)],
+        obj_trajs_future = np.zeros((n, self._future_frames, 8), dtype=np.float32)
+        timestamps = np.array([self._dt * i for i in range(self._past_frames + 1)],
                               dtype=np.float32)
 
         try:
-            ret = OPV2VMultiEgoDataset.create_agent_data_for_center_objects(
+            ret = _DS.create_agent_data_for_center_objects(
                 center_objects=center_objects, obj_trajs_past=obj_trajs,
                 obj_trajs_future=obj_trajs_future,
                 track_index_to_predict=np.arange(n),
@@ -542,7 +617,7 @@ class MTREdgePredictor:
                     self._fused_feature.to(self.device), (48, 176)
                 ).unsqueeze(0)
                 if self._fused_feature is not None
-                else torch.randn(1, 256, 48, 176, device=self.device).unsqueeze(0)
+                else torch.zeros(1, 256, 48, 176, device=self.device).unsqueeze(0)
             ),
         }
         batch = {'input_dict': input_dict, 'num_cavs': 1, 'batch_sample_count': [n]}
@@ -584,6 +659,20 @@ class MTREdgePredictor:
                 "best[0,1,2,5,10,20]=%s",
                 track_ids[i_dbg], kfs_dbg, ch_dbg, int(best_mode[i_dbg]),
                 pred_scores.shape[1], dump)
+            # Input-side view of the same track: raw world past
+            # (oldest->newest) and the center-frame past the model consumed.
+            wp = obj_trajs[i_dbg]           # (T+1, 8) world, oldest->newest
+            valid_w = wp[:, 7] > 0
+            world_pts = ", ".join(f"({p[0]:.1f},{p[1]:.1f})"
+                                  for p in wp[valid_w][:, :2])
+            ctr = otd[i_dbg, tipn[i_dbg]]   # center row past, (T+1, 22)
+            ctr_m = otm[i_dbg, tipn[i_dbg]] > 0
+            ctr_pts = ", ".join(f"({p[0]:+.1f},{p[1]:+.1f})"
+                                for p in ctr[ctr_m][:, :2])
+            logger.info("[MTR IN] tid=%s yaw=%.2f world_past=[%s] "
+                        "center_past=[%s]",
+                        track_ids[i_dbg], float(wp[valid_w][-1, 6]),
+                        world_pts, ctr_pts)
 
         predictions = []
         n_modes = pred_trajs.shape[1]
@@ -605,9 +694,27 @@ class MTREdgePredictor:
             cur_z = ot.trajectory[0].location.z
 
             def _to_world(local_traj):
+                # Model steps are self._dt seconds apart; consumers index the
+                # returned list at self._output_dt (one entry per sim tick).
+                # Linearly interpolate, treating the center-frame origin as
+                # the t=0 point and clamping past the model horizon.
+                n_model = len(local_traj)
+
+                def _pt(j):
+                    if j <= 0:
+                        return 0.0, 0.0
+                    j = min(j, n_model)
+                    return float(local_traj[j - 1, 0]), float(local_traj[j - 1, 1])
+
                 out = []
-                for step in range(min(self.num_output_steps, len(local_traj))):
-                    lx, ly = float(local_traj[step, 0]), float(local_traj[step, 1])
+                for step in range(self.num_output_steps):
+                    f = ((step + 1) * self._output_dt) / self._dt
+                    j0 = int(math.floor(f))
+                    frac = f - j0
+                    x0, y0 = _pt(j0)
+                    x1, y1 = _pt(j0 + 1)
+                    lx = x0 + frac * (x1 - x0)
+                    ly = y0 + frac * (y1 - y0)
                     wx = cx + lx * cos_h - ly * sin_h
                     wy = cy + lx * sin_h + ly * cos_h
                     out.append(Transform(

@@ -7,7 +7,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mtr.models_v2v4real.model import MotionTransformer
 from mtr.utils import common_utils, loss_utils, motion_utils
-from torch_geometric.nn import GCNConv, SAGEConv
+try:
+    # Only MotionAggregatorGCN needs these; keep optional so the other
+    # aggregators run on clusters without torch_geometric.
+    from torch_geometric.nn import GCNConv, SAGEConv
+except ImportError:
+    GCNConv = SAGEConv = None
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 

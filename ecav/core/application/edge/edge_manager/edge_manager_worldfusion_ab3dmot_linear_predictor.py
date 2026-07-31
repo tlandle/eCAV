@@ -423,6 +423,39 @@ class WorldFusionEdge(_BaseEdgeManager):
         else:
             print(f"[WorldFusion Edge] WARNING: No feature_dicts collected!")
 
+    def _format_dets_for_tracker(self, det_results):
+        """Hook: adapt the detection dict to the tracker's expected axis
+        convention. Base (AB3DMOT) consumes the KITTI-swapped layout the
+        WF pipeline already produces, so this is the identity."""
+        return det_results
+
+    def _track_row_to_box(self, trk):
+        """Hook: tracker output row -> [x,y,z,h,w,l,yaw].
+
+        AB3DMOT rows are KITTI-swapped: [3]=x, [4]=height (KITTI y),
+        [5]=world_y (KITTI z), so map [3]->x, [5]->y_world, [4]->z."""
+        return np.array([trk[3], trk[5], trk[4], trk[0], trk[1], trk[2],
+                         trk[6]])
+
+    def _set_auto_lane_raster(self, world, mtr_cfg):
+        """Render the zone lane raster live from the CARLA HD map and hand
+        it to the predictor. Used by the MTR edge variants when the yaml
+        sets mtr_predictor.lane_map: auto. Centered on world_anchor: that
+        is the fusion reference frame the predictor's tracks live in
+        (rsu_manager_list is still empty at construction time)."""
+        import torch
+        from ecav.core.map.rsu_lane_raster import generate_rsu_lane_raster
+
+        loc = carla.Location(x=float(self.world_anchor[0]),
+                             y=float(self.world_anchor[1]),
+                             z=float(self.world_anchor[2]))
+        raster = generate_rsu_lane_raster(
+            world, world.get_map(), loc,
+            range_m=mtr_cfg.get('lane_range_m', 90.0))
+        self.predictor.set_lane_map(torch.from_numpy(raster))
+        print(f"[WorldFusion Edge] Auto lane raster at "
+              f"({loc.x:.1f}, {loc.y:.1f})")
+
     def run_step(self, tick: int):
         """
         Main edge processing step with profiling.
@@ -493,6 +526,11 @@ class WorldFusionEdge(_BaseEdgeManager):
                     fused_feature, pred_dict = self._run_fusion(
                         spatial_features, pairwise_t_matrix, record_len
                     )
+                # Hand the fused BEV context to the predictor (MTR uses it;
+                # the linear predictor has no such hook). Without this the
+                # predictor previously fell back to a placeholder tensor.
+                if fused_feature is not None and hasattr(self.predictor, 'set_fused_feature'):
+                    self.predictor.set_fused_feature(fused_feature.detach())
 
             # 5. Post-process to get detections in world frame
             with frame.time("detection"):
@@ -551,21 +589,24 @@ class WorldFusionEdge(_BaseEdgeManager):
                 false_negatives=det_metrics['fn']
             )
 
-            # 6. Track with AB3DMOT using persistent tracker
+            # 6. Track using the persistent tracker (AB3DMOT by default;
+            # subclasses may swap in another tracker and reformat dets)
             with frame.time("tracking"):
+                det_results = self._format_dets_for_tracker(det_results)
                 self.track_history.appendleft(det_results)
                 _n_in = len(det_results.get('dets', []))
-                _n_trks_before = len(self.tracker.trackers)
+                _has_internals = hasattr(self.tracker, 'trackers')
+                _n_trks_before = len(self.tracker.trackers) if _has_internals else -1
                 tracks, _ = self.tracker.track(det_results, frame_id)
                 _n_out = len(tracks[0]) if tracks and len(tracks) > 0 and len(tracks[0]) > 0 else 0
-                _n_trks_after = len(self.tracker.trackers)
+                _n_trks_after = len(self.tracker.trackers) if _has_internals else -1
                 print(f"[TRACKER DBG] tick={frame_id} dets_in={_n_in} "
                       f"trackers_before={_n_trks_before} trackers_after={_n_trks_after} "
                       f"output_rows={_n_out}")
 
                 # Per-tick KF dump for every tracker, so we can see which
                 # one carries the cross-traffic Tesla (CARLA id changes per run).
-                for _trk in self.tracker.trackers:
+                for _trk in (self.tracker.trackers if _has_internals else []):
                     _kfx = _trk.kf.x.reshape(-1)
                     print(f"[TRACKER DBG] tid={_trk.id} cid={getattr(_trk, 'carla_id', -1)} "
                           f"hits={_trk.hits} tsu={_trk.time_since_update} "
@@ -1498,10 +1539,9 @@ class WorldFusionEdge(_BaseEdgeManager):
                 else:
                     cid = cid_raw
 
-                # Convert to [x,y,z,h,w,l,yaw] for transform.
-                # AB3DMOT cols: [3]=x, [4]=height (KITTI y), [5]=world_y (KITTI z),
-                # so map [3]->x, [5]->y_world, [4]->z_height.
-                box_7dof = np.array([trk[3], trk[5], trk[4], trk[0], trk[1], trk[2], trk[6]])
+                # Convert to [x,y,z,h,w,l,yaw] for transform (row layout is
+                # tracker-specific; see _track_row_to_box).
+                box_7dof = self._track_row_to_box(trk)
                 tf = _box_to_transform(box_7dof)
 
                 updated.add(tid)

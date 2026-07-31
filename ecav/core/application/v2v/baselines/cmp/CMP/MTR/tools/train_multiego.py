@@ -186,7 +186,9 @@ def main():
         add_worker_init_fn=args.add_worker_init_fn,
     )
 
-    if cfg.DATA_CONFIG.DATASET == 'OPV2VMultiEgoDataset':
+    # MultiV2X uses the opv2v model tree: it is the one with the Swin lane
+    # encoder and the BEV-feature motion aggregator (v2v4real has neither).
+    if cfg.DATA_CONFIG.DATASET in ('OPV2VMultiEgoDataset', 'MultiV2XMultiEgoDataset'):
         from mtr.models_opv2v.multi_ego_mtr_model import MotionTransformerWithMultiEgoAggregation
     else:
         from mtr.models_v2v4real.multi_ego_mtr_model import MotionTransformerWithMultiEgoAggregation

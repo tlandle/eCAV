@@ -142,6 +142,12 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                 rsu.update_info()
                 rsu.run_step()
 
+    def evaluate(self):
+        """Return (figure, perform_txt, metrics) for EvaluationManager."""
+        if self.is_proxy:
+            return None, "", self._proxy_metrics
+        return self.profiler.get_evaluation_result()
+
     # ─── State-transfer overrides (backend-dispatched) ────────────────
     # self.tracker is a BaseTracker wrapper; the raw backend underneath is
     # either AB3DMOT (KFState snapshot path) or Mamba3DTracker (full-latent
