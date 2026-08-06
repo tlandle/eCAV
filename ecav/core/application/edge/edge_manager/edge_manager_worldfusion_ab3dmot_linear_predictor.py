@@ -59,6 +59,10 @@ from .edge_manager_base import _BaseEdgeManager
 import logging
 logger = logging.getLogger(__name__)
 
+# Shared eval-mode WF fusion models keyed by checkpoint path —
+# multi-edge sims on one GPU reuse rather than duplicate weights.
+_EDGE_WF_MODEL_CACHE = {}
+
 
 def _box_to_transform(box: np.ndarray):
     """Convert a detection box [x,y,z,h,w,l,yaw] to picklable Transform."""
@@ -103,6 +107,14 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # Load model configuration
         wf_cfg = cfg['worldfusion_model']
         hypes = load_yaml(wf_cfg['hypes_yaml'])
+        # Optional per-scenario detection threshold override (the model
+        # config's value is a shared artifact; mover det scores can straddle
+        # it and flicker, fragmenting downstream tracks).
+        if 'score_threshold' in wf_cfg:
+            hypes['postprocess']['target_args']['score_threshold'] = \
+                float(wf_cfg['score_threshold'])
+            print(f"[WorldFusion Edge] score_threshold override: "
+                  f"{wf_cfg['score_threshold']}")
         self.hypes = hypes
 
         # World anchor pose from config [x, y, z, roll, yaw, pitch]
@@ -124,13 +136,24 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                   f"(max_range={self._gt_max_range_m}m, "
                   f"exclude_managed={self._gt_exclude_managed})")
 
-        # Load WorldFusion model
+        # Load WorldFusion model. Multi-edge sims load byte-identical
+        # checkpoints per edge; share one eval-mode instance per checkpoint
+        # (deployment runs one edge per server — sim-hosting optimization
+        # only; two full copies OOM'd a 16 GB card next to CARLA/Town06).
         from opencood.models.point_pillar_worldfusion import PointPillarWorldFusion
-        self.model = PointPillarWorldFusion(hypes['model']['args']).cuda().eval()
-        ckpt_dir = os.path.dirname(wf_cfg['checkpoint'])
-        epoch_id = int(wf_cfg['checkpoint'].split('epoch')[-1].split('.')[0])
-        _, self.model = train_utils.load_model(ckpt_dir, self.model, epoch_id)
-        print(f"[WorldFusion Edge] Model loaded from epoch {epoch_id}.")
+        _wf_key = os.path.abspath(wf_cfg['checkpoint'])
+        _shared = _EDGE_WF_MODEL_CACHE.get(_wf_key)
+        if _shared is not None:
+            self.model = _shared
+            print(f"[WorldFusion Edge] Reusing shared model "
+                  f"({os.path.basename(_wf_key)}).")
+        else:
+            self.model = PointPillarWorldFusion(hypes['model']['args']).cuda().eval()
+            ckpt_dir = os.path.dirname(wf_cfg['checkpoint'])
+            epoch_id = int(wf_cfg['checkpoint'].split('epoch')[-1].split('.')[0])
+            _, self.model = train_utils.load_model(ckpt_dir, self.model, epoch_id)
+            _EDGE_WF_MODEL_CACHE[_wf_key] = self.model
+            print(f"[WorldFusion Edge] Model loaded from epoch {epoch_id}.")
 
         # Post-processor for detection output (must match training config)
         self.post_processor = WorldVoxelPostprocessor(
@@ -438,6 +461,22 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         return np.array([trk[3], trk[5], trk[4], trk[0], trk[1], trk[2],
                          trk[6]])
 
+    def _deliver_predictions(self, vm, predictions, step):
+        """Deliver predictions to a vehicle agent, serving the last held set
+        (up to 1 s stale) on ticks without a fresh delivery. Predictions are
+        5 s horizons produced at the edge cadence; hard-clearing between
+        deliveries starved the planner on ~3 of 4 ticks (oracle/late-fusion
+        managers already deliver stale copies for the same reason)."""
+        if predictions and random.random() * 100 > self.downlink_pl:
+            self._last_predictions = list(predictions)
+            self._last_pred_tick = step
+            vm.agent.edge_predictions = list(predictions)
+        elif (getattr(self, '_last_predictions', None)
+                and step - getattr(self, '_last_pred_tick', -999) <= 20):
+            vm.agent.edge_predictions = list(self._last_predictions)
+        else:
+            vm.agent.edge_predictions = []
+
     def _set_auto_lane_raster(self, world, mtr_cfg):
         """Render the zone lane raster live from the CARLA HD map and hand
         it to the predictor. Used by the MTR edge variants when the yaml
@@ -614,6 +653,16 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                           f"kf_pos=({_kfx[0]:.2f},{_kfx[1]:.2f},{_kfx[2]:.2f}) "
                           f"theta={_kfx[3]:.3f} "
                           f"kf_vel=({_kfx[7]:.4f},{_kfx[8]:.4f},{_kfx[9]:.4f})")
+                # Mamba-branch equivalent: per-tick tracklet table
+                if not _has_internals:
+                    for _t in getattr(getattr(self.tracker, 'tracker', None),
+                                      'tracked_tracklets', []):
+                        _st = _t.state
+                        print(f"[TRACKER DBG] tid={_t.track_id} "
+                              f"cid={getattr(_t, 'carla_id', -1)} "
+                              f"act={_t.is_activated} tsu={_t.time_since_update} "
+                              f"pos=({_st[0]:.2f},{_st[1]:.2f},{_st[2]:.2f}) "
+                              f"yaw={_st[6]:.2f}")
 
                 # Reconcile any pending BSM temp-ID rotations
                 for evt in self.beacon_id_mgr.pop_pending_rotations():
@@ -847,10 +896,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                      step, len(predictions) if predictions else 0)
 
         for vm in self.vehicle_manager_list:
-            if predictions and random.random() * 100 > self.downlink_pl:
-                vm.agent.edge_predictions = list(predictions)
-            else:
-                vm.agent.edge_predictions = []
+            self._deliver_predictions(vm, predictions, step)
             vm.update_info(step)
             vm.vehicle.apply_control(vm.run_step())
             self._label_brake_attributions_gt(vm)
@@ -1589,8 +1635,12 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy
                 if len(trk) > 12:
                     kf_vx, kf_vy = float(trk[10]), float(trk[12])
+                    # velocities are per TRACKER STEP; the tracker is fed
+                    # once per edge cycle (edge_dt), not per world tick or
+                    # a hard-coded 0.1 s
+                    _step_s = float(self.cfg.get('edge_dt', 0.2))                         if hasattr(self, 'cfg') else 0.2
                     traj.obstacle.kf_speed_mps = (
-                        (kf_vx**2 + kf_vy**2)**0.5) / 0.1
+                        (kf_vx**2 + kf_vy**2)**0.5) / _step_s
                     traj.obstacle.kf_vx = kf_vx
                     traj.obstacle.kf_vy = kf_vy
 
@@ -1913,11 +1963,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         # Distribute predictions to vehicles
         for index, vm in enumerate(self.vehicle_manager_list):
-            if predictions is not None and len(predictions) > 0 and random.random() * 100 > self.downlink_pl:
-                vm.agent.edge_predictions = list(predictions)
-                print(f"[WorldFusion Edge] Set {len(vm.agent.edge_predictions)} edge_predictions on vehicle")
-            else:
-                vm.agent.edge_predictions = []
+            self._deliver_predictions(vm, predictions, tick)
 
             if pickled_edge_predictions is not None:
                 object_buffer = ecloud.ObjectBuffer(
@@ -2236,9 +2282,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         metrics.update(self._get_contract_metrics())
         if hasattr(self, 'mot_tracker') and self.mot_tracker is not None:
             metrics['birth_gate'] = {
-                'birth_attempts_anon': self.mot_tracker.birth_attempts_anon,
-                'birth_suppressed_by_gate': self.mot_tracker.birth_suppressed_by_gate,
-                'births_anon_after_gate': self.mot_tracker.births_anon_after_gate,
-                'anon_cull_count': self.mot_tracker.anon_cull_count,
+                # AB3DMOT birth-gate counters; other trackers (mamba)
+                # don't expose them
+                'birth_attempts_anon': getattr(self.mot_tracker, 'birth_attempts_anon', 0),
+                'birth_suppressed_by_gate': getattr(self.mot_tracker, 'birth_suppressed_by_gate', 0),
+                'births_anon_after_gate': getattr(self.mot_tracker, 'births_anon_after_gate', 0),
+                'anon_cull_count': getattr(self.mot_tracker, 'anon_cull_count', 0),
             }
         return fig, txt, metrics

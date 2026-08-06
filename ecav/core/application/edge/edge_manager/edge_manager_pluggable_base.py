@@ -316,8 +316,28 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         """
         raw = self._raw_tracker()
         if self._is_mamba(raw):
-            if not any(self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
-                       for t in raw.tracked_tracklets):
+            has_identity = any(
+                self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
+                for t in raw.tracked_tracklets)
+            if not has_identity and position is not None:
+                # Position fallback, same contract as the AB3DMOT branch:
+                # unmanaged NPCs never beacon, so identity lookup alone can
+                # never find them. Nearest tracklet within max_dist_m gets
+                # stamped with the caller-supplied persistent id.
+                # Tracklet state layout: [x, y, z, l, w, h, yaw].
+                px, py = float(position[0]), float(position[1])
+                best, best_d = None, max_dist_m
+                for t in raw.tracked_tracklets:
+                    d = ((float(t.state[0]) - px) ** 2 +
+                         (float(t.state[1]) - py) ** 2) ** 0.5
+                    if d < best_d:
+                        best, best_d = t, d
+                if best is None:
+                    return None
+                best.carla_id = carla_id
+                self.track_to_carla[int(best.track_id)] = carla_id
+                has_identity = True
+            if not has_identity:
                 return None
             tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
             track = self._export_track_latent(carla_id, tid)

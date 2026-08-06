@@ -1,10 +1,194 @@
 ---
-updated: 2026-07-26
-updated: 2026-07-27
+updated: 2026-08-03
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## BLIND OVERTAKE COMPLETE — run 60, zero collisions (2026-08-05)
+
+Single-locale baseline WORKS end to end on openscenario_1_edge_worldfusion
+(WF + mamba3dmot + MTR stage-1 + local YOLO layer): brake 40.9 km/h →
+staged stop x=299 (15.7 m gap) → hold ~30 s while 3 oncoming Leons pass
+(quick-check vetoes them correctly) → commit from the staged stop →
+opposing-lane swing (max y 199.6) → pass truck at 278 → merge back at
+x≈253 → resume route west to 218. ZERO collision warnings.
+Run 59's [COMMIT ATTEMPT] probe had already shown pre-check passing; the
+last blocker was the frozen num_overtake_collisions counter (run-52 hold
+returned before the reset). Full defect chain runs 43-60 documented in
+the sections below. CONFIRMED run 61: identical phase-for-phase repeat
+(commit at 298.7, return at 286.1, zero collisions). Next: freeze this
+baseline (commit), then two-locale split; demote debug prints to
+logger.debug after the two-locale runs.
+
+## Right-merge WF stack swap (2026-08-05, in flight)
+
+New pair: openscenario_multi_edge_right_merge_worldfusion (.yaml/.py) —
+Jordan's Scenario B harness with both edges on worldfusion_mamba_adaptive
++ mamba-MTR (late_fusion original kept as the B1 ablation arm). Per-edge:
+scenario_1's tracker_cfg/worldfusion_model/mtr_predictor blocks,
+world_anchor at the RSU (55,141 / 230,141), RSUs backend: worldfusion
+with the Multi-V2X lidar profile, cav1 backend: worldfusion (contributes
+features; local YOLO layer active via the fixed detect()). Migration:
+WorldFusionMambaAdaptiveEdge now borrows _PluggableEdgeBase's
+tracker-agnostic export/import surface (mamba memo-bank latent via
+migration.factories) as class attributes, overriding the AB3DMOT-only
+mixin — prerequisites (tracker wrapper, beacon_id_mgr, track_to_carla,
+_vm_by_carla_id) verified present on the WF chain. Generic runner
+script: scratchpad/run_scenario.sh <test> <log>.
+
+Right-merge WF runs 1-4:
+- Run 1: CUDA OOM at second edge's MTR load (Town06 CARLA 7 GB + NX
+  desktop ~6 GB leaves ~3 GB; two full model copies don't fit). Fix:
+  shared eval-mode instances keyed by checkpoint — _SHARED_MTR_MODELS in
+  mtr_edge_predictor, _EDGE_WF_MODEL_CACHE in the WF edge manager
+  (perception managers already shared via cav_world). Sim-hosting
+  optimization only; deployment is one edge per server.
+- Run 2: full init, sim ran 180 steps, EGO handoff FIRED at tick 61
+  ([TRANSFER_COST] vid=120 bytes=160 network_ms=63.8 — 160 B = empty
+  latent, ego tracklet identity unresolved; warm-latent quality TBD).
+  Crash: runner's AB3DMOT-specific debug (tracker.trackers) at the NPC
+  transfer → made tracker-agnostic (also fixed kf.x[1]→kf.x[2] height
+  bug in the original diagnostic).
+- Run 3: full 700 steps. Confirmed: mamba export path is identity-only,
+  NPC transfer returned None forever. DEEPER: at crossing, ALL 8-14
+  tracks on the source edge sat 19-30 m off-road laterally (y=120 /
+  158-172, road y≈140) and the NPC was never tracked — RSU mast z=7.0
+  in Jordan's harness vs ~3 m in Multi-V2X training and the working
+  scenario_1 config → returns below the model's z window, all-ghost
+  detections.
+- Run 4 fixes: RSU spawn z 7.0→3.0 (both RSUs); position fallback added
+  to the mamba branch of export_tracked_obstacle_state (same contract
+  as the AB3DMOT branch — nearest tracklet within max_dist_m stamped
+  with the caller-supplied persistent id).
+- Run 4 RESULT — TWO-LOCALE RELAY STACK WORKS END TO END, zero
+  collisions, zero tracebacks, full 700 steps:
+  * PREDICTIVE OBSTACLE HANDOFF tick=158: NPC mamba memo-bank latent
+    (440 B, 4 frames) exported from locale_0 at npc_x=98.3 (1.0 s
+    horizon before the x=115 boundary), warm-injected into locale_1
+    (mamba tid=88). No reactive retries needed.
+  * ADVANCE-WARNING WINDOW = 82 ticks (4.1 s): locale_1 held a live NPC
+    track 4.1 s before RSU1 in-range (tick 240). The paper's core
+    scale-out claim, measured live on the production stack.
+  * Ego ownership handoff locale_0->locale_1 at tick 61 (160 B — empty
+    latent/cold start; ego tracklet identity unresolved on source edge:
+    known quality item, warm ego handoff TBD).
+  * Ego merged right around the blockage (lane -3 y≈137 → lane -4
+    y≈140) and continued 181 m through both locales.
+  Both paper scenarios now work: blind overtake (runs 60/61) +
+  right-merge two-locale (run 4). Remaining: warm EGO handoff (identity
+  resolution), two-locale blind overtake, distributed variants, Q1-Q6 +
+  B0-B6 sweeps, locale→compute→physical diagram.
+
+## Blind overtake ROOT CAUSE FOUND: ego had no onboard perception layer (2026-08-03)
+
+Runs 43/44 proved the entire decision chain works: blocked-state latch arms
+(bt=46), wait counter drains, do_overtake commits and HOLDS ~50 ticks
+(post-commit latch stand-down added: 5b now gates on `not self.do_overtake` —
+run 43 showed the latched hazard routed the ladder into car-following behind
+the very truck being overtaken), opposing-lane path pushed, trajectory
+generated. The ego still could not move because it was already wedged against
+the truck: it hit it at 39 km/h during approach with hz=0 the whole way.
+
+Why nothing braked, two stacked mechanisms:
+1. `WorldFusionPerceptionManager.detect()` returned a hardcoded EMPTY vehicle
+   list ("Actual detection is performed on the edge, not here"). The ego CAV's
+   yaml overrides perception to backend worldfusion, so the vehicle had NO
+   onboard obstacle layer at all — collision pass 1 iterated an empty list
+   every tick. Edge predictions were the only obstacle source.
+2. The WF edge model has ZERO recall on the firetruck (measured run 44:
+   0 detections in 36 approach cycles) AND firetruck is on the repo-wide
+   exclusion list (VALID_VEHICLE_TYPES: local perception filter deletes dets
+   near firetrucks; edge GT/eval sets exclude it — that is why [DET DEBUG]
+   GT never contained the truck). scenario_3 already swapped firetruck→cars
+   for exactly this reason; scenario_1 still used one as the OVERTAKE SUBJECT.
+
+Fixes (run 45): (a) WF detect() now runs the inherited YOLO+lidar local
+pipeline for vehicle agents (RSUs stay feature-only) — edge enhances, never
+replaces; (b) scenario_1.xml subject firetruck → carlacola (whitelisted
+truck, AutoCast precedent); (c) `_find_blocking_lead` scans local
+obstacle_vehicles first (directly visible lead), edge predictions second
+(occluded actors). Measurement trap fixed: [BRANCH] wc prints as float after
+the halved restart; integer-only regexes silently drop post-commit rows
+(this falsely reported run 44 as "do never fired").
+
+Run 45→47 chain (each run exposed the next layer):
+- Run 45: local layer brakes from 40 km/h but stop point converges onto the
+  bumper. Cause: collision_manager pass 1 subtracted a hardcoded 3 m
+  "typical vehicle length" — for truck+SUV that under-counts ~2.3 m, so
+  the stop condition (distance<3) fired at ~0.5 m actual gap. In contact,
+  the commit pre-check always collides; ego then PUSHED the rolling
+  carlacola 60 m west while car-following its bumper. Fix: subtract real
+  bounding-box half-lengths of both actors (distance = bumper gap).
+- Run 46: brake onset correct (hazard at x=305, 21 m gap) but local truck
+  detection flickers (18% duty) and each dropout released braking →
+  sawtooth reacceleration into contact (40.9→17.5→31.7 km/h at impact).
+  The RSS proper-response latch (the designed anti-oscillation mechanism)
+  never engaged: its enter keys on self.ttc, which only the PREDICTION
+  pass wrote; pass-1 hazards left ttc=1000. Fix: pass 1 (non-adjacent)
+  writes self.ttc = gap / ego_speed.
+- Run 47: collisions 415→1; RSS engaged (39 enters); ego stops without
+  slamming the truck; commit fires, path pushed. Remaining: (i) stop point
+  still creeps to gap≈0 via 39 RSS enter/exit-stopped/lurch cycles across
+  detection dropouts; (ii) post-commit deadlock — the subject itself
+  re-arms hazard (branch-8 car-following at oc>0 + RSS), parking the ego
+  on its committed path forever.
+Fixes (run 48): (a) update_information now UNIONS edge + local
+predictions (edge wins per obstacle, 4 m dedup; was "edge active → trust
+it exclusively", discarding the local tracker's coasted truck that
+bridges YOLO flicker); (b) committed-overtake subject exemption: at
+commit, _overtake_subject_loc recorded; both collision passes skip
+obstacles within 4 m of it while do_overtake; cleared on completion.
+Only oncoming traffic can abort a committed overtake.
+
+Runs 48-53 (the approach-sawtooth kill chain; run 50 = FIRST full
+maneuver execution: swing-out, pass, though launched from contact and
+ended head-on with an inbound Leon):
+- Run 49 falsified "target flip-flop" theory: sawtooth reproduced
+  byte-identical with hazard CONTINUOUS. Instrumented branch trace
+  (oa/ii/pcr/d added to [BRANCH]) shows d=0.0 (RSS-forced) on all rows.
+- Wait-branch + restart-branch now HOLD (return 0) for a stationary
+  subject: car-following a stopped lead at midrange gap commands ~20 km/h
+  (chase), the creep source. Branch 9 also recomputes `distance` against
+  the resolved subject (min-distance pricing could reference a different
+  vehicle).
+- RSS latch had TWO leaks, both fixed: (i) hold branch was gated on
+  `not is_hazard`, but mid-brake TTC=gap/speed balloons past time_ahead →
+  neither enter nor hold ran → forced stop evaporated (oscillator);
+  now hold evaluates whenever TTL>0, exits only via stopped/clearing/TTL.
+  (ii) obstacle-less hazard fell through the whole ladder to NORMAL
+  BEHAVIOR at max speed (every hazard branch requires obstacle_vehicle);
+  now is_hazard with obstacle None → return 0 (keep braking).
+- Run 53: STAGED STOP ACHIEVED — single continuous brake 40.9→0,
+  rest at x=299, 15.7 m bumper gap, exactly the predicted physics. But
+  the stop sits OUTSIDE the arming radii (_find_blocking_lead 15/20 m,
+  truck at 21 m) → blocked-overtake state never entered; each perception
+  blink read as free road → accelerate-brake cycles advanced the stop
+  299→278 into contact. Run 54: arming envelope widened to 30 m (both
+  call sites) so the staged stop arms and the wait-hold pins the ego.
+
+Runs 54-59 (commit-gate chain; staging now rock solid — every run holds
+at x=299, 15.7 m gap, ZERO collisions for full duration):
+- Run 54: hold perfect, 51 commit attempts all rejected. Pre-check
+  (overtake_management set_destination=False prediction loop) lacked the
+  subject exemption → added (subject cannot veto its own overtake).
+- Run 56 (instrumented [PRECHECK VETO]): 80/84 vetoes were ttc=1000
+  SPATIAL-OVERLAP fallbacks from stationary ghosts — chiefly a WF
+  duplicate of the truck displaced into the opposing lane at
+  (277.4,199.2) — plus far-future conflicts (ttc 34-73 s). Fix: veto
+  only time-synchronized conflicts with ttc < 20 s (same convention as
+  the main collision pass; 20 s covers the maneuver window).
+- Run 58: quick adjacent-lane check also lacked the exemption during
+  the WAIT phase (gated on do_overtake) — the truck flagged its own
+  bypass path on ~200 ticks/run → _precheck_subject_loc recorded at
+  overtake_management entry, exempted in collision_manager when
+  adjacent_check.
+- Run 59 ([COMMIT ATTEMPT]/[QUICKCHECK VETO] probes): pre-check PASSES
+  (pre=False), quick-check vetoes are REAL Leons passing eastbound at
+  y≈199. Blocker: num_overtake_collisions frozen at 44-139 because the
+  run-52 restart-hold returns BEFORE the shared counter reset → first
+  Leon pass poisoned every later attempt. Fix: reset inside the restart
+  branch before the hold return (per-window counting restored).
 
 ## SEC ablation provenance RESOLVED: score_threshold 0.2 vs 0.15 (2026-07-21)
 
@@ -421,6 +605,108 @@ Scenario work also done: Scenario_1.__init__ accepts vehicle_index /
 distributed (was crashing scenario_runner); new openscenario_1_edge_worldfusion
 yaml + runner; post-eval teardown core dump unexplained (non-blocking).
 Two-locale split pending.
+
+**BLIND OVERTAKE: DECISION CHAIN COMPLETE, EXECUTION 2 TICKS AWAY
+(2026-08-02, runs 34-41).** Fix chain since the perception-bound note (each
+verified by instrumented run):
+- PREDICTION STARVATION (the deepest defect of the arc): the WF manager
+  hard-cleared vm.agent.edge_predictions on every tick without a fresh 5 Hz
+  delivery -> planner had NO predictions on ~75% of ticks (run 35 census:
+  329 no-preds ticks). Oracle/late-fusion managers already deliver held
+  stale copies; WF now does the same via _deliver_predictions (1 s cap).
+  Run 38: no-preds 329 -> 12.
+- Blocked-state detector: stationarity judged by 1 s TRACK displacement
+  (velocity signals sit at the jitter floor); skip test for fragments with
+  <0.6 s history; blocked counter is a symmetric +1/-1 leaky integrator
+  (threshold 15) since lead visibility has a ~60% duty cycle.
+- Overtake subject resolution: branch 9 resolves the same-lane blocking
+  lead via _find_blocking_lead instead of trusting the braking-hazard
+  target (which delivered cross-road prediction modes). Town01 map
+  confirmed passable (Broken center marking; opposing-lane branch is the
+  designed path). obstacle_speed NameError fixed. AB3DMOT birth counters
+  getattr-guarded. 5 stale breakpoint() calls removed.
+- Mode-sweep PAYOFF measured live (run 33+): [MODE SWEEP] catching
+  conflicts from mode rank 1 that argmax would miss, in the occlusion
+  scenario.
+- Run 39/40: integrator crosses threshold, arming sustains, wait counter
+  walks 18 -> 1..2, opposing-lane dry-run probes fire — SCENARIO ENDS 2
+  ticks before commit: scenario_runner timeout 120 s WALL CLOCK shrinks
+  sim duration as pipeline work grows. Watchdog now 360 s; MAX_STEPS 1100.
+- Run 41 (the completion candidate): OOM twice — desktop session holds
+  9.6 GB (Xorg leaked to 4.4 GB); machine structurally over budget while
+  the session is up. WF model sharing already deduped (cav_world cache).
+  PENDING TYLER: display restart vs idle-window runs.
+- Teardown core dump: fires during interpreter finalize (native gRPC/carla
+  threads), post-eval, cosmetic.
+PLAN (Tyler): TWO eval scenarios — Jordan's right-merge multi-edge
+(validated handoff harness; swap in WF+mamba+MTR stack = config work,
+starts now) + blind overtake (safety-decision arm; single-locale 2 ticks
+from done, then two-locale on the same pattern).
+
+**SINGLE-RSU OVERTAKE: PERCEPTION-BOUND PLATEAU (2026-08-02, runs 12-16).**
+Instrumented the association decision itself ([MAMBA LOST]: min IoU-cost,
+BEV boxes, nearest det). Findings: 96% of Lost events have ZERO IoU with
+EVERY detection; predicted boxes are sane (= last observation); the
+vehicle's OWN detection is absent 4.5-21 m from the coasted track. Root
+cause: WF per-vehicle mover recall in the Town01 approach is intermittent
+(multi-frame gaps) INDEPENDENT of score threshold (0.10 override tried; the
+dets are absent, not sub-threshold). Distance-based lost-recapture at 5 m
+steals neighbors (dense traffic); 2 m + thresh 0.10 still fragments.
+AB3DMOT's known ~9-tick live tracks were the SAME phenomenon.
+CONCLUSION: the single-locale arm is at its perception bound. Fragmenting
+~5 s mover tracks + hedged shallow-past predictions ARE the paper's
+motivating baseline (fragmentary per-locale observation), causally
+understood and quantified from these logs. The engineered remedy is the
+TWO-LOCALE configuration (RSU-B over the approach at close range, warm
+handoff to A) = the paper config. DECISION: freeze single-edge arm as the
+Q1/Q4 baseline row; build two-locale on the validated Scenario B
+(right_merge) harness; GT-injection arm for perception-isolated Q1 curves.
+Tracker changes kept: center-distance lost-recapture (lost_match_dist_m,
+default 5.0 — set 2.0 in yaml), score_threshold override hook in WF base
+manager, all instrumentation (demote to debug after two-locale stabilizes).
+
+**MAMBA GATE SEMANTICS FOUND (2026-08-01): match_thresh is a BEV
+IoU-DISTANCE threshold in [0,1] (cost = 1 - IoU), association is
+iou_distance_3d + Hungarian.** The multi-edge yaml's match_thresh 5.0 (and
+my copied value, and the 2.5 attempt) SATURATE the gate: every pair passes, and
+whenever the motion prediction misses its own box entirely all candidates
+tie at cost 1.0 -> arbitrary assignment. Sparse scenes hide it (the only
+overlapping pair is the right one); dense overtake traffic exposed it as
+teleporting chimera tracks. AFFECTED: Scenario B / multi-edge mamba configs
+(same 5.0), and the offline retrack (its tracks stayed clean via sparsity +
+pruning, but the gate was saturated there too). Overtake run 8 with 0.9:
+ZERO teleports across 43 tracks, movers smooth, FDE 6-9 m (from 11-45 +
+km-scale). Remaining failure mode is FRAGMENTATION (motion model at 0.2 s
+steps misses IoU -> Lost -> new id; 43 ids over ~10 vehicles). Next knobs:
+0.95 gate (run 9 in flight), then per-tick stepping with empty-det
+interleave in the mamba manager if needed. Once stable: re-retrack offline
+at the SAME gate + retrain (parameter symmetry), fix scenario_3 smoke
+yaml's history_subsample (same 0.8 s-past bug), and fix the multi-edge
+yamls' saturated gates.
+
+**LIVE MAMBA DEBUG CHAIN (2026-07-31).** Retrain 11527027 DONE: offline
+minADE 2.31 m best (honest train=live metric; GT-anchored model's 1.39 m
+was on easier keying). Ckpt at `ecav/ml_manager/models/mtr_wf_mamba/`.
+Overtake yaml wired to worldfusion_mamba_adaptive + mamba ckpt. Merged
+origin/develop (toolchain conflicts -> ours; his migration work -> theirs;
+docs unioned; B4 warm/cold instrumentation kept from HEAD). Live-run fix
+chain, each verified by rerun:
+1. OOM at model load -> killed 61/79-day-old stale yolo_grpc_server
+   daemons (~1 GB).
+2. BeaconIdManager.remap_tracker_identity iterated AB3DMOT .trackers ->
+   now tracker-agnostic (falls back to wrapper .tracker.tracked_tracklets).
+3. kf_speed 462-936 m/s: wrapper memo-bank vel spans coasting intervals ->
+   per-frame vel from previous EMITTED state.
+4. Track teleport churn (65-97 jumps/track): callers pass sim ticks
+   striding 4 as frame numbers -> wrapper keeps an INTERNAL per-call frame
+   counter (offline counted 1/call; live must match). Result: 3 movers now
+   physical (0.33 m/tick), first clean eval window (FDE 3.46 m, MR 0).
+5. Residual churn on 2 tracklets + one 3 km FDE window -> match_thresh
+   5.0 hops adjacent lanes (3-4 m spacing); overtake yaml now 2.5 (run 6
+   in flight). If it holds, re-retrack offline at 2.5 + retrain for
+   parameter consistency.
+All cid=-1 live is EXPECTED (scenario NPCs never beacon; develop's
+position-fallback export exists for this).
 
 **MAMBA3DMOT SWITCH IN FLIGHT (2026-07-21..27).** Decision (Tyler): the
 WF+MTR pipeline runs on mamba3dmot end to end — AB3DMOT was lineage, not

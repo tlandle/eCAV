@@ -22,10 +22,28 @@ import numpy as np
 from ecav.core.tracking import get_tracker
 from .edge_manager_worldfusion_ab3dmot_mtr_adaptive import (
     WorldFusionAdaptiveEdge)
+from .edge_manager_pluggable_base import _PluggableEdgeBase
 
 
 class WorldFusionMambaAdaptiveEdge(WorldFusionAdaptiveEdge):
     """WorldFusion + Mamba3DMOT + MTR + adaptive controller."""
+
+    # Tracker-agnostic migration surface borrowed from _PluggableEdgeBase:
+    # duck-typed dispatch exports the Mamba memo-bank latent (or an AB3DMOT
+    # KF snapshot) instead of the AB3DMOT-only mixin the WF chain inherits.
+    # Prerequisites (tracker wrapper, beacon_id_mgr, track_to_carla,
+    # _vm_by_carla_id) all exist on this chain.
+    _raw_tracker = _PluggableEdgeBase._raw_tracker
+    _is_mamba = staticmethod(_PluggableEdgeBase._is_mamba)
+    _resolved_carla_id = _PluggableEdgeBase._resolved_carla_id
+    _export_track_latent = _PluggableEdgeBase._export_track_latent
+    _import_track_latent = _PluggableEdgeBase._import_track_latent
+    export_vehicle_state = _PluggableEdgeBase.export_vehicle_state
+    import_vehicle_state = _PluggableEdgeBase.import_vehicle_state
+    export_tracked_obstacle_state = \
+        _PluggableEdgeBase.export_tracked_obstacle_state
+    import_tracked_obstacle_state = \
+        _PluggableEdgeBase.import_tracked_obstacle_state
 
     _DEFAULT_TRACKER_CFG = {
         'motion_model_path':

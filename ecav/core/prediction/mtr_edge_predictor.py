@@ -28,6 +28,10 @@ from ecav.ecav_carla import Location, Rotation, Transform
 
 logger = logging.getLogger(__name__)
 
+# Shared eval-mode MTR instances keyed by (checkpoint, device) — multi-edge
+# sims on one GPU reuse rather than duplicate identical weights.
+_SHARED_MTR_MODELS = {}
+
 # MTR constants (matching CMP's OPV2V config)
 _PAST_FRAMES = 10       # 10 past frames at 10Hz
 _TIME_INTERVAL = 0.1    # 10Hz
@@ -223,12 +227,23 @@ class MTREdgePredictor:
                     cfg.MODEL.CONTEXT_ENCODER.LANE_ENCODER = cand
                     break
 
-        self.model = MotionTransformerWithMultiEgoAggregation(cfg.MODEL)
-        self.model.to(self.device).eval()
-
         if mtr_checkpoint is None:
             mtr_checkpoint = os.path.join(
                 mtr_root, 'output/opv2v_multiego_cobevt_c256/ckpt/best_model.pth')
+
+        # Multi-edge sims load byte-identical checkpoints per edge; share
+        # one eval-mode instance per (checkpoint, device). Deployment runs
+        # one edge per server, so this is a sim-hosting optimization only
+        # (two full copies OOM'd a 16 GB card next to CARLA/Town06).
+        _key = (os.path.abspath(mtr_checkpoint), str(self.device))
+        _shared = _SHARED_MTR_MODELS.get(_key)
+        if _shared is not None:
+            self.model = _shared
+            logger.info("MTR model reused from shared cache (%s)", _key[0])
+            return
+
+        self.model = MotionTransformerWithMultiEgoAggregation(cfg.MODEL)
+        self.model.to(self.device).eval()
 
         if os.path.exists(mtr_checkpoint):
             state = torch.load(mtr_checkpoint, map_location=self.device)
@@ -236,6 +251,7 @@ class MTREdgePredictor:
                 state = state['model_state']
             self.model.load_state_dict(state, strict=False)
             logger.info("MTR model loaded from %s", mtr_checkpoint)
+            _SHARED_MTR_MODELS[_key] = self.model
         else:
             logger.warning("MTR checkpoint not found: %s", mtr_checkpoint)
             self.model = None

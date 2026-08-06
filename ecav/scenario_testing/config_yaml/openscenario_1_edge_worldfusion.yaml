@@ -49,7 +49,7 @@ scenario_runner:
   additionalScenario: ecav/scenario_testing/scenarios/scenario_1.py
   host: *host
   port: *port
-  timeout: 120
+  timeout: 360   # wall-clock watchdog; the pipeline runs ~0.3 s/tick
   debug: false
   sync: false
   repetitions: 1
@@ -237,15 +237,23 @@ scenario:
         motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
         filter_thresh: 0.05
         new_track_thresh: 0.2
-        match_thresh: 5.0
+        # IoU-DISTANCE threshold in [0,1] (1-IoU); 5.0 saturates the
+        # gate and randomizes assignment among zero-overlap pairs.
+        match_thresh: 0.95
         max_time_lost: 60
-        enable_time_thresh: 5
+        # Unreachable threshold = CV (last-delta) gating for all
+        # tracklets; the mamba motion model miscoasts at 0.2 s steps
+        # (fragmentation). Latent/memo state still accumulates.
+        enable_time_thresh: 1000000
         max_window: 10
+        lost_match_dist_m: 2.0
 
       # Multi-V2X trained WorldFusion checkpoint
       worldfusion_model:
         hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
         checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+        # mover det scores straddle the model default (0.15) and flicker
+        score_threshold: 0.10
 
       predictor_type: mtr
       mtr_predictor:
@@ -260,7 +268,8 @@ scenario:
         past_frames: 10
         future_frames: 25
         time_interval: 0.2       # model step (5 Hz training rate)
-        history_subsample: 4     # 20 Hz track history -> 5 Hz model frames
+        history_subsample: 1     # WF tracker steps at fusion cadence (0.2 s)
+                                 # already = the model frame; 4 gave 0.8 s pasts
         lane_map: auto           # render RSU-zone raster from the CARLA map
         lane_range_m: 90.0
         device: cuda
