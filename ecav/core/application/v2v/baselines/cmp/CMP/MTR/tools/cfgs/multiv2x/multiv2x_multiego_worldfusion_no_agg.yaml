@@ -1,0 +1,104 @@
+DATA_CONFIG:
+    DATASET: &dataset_type MultiV2XMultiEgoDataset
+    OBJECT_TYPE: &object_type ['TYPE_VEHICLE']
+    # Single root holds: dataset_info.json, rsu_poses.json,
+    # multiv2x_{gt,pred}_traj/{train,test}/, wf_fused_features/{train,test}/,
+    # lane_maps/, multiv2x_cluster_64_center_dict.pkl
+    root_dir: '/storage/scratch1/4/tlandle3/wf_mtr'
+
+    # Stage 1 of the CMP recipe: train the base MTR (Swin lane encoder +
+    # decoder) with no motion aggregator; stage 2 loads this best model.
+    PRETRAINED_MOTION_TRANSFORMER: ''
+
+    # 5 Hz native; 10 past = 2 s, 25 future = 5 s (matches CMP's 5 s horizon)
+    PAST_FRAMES: 10
+    FUTURE_FRAMES: 25
+
+    MAX_OBJECTS: 64
+
+    SAMPLE_INTERVAL: {
+        'train': 2,
+        'test': 1
+    }
+
+    INFO_FILTER_DICT:
+        filter_info_by_object_type: *object_type
+
+    # Map encoding (Swin lane raster)
+    NUM_OF_SRC_POLYLINES: 768
+    POINT_SAMPLED_INTERVAL: 1
+    NUM_POINTS_EACH_POLYLINE: 20
+    VECTOR_BREAK_DIST_THRESH: 1.0
+    CENTER_OFFSET_OF_MAP: &center_offset [30.0, 0]
+
+MODEL:
+    CONTEXT_ENCODER:
+        NAME: MTREncoder
+        DATASET_TYPE: *dataset_type
+        # ImageNet-pretrained Swin-Base, fine-tuned on the lane raster.
+        LANE_ENCODER: 'pretrained/swin-base-patch4-window7-224'
+        NUM_OF_ATTN_NEIGHBORS: 16
+        NUM_INPUT_ATTR_AGENT: 22
+        NUM_INPUT_ATTR_MAP: 9
+
+        NUM_CHANNEL_IN_MLP_AGENT: 256
+        NUM_CHANNEL_IN_MLP_MAP: 64
+        NUM_LAYER_IN_MLP_AGENT: 3
+        NUM_LAYER_IN_MLP_MAP: 5
+        NUM_LAYER_IN_PRE_MLP_MAP: 3
+
+        D_MODEL: 256
+        FEATURE_DIM: 1024
+        NUM_ATTN_LAYERS: 6
+        NUM_ATTN_HEAD: 8
+        DROPOUT_OF_ATTN: 0.1
+
+        USE_LOCAL_ATTN: True
+
+    MOTION_DECODER:
+        NAME: MTRDecoder
+        DATASET_TYPE: *dataset_type
+        OBJECT_TYPE: *object_type
+        CENTER_OFFSET_OF_MAP: *center_offset
+
+        NUM_FUTURE_FRAMES: 25
+        NUM_MOTION_MODES: 6
+
+        INTENTION_RANDOM_INIT: False
+        INTENTION_POINTS_FILE: '/storage/scratch1/4/tlandle3/wf_mtr/multiv2x_cluster_64_center_dict.pkl'
+
+        D_MODEL: 512
+        NUM_DECODER_LAYERS: 6
+        NUM_ATTN_HEAD: 8
+        MAP_D_MODEL: 256
+        DROPOUT_OF_ATTN: 0.1
+
+        NUM_BASE_MAP_POLYLINES: 256
+        NUM_WAYPOINT_MAP_POLYLINES: 128
+
+        LOSS_WEIGHTS: {
+            'cls': 1.0,
+            'reg': 1.0,
+            'vel': 0.5
+        }
+
+        NMS_DIST_THRESH: 2.5
+
+    MOTION_AGGREGATOR:
+        NAME: MotionAggregator
+        TYPE: 'None'
+
+OPTIMIZATION:
+    BATCH_SIZE_PER_GPU: 1
+    NUM_EPOCHS: 30
+
+    OPTIMIZER: AdamW
+    LR: 0.0001
+    WEIGHT_DECAY: 0.01
+
+    SCHEDULER: lambdaLR
+    DECAY_STEP_LIST: [22, 24, 26, 28]
+    LR_DECAY: 0.5
+    LR_CLIP: 0.000001
+
+    GRAD_NORM_CLIP: 1000.0

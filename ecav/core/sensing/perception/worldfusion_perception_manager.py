@@ -170,10 +170,14 @@ class WorldFusionPerceptionManager(PerceptionManager):
 
     def detect(self, ego_pos, **kw):
         """
-        Run detection step - extracts features for edge transmission.
+        Run detection step - extracts features for edge transmission AND,
+        for vehicle agents, the onboard YOLO+lidar detection layer.
 
-        Note: Actual detection is performed on the edge, not here.
-        This method just ensures features are extracted when sensors are ready.
+        The edge stream augments the object list downstream
+        (vehicle_manager extends objects with edge_objects); it must never
+        be the planner's only obstacle source — a vehicle has to brake for
+        directly visible obstacles regardless of what the edge reports.
+        RSUs stay feature-only: no planner consumes their local list.
         """
         lidar_ready = self.lidar and self.lidar.data is not None
         cams_ready = self.rgb_camera and all(c.image is not None for c in self.rgb_camera)
@@ -185,6 +189,10 @@ class WorldFusionPerceptionManager(PerceptionManager):
                 self._features_extracted_this_tick = False
             else:
                 self.run_step()
+
+        if (self.vehicle is not None and self.activate
+                and cams_ready and lidar_ready):
+            return super().detect(ego_pos)
         return {"vehicles": [], "traffic_lights": [], "static": []}
 
     def build_batch(self):
@@ -644,8 +652,11 @@ class WorldFusionPerceptionManager(PerceptionManager):
         }
         bd = sensor.scatter(sensor.pillar_vfe(bd))
 
-        # Camera branch (if model supports it and image_inputs available)
-        if (hasattr(sensor, 'camenc') and 'image_inputs' in batch
+        # Camera branch (if model supports it and image_inputs available).
+        # LiDAR-only checkpoints (e.g. translaug fine-tune) set camenc=None,
+        # so hasattr alone is not a valid support check.
+        if (getattr(sensor, 'camenc', None) is not None
+                and 'image_inputs' in batch
                 and batch['image_inputs'] is not None):
             from einops import rearrange
             imgs = batch['image_inputs']['imgs']

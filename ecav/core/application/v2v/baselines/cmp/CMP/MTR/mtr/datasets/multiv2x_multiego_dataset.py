@@ -22,7 +22,7 @@ Inputs come from one directory layout (the export script's output):
 
 The trajectory pickle schema is:
   {'data': {object_id: [state_t, ...]}, 'timestamps': [str]}
-  state_t = [x, y, z, l, w, h, yaw_deg, valid]
+  state_t = [x, y, z, l, w, h, yaw_rad, valid]
 """
 
 from __future__ import annotations
@@ -64,8 +64,13 @@ class MultiV2XMultiEgoDataset(DatasetTemplate):
         # Paths derived from root
         self.gt_traj_dir = os.path.join(
             self.root_dir, 'multiv2x_gt_traj', self.split)
+        # PRED_TRAJ_DIRNAME selects the past-trajectory source:
+        # 'multiv2x_pred_traj' = GT-anchored detection association (legacy),
+        # 'multiv2x_pred_traj_mamba' = mamba3dmot tracker output (train=live).
         self.pred_traj_dir = os.path.join(
-            self.root_dir, 'multiv2x_pred_traj', self.split)
+            self.root_dir,
+            cfg.get('PRED_TRAJ_DIRNAME', 'multiv2x_pred_traj'),
+            self.split)
         self.feat_dir = os.path.join(
             self.root_dir, 'wf_fused_features', self.split)
         self.lane_dir = os.path.join(self.root_dir, 'lane_maps')
@@ -185,6 +190,7 @@ class MultiV2XMultiEgoDataset(DatasetTemplate):
         N = len(obj_ids)
 
         # Trajectory tensors: [x, y, z, l, w, h, heading_rad, valid]
+        # (pickle yaw is already radians, straight from the opencood boxes)
         obj_trajs_past = np.zeros((N, n_past, 8), dtype=np.float32)
         obj_trajs_future = np.zeros((N, n_future, 8), dtype=np.float32)
 
@@ -200,7 +206,7 @@ class MultiV2XMultiEgoDataset(DatasetTemplate):
                     if s[7] == 1:
                         obj_trajs_past[i, j] = [
                             s[0], s[1], s[2], s[3], s[4], s[5],
-                            np.deg2rad(s[6]), 1.0]
+                            s[6], 1.0]
             for j, ts in enumerate(future_ts):
                 if gt_seq is None:
                     continue
@@ -210,7 +216,13 @@ class MultiV2XMultiEgoDataset(DatasetTemplate):
                     if s[7] == 1:
                         obj_trajs_future[i, j] = [
                             s[0], s[1], s[2], s[3], s[4], s[5],
-                            np.deg2rad(s[6]), 1.0]
+                            s[6], 1.0]
+
+        # Skip near-empty frames: a single valid past obs point crashes the
+        # BatchNorm in the agent polyline encoder (N=1) and carries almost
+        # no training signal anyway (intermittent RSU detections).
+        if obj_trajs_past[:, :, -1].sum() < 2:
+            return self.__getitem__((index + 1) % len(self))
 
         # Center objects: state at the current timestamp (last past frame)
         center_objects = obj_trajs_past[:, -1, :].copy()
@@ -227,15 +239,21 @@ class MultiV2XMultiEgoDataset(DatasetTemplate):
         obj_types = np.array(['TYPE_VEHICLE'] * N)
         obj_ids_arr = np.array(obj_ids)
 
+        # Relative past timestamps in seconds (5 Hz native, consecutive
+        # frames within a window), for the time embedding.
+        timestamps = np.arange(n_past, dtype=np.float32) * 0.2
+
         (obj_trajs_data, obj_trajs_mask, obj_trajs_pos, obj_trajs_last_pos,
          obj_trajs_future_state, obj_trajs_future_mask,
          center_gt_trajs, center_gt_trajs_mask, center_gt_final_valid_idx,
          track_index_to_predict_new, _sdc,
-         obj_types, obj_ids_arr) = self._create_agent_data_for_center_objects(
+         obj_types, obj_ids_arr) = self.create_agent_data_for_center_objects(
             center_objects=center_objects,
             obj_trajs_past=obj_trajs_past,
             obj_trajs_future=obj_trajs_future,
             track_index_to_predict=track_index_to_predict,
+            sdc_track_index=0,
+            timestamps=timestamps,
             obj_types=obj_types,
             obj_ids=obj_ids_arr,
         )
@@ -275,7 +293,8 @@ class MultiV2XMultiEgoDataset(DatasetTemplate):
             'center_gt_trajs': center_gt_trajs,
             'center_gt_trajs_mask': center_gt_trajs_mask,
             'center_gt_final_valid_idx': center_gt_final_valid_idx,
-            'center_gt_trajs_src': obj_trajs_full[track_index_to_predict_new],
+            # indexed with the pre-filter center indices, like CMP
+            'center_gt_trajs_src': obj_trajs_full[track_index_to_predict],
 
             'fused_feature': fused_feature,
         }
@@ -326,59 +345,220 @@ class MultiV2XMultiEgoDataset(DatasetTemplate):
             'batch_sample_count': batch_sample_count,
         }
 
-    # --------------------------------------------------------------- internal
+    # ------------------------------------------------------------- evaluation
 
     @staticmethod
-    def _create_agent_data_for_center_objects(
+    def generate_prediction_dicts(batch_pred_dicts, output_path=None):
+        """Port of OPV2VMultiEgoDataset.generate_prediction_dicts
+        (opencood-free). Maps model output back to world frame and packs
+        per-object prediction dicts for eval_one_epoch_custom."""
+        input_dict = batch_pred_dicts['input_dict']
+
+        pred_trajs = batch_pred_dicts['pred_trajs']
+        pred_scores = batch_pred_dicts['pred_scores']
+
+        pred_dict_list = []
+        center_objects_world = input_dict['center_objects_world'].type_as(pred_trajs)
+
+        num_center_objects, num_modes, num_timestamps, num_feat = pred_trajs.shape
+        assert num_feat in (5, 7)
+
+        pred_trajs_world = common_utils.rotate_points_along_z(
+            points=pred_trajs.view(num_center_objects, num_modes * num_timestamps, num_feat),
+            angle=center_objects_world[:, 6].view(num_center_objects)
+        ).view(num_center_objects, num_modes, num_timestamps, num_feat)
+        pred_trajs_world[:, :, :, 0:2] += center_objects_world[:, None, None, 0:2]
+
+        this_ego_pred_dict_list = []
+        batch_sample_count = batch_pred_dicts['batch_sample_count']
+        start_obj_idx = 0
+        for bs_idx in range(batch_pred_dicts['num_cavs']):
+            cur_scene_pred_list = []
+            for obj_idx in range(start_obj_idx, start_obj_idx + batch_sample_count[bs_idx]):
+                single_pred_dict = {
+                    'scenario_id': input_dict['scenario_id'][obj_idx],
+                    'scenario_name': input_dict['scenario_name'][obj_idx],
+                    'timestamp_idx': input_dict['timestamp_idx'][obj_idx],
+                    'timestamp_key': input_dict['timestamp_key'][obj_idx],
+                    'ego_cav_id': input_dict['ego_cav_id'][obj_idx],
+                    'pred_trajs': pred_trajs_world[obj_idx, :, :, 0:2].cpu().numpy(),
+                    'pred_scores': pred_scores[obj_idx, :].cpu().numpy(),
+                    'object_id': input_dict['center_objects_id'][obj_idx],
+                    'object_type': input_dict['center_objects_type'][obj_idx],
+                    'gt_trajs': input_dict['center_gt_trajs_src'][obj_idx].cpu().numpy(),
+                    'track_index_to_predict': input_dict['track_index_to_predict'][obj_idx].cpu().numpy(),
+                    'center_gt_trajs_mask': input_dict['center_gt_trajs_mask'][obj_idx].cpu().numpy(),
+                    'center_gt_final_valid_idx': input_dict['center_gt_final_valid_idx'][obj_idx].cpu().numpy().astype(np.int64),
+                }
+                cur_scene_pred_list.append(single_pred_dict)
+
+            this_ego_pred_dict_list.append(cur_scene_pred_list)
+            start_obj_idx += batch_sample_count[bs_idx]
+
+        assert start_obj_idx == num_center_objects
+        assert len(this_ego_pred_dict_list) == batch_pred_dicts['num_cavs']
+        pred_dict_list.extend(this_ego_pred_dict_list)
+
+        return pred_dict_list
+
+    # --------------------------------------------------------------- internal
+    # The three methods below are ports of the OPV2VMultiEgoDataset agent
+    # feature construction (mtr/datasets/opv2v_multiego_dataset.py), kept
+    # free of opencood imports so this loader runs on training clusters.
+
+    @staticmethod
+    def create_agent_data_for_center_objects(
             center_objects, obj_trajs_past, obj_trajs_future,
-            track_index_to_predict, obj_types, obj_ids):
-        """Normalize trajectories to each center object's frame."""
-        num_center = center_objects.shape[0]
-        num_past = obj_trajs_past.shape[1]
-
-        obj_trajs_full = np.concatenate([obj_trajs_past, obj_trajs_future], axis=1)
-        obj_trajs_mask = obj_trajs_full[:, :num_past, -1].astype(bool)
-        obj_trajs_future_mask = obj_trajs_full[:, num_past:, -1].astype(bool)
-
-        obj_trajs_torch = torch.tensor(obj_trajs_full).float()
-        center_xyz = torch.tensor(center_objects[:, :3]).float()
-        center_heading = torch.tensor(center_objects[:, 6]).float()
-
-        obj_trajs_centered = MultiV2XMultiEgoDataset.transform_trajs_to_center_coords(
-            obj_trajs_torch.unsqueeze(0).expand(num_center, -1, -1, -1).clone(),
-            center_xyz, center_heading, heading_index=6,
+            track_index_to_predict, sdc_track_index, timestamps,
+            obj_types, obj_ids):
+        (obj_trajs_data, obj_trajs_mask, obj_trajs_future_state,
+         obj_trajs_future_mask) = MultiV2XMultiEgoDataset.generate_centered_trajs_for_agents(
+            center_objects=center_objects, obj_trajs_past=obj_trajs_past,
+            obj_types=obj_types, center_indices=track_index_to_predict,
+            sdc_index=sdc_track_index, timestamps=timestamps,
+            obj_trajs_future=obj_trajs_future,
         )
 
-        obj_trajs_data = obj_trajs_centered[:, :, :num_past, :].numpy()
-        obj_trajs_future_state = obj_trajs_centered[:, :, num_past:, :].numpy()
-        obj_trajs_pos = obj_trajs_data[:, :, :, :2]
-        obj_trajs_last_pos = obj_trajs_data[:, :, -1, :2]
-
+        # generate the labels of track_objects for training
+        center_obj_idxs = np.arange(len(track_index_to_predict))
         center_gt_trajs = obj_trajs_future_state[
-            np.arange(num_center), track_index_to_predict, :, :2]
-        center_gt_trajs_mask = obj_trajs_future_mask[track_index_to_predict]
-        center_gt_final_valid_idx = np.array([
-            np.where(center_gt_trajs_mask[i])[0][-1]
-            if center_gt_trajs_mask[i].any() else 0
-            for i in range(num_center)
-        ])
-        track_index_to_predict_new = np.arange(num_center)
-        sdc_track_index_new = 0
-        return (obj_trajs_data, obj_trajs_mask, obj_trajs_pos, obj_trajs_last_pos,
-                obj_trajs_future_state, obj_trajs_future_mask,
-                center_gt_trajs, center_gt_trajs_mask, center_gt_final_valid_idx,
-                track_index_to_predict_new, sdc_track_index_new,
-                obj_types, obj_ids)
+            center_obj_idxs, track_index_to_predict]  # (num_center, T_fut, 2)
+        center_gt_trajs_mask = obj_trajs_future_mask[
+            center_obj_idxs, track_index_to_predict]  # (num_center, T_fut)
+        center_gt_trajs[center_gt_trajs_mask == 0] = 0
+
+        # filter invalid past trajs
+        assert obj_trajs_past.__len__() == obj_trajs_data.shape[1]
+        valid_past_mask = np.logical_not(
+            obj_trajs_past[:, :, -1].sum(axis=-1) == 0)
+
+        obj_trajs_mask = obj_trajs_mask[:, valid_past_mask]
+        obj_trajs_data = obj_trajs_data[:, valid_past_mask]
+        obj_trajs_future_state = obj_trajs_future_state[:, valid_past_mask]
+        obj_trajs_future_mask = obj_trajs_future_mask[:, valid_past_mask]
+        obj_types = obj_types[valid_past_mask]
+        obj_ids = obj_ids[valid_past_mask]
+
+        valid_index_cnt = valid_past_mask.cumsum(axis=0)
+        track_index_to_predict_new = valid_index_cnt[track_index_to_predict] - 1
+        sdc_track_index_new = valid_index_cnt[sdc_track_index] - 1
+
+        assert obj_trajs_future_state.shape[1] == obj_trajs_data.shape[1]
+        assert len(obj_types) == obj_trajs_future_mask.shape[1]
+        assert len(obj_ids) == obj_trajs_future_mask.shape[1]
+
+        # generate the final valid position of each object
+        obj_trajs_pos = obj_trajs_data[:, :, :, 0:3]
+        num_center_objects, num_objects, num_timestamps, _ = obj_trajs_pos.shape
+        obj_trajs_last_pos = np.zeros(
+            (num_center_objects, num_objects, 3), dtype=np.float32)
+        for k in range(num_timestamps):
+            cur_valid_mask = obj_trajs_mask[:, :, k] > 0
+            obj_trajs_last_pos[cur_valid_mask] = \
+                obj_trajs_pos[:, :, k, :][cur_valid_mask]
+
+        center_gt_final_valid_idx = np.zeros(
+            (num_center_objects,), dtype=np.float32)
+        for k in range(center_gt_trajs_mask.shape[1]):
+            cur_valid_mask = center_gt_trajs_mask[:, k] > 0
+            center_gt_final_valid_idx[cur_valid_mask] = k
+
+        return (obj_trajs_data, obj_trajs_mask > 0, obj_trajs_pos,
+                obj_trajs_last_pos, obj_trajs_future_state,
+                obj_trajs_future_mask, center_gt_trajs, center_gt_trajs_mask,
+                center_gt_final_valid_idx, track_index_to_predict_new,
+                sdc_track_index_new, obj_types, obj_ids)
+
+    @staticmethod
+    def generate_centered_trajs_for_agents(center_objects, obj_trajs_past,
+                                           obj_types, center_indices,
+                                           sdc_index, timestamps,
+                                           obj_trajs_future):
+        """Build the 22-attr MTR agent features exactly like CMP-OPV2V:
+        6 centered box dims + 2 onehot + (T+1) time embedding + 2 heading."""
+        assert obj_trajs_past.shape[-1] == 8
+        assert center_objects.shape[-1] == 8
+        num_center_objects = center_objects.shape[0]
+        num_objects, num_timestamps, box_dim = obj_trajs_past.shape
+        center_objects = torch.from_numpy(center_objects).float()
+        obj_trajs_past = torch.from_numpy(obj_trajs_past).float()
+        timestamps = torch.from_numpy(timestamps).float()
+
+        # transform coordinates to the centered objects
+        obj_trajs = MultiV2XMultiEgoDataset.transform_trajs_to_center_coords(
+            obj_trajs=obj_trajs_past,
+            center_xyz=center_objects[:, 0:3],
+            center_heading=center_objects[:, 6],
+            heading_index=6,
+        )
+
+        object_onehot_mask = torch.zeros(
+            (num_center_objects, num_objects, num_timestamps, 2))
+        object_onehot_mask[:, obj_types == 'TYPE_VEHICLE', :, 0] = 1
+        object_onehot_mask[
+            torch.arange(num_center_objects), center_indices, :, 1] = 1
+
+        object_time_embedding = torch.zeros(
+            (num_center_objects, num_objects, num_timestamps,
+             num_timestamps + 1))
+        object_time_embedding[
+            :, :, torch.arange(num_timestamps), torch.arange(num_timestamps)] = 1
+        object_time_embedding[:, :, torch.arange(num_timestamps), -1] = timestamps
+
+        object_heading_embedding = torch.zeros(
+            (num_center_objects, num_objects, num_timestamps, 2))
+        object_heading_embedding[:, :, :, 0] = np.sin(obj_trajs[:, :, :, 6])
+        object_heading_embedding[:, :, :, 1] = np.cos(obj_trajs[:, :, :, 6])
+
+        ret_obj_trajs = torch.cat((
+            obj_trajs[:, :, :, 0:6],
+            object_onehot_mask,
+            object_time_embedding,
+            object_heading_embedding,
+        ), dim=-1)
+
+        ret_obj_valid_mask = obj_trajs[:, :, :, -1]
+        ret_obj_trajs[ret_obj_valid_mask == 0] = 0
+
+        # labels for future trajectories
+        obj_trajs_future = torch.from_numpy(obj_trajs_future).float()
+        obj_trajs_future = MultiV2XMultiEgoDataset.transform_trajs_to_center_coords(
+            obj_trajs=obj_trajs_future,
+            center_xyz=center_objects[:, 0:3],
+            center_heading=center_objects[:, 6],
+            heading_index=6,
+        )
+        ret_obj_trajs_future = obj_trajs_future[:, :, :, [0, 1]]
+        ret_obj_valid_mask_future = obj_trajs_future[:, :, :, -1]
+        ret_obj_trajs_future[ret_obj_valid_mask_future == 0] = 0
+
+        return (ret_obj_trajs.numpy(), ret_obj_valid_mask.numpy(),
+                ret_obj_trajs_future.numpy(),
+                ret_obj_valid_mask_future.numpy())
 
     @staticmethod
     def transform_trajs_to_center_coords(obj_trajs, center_xyz, center_heading,
-                                          heading_index):
-        num_center = center_xyz.shape[0]
+                                         heading_index):
+        """
+        Args:
+            obj_trajs (num_objects, num_timestamps, num_attrs):
+                first values of num_attrs are [x, y, z] or [x, y]
+            center_xyz (num_center_objects, 3 or 2)
+            center_heading (num_center_objects,)
+            heading_index: index of heading angle in the attr axis
+        """
+        num_objects, num_timestamps, num_attrs = obj_trajs.shape
+        num_center_objects = center_xyz.shape[0]
+        assert center_xyz.shape[0] == center_heading.shape[0]
+        assert center_xyz.shape[1] in [3, 2]
+
+        obj_trajs = obj_trajs.clone().view(
+            1, num_objects, num_timestamps, num_attrs).repeat(
+            num_center_objects, 1, 1, 1)
         obj_trajs[:, :, :, 0:center_xyz.shape[1]] -= center_xyz[:, None, None, :]
         obj_trajs[:, :, :, 0:2] = common_utils.rotate_points_along_z(
-            points=obj_trajs[:, :, :, 0:2].reshape(num_center, -1, 2),
+            points=obj_trajs[:, :, :, 0:2].view(num_center_objects, -1, 2),
             angle=-center_heading,
-        ).reshape(obj_trajs.shape[0], obj_trajs.shape[1],
-                  obj_trajs.shape[2], 2)
+        ).view(num_center_objects, num_objects, num_timestamps, 2)
         obj_trajs[:, :, :, heading_index] -= center_heading[:, None, None]
         return obj_trajs

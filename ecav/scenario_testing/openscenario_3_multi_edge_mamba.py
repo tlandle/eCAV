@@ -17,6 +17,7 @@ Reuses scenario_3.xml and scenario_3.py (ScenarioRunner) unchanged.
 
 import asyncio
 import logging
+import os
 import time
 from multiprocessing import Process
 
@@ -35,6 +36,7 @@ from ecav.core.application.edge.migration import (
     InterLocaleLink,
     SequentialMigrationDaemon,
 )
+from ecav.core.application.edge.migration.metrics import MigrationMetricsLogger
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,10 @@ SCENARIO_NAME = 'openscenario_3_multi_edge_mamba'
 # At 43 km/h (11.9 m/s) and dt=0.05s, ego travels 0.6 m/tick.
 # From spawn y=80, tick 60 → y≈116: well past the locale 0/1 overlap (y≈98-108).
 HANDOFF_TICK = 60
+
+# B4 experimental arm: 'warm' migrates the tracker latent, 'cold' moves
+# ownership but skips the state import. Paired runs give the gap curve.
+MIGRATION_MODE = os.environ.get("MIGRATION_MODE", "warm").lower()
 
 scenario_runner = None
 
@@ -80,6 +86,7 @@ def run_scenario(opt, scenario_params):
     handoff_done = False
     transfer_costs = []
     vid = None
+    metrics_logger = None
 
     try:
         scenario_params = add_current_time(scenario_params)
@@ -161,6 +168,8 @@ def run_scenario(opt, scenario_params):
         handoff_manager = HandoffManager(trigger_tick=HANDOFF_TICK)
         daemon = SequentialMigrationDaemon()
         link = InterLocaleLink(edge_list[0].latency_model)
+        metrics_logger = MigrationMetricsLogger(MIGRATION_MODE, HANDOFF_TICK)
+        logger.info("[MIGRATION] mode=%s", MIGRATION_MODE)
 
         eval_manager = EvaluationManager(
             scenario_manager.cav_world,
@@ -198,11 +207,16 @@ def run_scenario(opt, scenario_params):
                 if vid is not None:
                     event = handoff_manager.evaluate(vid, step, step * world_dt)
                     if event:
+                        warm = MIGRATION_MODE != "cold"
                         cost = daemon.request_handoff(
                             vid, edge_list[0], edge_list[1],
-                            scenario_manager, link, step
+                            scenario_manager, link, step,
+                            import_state=warm,
                         )
                         transfer_costs.append(cost)
+                        metrics_logger.log_handoff(
+                            step, vid, edge_list[0].edgeid,
+                            edge_list[1].edgeid, cost, warm)
                         handoff_done = True
                         logger.info(
                             "[HANDOFF] tick=%d vid=%d bytes=%d total_ms=%.3f",
@@ -239,6 +253,29 @@ def run_scenario(opt, scenario_params):
             elif not opt.distributed:
                 for edge in edge_list:
                     edge.run_step(step)
+
+            # B4: per-tick gap metrics — ego ground truth vs owning edge's track.
+            if vid is not None:
+                owner = next(
+                    (e for e in edge_list
+                     if any(v.vehicle.id == vid for v in e.vehicle_manager_list)),
+                    None)
+                if owner is not None:
+                    vm0 = next(v for v in owner.vehicle_manager_list
+                               if v.vehicle.id == vid)
+                    gt = vm0.vehicle.get_transform().location
+                    trk = None
+                    raw_fn = getattr(owner, '_raw_tracker', None)
+                    if raw_fn is not None:
+                        raw = raw_fn()
+                        if hasattr(raw, 'tracked_tracklets'):
+                            trk = next(
+                                (t for t in raw.tracked_tracklets
+                                 if owner._resolved_carla_id(
+                                     getattr(t, 'carla_id', None)) == vid),
+                                None)
+                    metrics_logger.log_frame(
+                        step, owner.edgeid, vid, (gt.x, gt.y, gt.z), trk)
 
             step += 1
             if step >= MAX_STEP:
@@ -286,6 +323,15 @@ def run_scenario(opt, scenario_params):
 
         if opt.distributed and scenario_manager is not None:
             scenario_manager.end()
+
+        if metrics_logger is not None:
+            try:
+                out_dir = os.path.join(
+                    'evaluation_outputs',
+                    f"migration_{scenario_params['current_time']}")
+                metrics_logger.dump(out_dir)
+            except Exception:  # noqa: BLE001
+                logger.exception("migration metrics dump failed")
 
         if eval_manager is not None:
             eval_manager.evaluate()

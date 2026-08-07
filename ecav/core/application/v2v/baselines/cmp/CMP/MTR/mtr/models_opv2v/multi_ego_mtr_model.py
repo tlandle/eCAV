@@ -7,7 +7,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from mtr.models_opv2v.model import MotionTransformer
 from mtr.utils import common_utils, loss_utils, motion_utils
-from torch_geometric.nn import GCNConv, SAGEConv
+try:
+    # Only MotionAggregatorGCN needs these; keep optional so the other
+    # aggregators run on clusters without torch_geometric.
+    from torch_geometric.nn import GCNConv, SAGEConv
+except ImportError:
+    GCNConv = SAGEConv = None
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 
@@ -1074,16 +1079,19 @@ class MotionAggregatorTransformer(nn.Module):
     """
     In this model we use a transformer to adjust trajectories with BEV feature and map.
     """
-    def __init__(self):
+    def __init__(self, num_future_frames=50):
         super(MotionAggregatorTransformer, self).__init__()
         self.type = 'Transformer'
 
-        self.feature_encoder = MLP(50 * 5, 512)
+        self.feature_encoder = MLP(num_future_frames * 5, 512)
 
-        # Encoders for BEV and map features
+        # Encoders for BEV and map features. AdaptiveAvgPool2d is a no-op for
+        # the CoBEVT (48, 176) grid and pools other BEV grids (e.g.
+        # WorldFusion 176x176) down to it, keeping the Linear shape fixed.
         self.bev_encoder = nn.Sequential(
             nn.Conv2d(256, 128, kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
+            nn.AdaptiveAvgPool2d((48, 176)),
             nn.Flatten(),
             nn.Linear(128 * 48 * 176, 128)
         )
@@ -1103,7 +1111,7 @@ class MotionAggregatorTransformer(nn.Module):
         self.transformer_decoder = nn.TransformerDecoder(decoder_layer, num_layers=5)
 
         # Decoder for trajectories
-        self.trajectory_decoder = MLP(512, 50 * 5)
+        self.trajectory_decoder = MLP(512, num_future_frames * 5)
 
         # Score Estimator.
         self.score_estimator = MLP(6 * 512, 6)
@@ -1398,7 +1406,8 @@ class MotionTransformerWithMultiEgoAggregation(nn.Module):
         elif self.model_cfg.MOTION_AGGREGATOR.TYPE == 'MOEV6':
             self.motion_aggregator = MotionAggregatorMOEV6()
         elif self.model_cfg.MOTION_AGGREGATOR.TYPE == 'Transformer':
-            self.motion_aggregator = MotionAggregatorTransformer()
+            self.motion_aggregator = MotionAggregatorTransformer(
+                num_future_frames=self.model_cfg.MOTION_DECODER.NUM_FUTURE_FRAMES)
         elif self.model_cfg.MOTION_AGGREGATOR.TYPE == 'TransformerV2':
             self.motion_aggregator = MotionAggregatorTransformerV2()
         else:

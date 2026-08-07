@@ -109,9 +109,15 @@ class Mamba3DTracker:
         # --- Round 2: match lost tracklets with remaining detections ---
 
         detections_remain = [detections[i] for i in u_detection]
-        dists_lost = iou_distance_3d(self.lost_tracklets, detections_remain)
+        # Lost-pool recapture uses CENTER DISTANCE, not IoU: after multi-
+        # frame detection dropouts the coasted prediction has drifted past
+        # box overlap (movers decelerate; CV overshoots), and IoU-only
+        # matching can never recapture them -> permanent fragmentation.
+        # Same principle as AB3DMOT's ground-plane distance gate.
+        lost_gate_m = float(self.cfgs.get('lost_match_dist_m', 5.0))
+        dists_lost = center_distance_3d(self.lost_tracklets, detections_remain)
         matches_lost, u_lost, u_det_remain = linear_assignment(
-            dists_lost, thresh=self.match_thresh)
+            dists_lost, thresh=min(lost_gate_m / 20.0, 0.999))
 
         for ilost, idet in matches_lost:
             track = self.lost_tracklets[ilost]
@@ -122,6 +128,24 @@ class Mamba3DTracker:
         # Mark unmatched active tracklets as lost
         for it in u_track:
             track = self.tracked_tracklets[it]
+            # TEMP DEBUG: why did this track miss? min cost to any det and
+            # whether its best det went to another track (competition).
+            if dists.shape[1] > 0:
+                from ecav.core.tracking.mamba3dmot.matching import _extract_bev_box
+                tb = _extract_bev_box(track)
+                dboxes = [_extract_bev_box(d) for d in detections]
+                dcent = [((db[0]-tb[0])**2 + (db[1]-tb[1])**2)**0.5 for db in dboxes]
+                jn = int(np.argmin(dcent))
+                db = dboxes[jn]
+                mb = track.memo_bank[-1] if len(track.memo_bank) else None
+                print(f"[MAMBA LOST] tid={track.track_id} "
+                      f"min_cost={dists[it].min():.3f} "
+                      f"trk_bev=({tb[0]:.1f},{tb[1]:.1f},l{tb[2]:.1f},w{tb[3]:.1f},yaw{tb[4]:.2f}) "
+                      f"near_det=({db[0]:.1f},{db[1]:.1f},l{db[2]:.1f},w{db[3]:.1f},yaw{db[4]:.2f}) "
+                      f"cdist={dcent[jn]:.2f} "
+                      f"memo_last=({mb[0]:.1f},{mb[1]:.1f})" if mb is not None else "no-memo")
+            else:
+                print(f"[MAMBA LOST] tid={track.track_id} no_dets")
             if not track.state_flag == TrackState.Lost:
                 track.state_flag = TrackState.Lost
                 lost_tracklets.append(track)

@@ -170,6 +170,15 @@ Ordered by dependency. Each item names the files to touch.
 ## 3. Experiment specifications
 
 ### Q1 Does the gap exist (live + trace replay)
+
+IMPORTANT metric note (found live 2026-07-06): the EGO's own track is trivially warm at
+the destination because the ego's self-beacon carries authoritative pose, so warm-vs-cold
+on the ego track shows no gap (first paired run confirmed: cold reacquired in 1 tick from
+the beacon det). The gap lives on NON-CONNECTED actors (the cross-traffic Tesla, the
+pedestrian), whose history cannot be re-beaconed. Q1/Q4 measure the gap on the
+safety-critical ACTOR's track and forecasts, not the ego's. This is also exactly why the
+NHTSA boundary scenarios put the actor, not the ego, across the boundary. B4 frame logging
+must therefore log the actor's track (obstacle-state export path), keyed by actor id.
 - Setup: B0 + B4 + B5. Boundary scenario, learned stack. Force one crossing. Run two arms:
   warm reference (no handoff, single edge owns throughout) vs cold destination (handoff,
   no migration).
@@ -218,6 +227,7 @@ Ordered by dependency. Each item names the files to touch.
 | Axis | Values | Used by |
 |------|--------|---------|
 | Payload | none, latest-box, Kalman mean+cov, N-frame history, tracker-latent, predictor-context, both, oracle | Q2 |
+| Alternative arch | dual-service overlap (both edges serve overlap zone; measures duplicated per-edge load + consistency conflicts + residual gap); mirroring rate (cold / trigger-once / continuous standby) | Q3, Q4, Q5 |
 | Trigger | radio-proxy, distance-to-boundary, trajectory-crossing, probabilistic-trajectory, oracle | Q3 |
 | Link | base latency, jitter std, packet loss, bandwidth | Q5, Q6 |
 | Scene | active agents {4,8,16,32}; boundary crossings/min | Q5 |

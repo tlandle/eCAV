@@ -321,13 +321,22 @@ class BeaconIdManager:
         bool
             True if a matching track was found and updated, False otherwise.
         """
-        for kf_track in tracker.trackers:
+        # Track pool resolution is tracker-agnostic: AB3DMOT exposes
+        # .trackers; Mamba3DMOTWrapper exposes .tracker.tracked_tracklets.
+        # Both track objects carry the carla_id attribute rewritten here.
+        if hasattr(tracker, 'trackers'):
+            pool = tracker.trackers
+        else:
+            pool = getattr(getattr(tracker, 'tracker', None),
+                           'tracked_tracklets', [])
+        for kf_track in pool:
             if getattr(kf_track, "carla_id", -1) == old_temp_id:
                 kf_track.carla_id = new_temp_id
                 kf_track.anchoring_age = 0  # reset epoch on successful remap
                 logger.info(
                     "Tracker remap: track %d  carla_id %d -> %d",
-                    kf_track.id, old_temp_id, new_temp_id,
+                    getattr(kf_track, 'id', getattr(kf_track, 'track_id', -1)),
+                    old_temp_id, new_temp_id,
                 )
                 return True
         logger.warning(

@@ -23,7 +23,10 @@ class Mamba3DMOTWrapper(BaseTracker):
     Wraps Mamba3DTracker with AB3DMOT-compatible input/output format.
 
     Input:  dets_all = {'dets': (N, 8) [h,w,l,x,y,z,yaw,score], 'info': (N, 3)}
-    Output: tracks_list = [(M, 14) [h,w,l,x,y,z,yaw,id,frame,det_idx,carla_id,vx,vy,vz]]
+    Output: tracks_list = [(M, 14)
+            [h,w,l,x,y,z,yaw,id,carla_id,det_idx,vx,vz,vy,0]]
+            (AB3DMOT-consumer layout: ab3d_tracks_to_trajectories reads
+            carla_id at col 8 and velocities at cols 10/12)
     """
 
     _DEFAULTS = {
@@ -120,6 +123,13 @@ class Mamba3DMOTWrapper(BaseTracker):
                 dets[:, 6],  # yaw
             ])
 
+        # Internal call counter, NOT the caller's tick number: callers pass
+        # sim ticks striding 4+ per edge cycle, which stretches every frame-
+        # denominated constant and the motion-model extrapolation (observed
+        # live: tracks teleporting between vehicles). Offline retrack and
+        # training count one frame per update call; live must match.
+        self._frame_n = getattr(self, '_frame_n', 0) + 1
+        frame = self._frame_n
         active_tracklets = self._tracker.update(dets_3d, scores)
         self._associate_carla_ids(dets_3d, info)
 
@@ -129,12 +139,28 @@ class Mamba3DMOTWrapper(BaseTracker):
             if trk.is_activated and trk.time_since_update == 0:
                 state = trk.state  # [x,y,z,l,w,h,yaw]
                 # Convert back to AB3DMOT output: [h,w,l,x,y,z,yaw,id,...]
-                # Velocity from history
-                if len(trk.memo_bank) >= 2:
-                    vel = trk.memo_bank[-1][:3] - trk.memo_bank[-2][:3]
+                # Per-frame velocity from the previous EMITTED state: the
+                # memo-bank diff spans variable coasting intervals, which
+                # consumers (dividing by one tick) turned into absurd
+                # speeds (hundreds of m/s).
+                prev = getattr(trk, '_prev_out', None)
+                cur_xyz = np.asarray(state[:3], dtype=np.float64)
+                if prev is not None and frame > prev[0]:
+                    raw_vel = (cur_xyz - prev[1]) / float(frame - prev[0])
                 else:
-                    vel = np.zeros(3)
+                    raw_vel = np.zeros(3)
+                # EMA smoothing: single-step diffs of raw detections are
+                # jitter-dominated (0.2 m noise -> m/s spikes on parked
+                # vehicles); AB3DMOT consumers expect KF-quality velocity.
+                prev_ema = getattr(trk, '_vel_ema', None)
+                vel = (0.3 * raw_vel + 0.7 * prev_ema)                     if prev_ema is not None else raw_vel
+                trk._vel_ema = vel
+                trk._prev_out = (frame, cur_xyz)
 
+                # Column layout matches what ab3d_tracks_to_trajectories
+                # parses for AB3DMOT rows: carla_id at 8, vx at 10, vy at 12
+                # (previously carla_id sat at 10 and frame at 8, so replay
+                # stamped carla_id=frame and kf_speed from (carla_id, vy)).
                 out = np.array([
                     state[5],  # h
                     state[4],  # w
@@ -144,12 +170,12 @@ class Mamba3DMOTWrapper(BaseTracker):
                     state[2],  # z
                     state[6],  # yaw
                     trk.track_id,
-                    frame,
-                    0,   # det_idx
                     getattr(trk, 'carla_id', -1),
-                    vel[0],  # vx
-                    vel[1],  # vy
+                    0,       # det_idx
+                    vel[0],  # vx  (m/tick, consumer divides by dt)
                     vel[2],  # vz
+                    vel[1],  # vy
+                    0.0,
                 ], dtype=np.float64)
                 results.append(out)
 

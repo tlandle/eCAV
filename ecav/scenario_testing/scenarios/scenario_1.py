@@ -32,12 +32,14 @@ class Scenario_1(BasicScenario):
     timeout = 1200
 
     def __init__(self, world, ego_vehicles, config, randomize=False, debug_mode=False, criteria_enable=True,
-                 timeout=600, scenario_params=None):
+                 timeout=600, vehicle_index=-1, scenario_params=None, distributed=False):
         """
         Setup all relevant parameters and create scenario
         """
         print("Running Overtake Scenario")
         self.timeout = timeout
+        self.vehicle_index = vehicle_index
+        self.distributed = distributed
         self._map = CarlaDataProvider.get_map()
         self._reference_waypoint = self._map.get_waypoint(
             config.trigger_points[0].location)

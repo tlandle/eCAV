@@ -32,6 +32,8 @@ from .edge_manager_adaptive import AdaptiveEdge
 from .edge_manager_worldfusion_ab3dmot_mtr_adaptive import (
     WorldFusionAdaptiveEdge,
 )
+from .edge_manager_worldfusion_ab3dmot_mtr import WorldFusionMTREdge
+from .edge_manager_worldfusion_mamba_mtr import WorldFusionMambaAdaptiveEdge
 from .edge_manager_infra_only_ab3dmot_linear_predictor import InfraOnlyEdge
 from .edge_manager_cip_ab3dmot_linear_predictor import CIPEdge
 
@@ -67,6 +69,9 @@ _EDGE_REGISTRY = {
     "ADAPTIVE": AdaptiveEdge,
     "WORLDFUSION_ADAPTIVE": WorldFusionAdaptiveEdge,
     "WORLDFUSION_ADAPTIVE_EDGE": WorldFusionAdaptiveEdge,
+    "WORLDFUSION_MTR": WorldFusionMTREdge,
+    "WORLDFUSION_MAMBA_ADAPTIVE": WorldFusionMambaAdaptiveEdge,
+    "WORLDFUSION_MAMBA_MTR": WorldFusionMambaAdaptiveEdge,  # alias
     "INFRA_ONLY": InfraOnlyEdge,
     "CIP": CIPEdge,
 }

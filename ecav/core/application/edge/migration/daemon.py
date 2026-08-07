@@ -63,6 +63,7 @@ class SequentialMigrationDaemon:
         store: _StateStore,
         link: InterLocaleLink,
         tick: int,
+        import_state: bool = True,
     ) -> TransferCost:
         """Execute one vehicle hand-off and return a TransferCost record.
 
@@ -93,9 +94,15 @@ class SequentialMigrationDaemon:
             vehicle_id, tick, src_edge.edgeid, dst_edge.edgeid,
         )
 
-        # 3. Inject tracker state into dst.
-        if payload is not None:
+        # 3. Inject tracker state into dst. ``import_state=False`` is the
+        #    cold-start experimental arm: ownership moves, state does not.
+        if payload is not None and import_state:
             dst_edge.import_vehicle_state(vehicle_id, payload)
+        elif not import_state:
+            logger.info(
+                "request_handoff: COLD arm — state import skipped for vehicle %d",
+                vehicle_id,
+            )
         else:
             logger.warning(
                 "request_handoff: no payload for vehicle %d — ownership moved, tracker not warm",

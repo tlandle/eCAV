@@ -7,16 +7,11 @@ import time
 import numpy as np
 import torch
 import tqdm
-import psutil
 from matplotlib import pyplot as plt
 from numpy.polynomial import Polynomial
 
 from mtr.utils import common_utils
-from pympler import asizeof
 
-from mtr.datasets.opv2v_multiego_dataset import OPV2VMultiEgoDataset
-from mtr.datasets.v2v4real_multiego_dataset import V2V4RealMultiEgoDataset
-from mtr.datasets.waymo.waymo_eval import waymo_evaluation, transform_preds_to_waymo_format
 
 def fit_polynomial_and_evaluate_errors(trajectory, order=2, threshold=0.1):
     # Separate x and y coordinates
@@ -78,7 +73,7 @@ def eval_one_epoch_custom(model, dataloader, epoch_id, logger,
         with torch.no_grad():
 
             batch_pred_dict = model(batch_dict)
-            pred_dicts_cavs_list = OPV2VMultiEgoDataset.generate_prediction_dicts(batch_pred_dict, output_path=final_output_dir if save_to_file else None)
+            pred_dicts_cavs_list = dataloader.dataset.generate_prediction_dicts(batch_pred_dict, output_path=final_output_dir if save_to_file else None)
             # pred_dicts_cavs_list = V2V4RealMultiEgoDataset.generate_prediction_dicts(batch_pred_dict, output_path=final_output_dir if save_to_file else None)
 
             for pred_dicts_cav in pred_dicts_cavs_list:
@@ -91,11 +86,21 @@ def eval_one_epoch_custom(model, dataloader, epoch_id, logger,
                     ego_cav_id = pred_dict['ego_cav_id']
 
                     gt_trajs = pred_dict['gt_trajs']
-                    gt_trajs_future = gt_trajs[-50:]
                     pred_trajs = pred_dict['pred_trajs']
                     pred_scores = pred_dict['pred_scores']
                     center_gt_trajs_mask = pred_dict['center_gt_trajs_mask']
                     center_gt_final_valid_idx = pred_dict['center_gt_final_valid_idx']
+                    # 5 s horizon; frames-per-second differs per dataset
+                    n_fut = center_gt_trajs_mask.shape[0]
+                    f_1s = n_fut // 5
+                    f_3s = (3 * n_fut) // 5
+                    gt_trajs_future = gt_trajs[-n_fut:]
+
+                    # No valid future beyond the first frame: the ADE slice
+                    # [:0] is empty and its mean poisons the totals with nan.
+                    if center_gt_final_valid_idx < 1:
+                        anomal_gt_counter += 1
+                        continue
 
                     # Filter GT.
                     # is_anomaly, history_errors, future_errors = fit_polynomial_and_evaluate_errors(gt_trajs, order=3, threshold=0.18)
@@ -121,13 +126,13 @@ def eval_one_epoch_custom(model, dataloader, epoch_id, logger,
                     distances_min_idx = distances_modes.argmin()  # 1
 
                     # Compute 3s ADE.
-                    distances_modes_timesteps_3s = np.linalg.norm(pred_trajs[:, :min(30, center_gt_final_valid_idx), 0:2] - gt_trajs_future[:min(30, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes, num_timesteps)
+                    distances_modes_timesteps_3s = np.linalg.norm(pred_trajs[:, :min(f_3s, center_gt_final_valid_idx), 0:2] - gt_trajs_future[:min(f_3s, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes, num_timesteps)
                     distances_modes_timesteps_3s = distances_modes_timesteps_3s
                     distances_modes_3s = distances_modes_timesteps_3s.mean(axis=-1)  # (num_modes)
                     distances_min_val_3s = distances_modes_3s.min()  # 1
 
                     # Compute 1s ADE.
-                    distances_modes_timesteps_1s = np.linalg.norm(pred_trajs[:, :min(10, center_gt_final_valid_idx), 0:2] - gt_trajs_future[:min(10, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes, num_timesteps)
+                    distances_modes_timesteps_1s = np.linalg.norm(pred_trajs[:, :min(f_1s, center_gt_final_valid_idx), 0:2] - gt_trajs_future[:min(f_1s, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes, num_timesteps)
                     distances_modes_timesteps_1s = distances_modes_timesteps_1s
                     distances_modes_1s = distances_modes_timesteps_1s.mean(axis=-1)  # (num_modes)
                     distances_min_val_1s = distances_modes_1s.min()  # 1
@@ -140,11 +145,11 @@ def eval_one_epoch_custom(model, dataloader, epoch_id, logger,
                     final_distances_min_idx = final_distances_modes.argmin()  # 1
 
                     # Compute 3s FDE.
-                    final_distances_modes_3s = np.linalg.norm(pred_trajs[:, min(30, center_gt_final_valid_idx), 0:2] - gt_trajs_future[min(30, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes)
+                    final_distances_modes_3s = np.linalg.norm(pred_trajs[:, min(f_3s, center_gt_final_valid_idx), 0:2] - gt_trajs_future[min(f_3s, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes)
                     final_distances_min_val_3s = final_distances_modes_3s.min()  # 1
 
                     # Compute 1s FDE.
-                    final_distances_modes_1s = np.linalg.norm(pred_trajs[:, min(10, center_gt_final_valid_idx), 0:2] - gt_trajs_future[min(10, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes)
+                    final_distances_modes_1s = np.linalg.norm(pred_trajs[:, min(f_1s, center_gt_final_valid_idx), 0:2] - gt_trajs_future[min(f_1s, center_gt_final_valid_idx), 0:2], axis=-1) # (num_modes)
                     final_distances_min_val_1s = final_distances_modes_1s.min()  # 1
                     
                     # print(f'ADE {distances_min_val}, FDE {final_distances_min_val}')
@@ -234,6 +239,10 @@ def eval_one_epoch_custom(model, dataloader, epoch_id, logger,
 def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, save_to_file=False, result_dir=None, logger_iter_interval=50):
     result_dir.mkdir(parents=True, exist_ok=True)
 
+    # local imports: only this waymo-format eval path needs them
+    import psutil
+    from pympler import asizeof
+
     final_output_dir = result_dir / 'final_result' / 'data'
     if save_to_file:
         final_output_dir.mkdir(parents=True, exist_ok=True)
@@ -261,6 +270,7 @@ def eval_one_epoch(cfg, model, dataloader, epoch_id, logger, dist_test=False, sa
         with torch.no_grad():
             batch_pred_dicts = model(batch_dict)
             if cfg.DATA_CONFIG.DATASET == 'OPV2VMultiEgoDataset':
+                from mtr.datasets.opv2v_multiego_dataset import OPV2VMultiEgoDataset
                 final_pred_dicts = OPV2VMultiEgoDataset.generate_prediction_dicts(batch_pred_dicts,
                                                                               output_path=final_output_dir if save_to_file else None)
             elif cfg.DATA_CONFIG.DATASET == 'OPV2VDataset':

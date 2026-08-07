@@ -119,6 +119,7 @@ vehicle_base: &vehicle_base
         x_scale: 1.0
         y_scale: 1.0
   behavior: &base_behavior
+    prediction_mode_top_k: 2   # A/B arm 2: top-2 sweep
     max_speed: 43
     tailgate_speed: 121
     speed_lim_dist: 3
@@ -240,13 +241,25 @@ scenario:
 
       # Multi-V2X trained WorldFusion checkpoint
       worldfusion_model:
-        hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
-        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch39.pth
+        hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
+        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
 
       predictor_type: mtr
       mtr_predictor:
         cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
-        checkpoint: ecav/ml_manager/models/mtr/best_model.pth
+        # Stage-1 MTR trained on WorldFusion detections (Multi-V2X, no
+        # aggregator). minADE 1.39 m / MR 0.221 offline (job 10856291).
+        checkpoint: ecav/ml_manager/models/mtr_wf_stage1/best_model.pth
+        cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg.yaml
+        intention_points_file: ecav/ml_manager/models/mtr_wf_stage1/multiv2x_cluster_64_center_dict.pkl
+        dataset: multiv2x
+        aggregator: 'None'
+        past_frames: 10
+        future_frames: 25
+        time_interval: 0.2       # model step (5 Hz training rate)
+        history_subsample: 4     # 20 Hz track history -> 5 Hz model frames
+        lane_map: auto           # render RSU-zone raster from the CARLA map
+        lane_range_m: 90.0
         device: cuda
         budget_ms: 50.0
         enable_amortization: true
@@ -276,8 +289,8 @@ scenario:
               activate: true
               backend: worldfusion
               worldfusion_model:
-                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
-                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch39.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
               camera:
                 visualize: 0
                 num: 4
@@ -321,8 +334,8 @@ scenario:
               <<: *base_perception
               backend: worldfusion
               worldfusion_model:
-                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/config.yaml
-                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug/net_epoch39.pth
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
             localization:
               <<: *base_localize
 
