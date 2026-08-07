@@ -2321,3 +2321,31 @@ WF_COMPRESS hook remain in the profiler as opt-in diagnostics.
 
 - [Phase 1 Plan](../../agent_plans/edge_handoff_phase1_state_transfer.md)
 - [Scale-out Eval Plan](../../agent_plans/scale_out_evaluation.md)
+
+## Q1 measured (right-merge, 5 seeds) + measurement correction (2026-08-07)
+
+First seed sweep (warm/cold x seeds 11,17,23,29,31), destination-edge
+first-track-on-NPC from B4 CSVs:
+- warm dst first-track median 160, cold median 248 → ~88 tick / 4.4 s
+  advance. BUT seeds 23/31 warm read 265/243 (looked null).
+- Root cause of the two "null" seeds: NOT absent tracks. Import logs show
+  the warm latent landed at tick ~158-160 in ALL 5 seeds (memo 2-4
+  frames). The B4 logger flagged present only within 6 m of GT, so a warm
+  track COASTING on its motion model (fed no dets until the dst RSU sees
+  the NPC) drifts out of the gate and reads absent. Seed 23 imported only
+  memo=2 → worst coast → looked null.
+- Fix: _npc_track_on_edge() matches by resolved carla_id first (presence),
+  position fallback only for the cold arm (no identity stamped). Presence
+  and coast-accuracy are now separate CSV-derived axes. Committed to
+  develop.
+- Corrected claim: warm dst track present from tick ~160 in 5/5 (import-
+  confirmed); cold median 248. Coast accuracy varies with memo depth →
+  that IS the Q2 axis (full latent vs depth-1 KF vs cold).
+
+3-arm sweep (warm/cold/kf x 5 seeds), identity-matched, in flight.
+
+## Branch: all work on develop now (2026-08-07)
+
+Session work was on paper-closed-loop-recreate (inherited checkout).
+Merged to develop via PR #19; KB + instrument fixes committed directly to
+develop. WORK ON DEVELOP FROM NOW ON.
