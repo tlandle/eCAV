@@ -267,10 +267,45 @@ class _PluggableEdgeBase(_BaseEdgeManager):
             float(new_kf.kf.x[0, 0]), float(new_kf.kf.x[1, 0]),
         )
 
+    def _stamp_nearest_tracklet(self, carla_id: int, position,
+                                max_dist_m: float = 15.0) -> bool:
+        """Stamp carla_id on the nearest Mamba tracklet within max_dist_m.
+
+        Identity resolution at export time: beacon temp ids are often never
+        reconciled onto tracklets (all cid=-1 measured live), so exports
+        locate the track by a caller-known true position instead.
+        Tracklet state layout: [x, y, z, l, w, h, yaw].
+        """
+        raw = self._raw_tracker()
+        px, py = float(position[0]), float(position[1])
+        best, best_d = None, max_dist_m
+        for t in raw.tracked_tracklets:
+            d = ((float(t.state[0]) - px) ** 2 +
+                 (float(t.state[1]) - py) ** 2) ** 0.5
+            if d < best_d:
+                best, best_d = t, d
+        if best is None:
+            return False
+        best.carla_id = carla_id
+        self.track_to_carla[int(best.track_id)] = carla_id
+        return True
+
     def export_vehicle_state(self, vehicle_id: int) -> Optional[MigrationPayload]:
         """Export tracker state for vehicle_id (Mamba latent or KF snapshot)."""
-        if self._vm_by_carla_id(vehicle_id) is None:
+        vm = self._vm_by_carla_id(vehicle_id)
+        if vm is None:
             return None
+        raw = self._raw_tracker()
+        if self._is_mamba(raw) and not any(
+                self._resolved_carla_id(getattr(t, 'carla_id', None)) == vehicle_id
+                for t in raw.tracked_tracklets):
+            # Managed vehicles beacon their pose, so the edge knows the
+            # true position — stamp the nearest tracklet (tight 5 m gate;
+            # the pose is exact and a generous gate risks a ghost track)
+            # so the latent ships warm instead of empty.
+            loc = vm.vehicle.get_location()
+            self._stamp_nearest_tracklet(vehicle_id, (loc.x, loc.y),
+                                         max_dist_m=5.0)
         tid = next(
             (t for t, c in self.track_to_carla.items() if c == vehicle_id),
             -1,
@@ -322,21 +357,9 @@ class _PluggableEdgeBase(_BaseEdgeManager):
             if not has_identity and position is not None:
                 # Position fallback, same contract as the AB3DMOT branch:
                 # unmanaged NPCs never beacon, so identity lookup alone can
-                # never find them. Nearest tracklet within max_dist_m gets
-                # stamped with the caller-supplied persistent id.
-                # Tracklet state layout: [x, y, z, l, w, h, yaw].
-                px, py = float(position[0]), float(position[1])
-                best, best_d = None, max_dist_m
-                for t in raw.tracked_tracklets:
-                    d = ((float(t.state[0]) - px) ** 2 +
-                         (float(t.state[1]) - py) ** 2) ** 0.5
-                    if d < best_d:
-                        best, best_d = t, d
-                if best is None:
-                    return None
-                best.carla_id = carla_id
-                self.track_to_carla[int(best.track_id)] = carla_id
-                has_identity = True
+                # never find them.
+                has_identity = self._stamp_nearest_tracklet(
+                    carla_id, position, max_dist_m)
             if not has_identity:
                 return None
             tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)

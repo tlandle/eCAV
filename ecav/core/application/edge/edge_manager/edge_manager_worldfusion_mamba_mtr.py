@@ -38,6 +38,7 @@ class WorldFusionMambaAdaptiveEdge(WorldFusionAdaptiveEdge):
     _resolved_carla_id = _PluggableEdgeBase._resolved_carla_id
     _export_track_latent = _PluggableEdgeBase._export_track_latent
     _import_track_latent = _PluggableEdgeBase._import_track_latent
+    _stamp_nearest_tracklet = _PluggableEdgeBase._stamp_nearest_tracklet
     export_vehicle_state = _PluggableEdgeBase.export_vehicle_state
     import_vehicle_state = _PluggableEdgeBase.import_vehicle_state
     export_tracked_obstacle_state = \
