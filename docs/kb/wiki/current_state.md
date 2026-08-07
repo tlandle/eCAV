@@ -79,6 +79,33 @@ Right-merge WF runs 1-4:
   right-merge two-locale (run 4). Remaining: warm EGO handoff (identity
   resolution), two-locale blind overtake, distributed variants, Q1-Q6 +
   B0-B6 sweeps, locale→compute→physical diagram.
+- Runs 5-6: _stamp_nearest_tracklet extracted (pluggable base) and used
+  by export_vehicle_state (5 m gate; tracklet cid=-1 everywhere live,
+  so exports resolve identity by known pose). Run 5 crashed: the WF
+  manager borrows methods individually and the new helper wasn't in the
+  borrow list (added; post-deadline TODO: extract a real
+  TrackerAgnosticMigrationMixin). Run 6: NPC handoff metrics reproduced
+  exactly (tick 158, 440 B, 82-tick window); ego handoff legitimately
+  cold in THIS scenario (crosses 3 s after spawn, 45+ m from RSU0 — no
+  track exists to ship; two-locale blind overtake will exercise the
+  warm ego path). Ego merged, reached x=308, zero collisions.
+  Committed: 8de40397 (baseline), ed1ee4ca (export identity stamp).
+
+## Two-locale blind overtake built (2026-08-06, first run in flight)
+
+New pair: openscenario_1_two_locale_worldfusion (.yaml generated from the
+single-locale yaml with anchors resolved; .py spliced from the WF
+right-merge runner). Geometry: boundary x=250 (overlap 240-250);
+locale_0 east (ego + carlacola + RSU0 295,200,3 = world_anchor),
+locale_1 west (Leons' approach, new RSU2 180,200,3). Runner
+generalizations vs right-merge: multi-NPC set (managed + hero excluded),
+per-NPC predictive transfer with generic src->dst locale resolution
+(right-merge hardcoded locale_0->locale_1), per-NPC advance-warning
+bookkeeping vs the DESTINATION locale's RSU, per-NPC summary; MAX_STEP
+1100. Expected events: 3 Leon handoffs locale_1->locale_0 pre-overtake
+(latents feed the ego's clearance gate), ego handoff locale_0->locale_1
+post-pass (WARM — RSU0 will have tracked the ego ~30 s, exercising the
+export identity stamp).
 
 ## Blind overtake ROOT CAUSE FOUND: ego had no onboard perception layer (2026-08-03)
 
