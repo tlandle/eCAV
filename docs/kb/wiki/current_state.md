@@ -1,9 +1,23 @@
 ---
-updated: 2026-08-03
+updated: 2026-08-07
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## Papers block (2026-08-05 → 08-07, separate session; details in raw/sessions/2026-08-07.md)
+
+SEC camera-ready is acmart-converted with full author set (Daglis dual
+Edinburgh+GT affiliation) and lives in the new Overleaf-linked repo
+github.com/tlandle/Scalable-Edge-Fusion-SEC-Short-Paper; rights-form
+values still TODO. Extended version has the same authors and a working
+\thanks footnote (IEEEoverridecommandlockouts); verified arXiv tarball
+delivered, upload on Tyler. Proposal: 08-07 Overleaf comment round
+addressed — thesis is now a single falsifiable sentence (no second
+paragraph, per Tyler), comm study reframed requirements→support→gap,
+eCAV bib de-anonymized to arXiv:2506.16535, ISPASS named, 100 ms cited
+(TS 22.186), SEC marked to-appear; deck thesis slide regenerated to
+match. Still paused on GPU go-ahead: 16 of 39 selector locales.
 
 ## BLIND OVERTAKE COMPLETE — run 60, zero collisions (2026-08-05)
 
