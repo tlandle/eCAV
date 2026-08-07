@@ -132,6 +132,33 @@ def _build_locale_router(edge_cfgs, edge_list):
     return LocaleRouter(registry), edge_by_locale, locale_by_id
 
 
+def _npc_track_on_edge(edge, carla_id, gt_loc, pos_gate_m=6.0):
+    """Return the edge's tracklet for carla_id.
+
+    Identity first (resolved carla_id) so a warm-imported track counts as
+    PRESENT even while it coasts far from ground truth; position fallback
+    (pos_gate_m) for the cold arm where identity was never stamped. This
+    separates presence (does the edge hold the track) from accuracy
+    (its position error, computed downstream from the logged state).
+    """
+    rf = getattr(edge, '_raw_tracker', None)
+    if rf is None:
+        return None
+    pool = getattr(rf(), 'tracked_tracklets', None)
+    if not pool:
+        return None
+    for t in pool:
+        if edge._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id:
+            return t
+    best, bd = None, pos_gate_m
+    for t in pool:
+        d = ((float(t.state[0]) - gt_loc.x) ** 2 +
+             (float(t.state[1]) - gt_loc.y) ** 2) ** 0.5
+        if d < bd:
+            best, bd = t, d
+    return best
+
+
 def run_scenario(opt, scenario_params):
     """Run the Town06 obstacle-handoff scenario (sequential mode only)."""
     global scenario_runner
@@ -427,17 +454,7 @@ def run_scenario(opt, scenario_params):
                 if _actor is not None:
                     _g = _actor.get_transform().location
                     for _edge in edge_list:
-                        _trk = None
-                        _raw_fn = getattr(_edge, '_raw_tracker', None)
-                        if _raw_fn is not None:
-                            _pool = getattr(_raw_fn(), 'tracked_tracklets', None)
-                            if _pool:
-                                _bd = 6.0
-                                for _t in _pool:
-                                    _d = ((float(_t.state[0]) - _g.x) ** 2 +
-                                          (float(_t.state[1]) - _g.y) ** 2) ** 0.5
-                                    if _d < _bd:
-                                        _trk, _bd = _t, _d
+                        _trk = _npc_track_on_edge(_edge, npc_carla_id, _g)
                         metrics_logger.log_frame(
                             step, _edge.edgeid, npc_carla_id,
                             (_g.x, _g.y, _g.z), _trk, plain_axes=True)
