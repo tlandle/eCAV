@@ -51,7 +51,7 @@ class MigrationMetricsLogger:
 
     # ------------------------------------------------------------------
     def log_frame(self, tick: int, edge_id, carla_id: int,
-                  gt_xyz, tracklet=None) -> None:
+                  gt_xyz, tracklet=None, plain_axes=False) -> None:
         """Record one tick: ground truth plus the owning edge's track state.
 
         ``tracklet`` is a MambaTracklet3D (state in KITTI axis order) or None
@@ -73,13 +73,14 @@ class MigrationMetricsLogger:
         }
         if tracklet is not None:
             state = np.asarray(tracklet.state, dtype=float)
-            # KITTI -> CARLA: (x, z_c, y_c) stored as state[0], state[1], state[2]
+            # KITTI layout stores (x, z_c, y_c); plain layout is (x, y, z)
+            _iy, _iz = (1, 2) if plain_axes else (2, 1)
             row.update({
                 "track_present": 1,
                 "track_id": int(getattr(tracklet, "track_id", -1)),
                 "track_x": round(state[0], 4),
-                "track_y": round(state[2], 4),
-                "track_z": round(state[1], 4),
+                "track_y": round(state[_iy], 4),
+                "track_z": round(state[_iz], 4),
             })
             memo = getattr(tracklet, "memo_bank", None)
             if memo is not None and len(memo) >= 2:

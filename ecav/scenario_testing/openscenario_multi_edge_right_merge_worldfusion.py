@@ -27,6 +27,7 @@ WF variant: RELAY production stack (WorldFusion + Mamba3DMOT + MTR).
 
 import asyncio
 import logging
+import os
 import time
 from multiprocessing import Process
 
@@ -41,6 +42,7 @@ from ecav.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from ecav.scenario_testing.utils.yaml_utils import add_current_time
 from ecav.scenario_testing.utils.edge_fusion_client import EdgeFusionClient
 from ecav.scenario_testing.utils.edge_registration_server import EdgeRegistrationServer
+from ecav.core.application.edge.migration.metrics import MigrationMetricsLogger
 from ecav.core.application.edge.migration import (
     InterLocaleLink,
     Locale,
@@ -54,10 +56,16 @@ logger = logging.getLogger(__name__)
 
 MAX_STEP = 700  # headroom: a slow stop-start approach can push the merge past tick 450
 SCENARIO_NAME = 'openscenario_multi_edge_right_merge_worldfusion'
+# mode logged in run_scenario
 
 # Speed (m/s) above which a non-hero vehicle is taken to be the fast NPC.
 # The emergency vehicle is stationary, so this cleanly disambiguates the two.
 NPC_MIN_SPEED_MPS = 2.0
+
+# Q1/Q2 arm switch: warm (default) ships the tracker latent across the
+# boundary; cold skips the transfer so the destination reacquires from
+# scratch. The warm-vs-cold delta at the destination is the paper's gap.
+MIGRATION_MODE = os.environ.get("MIGRATION_MODE", "warm").lower()
 
 # Geometry proxy for "RSU1 could first directly detect the NPC": the tick the
 # NPC first enters this radius of RSU1. Compared against the hand-off tick, the
@@ -135,6 +143,7 @@ def run_scenario(opt, scenario_params):
     step = 0
     fusion_clients = []
 
+    metrics_logger = None
     npc_carla_id = None
     obstacle_handoff_done = False
     obstacle_handoff_pending = None  # (src_edge, dst_edge) after the crossing fires
@@ -222,6 +231,8 @@ def run_scenario(opt, scenario_params):
         router, edge_by_locale, locale_by_id = _build_locale_router(edge_cfgs, edge_list)
         locale_tracker = VehicleLocaleTracker(router, min_dwell_ticks=LOCALE_MIN_DWELL_TICKS)
         daemon = SequentialMigrationDaemon()
+        metrics_logger = MigrationMetricsLogger(MIGRATION_MODE, -1)
+        logger.info("[MIGRATION] mode=%s", MIGRATION_MODE)
         link = InterLocaleLink(edge_list[0].latency_model)
 
         # RSU1 position for the advance-warning proxy (locale 1's RSU).
@@ -333,7 +344,8 @@ def run_scenario(opt, scenario_params):
                                     src_edge = edge_by_locale.get('locale_0')
                                     dst_edge = edge_by_locale.get('locale_1')
                                     if src_edge is not None and dst_edge is not None:
-                                        cost = daemon.transfer_obstacle_state(
+                                        cost = None if MIGRATION_MODE == "cold" \
+                                            else daemon.transfer_obstacle_state(
                                             npc_carla_id, src_edge, dst_edge, link,
                                             step, position=npc_xy)
                                         if cost is not None:
@@ -368,7 +380,8 @@ def run_scenario(opt, scenario_params):
                                     obstacle_handoff_pending = (src_edge, dst_edge)
                             if obstacle_handoff_pending is not None:
                                 src_edge, dst_edge = obstacle_handoff_pending
-                                cost = daemon.transfer_obstacle_state(
+                                cost = None if MIGRATION_MODE == "cold" \
+                                    else daemon.transfer_obstacle_state(
                                     npc_carla_id, src_edge, dst_edge, link, step,
                                     position=npc_xy)
                                 if cost is None and step % 10 == 0:
@@ -408,6 +421,26 @@ def run_scenario(opt, scenario_params):
                                         "carla_id=%d bytes=%d total_ms=%.3f",
                                         step, npc_carla_id,
                                         cost.payload_bytes, cost.total_ms)
+
+            if npc_carla_id is not None:
+                _actor = world.get_actor(npc_carla_id)
+                if _actor is not None:
+                    _g = _actor.get_transform().location
+                    for _edge in edge_list:
+                        _trk = None
+                        _raw_fn = getattr(_edge, '_raw_tracker', None)
+                        if _raw_fn is not None:
+                            _pool = getattr(_raw_fn(), 'tracked_tracklets', None)
+                            if _pool:
+                                _bd = 6.0
+                                for _t in _pool:
+                                    _d = ((float(_t.state[0]) - _g.x) ** 2 +
+                                          (float(_t.state[1]) - _g.y) ** 2) ** 0.5
+                                    if _d < _bd:
+                                        _trk, _bd = _t, _d
+                        metrics_logger.log_frame(
+                            step, _edge.edgeid, npc_carla_id,
+                            (_g.x, _g.y, _g.z), _trk, plain_axes=True)
 
             # Find ego wherever it currently lives (it moves edges on handoff).
             ego_cav = None
@@ -519,6 +552,15 @@ def run_scenario(opt, scenario_params):
                 cost.vehicle_id, cost.tick, cost.payload_bytes,
                 cost.sim_serialize_ms, cost.sim_network_ms, cost.total_ms,
             )
+
+        if metrics_logger is not None:
+            try:
+                out_dir = os.path.join(
+                    'evaluation_outputs',
+                    f"migration_{scenario_params['current_time']}")
+                metrics_logger.dump(out_dir)
+            except Exception:  # noqa: BLE001
+                logger.exception("migration metrics dump failed")
 
         for fc in fusion_clients:
             fc.end_scenario()

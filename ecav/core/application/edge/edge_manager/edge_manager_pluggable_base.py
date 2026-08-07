@@ -191,8 +191,15 @@ class _PluggableEdgeBase(_BaseEdgeManager):
             if tracklet is not None:
                 from ecav.core.application.edge.migration.factories import (
                     latent_from_tracklet)
+                # MIGRATION_MODE=kf is the Reactive-Kalman baseline (Q2):
+                # migrate only the latest bbox+diff (depth 1), the state a
+                # KF carries. warm/default migrates the full memo history.
+                import os as _os
+                _hd = 1 if _os.environ.get(
+                    'MIGRATION_MODE', 'warm').lower() == 'kf' else None
                 return latent_from_tracklet(
-                    tracklet, persistent_vehicle_id=carla_id)
+                    tracklet, persistent_vehicle_id=carla_id,
+                    history_depth=_hd)
             logger.warning(
                 "_export_track_latent: no Mamba tracklet for carla_id %d",
                 carla_id)

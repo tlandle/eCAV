@@ -27,6 +27,7 @@ WF variant: RELAY production stack (WorldFusion + Mamba3DMOT + MTR).
 
 import asyncio
 import logging
+import os
 import time
 from multiprocessing import Process
 
@@ -41,6 +42,7 @@ from ecav.scenario_testing.evaluations.evaluate_manager import EvaluationManager
 from ecav.scenario_testing.utils.yaml_utils import add_current_time
 from ecav.scenario_testing.utils.edge_fusion_client import EdgeFusionClient
 from ecav.scenario_testing.utils.edge_registration_server import EdgeRegistrationServer
+from ecav.core.application.edge.migration.metrics import MigrationMetricsLogger
 from ecav.core.application.edge.migration import (
     InterLocaleLink,
     Locale,
@@ -54,6 +56,7 @@ logger = logging.getLogger(__name__)
 
 MAX_STEP = 1100  # blind overtake: stage+hold+commit+pass runs ~1000 ticks
 SCENARIO_NAME = 'openscenario_1_two_locale_worldfusion'
+MIGRATION_MODE = os.environ.get("MIGRATION_MODE", "warm").lower()
 
 # Speed (m/s) above which a non-hero vehicle is taken to be the fast NPC.
 # The emergency vehicle is stationary, so this cleanly disambiguates the two.
@@ -135,6 +138,7 @@ def run_scenario(opt, scenario_params):
     step = 0
     fusion_clients = []
 
+    metrics_logger = None
     npc_ids = set()            # moving non-hero, non-managed vehicles (Leons)
     npc_locale = {}            # carla_id -> sticky source locale id
     npc_handoff_done = {}      # carla_id -> (tick, dst_locale_id)
@@ -221,6 +225,8 @@ def run_scenario(opt, scenario_params):
         router, edge_by_locale, locale_by_id = _build_locale_router(edge_cfgs, edge_list)
         locale_tracker = VehicleLocaleTracker(router, min_dwell_ticks=LOCALE_MIN_DWELL_TICKS)
         daemon = SequentialMigrationDaemon()
+        metrics_logger = MigrationMetricsLogger(MIGRATION_MODE, -1)
+        logger.info("[MIGRATION] mode=%s", MIGRATION_MODE)
         link = InterLocaleLink(edge_list[0].latency_model)
 
         # Per-locale RSU positions for the advance-warning proxy.
@@ -352,8 +358,9 @@ def run_scenario(opt, scenario_params):
                 dst_edge = edge_by_locale.get(dst_lid)
                 if src_edge is None or dst_edge is None or src_edge is dst_edge:
                     continue
-                cost = daemon.transfer_obstacle_state(
-                    nid, src_edge, dst_edge, link, step, position=nxy)
+                cost = None if MIGRATION_MODE == "cold" \
+                    else daemon.transfer_obstacle_state(
+                        nid, src_edge, dst_edge, link, step, position=nxy)
                 if cost is not None:
                     scenario_manager.record_handoff_cost(cost)
                     npc_handoff_done[nid] = (step, dst_lid)
@@ -369,6 +376,27 @@ def run_scenario(opt, scenario_params):
                         "no track on %s yet",
                         step, nid, nxy[0], nxy[1], src_lid)
 
+
+            for _nid in list(npc_ids):
+                _a = world.get_actor(_nid)
+                if _a is None:
+                    continue
+                _g = _a.get_transform().location
+                for _edge in edge_list:
+                    _trk = None
+                    _rf = getattr(_edge, '_raw_tracker', None)
+                    if _rf is not None:
+                        _pool = getattr(_rf(), 'tracked_tracklets', None)
+                        if _pool:
+                            _bd = 6.0
+                            for _t in _pool:
+                                _d = ((float(_t.state[0]) - _g.x) ** 2 +
+                                      (float(_t.state[1]) - _g.y) ** 2) ** 0.5
+                                if _d < _bd:
+                                    _trk, _bd = _t, _d
+                    metrics_logger.log_frame(
+                        step, _edge.edgeid, _nid, (_g.x, _g.y, _g.z),
+                        _trk, plain_axes=True)
 
             # Find ego wherever it currently lives (it moves edges on handoff).
             ego_cav = None
@@ -483,6 +511,15 @@ def run_scenario(opt, scenario_params):
                 cost.vehicle_id, cost.tick, cost.payload_bytes,
                 cost.sim_serialize_ms, cost.sim_network_ms, cost.total_ms,
             )
+
+        if metrics_logger is not None:
+            try:
+                out_dir = os.path.join(
+                    'evaluation_outputs',
+                    f"migration_{scenario_params['current_time']}")
+                metrics_logger.dump(out_dir)
+            except Exception:  # noqa: BLE001
+                logger.exception("migration metrics dump failed")
 
         for fc in fusion_clients:
             fc.end_scenario()
