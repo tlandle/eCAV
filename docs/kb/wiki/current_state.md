@@ -2349,3 +2349,25 @@ first-track-on-NPC from B4 CSVs:
 Session work was on paper-closed-loop-recreate (inherited checkout).
 Merged to develop via PR #19; KB + instrument fixes committed directly to
 develop. WORK ON DEVELOP FROM NOW ON.
+
+## Q4 SAFETY: root cause why cold never collides (2026-08-07)
+
+Tyler: "cold start should cause collision with 2 locales, otherwise no
+point." Correct — and it currently does NOT. Measured:
+- Right-merge warm vs cold, 5 seeds: 0 collisions both arms; ego-NPC min
+  gap 77-93 m, identical warm/cold (NPC overtakes and is gone long before
+  the ego acts — no safety coupling at all).
+- Two-locale overtake cold: 0 collisions, clean overtake (same as warm).
+ROOT CAUSE: both RSUs use lidar range=120 m, so EACH RSU sees the whole
+road alone. RSU0 at x=295 covers x=175-415 — every Leon at every tick.
+The ego's serving edge always has the oncoming tracks regardless of
+migration → migration is redundant → cold is as safe as warm. Verified
+from B4 CSV: Leons seen_by the serving edge throughout the approach.
+FIX (physically motivated, not gaming): bound RSU range to a realistic
+~50 m so the conflict sits at the edge of RSU0's coverage and the western
+oncoming approach is RSU2-only. Then cold = serving edge blind to the
+approaching Leon = ego commits into it = collision; warm = migrated track
+= ego waits = safe. Two-locale yaml now RSU0 range 45 / RSU2 range 60,
+conflict near boundary x=250. Testing cold for the collision now.
+This is the Q4 experiment; the right-merge scenario cannot produce Q4
+(actor never conflicts with ego) and stays a Q1/Q2 mechanism demo only.
