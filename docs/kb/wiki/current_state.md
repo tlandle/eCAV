@@ -107,6 +107,27 @@ bookkeeping vs the DESTINATION locale's RSU, per-NPC summary; MAX_STEP
 post-pass (WARM — RSU0 will have tracked the ego ~30 s, exercising the
 export identity stamp).
 
+TWO-LOCALE BLIND OVERTAKE WORKS (run 2, commit 310f9c1e):
+- Run 1: overtake executed in the split config but NO Leon transfers —
+  overlap-precedence bug: next()-style containment returned locale_0 in
+  the 240-250 overlap, shrinking the eastbound exit-prediction window to
+  ~2 ticks. Also measured: the edge never tracks its own managed
+  vehicles (anchoring protocol), so the EGO handoff is cold BY DESIGN —
+  managed state is beaconed exactly; tracker latents are for unmanaged
+  obstacles (which is the paper's migration claim). 392 export attempts
+  confirmed no ego tracklet ever exists.
+- Fix: sticky locale assignment (update only on unambiguous
+  containment; overlap keeps prior locale) → full overlap band is the
+  trigger window in both directions.
+- Run 2: Leon 200 predictive latent handoff tick 278 at (244.8,199.2)
+  locale_1->locale_0, 244 B warm memo latent; Leon 199 handoff tick 301
+  locale_0->locale_1 (east exit, after no-track retries); ego ownership
+  handoff tick 298; overtake clean (min_x 217.5, max_y 199.7), ZERO
+  collisions. Advance-warning reads 1 tick here because RSU0's 60 m
+  range covers the overlap (geometry; the 4.1 s headline stays with the
+  right-merge scenario). Leon 201 crossing not captured this run
+  (follow-up if needed for eval counts).
+
 ## Blind overtake ROOT CAUSE FOUND: ego had no onboard perception layer (2026-08-03)
 
 Runs 43/44 proved the entire decision chain works: blocked-state latch arms
