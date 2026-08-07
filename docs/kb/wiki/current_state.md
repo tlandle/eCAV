@@ -2371,3 +2371,24 @@ approaching Leon = ego commits into it = collision; warm = migrated track
 conflict near boundary x=250. Testing cold for the collision now.
 This is the Q4 experiment; the right-merge scenario cannot produce Q4
 (actor never conflicts with ego) and stays a Q1/Q2 mechanism demo only.
+
+## CORRECTION to the Q4 note above (2026-08-07)
+
+The "bound RSU range to force a cold collision" reasoning in the section
+above is WRONG and was reverted (two-locale yaml back to committed state;
+Scenario_3 never touched). Two errors:
+1. Q4 per docs/agent_plans/scale_out_evaluation.md does NOT require a
+   binary collision. Metrics are GRADED: collisions/km, min TTC,
+   hard-brake/min, false-brake+stall rate, planner-fallback rate,
+   prediction-error-at-use — across cold / generic-snapshot(kf) /
+   full-latent / oracle. A collision flip is not the verdict condition.
+2. A blind intersection is ONE conflict zone = ONE locale by our own
+   locale definition (locale anchors to the conflict zone). Bending
+   Scenario_3 into two locales to force a crash contradicts the model.
+   Do not do this.
+Open question for Tyler (do NOT resolve unilaterally): the two real
+scenarios (blind overtake single-locale; right-merge two-locale) — right
+-merge has no ego/NPC safety coupling (77 m min gap), so its Q4 signal
+is prediction-error-at-use and continuity (Q1/Q2), not TTC/collision.
+How the graded Q4 safety claim maps onto our actual scenarios is a
+research-direction call, not something to engineer around.
