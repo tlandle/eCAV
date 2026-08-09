@@ -5,6 +5,23 @@ updated: 2026-08-07
 
 Primary context-switching artifact. Read this first after a gap.
 
+## Papers block update (08-08/08-09): proposal comment rounds
+
+Three more Overleaf comment rounds merged and addressed (through 5ccee07):
+ecav chapter (ground-truth naming replaces world-queried, related-work
+three-cluster rewrite, tick-barrier detail + component-role architecture
+figure, capstone→Platform Evaluation, behavior/SUMO argument); paper1
+(self-ghosting frequent not dominant per Tyler, boundary-figure pointer,
+cost claim scoped to late fusion + V2X2V); paper3 scale-up (fusion
+boundary lead-in + comparison figure, direct CMP 0.48-vs-0.90 comparison,
+Evaluation/Contributions now published results); paper5 scale-out
+(boundary-before-conflict figure, overlap-cannot-substitute argument,
+live two-edge results: ~4 s trigger, ~440 B/track, zero collisions);
+milestones reordered to document order (eCAV→ISPASS Dec, comm arch→
+SenSys/MobiSys fall, scale-out→NSDI Sep, proposal removed from schedule);
+"world model" retired document- and deck-wide; "service continuity"
+renamed scale-out. Deck schedule slide + thesis slide synced.
+
 ## Papers block (2026-08-05 → 08-07, separate session; details in raw/sessions/2026-08-07.md)
 
 SEC camera-ready is acmart-converted with full author set (Daglis dual
