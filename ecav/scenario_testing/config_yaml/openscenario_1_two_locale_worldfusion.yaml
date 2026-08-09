@@ -34,7 +34,7 @@ carla_traffic_manager:
   ignore_lights_percentage: 0
   vehicle_list: []
 ego_vehicle_max_speed: 43
-scenario_runner: {town: town01, scenario: Scenario_1, num_actors: 4, configFile: ecav/scenario_testing/scenarios/scenario_1.xml,
+scenario_runner: {town: town01, scenario: Scenario_1, num_actors: 5, configFile: ecav/scenario_testing/scenarios/scenario_1_dense.xml,
   additionalScenario: ecav/scenario_testing/scenarios/scenario_1.py, host: localhost, port: 2000, timeout: 360,
   debug: false, sync: false, repetitions: 1, agent: null, openscenario: null, route: null, reloadWorld: false,
   waitForEgo: false, trafficManagerPort: '8000', trafficManagerSeed: '0', record: '', agentConfig: '',
@@ -168,8 +168,8 @@ scenario:
       dataset: multiv2x, aggregator: None, past_frames: 10, future_frames: 25, time_interval: 0.2, history_subsample: 1,
       lane_map: auto, lane_range_m: 90.0, device: cuda, budget_ms: 50.0, enable_amortization: true, enable_risk_budget: true}
     adaptive_controller: {enabled: true, deadline_ms: 130.0}
-    gt_detection_injection: {enabled: false, max_range_m: 70.0, exclude_managed: true}
-    world_anchor: [295.0, 200.0, 0.0, 0.0, 0.0, 0.0]
+    gt_detection_injection: {enabled: false, max_range_m: 90.0, exclude_managed: true}
+    world_anchor: [325.0, 200.0, 0.0, 0.0, 0.0, 0.0]
     rsus:
     - sensing:
         perception:
@@ -188,7 +188,7 @@ scenario:
             - [0.0, 0.3, 1.8, 100]
             - [0.0, -0.3, 1.8, -100]
             - [-2.0, 0.0, 1.5, 180]
-          lidar: {visualize: false, channels: 64, range: 120, points_per_second: 1300000, rotation_frequency: 20,
+          lidar: {visualize: false, channels: 64, range: 55, points_per_second: 1300000, rotation_frequency: 20,
             upper_fov: 0.0, lower_fov: -40.0, dropoff_general_rate: 0.1, dropoff_intensity_limit: 0.7,
             dropoff_zero_intensity: 0.15, noise_stddev: 0.02}
         localization:
@@ -196,7 +196,7 @@ scenario:
           dt: 0.05
           gnss: {noise_alt_stddev: 0.05, noise_lat_stddev: 3.0e-06, noise_lon_stddev: 3.0e-06}
       name: rsu1
-      spawn_position: [295.0, 200.0, 3.0]
+      spawn_position: [325.0, 200.0, 5.0]
       id: -1
     vehicles:
     - sensing:
@@ -256,8 +256,8 @@ scenario:
       dataset: multiv2x, aggregator: None, past_frames: 10, future_frames: 25, time_interval: 0.2, history_subsample: 1,
       lane_map: auto, lane_range_m: 90.0, device: cuda, budget_ms: 50.0, enable_amortization: true, enable_risk_budget: true}
     adaptive_controller: {enabled: true, deadline_ms: 130.0}
-    gt_detection_injection: {enabled: false, max_range_m: 70.0, exclude_managed: true}
-    world_anchor: [180.0, 200.0, 0.0, 0.0, 0.0, 0.0]
+    gt_detection_injection: {enabled: false, max_range_m: 90.0, exclude_managed: true}
+    world_anchor: [205.0, 200.0, 0.0, 0.0, 0.0, 0.0]
     rsus:
     - sensing:
         perception:
@@ -276,7 +276,7 @@ scenario:
             - [0.0, 0.3, 1.8, 100]
             - [0.0, -0.3, 1.8, -100]
             - [-2.0, 0.0, 1.5, 180]
-          lidar: {visualize: false, channels: 64, range: 120, points_per_second: 1300000, rotation_frequency: 20,
+          lidar: {visualize: false, channels: 64, range: 65, points_per_second: 1300000, rotation_frequency: 20,
             upper_fov: 0.0, lower_fov: -40.0, dropoff_general_rate: 0.1, dropoff_intensity_limit: 0.7,
             dropoff_zero_intensity: 0.15, noise_stddev: 0.02}
         localization:
@@ -284,7 +284,7 @@ scenario:
           dt: 0.05
           gnss: {noise_alt_stddev: 0.05, noise_lat_stddev: 3.0e-06, noise_lon_stddev: 3.0e-06}
       name: rsu2
-      spawn_position: [180.0, 200.0, 3.0]
+      spawn_position: [205.0, 200.0, 5.0]
       id: -2
     vehicles: []
     locale:

@@ -531,7 +531,17 @@ class MTREdgePredictor:
         # occlusion factor: placeholder (needs visibility info from edge)
         occlusion = 1.0
 
-        risk = speed * proximity * occlusion * conflict_prox
+        # A vehicle is prediction-worthy if it is EITHER close OR on a
+        # collision course — combine proximity and conflict with a max, not
+        # a product. The old product let proximity=exp(-dist/d_scale) collapse
+        # the score of a far but closing vehicle (e.g. an overtake's oncoming
+        # traffic at 50-80 m: conflict_prox high, proximity ~0.08, product
+        # ~0), so the budgeted selector only ever forecast vehicles already
+        # next to the ego and starved the far approacher that governs the
+        # overtake go/no-go. max() keeps the near case unchanged while
+        # surfacing collision-course actors regardless of current distance.
+        engagement = max(proximity, conflict_prox)
+        risk = speed * engagement * occlusion
         # Ensure non-zero baseline so pure speed still orders objects
         # when all ego terms are zero (distant/non-conflicting).
         baseline = speed * 0.01
