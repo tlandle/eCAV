@@ -2423,3 +2423,33 @@ scenarios (blind overtake single-locale; right-merge two-locale) — right
 is prediction-error-at-use and continuity (Q1/Q2), not TTC/collision.
 How the graded Q4 safety claim maps onto our actual scenarios is a
 research-direction call, not something to engineer around.
+
+## OVERTAKE ROOT CAUSE FOUND: budgeted predictor starves far oncoming (2026-08-09)
+
+Weeks of overtake failures root-caused, ruling out the wrong suspects with a
+GT-injection (perfect perception) run of the two-locale overtake:
+- NOT the controller: the ego swung cleanly to y=203 (lateral exec fine).
+- NOT perception: GT injection = perfect dets; edge tracked the oncoming
+  Leons (701 tracker rows, tid1->cid200, tid5->cid201).
+- NOT the decision criterion: the sight-distance gate WAITed correctly
+  whenever it actually saw oncoming.
+ROOT CAUSE: the MTR edge predictor (mtr_edge_predictor.py) forecasts only
+1-2 tracks/tick (max_tracks=(budget_ms-base_ms)/cost=(50-25)/cost) and
+ranked them by risk = speed * proximity * conflict_prox with
+proximity=exp(-dist/20 m). The product let proximity collapse the score of
+a FAR but closing vehicle: the overtake's oncoming at 50 m scored
+exp(-2.5)=0.08 -> pruned -> never MTR-predicted. Result: 0 oncoming
+collision events at the ego across the whole GT run; the far approacher
+that governs the overtake go/no-go was invisible at the decision layer,
+so the ego committed into a head-on. (POTENTIAL GHOST fired for cid200/201
+only when they were passing right next to the ego, confirming only CLOSE
+vehicles were forecast.) This also explains warm==cold and why every
+planner-side patch failed: the info was never in the planner.
+FIX: risk = speed * max(proximity, conflict_prox) — a vehicle is
+prediction-worthy if EITHER close OR on a collision course, so the far
+approacher is surfaced within the budget. Plus a standard overtaking
+sight-distance commit gate (_nearest_oncoming_ahead, need ~60 m) in
+behavior_agent. Validating with GT injection, then warm vs cold for Q4.
+Also fixed earlier this session: _nearest_oncoming_ahead lateral sign
+(abs), and reverted the dangerous commit-and-go guard that cleared
+is_hazard and disabled branch 9 (rammed the truck).
