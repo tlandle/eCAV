@@ -2453,3 +2453,27 @@ behavior_agent. Validating with GT injection, then warm vs cold for Q4.
 Also fixed earlier this session: _nearest_oncoming_ahead lateral sign
 (abs), and reverted the dangerous commit-and-go guard that cleared
 is_hazard and disabled branch 9 (rammed the truck).
+
+## ROOT CAUSE CONFIRMED: mamba tracker under-tracks fast motion (2026-08-09)
+
+The overtake/warm==cold failures trace to the MAMBA TRACKER, not the model,
+perception, planner, or budget. Proof (GT-injection = perfect dets fed every
+cycle): the tracker's OUTPUT position for the oncoming Leon crawls at ~1/4
+true speed and lags GT by up to 48 m (210->226 while GT 210->271), with
+tsu=0 (it IS being updated, just not snapping to the fresh detection). MTR
+fed this slow/stale history correctly predicts slow -> planner sees "parked
+car in opposing lane" -> commits -> head-on. April's "GT works" case used
+AB3DMOT (KF snaps to dets); mamba does not. Ruled out this session:
+controller (swing exec fine), perception (GT perfect), timestep (train 5 Hz
+= infer 0.2 s), intention points (reach 42 m, adequate), risk/budget
+(fixed risk=speed*max(prox,conflict); didn't help because input history is
+slow). Mechanism: matching uses predicted_last_bbox (matching.py:110) and
+enable_time_thresh=1000000 DISABLES the mamba motion model entirely, forcing
+crude CV; the CV prediction lags accelerating/fast targets, IoU match is lost
+across several close Leons, track smears/crawls. FIX DIRECTION (real system,
+NO GT crutch per Tyler): make the mamba tracker track fast motion — re-enable
++ correct the mamba motion model (fix the miscoast, don't disable it) and/or
+make association snap a matched tracklet to its detection. Motion model ckpt:
+norm_scale=[1.73,1.54,0.089,0.059], clamp_val=1.0, motion_indices=[0,1,2,6];
+clamp caps coast at ~norm_scale*1.0 = ~1.7 m/step = 8.6 m/s at 0.2 s.
+Measuring real-pipeline (WF perception, GT off) tracker lag next.
