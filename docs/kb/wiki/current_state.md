@@ -2477,3 +2477,25 @@ make association snap a matched tracklet to its detection. Motion model ckpt:
 norm_scale=[1.73,1.54,0.089,0.059], clamp_val=1.0, motion_indices=[0,1,2,6];
 clamp caps coast at ~norm_scale*1.0 = ~1.7 m/step = 8.6 m/s at 0.2 s.
 Measuring real-pipeline (WF perception, GT off) tracker lag next.
+
+## WF detection fixed -> real-pipeline overtake SUCCEEDS warm (2026-08-09)
+
+The two-locale real-pipeline failures had TWO self-inflicted perception bugs
+from the "realistic RSU" edit, plus a genuine model-quality lever:
+1. world_anchor left at 295/180 while RSUs moved to 325/205 -> WF fused dets
+   offset 25-30 m -> TP=0, everything FP. FIX: anchor = RSU pose.
+2. RSU spawn z=5 m -> lidar returns OOD vs the model's ~[0,2] training
+   z-range -> oncoming missed even at 0-15 m from the RSU (78%). FIX: z=3.
+3. lidar range cut to 55/65 starved point density; score_threshold 0.10 let
+   ~8 off-road FP/tick. FIX: range 100, score_threshold 0.20.
+Result (warm, real WF perception, NO GT): recall 30%->49%, FP 8->4.4/tick,
+and the ego COMPLETES the overtake — stage x=299, swing to y=199.7, pass
+truck@278, merge back, reach x=217, ZERO collisions. First real-pipeline
+two-locale blind overtake. Note: oncoming still tracks mostly as cid=-1
+(identity stamp weak on 49% intermittent dets) but predictions reach the
+planner well enough. Committed. OPEN: (a) cold contrast (does no-migration
+fail here for Q4?); at range 100 both RSUs may see the conflict so migration
+could be moot -> if cold also succeeds, cut range (keep z=3, the real recall
+lever) to restore migration dependency. (b) mamba tracker under-tracking
+(GT finding) + identity stamping still to harden. (c) recall 49% -> push
+higher (finetune / RSU geometry).
