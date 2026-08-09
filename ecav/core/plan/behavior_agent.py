@@ -1021,6 +1021,49 @@ class BehaviorAgent(object):
                 self._lead_cache = None
         return None
 
+    def _nearest_oncoming_ahead(self):
+        """Distance (m) to the nearest oncoming vehicle in the opposing
+        (adjacent) lane ahead of the ego, +inf if none.
+
+        The overtake go/no-go criterion: an overtake into opposing traffic
+        must not start unless this clearance exceeds the overtaking sight
+        distance (maneuver time x closing speed). Evaluating it requires
+        seeing well down the oncoming lane — farther than one roadside RSU
+        covers — so a correct decision needs the neighbour locale's tracks
+        (cooperative perception / migration). Scans generated_predictions
+        (edge + local + migrated).
+        """
+        if self._ego_pos is None or not self.generated_predictions:
+            return float('inf')
+        ex, ey = self._ego_pos.location.x, self._ego_pos.location.y
+        eyaw = math.radians(self._ego_pos.rotation.yaw)
+        cos_y, sin_y = math.cos(eyaw), math.sin(eyaw)
+        best = float('inf')
+        for pred in self.generated_predictions:
+            obs = pred.obstacle_trajectory.obstacle
+            if obs.carla_id == self.vehicle.id:
+                continue
+            traj = pred.predicted_trajectory
+            if not traj:
+                continue
+            loc = traj[0].location
+            dx, dy = loc.x - ex, loc.y - ey
+            ahead = dx * cos_y + dy * sin_y
+            lateral = -dx * sin_y + dy * cos_y
+            # opposing/adjacent lane ~2-5 m off-centre, ahead of the ego.
+            # abs(): the overtake side is +/- lateral depending on heading.
+            if not (0.5 < ahead and 1.0 < abs(lateral) < 6.0):
+                continue
+            # oncoming = moving toward the ego (advance along ego heading
+            # is negative); a same-direction lead is not an overtake threat.
+            if len(traj) >= 2:
+                adv = ((traj[1].location.x - loc.x) * cos_y +
+                       (traj[1].location.y - loc.y) * sin_y)
+                if adv > 0:
+                    continue
+            best = min(best, ahead)
+        return best
+
     def overtake_management(self, obstacle_vehicle, set_destination=True):
         """
         Overtake behavior.
@@ -1960,11 +2003,36 @@ class BehaviorAgent(object):
                             if obstacle_speed < 1.0:
                                 return 0, None
                         else:
-                            self.do_overtake = True
-                            _sl = obstacle_vehicle.get_location()
-                            self._overtake_subject_loc = (_sl.x, _sl.y)
-                            car_following_flag = self.overtake_management(obstacle_vehicle, set_destination=True)
-                            logger.debug("vehicle state in overtake %s", car_following_flag)
+                            # Overtaking sight-distance criterion: do not
+                            # commit unless the oncoming lane is clear for the
+                            # time the maneuver takes. need = t_man x closing
+                            # speed (ego overtake speed + oncoming speed).
+                            # This is the standard overtake-assist go/no-go
+                            # the planner lacked; it is what a short-horizon
+                            # path collision check misses on a far but closing
+                            # oncoming vehicle (root cause of the head-ons).
+                            _t_man = 4.0      # s in the opposing lane
+                            _ov = 7.0         # m/s, reduced overtake speed
+                            _onc = 8.0        # m/s, nominal oncoming speed
+                            _need = _t_man * (_ov + _onc)   # ~60 m sight dist
+                            _clear = self._nearest_oncoming_ahead()
+                            if os.environ.get('BEHAVIOR_DEBUG'):
+                                print(f"[OT SIGHT] oncoming_ahead={_clear:.0f}m "
+                                      f"need={_need:.0f}m -> "
+                                      f"{'GO' if _clear >= _need else 'WAIT'}")
+                            if _clear < _need:
+                                self.overtake_wait_counter = \
+                                    self.overtake_wait_time / 2
+                                self.num_overtake_collisions = 0
+                                if obstacle_speed < 1.0:
+                                    return 0, None
+                                car_following_flag = True
+                            else:
+                                self.do_overtake = True
+                                _sl = obstacle_vehicle.get_location()
+                                self._overtake_subject_loc = (_sl.x, _sl.y)
+                                car_following_flag = self.overtake_management(obstacle_vehicle, set_destination=True)
+                                logger.debug("vehicle state in overtake %s", car_following_flag)
                         self.num_overtake_collisions = 0
 
                     rx, ry, rk, ryaw = self._local_planner.generate_path()

@@ -44,11 +44,16 @@ class Scenario_1(BasicScenario):
         self._reference_waypoint = self._map.get_waypoint(
             config.trigger_points[0].location)
 
-        self.num_vehicle = 4
-        self.vehicle_01_velocity = 0
-        self.vehicle_02_velocity = 8
-        self.vehicle_03_velocity = 6
-        self.vehicle_04_velocity = 6
+        # Vehicle count follows the XML actor list so denser oncoming
+        # streams (two-locale variant) need only more <other_actor> rows.
+        # First actor is the stationary blocker (velocity 0); the rest are
+        # oncoming traffic. The single-locale XML (4 actors) keeps its
+        # original [0, 8, 6, 6] profile exactly.
+        self.num_vehicle = len(config.other_actors)
+        _base = [0, 8, 6, 6]
+        self.vehicle_velocities = [
+            (_base[i] if i < len(_base) else 8)
+            for i in range(self.num_vehicle)]
         self._trigger_distance = 150
         self.agents = []
 
@@ -92,7 +97,7 @@ class Scenario_1(BasicScenario):
             trigger_location = getattr(self, f"vehicle_0{i + 1}_trigger_location")
             actor = self.other_actors[i]
             transform = getattr(self, f"car_0{i + 1}_visible")
-            velocity = getattr(self, f"vehicle_0{i + 1}_velocity")
+            velocity = self.vehicle_velocities[i]
 
             trigger_behavior = InTriggerDistanceToLocation(self.ego_vehicles[0], trigger_location,
                                                            self._trigger_distance)
