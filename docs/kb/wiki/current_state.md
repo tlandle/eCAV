@@ -2490,7 +2490,10 @@ from the "realistic RSU" edit, plus a genuine model-quality lever:
    ~8 off-road FP/tick. FIX: range 100, score_threshold 0.20.
 Result (warm, real WF perception, NO GT): recall 30%->49%, FP 8->4.4/tick,
 and the ego COMPLETES the overtake — stage x=299, swing to y=199.7, pass
-truck@278, merge back, reach x=217, ZERO collisions. First real-pipeline
+truck@278, merge back, reach x=217. CORRECTION: NOT zero collisions — a grep (color-code aware)
+shows warm=64, cold=170 contact-ticks; the ego sideswipes the oncoming
+during the pass. Migration ~halves contacts (graded benefit) but neither
+arm is clean. First real-pipeline
 two-locale blind overtake. Note: oncoming still tracks mostly as cid=-1
 (identity stamp weak on 49% intermittent dets) but predictions reach the
 planner well enough. Committed. OPEN: (a) cold contrast (does no-migration
@@ -2499,3 +2502,16 @@ could be moot -> if cold also succeeds, cut range (keep z=3, the real recall
 lever) to restore migration dependency. (b) mamba tracker under-tracking
 (GT finding) + identity stamping still to harden. (c) recall 49% -> push
 higher (finetune / RSU geometry).
+
+## Corrected Q4 (2026-08-09): migration halves contacts, not clean yet
+
+Real pipeline, WF detection fixed (anchor/z=3/range100/thresh0.20), warm vs
+cold, same config: WARM 64 collision-ticks vs COLD 170 (~2.6x). Migration
+gives a GRADED safety benefit (fewer contacts), NOT a clean safe-vs-crash
+flip. Both arms sideswipe the oncoming because: (a) WF recall still 49%
+(intermittent), and (b) the mamba tracker STILL under-tracks the oncoming
+on the real pipeline (collision partner obs_spd=3.1 m/s vs true ~8) -> slow
+predictions -> ego mis-times the overtake and grazes oncoming. The mamba
+tracker under-tracking (first seen under GT) is the remaining CORE fix to
+get a clean warm-safe/cold-crash result. Next: fix mamba fast-motion
+tracking, then re-measure warm vs cold.
