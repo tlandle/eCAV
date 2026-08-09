@@ -160,7 +160,7 @@ scenario:
       new_track_thresh: 0.2, match_thresh: 0.95, max_time_lost: 60, enable_time_thresh: 1000000, max_window: 10,
       lost_match_dist_m: 2.0}
     worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml,
-      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth, score_threshold: 0.1}
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth, score_threshold: 0.2}
     predictor_type: mtr
     mtr_predictor: {cmp_root: ecav/core/application/v2v/baselines/cmp/CMP, checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth,
       cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml,
@@ -188,7 +188,7 @@ scenario:
             - [0.0, 0.3, 1.8, 100]
             - [0.0, -0.3, 1.8, -100]
             - [-2.0, 0.0, 1.5, 180]
-          lidar: {visualize: false, channels: 64, range: 55, points_per_second: 1300000, rotation_frequency: 20,
+          lidar: {visualize: false, channels: 64, range: 100, points_per_second: 1300000, rotation_frequency: 20,
             upper_fov: 0.0, lower_fov: -40.0, dropoff_general_rate: 0.1, dropoff_intensity_limit: 0.7,
             dropoff_zero_intensity: 0.15, noise_stddev: 0.02}
         localization:
@@ -196,7 +196,7 @@ scenario:
           dt: 0.05
           gnss: {noise_alt_stddev: 0.05, noise_lat_stddev: 3.0e-06, noise_lon_stddev: 3.0e-06}
       name: rsu1
-      spawn_position: [325.0, 200.0, 5.0]
+      spawn_position: [325.0, 200.0, 3.0]
       id: -1
     vehicles:
     - sensing:
@@ -248,7 +248,7 @@ scenario:
       new_track_thresh: 0.2, match_thresh: 0.95, max_time_lost: 60, enable_time_thresh: 1000000, max_window: 10,
       lost_match_dist_m: 2.0}
     worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml,
-      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth, score_threshold: 0.1}
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth, score_threshold: 0.2}
     predictor_type: mtr
     mtr_predictor: {cmp_root: ecav/core/application/v2v/baselines/cmp/CMP, checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth,
       cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml,
@@ -276,7 +276,7 @@ scenario:
             - [0.0, 0.3, 1.8, 100]
             - [0.0, -0.3, 1.8, -100]
             - [-2.0, 0.0, 1.5, 180]
-          lidar: {visualize: false, channels: 64, range: 65, points_per_second: 1300000, rotation_frequency: 20,
+          lidar: {visualize: false, channels: 64, range: 100, points_per_second: 1300000, rotation_frequency: 20,
             upper_fov: 0.0, lower_fov: -40.0, dropoff_general_rate: 0.1, dropoff_intensity_limit: 0.7,
             dropoff_zero_intensity: 0.15, noise_stddev: 0.02}
         localization:
@@ -284,7 +284,7 @@ scenario:
           dt: 0.05
           gnss: {noise_alt_stddev: 0.05, noise_lat_stddev: 3.0e-06, noise_lon_stddev: 3.0e-06}
       name: rsu2
-      spawn_position: [205.0, 200.0, 5.0]
+      spawn_position: [205.0, 200.0, 3.0]
       id: -2
     vehicles: []
     locale:
