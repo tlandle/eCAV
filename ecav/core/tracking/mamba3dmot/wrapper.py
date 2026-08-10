@@ -149,23 +149,26 @@ class Mamba3DMOTWrapper(BaseTracker):
                 else:
                     state = trk.state  # [x,y,z,l,w,h,yaw]
                 # Convert back to AB3DMOT output: [h,w,l,x,y,z,yaw,id,...]
-                # Per-frame velocity from the previous EMITTED state: the
-                # memo-bank diff spans variable coasting intervals, which
-                # consumers (dividing by one tick) turned into absurd
-                # speeds (hundreds of m/s).
-                prev = getattr(trk, '_prev_out', None)
-                cur_xyz = np.asarray(state[:3], dtype=np.float64)
-                if prev is not None and frame > prev[0]:
-                    raw_vel = (cur_xyz - prev[1]) / float(frame - prev[0])
+                # Velocity from the Mamba tracker's OWN memo-bank (net
+                # displacement averaged over the window), not a frame-to-frame
+                # reconstruction. We use MambaTrack, not a Kalman filter, so
+                # the track's velocity is the memo-bank motion, and it is
+                # available immediately after a migration import. The previous
+                # frame-to-frame EMA restarted at zero on import (no _prev_out
+                # on a freshly injected tracklet), so a migrated occluded track
+                # read as stationary for several frames and the downstream
+                # stationary gate (kf_speed<1) froze its predicted trajectory
+                # during the exact window the ego needed it. Averaging over the
+                # window keeps the estimate bounded (no absurd single-diff
+                # spikes) and jitter-robust for parked cars.
+                mb = trk.memo_bank
+                if mb is not None and len(mb) >= 2:
+                    span = max(len(mb) - 1, 1)
+                    mv = (np.asarray(mb[-1], dtype=np.float64)
+                          - np.asarray(mb[0], dtype=np.float64)) / span
+                    vel = np.array([mv[0], mv[1], mv[2]])  # [vx, vy, vz]/frame
                 else:
-                    raw_vel = np.zeros(3)
-                # EMA smoothing: single-step diffs of raw detections are
-                # jitter-dominated (0.2 m noise -> m/s spikes on parked
-                # vehicles); AB3DMOT consumers expect KF-quality velocity.
-                prev_ema = getattr(trk, '_vel_ema', None)
-                vel = (0.3 * raw_vel + 0.7 * prev_ema)                     if prev_ema is not None else raw_vel
-                trk._vel_ema = vel
-                trk._prev_out = (frame, cur_xyz)
+                    vel = np.zeros(3)
 
                 # Column layout matches what ab3d_tracks_to_trajectories
                 # parses for AB3DMOT rows: carla_id at 8, vx at 10, vy at 12
