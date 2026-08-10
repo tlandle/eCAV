@@ -2515,3 +2515,22 @@ predictions -> ego mis-times the overtake and grazes oncoming. The mamba
 tracker under-tracking (first seen under GT) is the remaining CORE fix to
 get a clean warm-safe/cold-crash result. Next: fix mamba fast-motion
 tracking, then re-measure warm vs cold.
+
+## Recall 49->68% via roadside RSU; mamba fast-motion fixed (2026-08-10)
+
+Recall root-caused: misses concentrated at 0-20 m from the RSU (71% missed)
+while 20-40 m detected fine (14-26%). Cause: RSUs on the lane centerline
+(y=200) at z=3 -> the oncoming lane (y=199) passes directly underneath, in
+the lidar near-field blind cone (~70 deg > -40 deg lower_fov). FIX: move
+RSUs to the shoulder (y=210, ~11 m off the lane) -> ~17 deg angle, in FOV.
+Recall 49->68%, FP 4.4->3.2/tick, and the ego now COMPLETES the overtake
+(x=218, y=200, merge back) instead of wedging. Realistic (RSUs are roadside)
+AND diagnosed. Mamba tracker fast-motion also FIXED: robust coast velocity
+(mean of last-3 diffs, not single), 8 m re-acq gate (was 2 m -> fast tracks
+fragmented), coast-through-gaps output (keep + output predicted box for <=8
+tick gaps). Oncoming now tracked at 6-7 m/s (was 3.1). Committed.
+REMAINING: warm still 2 collision episodes (grazes oncoming during the pass)
+-- 4 Leons @55 m gives ~7 s gaps vs ~6 s maneuver (too tight for fully clean).
+Running cold for the delta; then likely ease density or tighten the sight
+gate so warm is clean and cold crashes (the Q4 flip). Collision METRIC still
+counts contact-ticks not episodes -- fix eval to dedupe.
