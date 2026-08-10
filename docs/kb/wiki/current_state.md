@@ -2534,3 +2534,24 @@ REMAINING: warm still 2 collision episodes (grazes oncoming during the pass)
 Running cold for the delta; then likely ease density or tighten the sight
 gate so warm is clean and cold crashes (the Q4 flip). Collision METRIC still
 counts contact-ticks not episodes -- fix eval to dedupe.
+
+## CRITICAL: reactive (EdgeWarp) arm SUCCEEDS -> scenario doesn't prove necessity (2026-08-10)
+
+Built the reactive arm (MIGRATION_MODE=reactive: fire the full latent AT the
+crossing, lookahead 0, vs ours 1 s ahead). On the clean 70 m blind overtake:
+- WARM (predictive, ours): 0 collisions, completes.
+- REACTIVE (EdgeWarp-degenerate): 0 collisions, completes. NOT worse.
+So this scenario does NOT demonstrate that our smart (predictive) trigger is
+necessary. Geometry root cause: serving RSU0 (325,210, range 100) is blind to
+the oncoming only at x=200-225 (RSU2-only), but SEES it from x~240 (~40 m /
+5 s before the conflict@278), no truck occlusion of the RSU line of sight. So
+a LATE (reactive) migration is BACKSTOPPED by the serving edge's own sensor.
+The necessity argument REQUIRES the crossing obstacle be genuinely unseeable
+by the serving edge at the decision point (real occlusion / coverage gap), so
+only the EARLY predictive migration reveals it and a reactive one arrives too
+late. Our current scenarios don't meet this: right-merge has no ego-NPC
+coupling (77 m gap); blind overtake only weakly matches (head start, but RSU0
+backstops -> reviewer's "extend range" objection holds, as the reactive arm
+proves). TODO before the EdgeWarp comparison is valid: engineer genuine
+occlusion of the oncoming from RSU0 (curve/structure) while RSU2 sees it.
+Cold 70 m running to check if migration is even necessary here at all.

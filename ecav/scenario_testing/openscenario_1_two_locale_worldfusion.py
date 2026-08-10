@@ -374,12 +374,21 @@ def run_scenario(opt, scenario_params):
                 if dst_lid is None:
                     continue
                 nvel = actor.get_velocity()
-                n_steps = int(OBSTACLE_HANDOFF_LOOKAHEAD_S / world_dt) + 1
+                # Trigger lead: OURS fires LOOKAHEAD_S before the actor is
+                # projected to cross (predictive, on the OBSTACLE trajectory).
+                # REACTIVE (EdgeWarp-degenerate) fires only AT the crossing:
+                # EdgeWarp's mobility hint is about the session client, not an
+                # observed obstacle, and the tracker latent is all-dynamic
+                # (nothing to background-sync), so for this content it reduces
+                # to a blocking transfer at the boundary with no lead.
+                _lead = 0.0 if MIGRATION_MODE == "reactive" \
+                    else OBSTACLE_HANDOFF_LOOKAHEAD_S
+                n_steps = int(_lead / world_dt) + 1
                 t_arr = np.arange(n_steps, dtype=np.float64) * world_dt
                 traj = np.column_stack([nloc.x + nvel.x * t_arr,
                                         nloc.y + nvel.y * t_arr])
                 if not locale_by_id[src_lid].predicted_to_exit_within(
-                        traj, OBSTACLE_HANDOFF_LOOKAHEAD_S, world_dt):
+                        traj, _lead, world_dt):
                     continue
                 src_edge = edge_by_locale.get(src_lid)
                 dst_edge = edge_by_locale.get(dst_lid)
