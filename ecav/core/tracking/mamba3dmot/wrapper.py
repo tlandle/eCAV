@@ -135,9 +135,19 @@ class Mamba3DMOTWrapper(BaseTracker):
 
         # Convert output to AB3DMOT format
         results = []
+        coast_window = self._cfg.get('coast_window', 8)
         for trk in active_tracklets:
-            if trk.is_activated and trk.time_since_update == 0:
-                state = trk.state  # [x,y,z,l,w,h,yaw]
+            if trk.is_activated and trk.time_since_update <= coast_window:
+                # Coasting output: during a short detection gap use the
+                # predicted (advancing) box, not the frozen last observation,
+                # so a fast track stays continuous in downstream predictions.
+                # Without this the oncoming vanishes from the planner's view
+                # ~half the time (real WF recall ~50%) and the overtake gate
+                # sees a false "clear" at the commit tick.
+                if trk.time_since_update > 0 and trk.predicted_last_bbox is not None:
+                    state = np.asarray(trk.predicted_last_bbox)  # [x,y,z,l,w,h,yaw]
+                else:
+                    state = trk.state  # [x,y,z,l,w,h,yaw]
                 # Convert back to AB3DMOT output: [h,w,l,x,y,z,yaw,id,...]
                 # Per-frame velocity from the previous EMITTED state: the
                 # memo-bank diff spans variable coasting intervals, which

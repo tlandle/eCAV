@@ -125,9 +125,17 @@ class Mamba3DTracker:
             track.re_activate(det, self.frame_id, new_id=False)
             refind_tracklets.append(track)
 
-        # Mark unmatched active tracklets as lost
+        # Unmatched active tracklets: coast in place for a short window
+        # (keep Tracked + output with the predicted, advancing box) before
+        # demoting to Lost. Real WF perception is intermittent (~50% recall
+        # on fast oncoming); dropping a track on a single miss fragments it
+        # into birth-stationary stubs that collapse the predicted speed.
+        coast_window = self.cfgs.get('coast_window', 8)
         for it in u_track:
             track = self.tracked_tracklets[it]
+            if track.time_since_update <= coast_window:
+                activated_tracklets.append(track)  # stays Tracked, keeps coasting
+                continue
             # TEMP DEBUG: why did this track miss? min cost to any det and
             # whether its best det went to another track (competition).
             if dists.shape[1] > 0:

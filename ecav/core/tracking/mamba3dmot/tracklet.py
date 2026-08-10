@@ -113,19 +113,23 @@ class MambaTracklet3D(BaseTrack):
         """Predict next state using MambaTrack motion model."""
         enable_thresh = self.cfgs.get('enable_time_thresh', 5)
         if len(self.memo_bank) < enable_thresh:
-            # Short history: linear extrapolation from last inter-frame delta
-            # (matches what a Kalman filter would do with constant velocity)
+            # Short history: constant-velocity extrapolation. Use the MEAN of
+            # the last few inter-frame deltas, not just the last one: a single
+            # delta is jitter-dominated and, for a fast vehicle re-acquired
+            # after a gap, the last delta can be a small acceleration-phase
+            # step, making the coast under-shoot and the track fall behind
+            # (measured: 8 m/s oncoming coasted at ~1/4 speed -> fragmented).
             pred = self.memo_bank[-1].copy()
             if len(self.diff_memo_bank) >= 2:
-                last_diff = self.diff_memo_bank[-1].copy()
+                recent = np.array(self.diff_memo_bank[-3:], dtype=np.float32)
+                vel = recent.mean(axis=0)
                 # Wrap yaw delta to avoid wrap-around artifacts
-                last_diff[6] = np.arctan2(
-                    np.sin(last_diff[6]), np.cos(last_diff[6]))
+                vel[6] = np.arctan2(np.sin(vel[6]), np.cos(vel[6]))
                 # Apply only to position + yaw, keep box dimensions stable
-                pred[0] += last_diff[0]
-                pred[1] += last_diff[1]
-                pred[2] += last_diff[2]
-                pred[6] += last_diff[6]
+                pred[0] += vel[0]
+                pred[1] += vel[1]
+                pred[2] += vel[2]
+                pred[6] += vel[6]
         else:
             hist_diff = np.array(self.diff_memo_bank[1:], dtype=np.float32)
 
