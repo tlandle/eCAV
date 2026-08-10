@@ -2578,3 +2578,84 @@ collides, warm clean. The on-ramp/occlusion scenario is the separate TIMING
 axis (predictive > reactive) for later.
 Collision metric STILL counts contact-ticks; analysis dedups to episodes;
 fix the eval to log episodes.
+
+## Content-necessity dead-end: the ego never consumes the occluded prediction (2026-08-10)
+
+Built single-oncoming accel scenario (scenario_1_accel.xml + openscenario_1_
+accel_worldfusion) to isolate CONTENT necessity: one Leon cruises then floors
+it (2x) at the locale boundary x~245; truck blocks the ego; RSU cannot
+re-acquire the oncoming (occlusion). Ran warm vs kf. BOTH clean (0 collisions).
+No flip. Root cause is NOT scenario timing; it is that the migrated occluded
+prediction never reaches the ego's decision. Three coupled defects, all
+confirmed from logs:
+
+1. coast_window=8 (tracker.py update): the migrated oncoming (tid=7 cid=199)
+   is occluded (tsu climbs 1..8, no re-detection), so ~0.4 s after the
+   predictive handoff (tick 74) it is dropped from the tracker output ->
+   MTR stops predicting it -> not broadcast. Ego commits at tick 160, blind.
+2. Coast freezes: predict() sets predicted_last_bbox = memo_bank[-1] + vel
+   (one step from last OBSERVATION, no accumulation), so a coasting track
+   never advances downtrack. TRACKER DBG: tid=7 frozen at (237.46,202.10)
+   across tsu 1..8. Dead-reckoning through occlusion needs vel*(tsu+1).
+3. Overtake gate is presence/distance-based, not arrival-time-based:
+   behavior_agent commit gate (~line 2016) uses hardcoded _onc=8.0 for the
+   sight-distance need; _nearest_oncoming_ahead returns DISTANCE only. So the
+   go/no-go never depends on the PREDICTED oncoming speed, which is the only
+   thing that differs warm (full memo -> MTR accel) vs kf (1-frame -> CV).
+   ttc stayed 1000 and hazard_flag False all run; edge_preds_received_total=0.
+
+Also: enable_time_thresh=1000000 disables the Mamba learned motion model
+(CV only), so the tracker coast cannot extrapolate acceleration; the accel
+signal must come from MTR (which consumes the memo-bank history). The
+warm-vs-kf discriminator therefore lives in MTR's predicted trajectory, which
+requires the migrated track to PERSIST in tracked_trajectories (fix 1) with a
+roughly-correct current anchor (fix 2), and the gate to act on predicted
+arrival (fix 3). Fix plan: (1) persist migrated occluded tracks through the
+occlusion window (coast_window up, scenario is single-actor so no ghost
+clutter); (2) accumulate the coast so the anchor dead-reckons forward;
+(3) make the overtake gate compute oncoming ETA from the PREDICTED closing
+speed. Then re-time the oncoming to conflict during the commit window and
+re-run warm vs kf. carla_id 197 = ego (the "no Mamba tracklet for 197" export
+warning is benign).
+
+## Dead-reckon fixed; remaining blocker is commit/handoff synchronization (2026-08-10)
+
+Fixed a chain of real integration bugs so the migrated occluded obstacle is
+actually propagated to the ego (all on develop):
+1. coast_window: 8 -> 40 (config, both edges): the migrated track now
+   persists through the occlusion instead of being dropped after 0.4 s.
+2. Dead-reckon accumulation (tracklet.predict): coast advances by vel*(tsu+1)
+   from the last observation, not one frozen step.
+3. Coast velocity from memo-bank ENDPOINTS, not mean of last-3 diffs. The
+   last-3-diff mean is jitter-dominated (WorldFusion), so the coast drifted
+   BACKWARD (west, off-lane) for an east-moving vehicle; the endpoint
+   velocity (net displacement / window) recovers the true direction+speed.
+   CONFIRMED in dr_warm: tid=21 advances 242->250->274->297->314 with y held
+   at ~199-200 (was drifting to y=213 west). ~10.5 m/s vs true 12.
+4. Overtake gate uses the PREDICTED oncoming speed (behavior_agent
+   _nearest_oncoming_ahead returns (dist, speed); commit need scales with it).
+   kf (1-frame memo) can't dead-reckon -> freezes; warm dead-reckons -> the
+   intended content split exists at the tracker layer.
+
+New infra: scenario_1_accel.xml (single oncoming), openscenario_1_accel_
+worldfusion (.py/.yaml), ONCOMING_ACCEL (two-phase accel) and ONCOMING_SPEED
+(constant fast) env knobs in scenario_1.py.
+
+REMAINING BLOCKER (not yet solved): the ego's overtake COMMIT is driven by the
+truck + ov_wait timer, and fires BEFORE the oncoming hands off into the ego's
+locale. dr_warm: ego committed do_ov=True at tick 110 (t5.5s) while the
+oncoming handoff into locale_0 was tick 143 (t7.2s). So at commit the ego's
+locale had no track (oncoming_ahead=inf -> GO), it pulled into the oncoming
+lane, STALLED at x~287 y~201.6, and the 12 m/s oncoming hit it (warm 1
+collision). This is the structural mismatch of the blind-overtake-at-a-truck
+geometry: commit timing (truck) and obstacle-arrival timing (handoff) are
+independent, and the occlusion means locale_0 only learns of the oncoming via
+migration which arrives after commit. Also the ego stalls mid-overtake (second
+failure mode). To get a clean warm-safe/kf-collide flip the oncoming must
+cross into locale_0 and be dead-reckoned BEFORE the ego commits, i.e. the
+commit and the handoff must be synchronized. Options: (a) hold the ego at the
+truck until the oncoming is near (lead-vehicle or trigger), (b) move the
+boundary so the handoff precedes commit, (c) reconsider whether blind-overtake
+is the right vehicle vs an on-ramp merge where the merge decision IS at the
+locale entry. DECISION POINT for Tyler: this is scenario-geometry / locale-model
+territory he has strong views on.

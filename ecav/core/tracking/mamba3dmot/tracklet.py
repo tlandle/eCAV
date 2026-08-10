@@ -120,15 +120,31 @@ class MambaTracklet3D(BaseTrack):
             # step, making the coast under-shoot and the track fall behind
             # (measured: 8 m/s oncoming coasted at ~1/4 speed -> fragmented).
             pred = self.memo_bank[-1].copy()
-            if len(self.diff_memo_bank) >= 2:
-                recent = np.array(self.diff_memo_bank[-3:], dtype=np.float32)
-                vel = recent.mean(axis=0)
+            if len(self.memo_bank) >= 2:
+                # Velocity from the memo-bank ENDPOINTS (net displacement over
+                # the window), not the last few inter-frame diffs. WorldFusion
+                # detections are jitter-dominated, so a mean of the last 3
+                # diffs can be near-zero or even wrong-signed for a steadily
+                # moving vehicle; averaging over the whole window recovers the
+                # true velocity because real displacement dominates jitter.
+                first = np.asarray(self.memo_bank[0], dtype=np.float32)
+                last = np.asarray(self.memo_bank[-1], dtype=np.float32)
+                span = max(len(self.memo_bank) - 1, 1)
+                vel = (last - first) / span
                 # Wrap yaw delta to avoid wrap-around artifacts
                 vel[6] = np.arctan2(np.sin(vel[6]), np.cos(vel[6]))
-                # Apply only to position + yaw, keep box dimensions stable
-                pred[0] += vel[0]
-                pred[1] += vel[1]
-                pred[2] += vel[2]
+                # Dead-reckon through a detection gap: advance by vel * the
+                # number of steps since the last OBSERVATION, not a single
+                # step. Without this a coasting track freezes one step ahead
+                # of its last detection (predicted_last_bbox recomputed from
+                # memo_bank[-1] every tick), so an obstacle that is occluded
+                # after a locale handoff never moves downtrack and the
+                # migrated prediction is useless. steps = tsu+1 because tsu is
+                # incremented at the end of this call.
+                steps = self.time_since_update + 1
+                pred[0] += vel[0] * steps
+                pred[1] += vel[1] * steps
+                pred[2] += vel[2] * steps
                 pred[6] += vel[6]
         else:
             hist_diff = np.array(self.diff_memo_bank[1:], dtype=np.float32)

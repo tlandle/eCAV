@@ -1021,9 +1021,14 @@ class BehaviorAgent(object):
                 self._lead_cache = None
         return None
 
+    # Spacing (s) between consecutive predicted-trajectory points. MTR and
+    # the linear predictor both emit at this step; used to turn a per-step
+    # displacement into a closing speed for the overtake ETA.
+    _PRED_STEP_S = 0.2
+
     def _nearest_oncoming_ahead(self):
-        """Distance (m) to the nearest oncoming vehicle in the opposing
-        (adjacent) lane ahead of the ego, +inf if none.
+        """(distance_m, closing_speed_mps) of the nearest oncoming vehicle in
+        the opposing (adjacent) lane ahead of the ego; (+inf, 0.0) if none.
 
         The overtake go/no-go criterion: an overtake into opposing traffic
         must not start unless this clearance exceeds the overtaking sight
@@ -1032,13 +1037,19 @@ class BehaviorAgent(object):
         covers — so a correct decision needs the neighbour locale's tracks
         (cooperative perception / migration). Scans generated_predictions
         (edge + local + migrated).
+
+        The closing speed is read from the migrated/edge PREDICTION, not a
+        constant: a full-latent migration recovers the true (accelerating)
+        speed, a snapshot under-predicts it, so the go/no-go depends on the
+        migrated content.
         """
         if self._ego_pos is None or not self.generated_predictions:
-            return float('inf')
+            return float('inf'), 0.0
         ex, ey = self._ego_pos.location.x, self._ego_pos.location.y
         eyaw = math.radians(self._ego_pos.rotation.yaw)
         cos_y, sin_y = math.cos(eyaw), math.sin(eyaw)
         best = float('inf')
+        best_speed = 0.0
         for pred in self.generated_predictions:
             obs = pred.obstacle_trajectory.obstacle
             if obs.carla_id == self.vehicle.id:
@@ -1056,13 +1067,18 @@ class BehaviorAgent(object):
                 continue
             # oncoming = moving toward the ego (advance along ego heading
             # is negative); a same-direction lead is not an overtake threat.
+            speed = 0.0
             if len(traj) >= 2:
-                adv = ((traj[1].location.x - loc.x) * cos_y +
-                       (traj[1].location.y - loc.y) * sin_y)
+                sdx = traj[1].location.x - loc.x
+                sdy = traj[1].location.y - loc.y
+                adv = sdx * cos_y + sdy * sin_y
                 if adv > 0:
                     continue
-            best = min(best, ahead)
-        return best
+                speed = math.hypot(sdx, sdy) / self._PRED_STEP_S
+            if ahead < best:
+                best = ahead
+                best_speed = speed
+        return best, best_speed
 
     def overtake_management(self, obstacle_vehicle, set_destination=True):
         """
@@ -2013,12 +2029,19 @@ class BehaviorAgent(object):
                             # oncoming vehicle (root cause of the head-ons).
                             _t_man = 4.0      # s in the opposing lane
                             _ov = 7.0         # m/s, reduced overtake speed
-                            _onc = 8.0        # m/s, nominal oncoming speed
-                            _need = _t_man * (_ov + _onc)   # ~60 m sight dist
-                            _clear = self._nearest_oncoming_ahead()
+                            _clear, _onc = self._nearest_oncoming_ahead()
+                            # Closing speed comes from the migrated/edge
+                            # prediction (small floor only guards numerical
+                            # zero). A full-latent migration recovers the true
+                            # (accelerating) speed and widens the need; a
+                            # snapshot under-predicts it, shrinks the need, and
+                            # the ego commits into the closing gap. _ov already
+                            # sets a ~28 m maneuver-footprint minimum.
+                            _onc = max(_onc, 2.0)
+                            _need = _t_man * (_ov + _onc)
                             if os.environ.get('BEHAVIOR_DEBUG'):
                                 print(f"[OT SIGHT] oncoming_ahead={_clear:.0f}m "
-                                      f"need={_need:.0f}m -> "
+                                      f"onc_spd={_onc:.1f} need={_need:.0f}m -> "
                                       f"{'GO' if _clear >= _need else 'WAIT'}")
                             if _clear < _need:
                                 self.overtake_wait_counter = \
