@@ -2659,3 +2659,25 @@ boundary so the handoff precedes commit, (c) reconsider whether blind-overtake
 is the right vehicle vs an on-ramp merge where the merge decision IS at the
 locale entry. DECISION POINT for Tyler: this is scenario-geometry / locale-model
 territory he has strong views on.
+
+## After sync fix: velocity lost in predictor->gate chain (2026-08-10)
+
+sync_warm (oncoming spawn x=210 -> handoff tick 85 BEFORE ego commit tick 120):
+the sync is now right and warm's FIRST gate eval saw the oncoming
+(oncoming_ahead=21m -> WAIT). But warm still collided (2 episodes) for two
+reasons ABOVE the tracker layer that was fixed:
+1. onc_spd floored to 2.0 in every [OT SIGHT]: the gate reads the oncoming's
+   PREDICTED speed (traj[0]->traj[1]) as ~0 even though the tracker coast now
+   dead-reckons at ~10 m/s. Velocity is lost between the (fixed) coast and the
+   broadcast predicted trajectory the ego consumes (wrapper vel_ema ->
+   ab3d_tracks_to_trajectories -> predictor -> edge broadcast -> ego
+   generated_predictions). Need to trace which link zeroes it.
+2. oncoming_ahead flips 21m -> inf after one WAIT: the migrated track's
+   prediction is only intermittently in the ego's generated_predictions
+   (broadcast/consumption cadence, edge_dt 0.2 vs per-tick gate), so the ego
+   loses sight of it and commits.
+Tracker-layer dead-reckon is CONFIRMED fixed (track advances east in-lane).
+Remaining work is the predictor+broadcast+consumption chain, which is
+multi-layer. This is the point to decide with Tyler whether to keep investing
+in the blind-overtake closed loop or move the claim to a geometry where the
+decision is at the locale entry (on-ramp merge).
