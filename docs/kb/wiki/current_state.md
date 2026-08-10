@@ -2706,3 +2706,30 @@ AND well-tracked before a handoff that precedes commit; the WaypointFollower
 ramp fights this. Cleanest resolution is likely to hold the ego at the truck
 until the (correct) prediction arrives, which itself depends on the predictor
 fix above. All fixes committed to develop (c02d173d + KB commits).
+
+## kf-velocity plumbing fixed; next wall is source-track fragmentation (2026-08-10)
+
+Tyler: "we don't use a kf, so obviously we need to fix that." Correct — the
+broadcast velocity (kf_speed_mps, kf_vx/vy) was reconstructed frame-to-frame in
+the Mamba wrapper via an EMA that RESTARTED AT ZERO on a migration import (fresh
+tracklet has no _prev_out), so a migrated occluded track read stationary during
+the ego's decision window and both predictors' stationary gates (MTR
+kf_speed<2.0, smart <1.0) froze its predicted trajectory. FIX (committed):
+wrapper now derives velocity from the Mamba tracker's OWN memo-bank (net
+displacement / window), available immediately on import. This is necessary and
+correct.
+
+But validation (vfix_warm, spawn x=175, ONCOMING_SPEED=12) shows it is NOT
+sufficient: the migrated memo velocity was ~0 this run (coast froze at x~237,
+predicted trajectory stationary), the overtake gate read onc_spd=2.0 -> GO, the
+ego committed, RSS then fired on cid=199 (TTC 1.3->0.9s, braked 38->9.6 km/h)
+but too late -> 4 collisions. Root cause: SOURCE-side Mamba tracking fragments
+the oncoming badly. ~50 distinct track ids map to CARLA 199 over the run; the
+track live at handoff (tid=14) was born near x=237 with a near-stationary memo.
+So the migrated velocity is only as good as a marginal, run-to-run-variable
+source track (dr_warm same config DID track it at ~10 m/s and the coast
+advanced 242->314; vfix_warm did not). This is the recurring WorldFusion +
+Mamba tracking robustness wall. The ego-facing chain (coast persist,
+dead-reckon, memo velocity, arrival-time gate) is now correct; the limiter is
+upstream detection/tracking continuity of the oncoming, under the no-GT /
+no-stack-change constraints.
