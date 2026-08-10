@@ -2555,3 +2555,26 @@ backstops -> reviewer's "extend range" objection holds, as the reactive arm
 proves). TODO before the EdgeWarp comparison is valid: engineer genuine
 occlusion of the oncoming from RSU0 (curve/structure) while RSU2 sees it.
 Cold 70 m running to check if migration is even necessary here at all.
+
+## 4-arm result: constant-velocity oncoming doesn't prove necessity (2026-08-10)
+
+70 m blind overtake, real pipeline, deduped collision EPISODES:
+- warm (full latent + predictive): 0
+- reactive (EdgeWarp timing, lookahead 0): 0
+- kf (snapshot, history_depth=1): 0
+- cold (no migration): 2
+ONLY cold fails. So migration helps, but neither the predictive trigger nor
+the full latent is shown NECESSARY: reactive and snapshot both succeed,
+because (a) constant-velocity oncoming -> a box+velocity snapshot has the
+right velocity, and (b) the serving RSU backstops a late transfer.
+Tyler's insight (REQUIRED, not optional): make the oncoming DYNAMIC
+(accelerate through the conflict). Then a snapshot (1-frame history -> MTR
+predicts CV) mispredicts the accelerating actor -> ego commits into it ->
+kf collides; the full latent carries the history -> MTR sees the accel ->
+warm safe. This is the CONTENT necessity (full latent > snapshot) and it
+does NOT need occlusion. NEXT: two-phase speed profile on the oncoming
+(cruise then floor it near the conflict), re-run warm vs kf; expect kf
+collides, warm clean. The on-ramp/occlusion scenario is the separate TIMING
+axis (predictive > reactive) for later.
+Collision metric STILL counts contact-ticks; analysis dedups to episodes;
+fix the eval to log episodes.
