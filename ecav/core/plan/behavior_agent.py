@@ -1078,6 +1078,14 @@ class BehaviorAgent(object):
             if ahead < best:
                 best = ahead
                 best_speed = speed
+                self._nearest_onc_dbg = (
+                    len(traj),
+                    (round(traj[0].location.x, 1), round(traj[0].location.y, 1)),
+                    ((round(traj[1].location.x, 1), round(traj[1].location.y, 1))
+                     if len(traj) >= 2 else None),
+                    round(getattr(obs, 'kf_speed_mps', float('nan')), 2),
+                    int(getattr(obs, 'carla_id', -1)),
+                )
         return best, best_speed
 
     def overtake_management(self, obstacle_vehicle, set_destination=True):
@@ -2042,7 +2050,9 @@ class BehaviorAgent(object):
                             if os.environ.get('BEHAVIOR_DEBUG'):
                                 print(f"[OT SIGHT] oncoming_ahead={_clear:.0f}m "
                                       f"onc_spd={_onc:.1f} need={_need:.0f}m -> "
-                                      f"{'GO' if _clear >= _need else 'WAIT'}")
+                                      f"{'GO' if _clear >= _need else 'WAIT'} "
+                                      f"dbg={getattr(self, '_nearest_onc_dbg', None)} "
+                                      f"npreds={len(self.generated_predictions)}")
                             if _clear < _need:
                                 self.overtake_wait_counter = \
                                     self.overtake_wait_time / 2

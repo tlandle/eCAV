@@ -2681,3 +2681,28 @@ Remaining work is the predictor+broadcast+consumption chain, which is
 multi-layer. This is the point to decide with Tyler whether to keep investing
 in the blind-overtake closed loop or move the claim to a geometry where the
 decision is at the locale entry (on-ramp merge).
+
+## Final blocker localized: broadcast prediction is stationary (2026-08-10)
+
+Instrumented the ego gate (behavior_agent _nearest_onc_dbg). At the commit the
+nearest oncoming prediction is: len=10, traj[0]==traj[1]==(255.8,199.2),
+kf_speed=0.0, carla_id=-1. So the predicted trajectory the ego consumes for the
+occluded oncoming is STATIONARY (10 identical points) with zero velocity and
+lost identity, even though the tracker coast dead-reckons the track correctly
+(dr_warm: tid advanced 242->314 east in-lane). The velocity is dropped between
+the tracker coast and the broadcast trajectory: ab3d_tracks_to_trajectories
+reads velocity from wrapper output cols 10/12 (kf_vx/kf_vy); those are ~0 for
+the coasting track, so kf_speed=0 and the predictor emits current-position
+repeated. NEXT FIX (predictor/wrapper layer): make the coasting track's emitted
+velocity (wrapper vel_ema from consecutive predicted_last_bbox) nonzero and
+carry it into the trajectory + predicted_trajectory so the ego sees the real
+closing speed; also propagate carla_id onto the prediction.
+
+Secondary: spawn tension. x=175 -> good coast velocity but handoff (tick 143)
+AFTER ego commit (tick 110). x=210 -> handoff (tick 85) BEFORE commit (120) but
+the oncoming is still ramping from 0 when tracked, so memo velocity ~0 and the
+coast is frozen (x 237.4->239.4 over 38 frames). Need the oncoming up to speed
+AND well-tracked before a handoff that precedes commit; the WaypointFollower
+ramp fights this. Cleanest resolution is likely to hold the ego at the truck
+until the (correct) prediction arrives, which itself depends on the predictor
+fix above. All fixes committed to develop (c02d173d + KB commits).
