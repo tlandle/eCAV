@@ -1063,7 +1063,25 @@ class BehaviorAgent(object):
             lateral = -dx * sin_y + dy * cos_y
             # opposing/adjacent lane ~2-5 m off-centre, ahead of the ego.
             # abs(): the overtake side is +/- lateral depending on heading.
-            if not (0.5 < ahead and 1.0 < abs(lateral) < 6.0):
+            # Upper bound 9 m (not 6): WorldFusion localizes the oncoming ~3 m
+            # off in y, so a real oncoming in the adjacent lane sits at ~6-7 m
+            # lateral and a 6 m band intermittently drops it, making the gate
+            # flip to "clear" and the ego commit into it.
+            if not (0.5 < ahead and 1.0 < abs(lateral) < 9.0):
+                continue
+            # Closing speed from the tracker's own velocity estimate, not a
+            # per-step finite difference of the predicted trajectory: that
+            # trajectory is finely sampled (~0.02 s steps, ~100 pts), so
+            # traj[1]-traj[0] underestimates the speed ~10x and floored the
+            # sight-distance need. kf_speed_mps is the track's ground speed.
+            speed = float(getattr(obs, 'kf_speed_mps', 0.0) or 0.0)
+            # Only MOVING oncoming traffic gates the overtake sight distance.
+            # A stationary detection (parked car, or a WorldFusion false
+            # positive that jitters around a point) has ~0 speed and is
+            # handled by the normal path collision check, not the closing-
+            # speed criterion; without this the gate latches onto stationary
+            # clutter near the conflict instead of the real oncoming.
+            if speed < 3.0:
                 continue
             # oncoming = moving toward the ego (advance along ego heading
             # is negative); a same-direction lead is not an overtake threat.
@@ -1073,12 +1091,6 @@ class BehaviorAgent(object):
                 adv = sdx * cos_y + sdy * sin_y
                 if adv > 0:
                     continue
-            # Closing speed from the tracker's own velocity estimate, not a
-            # per-step finite difference of the predicted trajectory: that
-            # trajectory is finely sampled (~0.02 s steps, ~100 pts), so
-            # traj[1]-traj[0] underestimates the speed ~10x and floored the
-            # sight-distance need. kf_speed_mps is the track's ground speed.
-            speed = float(getattr(obs, 'kf_speed_mps', 0.0) or 0.0)
             if ahead < best:
                 best = ahead
                 best_speed = speed
