@@ -2733,3 +2733,34 @@ Mamba tracking robustness wall. The ego-facing chain (coast persist,
 dead-reckon, memo velocity, arrival-time gate) is now correct; the limiter is
 upstream detection/tracking continuity of the oncoming, under the no-GT /
 no-stack-change constraints.
+
+## Directional content-necessity result; WF perception quality is the wall (2026-08-11)
+
+After fixing the tracker fragmentation + velocity + gate chain (committed), the
+single-oncoming accel scenario (ego 317, oncoming spawn 210, ONCOMING_SPEED=12,
+TRIGGER_DIST=300 so handoff tick 85 precedes commit tick 120) gives a
+DIRECTIONAL content-necessity result:
+- warm (full latent, memo=10): 1 collision episode
+- kf   (snapshot, memo=1):      6 collision episodes
+The full memo carries the real velocity (kf_speed ~10) -> moving prediction ->
+ego waits; the 1-frame snapshot freezes (kf_speed ~0) -> ego commits. Export
+diagnostic confirmed the SOURCE now tracks the oncoming correctly
+(endpoint_vel=(2.07,-0.01), cid=199). The ego-facing chain is correct: gate
+selects the real oncoming (cid=199, kf_speed 8.9), computes need=64m, WAITs.
+
+warm is NOT cleanly 0 yet; the remaining limiter is WorldFusion perception
+quality, not integration:
+1. Localization error: the oncoming is detected at y~202 vs true 199 (~3 m
+   off), so it sits at the edge of the overtake-lane lateral band (widened
+   6->9 m to compensate).
+2. Spurious ghost tracks: an off-map diagonal track (yaw=1.81, x->407, y->210)
+   gets STAMPED cid=199 (identity mis-association in _associate_carla_ids,
+   nearest-det-per-track is not 1-to-1). When the broadcast carries the ghost
+   instead of the real oncoming, the gate sees nothing in-band -> GO -> hit.
+3. Stationary FP clutter near the truck (kf_speed ~0) that the gate used to
+   latch onto (now filtered by speed<3).
+These are detection/tracking-quality issues (FPs, localization, mis-assoc), and
+they make warm's result noisy/nondeterministic run-to-run. This is the case
+where improving WF detection (retrain / stronger FP suppression) or 1-to-1
+identity association is the right next step. Gate fixes: reads kf_speed_mps
+(not finely-sampled traj diff), skips stationary (<3 m/s), lateral band 9 m.
