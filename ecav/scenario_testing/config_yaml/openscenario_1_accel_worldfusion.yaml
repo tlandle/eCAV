@@ -223,8 +223,8 @@ scenario:
       id: locale_0
       polygon:
       - [240, 185]
-      - [340, 185]
-      - [340, 210]
+      - [360, 185]
+      - [360, 210]
       - [240, 210]
   - max_capacity: 10
     inter_gap: 0.6

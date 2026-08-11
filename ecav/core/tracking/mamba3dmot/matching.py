@@ -201,14 +201,19 @@ def center_distance_3d(atracks, btracks):
     if len(atracks) == 0 or len(btracks) == 0:
         return np.empty((len(atracks), len(btracks)), dtype=np.float32)
 
-    # Extract centers: for 3D boxes, center is [x, y, z]
-    if hasattr(atracks[0], '_bbox_3d'):
-        a_centers = np.array([t._bbox_3d[:3] for t in atracks])
-    elif hasattr(atracks[0], 'predicted_last_bbox') and atracks[0].predicted_last_bbox is not None:
-        a_centers = np.array([t.predicted_last_bbox[:3] if t.predicted_last_bbox is not None
-                              else t._bbox_3d[:3] for t in atracks])
-    else:
-        a_centers = np.array([t[:3] if isinstance(t, np.ndarray) else [0, 0, 0] for t in atracks])
+    # Extract centers: for 3D boxes, center is [x, y, z]. Prefer the
+    # dead-reckoned (predicted) position over the last observation: a moving
+    # track that missed detections has advanced, so the incoming detection is
+    # near where the track is PREDICTED to be, not where it was last seen.
+    def _trk_center(t):
+        p = getattr(t, 'predicted_last_bbox', None)
+        if p is not None:
+            return np.asarray(p[:3], dtype=np.float64)
+        if hasattr(t, '_bbox_3d'):
+            return np.asarray(t._bbox_3d[:3], dtype=np.float64)
+        return np.asarray(t[:3] if isinstance(t, np.ndarray) else [0, 0, 0],
+                          dtype=np.float64)
+    a_centers = np.array([_trk_center(t) for t in atracks])
 
     if hasattr(btracks[0], '_bbox_3d'):
         b_centers = np.array([t._bbox_3d[:3] for t in btracks])

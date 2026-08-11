@@ -1067,14 +1067,18 @@ class BehaviorAgent(object):
                 continue
             # oncoming = moving toward the ego (advance along ego heading
             # is negative); a same-direction lead is not an overtake threat.
-            speed = 0.0
             if len(traj) >= 2:
                 sdx = traj[1].location.x - loc.x
                 sdy = traj[1].location.y - loc.y
                 adv = sdx * cos_y + sdy * sin_y
                 if adv > 0:
                     continue
-                speed = math.hypot(sdx, sdy) / self._PRED_STEP_S
+            # Closing speed from the tracker's own velocity estimate, not a
+            # per-step finite difference of the predicted trajectory: that
+            # trajectory is finely sampled (~0.02 s steps, ~100 pts), so
+            # traj[1]-traj[0] underestimates the speed ~10x and floored the
+            # sight-distance need. kf_speed_mps is the track's ground speed.
+            speed = float(getattr(obs, 'kf_speed_mps', 0.0) or 0.0)
             if ahead < best:
                 best = ahead
                 best_speed = speed

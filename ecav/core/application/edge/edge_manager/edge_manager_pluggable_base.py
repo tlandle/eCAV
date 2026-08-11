@@ -189,6 +189,17 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                 None,
             )
             if tracklet is not None:
+                _mb = getattr(tracklet, 'memo_bank', None)
+                if _mb is not None and len(_mb) >= 2:
+                    import numpy as _np
+                    _sp = max(len(_mb) - 1, 1)
+                    _vv = (_np.asarray(_mb[-1])[:2] - _np.asarray(_mb[0])[:2]) / _sp
+                    logger.info(
+                        "[EXPORT-DBG] cid=%d memo=%d endpoint_vel=(%.2f,%.2f) "
+                        "bbox=(%.1f,%.1f) tsu=%d", carla_id, len(_mb),
+                        float(_vv[0]), float(_vv[1]),
+                        float(tracklet._bbox_3d[0]), float(tracklet._bbox_3d[1]),
+                        int(getattr(tracklet, 'time_since_update', -1)))
                 from ecav.core.application.edge.migration.factories import (
                     latent_from_tracklet)
                 # MIGRATION_MODE=kf is the Reactive-Kalman baseline (Q2):

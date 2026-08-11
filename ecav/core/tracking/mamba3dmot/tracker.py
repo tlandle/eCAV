@@ -125,6 +125,32 @@ class Mamba3DTracker:
             track.re_activate(det, self.frame_id, new_id=False)
             refind_tracklets.append(track)
 
+        # --- Round 1b: center-distance recovery for ACTIVE tracks IoU missed.
+        # BEV IoU (round 1) drops a fast track the moment a detection gap moves
+        # the object past its coasted box (an oncoming at speed clears the box
+        # overlap in a single missed frame -> IoU 0). The detection then spawns
+        # a duplicate while the real track coasts away, so one object fragments
+        # into many ids and its memo never accumulates real motion (which
+        # collapses the migrated velocity). Recover by matching the missed
+        # active tracks to the still-unmatched detections on distance from each
+        # track's DEAD-RECKONED position, the same gate the lost pool uses.
+        if len(u_track) and len(u_det_remain):
+            act_pool = [self.tracked_tracklets[i] for i in u_track]
+            rem_dets = [detections_remain[k] for k in u_det_remain]
+            dists_act = center_distance_3d(act_pool, rem_dets)
+            matches_act, _, _ = linear_assignment(
+                dists_act, thresh=min(lost_gate_m / 20.0, 0.999))
+            matched_it = set()
+            matched_k = set()
+            for ia, ir in matches_act:
+                track = act_pool[ia]
+                track.update(rem_dets[ir], self.frame_id)
+                activated_tracklets.append(track)
+                matched_it.add(u_track[ia])
+                matched_k.add(u_det_remain[ir])
+            u_track = [i for i in u_track if i not in matched_it]
+            u_det_remain = [k for k in u_det_remain if k not in matched_k]
+
         # Unmatched active tracklets: coast in place for a short window
         # (keep Tracked + output with the predicted, advancing box) before
         # demoting to Lost. Real WF perception is intermittent (~50% recall
@@ -136,25 +162,7 @@ class Mamba3DTracker:
             if track.time_since_update <= coast_window:
                 activated_tracklets.append(track)  # stays Tracked, keeps coasting
                 continue
-            # TEMP DEBUG: why did this track miss? min cost to any det and
-            # whether its best det went to another track (competition).
-            if dists.shape[1] > 0:
-                from ecav.core.tracking.mamba3dmot.matching import _extract_bev_box
-                tb = _extract_bev_box(track)
-                dboxes = [_extract_bev_box(d) for d in detections]
-                dcent = [((db[0]-tb[0])**2 + (db[1]-tb[1])**2)**0.5 for db in dboxes]
-                jn = int(np.argmin(dcent))
-                db = dboxes[jn]
-                mb = track.memo_bank[-1] if len(track.memo_bank) else None
-                print(f"[MAMBA LOST] tid={track.track_id} "
-                      f"min_cost={dists[it].min():.3f} "
-                      f"trk_bev=({tb[0]:.1f},{tb[1]:.1f},l{tb[2]:.1f},w{tb[3]:.1f},yaw{tb[4]:.2f}) "
-                      f"near_det=({db[0]:.1f},{db[1]:.1f},l{db[2]:.1f},w{db[3]:.1f},yaw{db[4]:.2f}) "
-                      f"cdist={dcent[jn]:.2f} "
-                      f"memo_last=({mb[0]:.1f},{mb[1]:.1f})" if mb is not None else "no-memo")
-            else:
-                print(f"[MAMBA LOST] tid={track.track_id} no_dets")
-            if not track.state_flag == TrackState.Lost:
+            if track.state_flag != TrackState.Lost:
                 track.state_flag = TrackState.Lost
                 lost_tracklets.append(track)
 

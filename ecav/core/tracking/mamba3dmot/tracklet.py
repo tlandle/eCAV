@@ -202,6 +202,7 @@ class MambaTracklet3D(BaseTrack):
         diff = new_track._bbox_3d - self.memo_bank[-1]
         self.diff_memo_bank.append(self._wrap_yaw_diff(diff))
         self.memo_bank.append(new_track._bbox_3d.copy())
+        self._bbox_3d = new_track._bbox_3d.copy()  # last-observed box
 
         max_window = self.cfgs.get('max_window', 10)
         if len(self.memo_bank) > max_window:
@@ -211,6 +212,7 @@ class MambaTracklet3D(BaseTrack):
         self.state_flag = TrackState.Tracked
         self.is_activated = True
         self.frame_id = frame_id
+        self.time_since_update = 0  # observed this frame; reset coast counter
         if new_id:
             self.track_id = self.next_id()
         self.score = new_track.score
@@ -225,6 +227,10 @@ class MambaTracklet3D(BaseTrack):
             diff = new_track._bbox_3d - self.memo_bank[-1]
             self.diff_memo_bank.append(self._wrap_yaw_diff(diff))
             self.memo_bank.append(new_track._bbox_3d.copy())
+            # Keep the last-observed box current: _bbox_3d was set once at
+            # creation and never refreshed, so distance-based association
+            # (center_distance_3d) matched against a stale birth position.
+            self._bbox_3d = new_track._bbox_3d.copy()
             self.score = new_track.score
 
         max_window = self.cfgs.get('max_window', 10)

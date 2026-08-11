@@ -65,7 +65,12 @@ class Scenario_1(BasicScenario):
             _v = float(_onc_spd)
             self.vehicle_velocities = [
                 (0 if i == 0 else _v) for i in range(self.num_vehicle)]
-        self._trigger_distance = 150
+        # Distance at which an actor begins moving (ego within this range of
+        # the actor spawn). TRIGGER_DIST decouples the oncoming's start from
+        # the ego start so the oncoming's timeline (and its locale handoff) is
+        # independent of how far back the ego begins; the two-locale accel
+        # scenario needs the handoff to precede the ego's overtake commit.
+        self._trigger_distance = float(_os.environ.get('TRIGGER_DIST', 150))
         self.agents = []
 
         super(Scenario_1, self).__init__("Scenario_1",
