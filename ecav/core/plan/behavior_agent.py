@@ -245,6 +245,7 @@ class BehaviorAgent(object):
         self._linear_predictor   = LinearPredictorManager(num_future_steps=self._num_future_steps)
         self.local_predictions   = []   # produced on-board each tick
         self.edge_predictions    = []   # filled when the edge sends predictions
+        self._edge_pred_cache    = {}   # identity -> (tick, pred) for hold-over
 
 
     def _maintain_tracks_and_predict(self, dt: float):
@@ -317,7 +318,25 @@ class BehaviorAgent(object):
         # Edge wins per obstacle (richer, multi-modal) — a local
         # prediction is added only when no edge prediction anchors within
         # the dedup radius of it.
-        merged = list(self.edge_predictions) if self.edge_predictions else []
+        # Persist edge predictions across the edge's broadcast cadence. The
+        # edge emits predictions on its own cycle (~every 4 ego ticks), so a
+        # fast obstacle's prediction blips out between cycles; that cleared the
+        # oncoming from the overtake sight-distance gate for a tick and let the
+        # ego commit into it. Keep the most recent prediction per identity for
+        # a short hold window so an occluded, migration-only obstacle stays
+        # continuously visible to the planner.
+        _tick = self._tick_counter
+        _cache = self._edge_pred_cache
+        for _p in (self.edge_predictions or []):
+            _obs = _p.obstacle_trajectory.obstacle
+            _cid = getattr(_obs, 'carla_id', None)
+            _key = ('c', int(_cid)) if (_cid is not None and _cid >= 0) \
+                else ('t', getattr(_obs, 'track_id', id(_p)))
+            _cache[_key] = (_tick, _p)
+        _HOLD = 8  # ego ticks (~0.4 s)
+        for _k in [k for k, (tk, _) in _cache.items() if _tick - tk > _HOLD]:
+            _cache.pop(_k, None)
+        merged = [pr for (tk, pr) in _cache.values()]
         if getattr(self, 'local_predictions', None):
             def _anchor(p):
                 t = p.predicted_trajectory

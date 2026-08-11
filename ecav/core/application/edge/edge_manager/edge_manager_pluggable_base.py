@@ -296,14 +296,29 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         """
         raw = self._raw_tracker()
         px, py = float(position[0]), float(position[1])
+
+        def _pos(t):
+            p = getattr(t, 'predicted_last_bbox', None)
+            s = p if p is not None else t.state
+            return float(s[0]), float(s[1])
+
         best, best_d = None, max_dist_m
         for t in raw.tracked_tracklets:
-            d = ((float(t.state[0]) - px) ** 2 +
-                 (float(t.state[1]) - py) ** 2) ** 0.5
+            tx, ty = _pos(t)
+            d = ((tx - px) ** 2 + (ty - py) ** 2) ** 0.5
             if d < best_d:
                 best, best_d = t, d
         if best is None:
             return False
+        # Exclusive assignment: clear this carla_id from any OTHER tracklet
+        # first, so a spurious or diverged track that was stamped with it
+        # earlier cannot keep the identity and get exported in place of the
+        # real object nearest the caller-known position.
+        for t in raw.tracked_tracklets:
+            if t is not best and self._resolved_carla_id(
+                    getattr(t, 'carla_id', None)) == carla_id:
+                t.carla_id = -1
+                self.track_to_carla.pop(int(t.track_id), None)
         best.carla_id = carla_id
         self.track_to_carla[int(best.track_id)] = carla_id
         return True
@@ -369,15 +384,22 @@ class _PluggableEdgeBase(_BaseEdgeManager):
         """
         raw = self._raw_tracker()
         if self._is_mamba(raw):
-            has_identity = any(
-                self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
-                for t in raw.tracked_tracklets)
-            if not has_identity and position is not None:
-                # Position fallback, same contract as the AB3DMOT branch:
-                # unmanaged NPCs never beacon, so identity lookup alone can
-                # never find them.
+            # Position-authoritative when the caller knows the true (x, y):
+            # (re)assign the carla_id to the nearest tracklet exclusively so a
+            # spurious/diverged track carrying the same id is never exported in
+            # place of the real object. Identity lookup is only the fallback
+            # when no position is supplied.
+            if position is not None:
                 has_identity = self._stamp_nearest_tracklet(
                     carla_id, position, max_dist_m)
+                if not has_identity:
+                    has_identity = any(
+                        self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
+                        for t in raw.tracked_tracklets)
+            else:
+                has_identity = any(
+                    self._resolved_carla_id(getattr(t, 'carla_id', None)) == carla_id
+                    for t in raw.tracked_tracklets)
             if not has_identity:
                 return None
             tid = next((t for t, c in self.track_to_carla.items() if c == carla_id), -1)
