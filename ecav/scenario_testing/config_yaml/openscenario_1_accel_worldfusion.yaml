@@ -159,8 +159,8 @@ scenario:
     tracker_cfg: {motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth, filter_thresh: 0.05,
       new_track_thresh: 0.2, match_thresh: 0.95, max_time_lost: 60, enable_time_thresh: 1000000, max_window: 10,
       lost_match_dist_m: 8.0, coast_window: 40}
-    worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml,
-      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth, score_threshold: 0.2}
+    worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml,
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth, score_threshold: 0.2}
     predictor_type: mtr
     mtr_predictor: {cmp_root: ecav/core/application/v2v/baselines/cmp/CMP, checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth,
       cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml,
@@ -175,8 +175,8 @@ scenario:
         perception:
           activate: true
           backend: worldfusion
-          worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml,
-            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth}
+          worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml,
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth}
           camera:
             visualize: 0
             num: 4
@@ -205,8 +205,8 @@ scenario:
           camera: *id002
           lidar: *id003
           backend: worldfusion
-          worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml,
-            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth}
+          worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml,
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth}
         localization:
           activate: true
           dt: ${world.fixed_delta_seconds}
@@ -247,8 +247,8 @@ scenario:
     tracker_cfg: {motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth, filter_thresh: 0.05,
       new_track_thresh: 0.2, match_thresh: 0.95, max_time_lost: 60, enable_time_thresh: 1000000, max_window: 10,
       lost_match_dist_m: 8.0, coast_window: 40}
-    worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml,
-      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth, score_threshold: 0.2}
+    worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml,
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth, score_threshold: 0.2}
     predictor_type: mtr
     mtr_predictor: {cmp_root: ecav/core/application/v2v/baselines/cmp/CMP, checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth,
       cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml,
@@ -263,8 +263,8 @@ scenario:
         perception:
           activate: true
           backend: worldfusion
-          worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml,
-            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth}
+          worldfusion_model: {hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml,
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth}
           camera:
             visualize: 0
             num: 4
