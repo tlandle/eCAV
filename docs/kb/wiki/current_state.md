@@ -2764,3 +2764,29 @@ they make warm's result noisy/nondeterministic run-to-run. This is the case
 where improving WF detection (retrain / stronger FP suppression) or 1-to-1
 identity association is the right next step. Gate fixes: reads kf_speed_mps
 (not finely-sampled traj diff), skips stationary (<3 m/s), lateral band 9 m.
+
+## WF checkpoints don't resolve recall/FP tradeoff — retrain needed (2026-08-11)
+
+After all integration fixes (tracker fragmentation, memo velocity, gate reads
+kf_speed, exclusive-identity migration export, ego prediction hold-over), the
+result is directional (warm 1 / kf 6 best case) but NONDETERMINISTIC run-to-run
+(warm 1-8, kf 2-6) because WorldFusion detection of the oncoming is marginal.
+Root confirmed by two levers:
+- Raise score_threshold 0.2->0.4: cuts FP clutter (npreds 15->6) but drops the
+  oncoming's recall (import memo 10->5, gate never sees it). The oncoming is
+  detected at the SAME low confidence (0.2-0.4) as the false positives, so no
+  threshold separates them.
+- Swap epoch27 -> car-only model (worldfusion_multiv2x_caronly_aug_thresh02,
+  epoch39, HAS random_world_translation aug that epoch27 lacks): detections
+  drop 3000->107, scores shift up (peak 0.4-0.5), npreds 15->3-4 (FP clutter
+  gone, confirms epoch27 was scene-overfit per project_wf_scene_overfit). But
+  recall is sparse (107 dets) so the occluded oncoming still isn't reliably
+  predicted through the occlusion -> still collides.
+Neither the high-FP epoch27 nor the low-recall car-only model gives high recall
+AND low FP. That is the wall. Downstream levers exhausted (disabling MTR
+risk_budget made it worse, 5 collisions). Tyler authorized retraining. The
+right fix is a WF retrain/finetune with translation aug for HIGH RECALL on the
+close oncoming car AND low FP. In parallel, the directional result (warm<<kf)
+is real and could be reported over N seeds. Config now on the car-only model
+(fewer FPs); revert to translaug_finetune/net_epoch27 to reproduce the high-FP
+baseline. All fixes committed to develop.
