@@ -2790,3 +2790,27 @@ close oncoming car AND low FP. In parallel, the directional result (warm<<kf)
 is real and could be reported over N seeds. Config now on the car-only model
 (fewer FPs); revert to translaug_finetune/net_epoch27 to reproduce the high-FP
 baseline. All fixes committed to develop.
+
+## Seed-sweep: warm NOT better than kf with current perception (2026-08-12)
+
+6-run sweep each, car-only WF model, all integration fixes, deduped collision
+EPISODES:
+- warm (full latent): mean 3.83, median 3.5, vals [4, 9, 3, 0, 4, 3]
+- kf   (snapshot):     mean 2.83, median 3.0, vals [3, 2, 2, 4, 3, 3]
+warm is NOT better than kf; it is slightly WORSE and much noisier (0-9 vs 2-4).
+The single-run warm=1/kf=6 was a fluke, not reproducible. CONCLUSION: with
+marginal WF perception the full-latent migration's value (dead-reckoning the
+occluded obstacle) is negated by noise — a noisy migrated latent produces a
+wrong/overshooting dead-reckon that can mislead the ego as much as help it,
+while the snapshot (kf) is simpler and more consistent. The content-necessity
+thesis (warm < kf) REQUIRES accurate perception; it does not hold on noisy WF.
+So the WF retrain is NECESSARY for the thesis, not just for reproducibility.
+
+PACE status (2026-08-12): DOWN for quarterly maintenance Aug 11-13, back
+Aug 14. Cannot transfer/train there now. Azure is out (per training_state).
+Local Multi-V2X.tar.gz (235 GB) / .tar (272 GB) intact and readable, ready to
+re-copy to PACE scratch when it returns. Car-only finetune config exists
+(caronly_aug_thresh02/config.yaml{,.pace}) with random_world_translation aug,
+45 epochs, lr 1e-4, root_dir /tmp/Multi-V2X. export_wf_for_mtr.py exports WF
+features for MTR (not WF detection training data); adding new close-range
+oncoming samples for WF needs Multi-V2X-format PCD+GT generation from the sim.
