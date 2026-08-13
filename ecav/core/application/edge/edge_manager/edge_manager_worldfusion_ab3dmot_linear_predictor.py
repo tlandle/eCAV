@@ -131,6 +131,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._gt_inject_enabled = bool(gt_cfg.get('enabled', False))
         self._gt_max_range_m = float(gt_cfg.get('max_range_m', 70.0))
         self._gt_exclude_managed = bool(gt_cfg.get('exclude_managed', True))
+        self._gt_occlusion = bool(gt_cfg.get('occlusion_check', False))
         if self._gt_inject_enabled:
             print(f"[WorldFusion Edge] GT detection injection ENABLED "
                   f"(max_range={self._gt_max_range_m}m, "
@@ -590,6 +591,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         self.world, self.world_anchor, frame_id,
                         exclude_actor_ids=excl_ids,
                         max_range_m=self._gt_max_range_m,
+                        occlusion_check=self._gt_occlusion,
                     )
                     logger.info("GT INJECT: replaced %d model dets with %d GT actor boxes",
                                 num_dets, len(det_results['dets']))

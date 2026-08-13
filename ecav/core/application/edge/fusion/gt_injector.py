@@ -35,11 +35,43 @@ import math
 import numpy as np
 
 
+def _los_blocked(sx, sy, sz, tx, ty, tz, occluders, skip_ids):
+    """True if the sensor->target sightline is blocked by another vehicle.
+
+    BEV segment sampled at 1 m; an occluder blocks a sample point if the
+    point falls inside its (slightly inflated) rotated footprint AND the
+    occluder's top reaches the line-of-sight height there (a tall truck
+    blocks a low sightline; a low car under a high mast does not).
+    """
+    seg = math.hypot(tx - sx, ty - sy)
+    if seg < 1.0:
+        return False
+    steps = int(seg)
+    for oid, (ox, oy, oz_top, ol, ow, oyaw) in occluders.items():
+        if oid in skip_ids:
+            continue
+        cos_y, sin_y = math.cos(-oyaw), math.sin(-oyaw)
+        hl, hw = ol / 2.0 + 0.3, ow / 2.0 + 0.3
+        for i in range(1, steps):
+            f = i / steps
+            px, py = sx + (tx - sx) * f, sy + (ty - sy) * f
+            lx = (px - ox) * cos_y - (py - oy) * sin_y
+            ly = (px - ox) * sin_y + (py - oy) * cos_y
+            if abs(lx) <= hl and abs(ly) <= hw:
+                los_z = sz + (tz - sz) * f
+                if oz_top >= los_z:
+                    return True
+                break  # inside this occluder but under the line; next occluder
+    return False
+
+
 def build_gt_dets(carla_world,
                   world_anchor: Sequence[float],
                   frame_idx: int,
                   exclude_actor_ids: Iterable[int] = (),
-                  max_range_m: float = 70.0) -> dict:
+                  max_range_m: float = 70.0,
+                  occlusion_check: bool = False,
+                  sensor_z: float = 3.0) -> dict:
     """Build a GT detection batch in the same shape as the model output.
 
     Args:
@@ -59,6 +91,17 @@ def build_gt_dets(carla_world,
     anchor_x, anchor_y, anchor_z = float(world_anchor[0]), float(world_anchor[1]), float(world_anchor[2])
     anchor_yaw_rad = math.radians(float(world_anchor[4]))
 
+    # Occluder footprints for the line-of-sight check: every vehicle can
+    # block the view of another (the ego included, excluded ones included).
+    occluders = {}
+    if occlusion_check:
+        for a in carla_world.get_actors().filter('vehicle.*'):
+            t = a.get_transform()
+            e = a.bounding_box.extent
+            occluders[int(a.id)] = (
+                t.location.x, t.location.y, t.location.z + 2.0 * e.z,
+                2.0 * e.x, 2.0 * e.y, math.radians(t.rotation.yaw))
+
     rows = []
     actor_ids = []
     actor_types = []
@@ -71,6 +114,11 @@ def build_gt_dets(carla_world,
         dy = loc.y - anchor_y
         rng = math.hypot(dx, dy)
         if rng > max_range_m:
+            continue
+        if occlusion_check and _los_blocked(
+                anchor_x, anchor_y, anchor_z + sensor_z,
+                loc.x, loc.y, loc.z + 0.8,
+                occluders, {int(actor.id)}):
             continue
         actor_types.append(actor.type_id)
 

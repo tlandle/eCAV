@@ -168,7 +168,7 @@ scenario:
       dataset: multiv2x, aggregator: None, past_frames: 10, future_frames: 25, time_interval: 0.2, history_subsample: 1,
       lane_map: auto, lane_range_m: 90.0, device: cuda, budget_ms: 50.0, enable_amortization: true, enable_risk_budget: true}
     adaptive_controller: {enabled: true, deadline_ms: 130.0}
-    gt_detection_injection: {enabled: true, max_range_m: 50.0, exclude_managed: true}
+    gt_detection_injection: {enabled: true, max_range_m: 90.0, exclude_managed: true, occlusion_check: true}
     world_anchor: [325.0, 210.0, 0.0, 0.0, 0.0, 0.0]
     rsus:
     - sensing:
@@ -256,7 +256,7 @@ scenario:
       dataset: multiv2x, aggregator: None, past_frames: 10, future_frames: 25, time_interval: 0.2, history_subsample: 1,
       lane_map: auto, lane_range_m: 90.0, device: cuda, budget_ms: 50.0, enable_amortization: true, enable_risk_budget: true}
     adaptive_controller: {enabled: true, deadline_ms: 130.0}
-    gt_detection_injection: {enabled: true, max_range_m: 50.0, exclude_managed: true}
+    gt_detection_injection: {enabled: true, max_range_m: 90.0, exclude_managed: true, occlusion_check: true}
     world_anchor: [205.0, 210.0, 0.0, 0.0, 0.0, 0.0]
     rsus:
     - sensing:
