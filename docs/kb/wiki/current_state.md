@@ -2878,3 +2878,17 @@ truck-grind collision left. Paper-eval mockups (P1 sizing, P2 protocol
 timeline, P3 scale envelope) delivered; first diagnostic-altitude set was
 wrong per Tyler — eval figures must carry the paper's claims (EdgeWarp
 contrast, locale sizing, scale), not debugging telemetry.
+
+## Q7 deployability study: first MEASURED locale-geometry results (2026-08-13)
+
+Q7 added to scale_out_evaluation.md (locale sizing/placement/boundaries/
+city-scale). Tooling: ecav/scenario_testing/utils/locale_partition.py.
+Partition rule: locales anchor on junction conflict zones; boundary at each
+inter-conflict road midpoint; separation = half inter-junction length; a
+protocol is deployable at a boundary iff separation >= D* = v x T_recover.
+MEASURED (Town01+Town03, n=66 boundaries): median separation 21-25 m; at
+arterial 14 m/s the deployable share is ours 100%, reactive 33%, cold 18%
+(Town03 alone: 27.5% / 12.5%). Sizing claim: baselines dictate minimum locale
+sizes; ours makes D* ~ 0 so sizing follows load/coverage. Figures q7a
+(partition map), q7b (separation histogram + D* overlays) delivered. Extend
+with OSM district + crossing rates later.
