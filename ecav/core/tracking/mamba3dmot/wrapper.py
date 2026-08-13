@@ -128,6 +128,25 @@ class Mamba3DMOTWrapper(BaseTracker):
         # denominated constant and the motion-model extrapolation (observed
         # live: tracks teleporting between vehicles). Offline retrack and
         # training count one frame per update call; live must match.
+        # The caller's tick IS kept to measure the real wall-time per tracker
+        # frame: detection cadence varies with the perception source (WF emits
+        # per edge cycle, ~4 sim ticks; GT injection per sim tick), so any
+        # fixed frames-to-seconds constant mis-scales velocity (measured 4x
+        # under GT). An EMA of the source-tick stride converts frame-
+        # denominated motion to m/s regardless of cadence.
+        _stick = frame
+        _last = getattr(self, '_last_stick', None)
+        if _last is not None and _stick > _last:
+            _stride = float(_stick - _last)
+            _prev = getattr(self, '_stride_ema', None)
+            self._stride_ema = _stride if _prev is None \
+                else 0.2 * _stride + 0.8 * _prev
+        self._last_stick = _stick
+        # Publish live seconds-per-frame for tracklet dead-reckoning of
+        # migrated (m/s-denominated) velocities.
+        self._tracker.cfgs['_spf_live'] = \
+            (getattr(self, '_stride_ema', None) or 4.0) \
+            * float(self._cfg.get('sim_tick_s', 0.05))
         self._frame_n = getattr(self, '_frame_n', 0) + 1
         frame = self._frame_n
         active_tracklets = self._tracker.update(dets_3d, scores)
@@ -161,12 +180,22 @@ class Mamba3DMOTWrapper(BaseTracker):
                 # during the exact window the ego needed it. Averaging over the
                 # window keeps the estimate bounded (no absurd single-diff
                 # spikes) and jitter-robust for parked cars.
+                mig = getattr(trk, '_migrated_vel_mps', None)
                 mb = trk.memo_bank
-                if mb is not None and len(mb) >= 2:
+                if mig is not None:
+                    # Migrated track still coasting unobserved: its memo is in
+                    # the SOURCE cadence; the latent's m/s velocity is the
+                    # correct, cadence-independent estimate.
+                    vel = np.array([float(mig[0]), float(mig[1]), 0.0])
+                elif mb is not None and len(mb) >= 2:
                     span = max(len(mb) - 1, 1)
                     mv = (np.asarray(mb[-1], dtype=np.float64)
                           - np.asarray(mb[0], dtype=np.float64)) / span
-                    vel = np.array([mv[0], mv[1], mv[2]])  # [vx, vy, vz]/frame
+                    # m/frame -> m/s using the measured source-tick stride
+                    # (cadence-independent; see stride EMA above).
+                    _spf = (getattr(self, '_stride_ema', None) or 1.0) \
+                        * float(self._cfg.get('sim_tick_s', 0.05))
+                    vel = np.array([mv[0], mv[1], mv[2]]) / max(_spf, 1e-6)
                 else:
                     vel = np.zeros(3)
 
@@ -185,10 +214,10 @@ class Mamba3DMOTWrapper(BaseTracker):
                     trk.track_id,
                     getattr(trk, 'carla_id', -1),
                     0,       # det_idx
-                    vel[0],  # vx  (m/tick, consumer divides by dt)
+                    vel[0],  # vx  (m/s; col 13 flags the unit)
                     vel[2],  # vz
                     vel[1],  # vy
-                    0.0,
+                    1.0,     # velocity-is-m/s flag (AB3DMOT rows leave 0.0)
                 ], dtype=np.float64)
                 results.append(out)
 

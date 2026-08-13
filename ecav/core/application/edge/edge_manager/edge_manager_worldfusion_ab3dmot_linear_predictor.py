@@ -1635,12 +1635,20 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy
                 if len(trk) > 12:
                     kf_vx, kf_vy = float(trk[10]), float(trk[12])
-                    # velocities are per TRACKER STEP; the tracker is fed
-                    # once per edge cycle (edge_dt), not per world tick or
-                    # a hard-coded 0.1 s
                     _step_s = float(self.cfg.get('edge_dt', 0.2))                         if hasattr(self, 'cfg') else 0.2
-                    traj.obstacle.kf_speed_mps = (
-                        (kf_vx**2 + kf_vy**2)**0.5) / _step_s
+                    # Col 13 flags the unit: Mamba rows carry m/s directly
+                    # (cadence-independent, measured from the source-tick
+                    # stride in the wrapper). AB3DMOT rows are per TRACKER
+                    # STEP; the tracker is fed once per edge cycle (edge_dt),
+                    # not per world tick or a hard-coded 0.1 s.
+                    if len(trk) > 13 and float(trk[13]) == 1.0:
+                        traj.obstacle.kf_speed_mps = (
+                            kf_vx**2 + kf_vy**2)**0.5
+                        kf_vx *= _step_s
+                        kf_vy *= _step_s
+                    else:
+                        traj.obstacle.kf_speed_mps = (
+                            (kf_vx**2 + kf_vy**2)**0.5) / _step_s
                     traj.obstacle.kf_vx = kf_vx
                     traj.obstacle.kf_vy = kf_vy
 

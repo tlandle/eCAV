@@ -1459,7 +1459,11 @@ class BehaviorAgent(object):
         # Actual safety distance area, try to follow the speed of the vehicle
         # in front.
         else:
-            target_speed = 0 if vehicle_speed == 0 else \
+            # A stopped lead is never PERCEIVED at exactly 0 (tracking jitter
+            # ~0.5-2 km/h), so an == 0 test hands the PID vehicle_speed+1 and
+            # the ego creeps into the lead's bumper (measured: 883 contact
+            # ticks grinding a stopped truck). Treat near-stopped as stopped.
+            target_speed = 0 if vehicle_speed < 2.0 else \
                 min(vehicle_speed + 1,
                     target_speed)
         return target_speed
@@ -2088,6 +2092,15 @@ class BehaviorAgent(object):
                                       f"{'GO' if _clear >= _need else 'WAIT'} "
                                       f"dbg={getattr(self, '_nearest_onc_dbg', None)} "
                                       f"npreds={len(self.generated_predictions)}")
+                                for _p in self.generated_predictions:
+                                    _o = _p.obstacle_trajectory.obstacle
+                                    _t = _p.predicted_trajectory
+                                    if _t:
+                                        print(f"[OT PREDS] cid="
+                                              f"{getattr(_o, 'carla_id', '?')} "
+                                              f"pos=({_t[0].location.x:.1f},"
+                                              f"{_t[0].location.y:.1f}) "
+                                              f"spd={getattr(_o, 'kf_speed_mps', 0.0):.1f}")
                             if _clear < _need:
                                 self.overtake_wait_counter = \
                                     self.overtake_wait_time / 2

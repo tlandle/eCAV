@@ -35,6 +35,7 @@ def latent_from_tracklet(
     risk_score: float = 0.0,
     last_observation_t: float = 0.0,
     history_depth: Optional[int] = None,
+    vel_mps: Optional[np.ndarray] = None,
 ) -> TrackLatent:
     """Snapshot a live tracklet's per-track state into a TrackLatent.
 
@@ -69,6 +70,8 @@ def latent_from_tracklet(
         time_since_update=int(tracklet.time_since_update),
         risk_score=float(risk_score),
         last_observation_t=float(last_observation_t),
+        vel_mps=(np.asarray(vel_mps, dtype=np.float32).copy()
+                 if vel_mps is not None else None),
     )
 
 
@@ -130,6 +133,14 @@ def inject_latent_into_tracker(
     t.is_activated = bool(latent.is_activated)
     t.state_flag = int(latent.state_flag) if latent.state_flag is not None else TrackState.Tracked
     t.time_since_update = int(latent.time_since_update)
+    # Time-denominated ground velocity from the source (m/s). While the
+    # migrated track coasts unobserved, the destination dead-reckons with
+    # this instead of the frame-denominated diffs, which are in the SOURCE
+    # cadence and mis-scale at the destination's cadence. Cleared on the
+    # first fresh observation (tracklet.update / re_activate).
+    t._migrated_vel_mps = (
+        np.asarray(latent.vel_mps, dtype=np.float64).copy()
+        if getattr(latent, 'vel_mps', None) is not None else None)
 
     tracker.tracked_tracklets.append(t)
     if tracker.frame_id < latent.frame_id:

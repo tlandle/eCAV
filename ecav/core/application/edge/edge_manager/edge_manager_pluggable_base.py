@@ -208,9 +208,24 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                 import os as _os
                 _hd = 1 if _os.environ.get(
                     'MIGRATION_MODE', 'warm').lower() == 'kf' else None
+                # Time-denominated ground velocity (m/s) from the source memo
+                # and the wrapper's measured frame cadence, so the destination
+                # dead-reckons correctly at its own cadence. The depth-1
+                # snapshot arm carries no history and hence no velocity.
+                _vel = None
+                if _hd is None:
+                    _mb = getattr(tracklet, 'memo_bank', None)
+                    if _mb is not None and len(_mb) >= 2:
+                        import numpy as _np
+                        _spf = (getattr(self.tracker, '_stride_ema', None) or 1.0) \
+                            * float(getattr(self.tracker, '_cfg', {}).get(
+                                'sim_tick_s', 0.05))
+                        _span_s = max(len(_mb) - 1, 1) * max(_spf, 1e-6)
+                        _vel = (_np.asarray(_mb[-1][:2], dtype=_np.float64)
+                                - _np.asarray(_mb[0][:2], dtype=_np.float64)) / _span_s
                 return latent_from_tracklet(
                     tracklet, persistent_vehicle_id=carla_id,
-                    history_depth=_hd)
+                    history_depth=_hd, vel_mps=_vel)
             logger.warning(
                 "_export_track_latent: no Mamba tracklet for carla_id %d",
                 carla_id)

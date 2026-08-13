@@ -78,6 +78,12 @@ class TrackLatent:
     is_activated: bool = False
     state_flag: int = 0
     time_since_update: int = 0
+    # Ground velocity in m/s [vx, vy], measured at the source. Memo/diff banks
+    # are frame-denominated in the SOURCE tracker's cadence; the destination
+    # runs at its own cadence, so dead-reckoning from raw diffs mis-scales by
+    # the cadence ratio (measured 2x on GT injection). Time-denominated
+    # velocity is cadence-independent.
+    vel_mps: Optional[np.ndarray] = None           # (2,) float32 or None
 
     # --- AB3DMOT backend: recurrent placeholder + explicit Kalman snapshot ---
     hidden_state: Optional[np.ndarray] = None      # recurrent tracker state (D,); reserved for sequence models

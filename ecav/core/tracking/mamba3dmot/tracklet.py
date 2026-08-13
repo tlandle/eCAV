@@ -120,6 +120,22 @@ class MambaTracklet3D(BaseTrack):
             # step, making the coast under-shoot and the track fall behind
             # (measured: 8 m/s oncoming coasted at ~1/4 speed -> fragmented).
             pred = self.memo_bank[-1].copy()
+            mig_vel = getattr(self, '_migrated_vel_mps', None)
+            if mig_vel is not None:
+                # Migrated track coasting unobserved: dead-reckon with the
+                # source's time-denominated velocity (m/s) scaled by this
+                # tracker's live seconds-per-frame. The memo diffs are in the
+                # SOURCE cadence and mis-scale here (measured 2x lag on GT).
+                spf = float(self.cfgs.get('_spf_live', 0.2))
+                vel = np.zeros(BOX_DIM, dtype=np.float32)
+                vel[0] = mig_vel[0] * spf
+                vel[1] = mig_vel[1] * spf
+                steps = self.time_since_update + 1
+                pred[0] += vel[0] * steps
+                pred[1] += vel[1] * steps
+                self.time_since_update += 1
+                self.predicted_last_bbox = pred
+                return
             if len(self.memo_bank) >= 2:
                 # Velocity from the memo-bank ENDPOINTS (net displacement over
                 # the window), not the last few inter-frame diffs. WorldFusion
@@ -203,6 +219,7 @@ class MambaTracklet3D(BaseTrack):
         self.diff_memo_bank.append(self._wrap_yaw_diff(diff))
         self.memo_bank.append(new_track._bbox_3d.copy())
         self._bbox_3d = new_track._bbox_3d.copy()  # last-observed box
+        self._migrated_vel_mps = None  # fresh observation; local estimation resumes
 
         max_window = self.cfgs.get('max_window', 10)
         if len(self.memo_bank) > max_window:
@@ -231,6 +248,7 @@ class MambaTracklet3D(BaseTrack):
             # creation and never refreshed, so distance-based association
             # (center_distance_3d) matched against a stale birth position.
             self._bbox_3d = new_track._bbox_3d.copy()
+            self._migrated_vel_mps = None  # fresh observation
             self.score = new_track.score
 
         max_window = self.cfgs.get('max_window', 10)

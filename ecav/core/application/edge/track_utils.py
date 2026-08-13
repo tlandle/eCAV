@@ -105,15 +105,22 @@ def ab3d_tracks_to_trajectories(
             traj.obstacle.carla_id = cid
             track_to_carla[tid] = cid
 
-            # KF velocity (m/tick) from tracker state
-            # KITTI: dx=index 10 (CARLA vx), dz=index 12 (CARLA vy)
+            # Velocity from tracker state: dx=index 10 (CARLA vx), dz=index 12
+            # (CARLA vy). Col 13 flags the unit: Mamba rows carry m/s directly
+            # (cadence-independent, measured from source-tick stride); AB3DMOT
+            # KF rows carry m per dt-frame and keep the historical divide.
             if len(trk) > 12:
                 kf_vx = float(trk[10])
                 kf_vy = float(trk[12])
-                traj.obstacle.kf_speed_mps = (
-                    (kf_vx**2 + kf_vy**2)**0.5) / dt
-                traj.obstacle.kf_vx = kf_vx
-                traj.obstacle.kf_vy = kf_vy
+                vel_is_mps = len(trk) > 13 and float(trk[13]) == 1.0
+                speed_mps = ((kf_vx**2 + kf_vy**2)**0.5
+                             if vel_is_mps else
+                             ((kf_vx**2 + kf_vy**2)**0.5) / dt)
+                traj.obstacle.kf_speed_mps = speed_mps
+                # kf_vx/kf_vy keep the per-dt-frame convention for their
+                # consumers regardless of source row unit.
+                traj.obstacle.kf_vx = kf_vx * dt if vel_is_mps else kf_vx
+                traj.obstacle.kf_vy = kf_vy * dt if vel_is_mps else kf_vy
 
     # Prune stale tracks
     for tid in list(tracked_trajectories):
