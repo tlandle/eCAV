@@ -1462,8 +1462,12 @@ class BehaviorAgent(object):
             # A stopped lead is never PERCEIVED at exactly 0 (tracking jitter
             # ~0.5-2 km/h), so an == 0 test hands the PID vehicle_speed+1 and
             # the ego creeps into the lead's bumper (measured: 883 contact
-            # ticks grinding a stopped truck). Treat near-stopped as stopped.
-            target_speed = 0 if vehicle_speed < 2.0 else \
+            # ticks grinding a stopped truck). Treat near-stopped as stopped —
+            # except while an overtake is executing: the launch phase still
+            # sees the stopped subject on the early curved path, and a 0
+            # target deadlocks the maneuver into a corner-grind at the truck.
+            target_speed = 0 if (vehicle_speed < 2.0
+                                 and not self.do_overtake) else \
                 min(vehicle_speed + 1,
                     target_speed)
         return target_speed
