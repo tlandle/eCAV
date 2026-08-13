@@ -1466,10 +1466,17 @@ class BehaviorAgent(object):
             # except while an overtake is executing: the launch phase still
             # sees the stopped subject on the early curved path, and a 0
             # target deadlocks the maneuver into a corner-grind at the truck.
-            target_speed = 0 if (vehicle_speed < 2.0
-                                 and not self.do_overtake) else \
-                min(vehicle_speed + 1,
-                    target_speed)
+            if self.do_overtake and vehicle_speed < 2.0:
+                # Committed overtake of a stationary subject: the subject is
+                # constantly predicted (edge/GT), so this branch re-triggers
+                # every tick; following it at vehicle_speed+1 pins the launch
+                # to a 1-2 km/h creep into its corner. Proceed at the reduced
+                # overtake speed; the <3 m emergency stop still guards.
+                target_speed = min(25.0, target_speed)
+            elif vehicle_speed < 2.0:
+                target_speed = 0
+            else:
+                target_speed = min(vehicle_speed + 1, target_speed)
         return target_speed
 
     def left_turn_at_intersection(self, waypoint_buffer):

@@ -115,6 +115,11 @@ def build_gt_dets(carla_world,
         rng = math.hypot(dx, dy)
         if rng > max_range_m:
             continue
+        # Scenario actors park far below ground (z=-500) until triggered;
+        # the BEV range test would otherwise detect them pre-spawn and birth
+        # tracks at a bogus pose (measured: identity forked from it).
+        if abs(loc.z - anchor_z) > 30.0:
+            continue
         if occlusion_check and _los_blocked(
                 anchor_x, anchor_y, anchor_z + sensor_z,
                 loc.x, loc.y, loc.z + 0.8,
