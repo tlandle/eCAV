@@ -285,3 +285,30 @@ step produced.
 - Reuse the measured ns-3 / SEE-V2X latency path for B2 so backhaul is measured, not an
   injected constant (matches the safety-envelope methodology).
 - Collision signal: use `focal_collisions`, the `conflict_kinematics collision_flag` is dead.
+
+### Q7 Deployability: locale sizing, placement, and city-scale geometry (added 2026-08-13)
+
+The protocol questions (Q1-Q6) take locale geometry as given. Q7 answers the
+design questions the locale model raises: what is the appropriate locale
+sizing, where do boundaries go, and does the partition work at city scale.
+
+- Partition rule (Design section): locales anchor on conflict zones (junction
+  centers, merges); a boundary never sits at a conflict — it is placed in the
+  plain stretch at maximal road-graph distance from both adjacent conflicts
+  (midpoint of each inter-junction road). Sizing is DERIVED, not chosen: each
+  migration protocol imposes a minimum boundary-to-conflict separation
+  D* = v x T_recover; ours makes D* ~ 0 so sizing follows load/coverage
+  instead of the migration protocol. That inversion is the sizing claim.
+- Method: offline map study, no perception or MTR dependency. Extract the
+  road graph + junctions from CARLA towns (validation: Town01, our scenario;
+  city-like: Town03/Town05), apply the rule, measure per-boundary
+  conflict separations and per-locale road length.
+- Outputs: (a) partitioned-map figure (locales, anchors, boundary points);
+  (b) separation distribution with each protocol's D* overlaid at
+  residential (8.3 m/s) and arterial (14 m/s) speeds -> fraction of a real
+  map's boundaries each protocol can serve safely; (c) per-locale load stats.
+- Tooling: ecav/scenario_testing/utils/locale_partition.py (map -> partition
+  -> metrics/figures). Extend later with OSM district extracts and measured
+  crossing rates (ties into Q5 load).
+- Depends: none (runs offline against a CARLA server). Status: tooling built
+  and first measured results produced 2026-08-13.
