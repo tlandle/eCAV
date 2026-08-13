@@ -2814,3 +2814,54 @@ re-copy to PACE scratch when it returns. Car-only finetune config exists
 45 epochs, lr 1e-4, root_dir /tmp/Multi-V2X. export_wf_for_mtr.py exports WF
 features for MTR (not WF detection training data); adding new close-range
 oncoming samples for WF needs Multi-V2X-format PCD+GT generation from the sim.
+
+## GT-control day: velocity units root-caused; creep fix; figures (2026-08-12)
+
+PACE confirmed down (login node prints the Aug 11-13 maintenance banner and
+closes; back Aug 14; verify with ssh tlandle3@login-phoenix.pace.gatech.edu).
+Local day per Tyler: GT-controlled scenario verification, expected-result
+figures, local data.
+
+GT-control scenario built: openscenario_1_accel_gt (.py/.yaml), GT injection
+enabled BOTH edges with max_range_m 50 — sensing = ~50 m around each RSU, so
+RSU0 (x=325) cannot see the approach stretch (x 240-275) and the commit
+decision must run on migrated state; RSU2 (x=205) tracks the approach
+perfectly. This is the honest "control the detections for occlusions" (the
+truck does not geometrically block RSU0's sightline; it is range/recall that
+fails there, so a range limit is the right control).
+
+Chain of defects found+fixed via GT control (all committed, cb9888f4):
+1. Velocity frame-units are cadence-dependent: tracker frames arrive per
+   detection payload (WF: one per edge cycle 0.2 s; GT: one per sim tick
+   0.05 s). Downstream /0.2 conversion under-read GT-fed speed 4x (12 ->
+   2.94 m/s), landing exactly on the gate's stationary filter (<3). Fix:
+   wrapper measures source-tick stride (EMA), emits velocity in m/s, marks
+   rows with col-13 flag=1; both trajectory builders honor the flag
+   (track_utils + WF manager); AB3DMOT rows unchanged.
+2. Migrated coast cadence mismatch: memo diffs are SOURCE-cadence; the
+   destination dead-reckoned 2x slow (track lagged 12 m behind the real
+   vehicle), so on re-entering sensing the new detection missed the 8 m
+   re-acquisition gate -> identity forked -> immature-track garbage
+   predictions. Fix: TrackLatent carries vel_mps; destination dead-reckons in
+   seconds (tracklet predict uses _migrated_vel_mps x live spf; wrapper
+   publishes cfgs['_spf_live']); cleared on first fresh observation.
+   CONFIRMED: destination coast now advances at ~11.9 m/s (true 12).
+3. Bumper creep into stopped lead: car_following_manager's `vehicle_speed ==
+   0` test never fires on perceived speed (jitter 0.5-2 km/h), PID gets
+   vehicle_speed+1 -> ego grinds the truck (883 contact ticks, poisons every
+   arm's collision count). Fix: threshold <2 km/h.
+Also confirmed: gate logic WAITs correctly when fed the migrated prediction
+(21m<46m WAIT observed with correct geometry+speed+identity).
+
+Figures delivered to Tyler (scratchpad figs/): measured seed-sweep vs
+PROJECTED post-retrain arms (hatched); snapshot-error mechanism projection;
+measured WF confidence distributions (epoch27 vs car-only) = retrain
+motivation. Projections clearly labeled, internal planning only.
+
+IN FLIGHT: GT-control warm vs kf with ONCOMING_ACCEL (two-phase: cruise 5,
+floor 16 when ego nears conflict — ties the oncoming's arrival to the ego's
+window regardless of ego pace). Expected: warm WAITs (m/s latent -> correct
+arrival) and 0 collisions; kf (memo=1, no velocity) -> frozen prediction
+filtered as clutter -> GO -> collision. This is the scenario-mechanics
+validation Tyler asked for ("make sure our scenarios actually do what we
+want if we use gt data").
