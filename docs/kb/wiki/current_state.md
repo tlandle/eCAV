@@ -2865,3 +2865,16 @@ arrival) and 0 collisions; kf (memo=1, no velocity) -> frozen prediction
 filtered as clutter -> GO -> collision. This is the scenario-mechanics
 validation Tyler asked for ("make sure our scenarios actually do what we
 want if we use gt data").
+
+## Update: accel-profile GT pair outcome + paper mockups (2026-08-13)
+
+The in-flight GT warm/kf pair (ONCOMING_ACCEL) did NOT produce the flip: both
+arms grind the truck ~880 contact ticks and the gate never receives the
+oncoming's prediction (npreds 1-2). Migration-independent overtake-launch
+stall + missing broadcast of the slow-cruise oncoming; diagnosis queued (see
+raw/sessions/2026-08-13.md for the exact plan). The constant-12 GT run (gtc4)
+remains the best state: dead-reckon 11.9 m/s correct, only the (now-fixed)
+truck-grind collision left. Paper-eval mockups (P1 sizing, P2 protocol
+timeline, P3 scale envelope) delivered; first diagnostic-altitude set was
+wrong per Tyler — eval figures must carry the paper's claims (EdgeWarp
+contrast, locale sizing, scale), not debugging telemetry.
