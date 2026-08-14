@@ -333,7 +333,9 @@ class BehaviorAgent(object):
             _key = ('c', int(_cid)) if (_cid is not None and _cid >= 0) \
                 else ('t', getattr(_obs, 'track_id', id(_p)))
             _cache[_key] = (_tick, _p)
-        _HOLD = 8  # ego ticks (~0.4 s)
+        _HOLD = 24  # ego ticks (~1.2 s): must cover the edge's worst-case
+        # broadcast gap for a risk-budgeted track, else a momentary absence
+        # reads as a clear road at the commit gate
         for _k in [k for k, (tk, _) in _cache.items() if _tick - tk > _HOLD]:
             _cache.pop(_k, None)
         merged = [pr for (tk, pr) in _cache.values()]
@@ -1045,6 +1047,20 @@ class BehaviorAgent(object):
     # displacement into a closing speed for the overtake ETA.
     _PRED_STEP_S = 0.2
 
+    def _subject_passed(self, margin_m: float = 3.0) -> bool:
+        """True when the committed overtake subject is behind the ego by
+        margin_m along the ego heading. The return-to-lane phase must key on
+        this, never on a timer: a mid-maneuver stall (RSS hold) used to
+        exhaust the timer and steer the return path into the subject."""
+        loc = getattr(self, '_overtake_subject_loc', None)
+        if loc is None or self._ego_pos is None:
+            return True  # no subject recorded; do not deadlock the return
+        ex, ey = self._ego_pos.location.x, self._ego_pos.location.y
+        eyaw = math.radians(self._ego_pos.rotation.yaw)
+        ahead = ((loc[0] - ex) * math.cos(eyaw)
+                 + (loc[1] - ey) * math.sin(eyaw))
+        return ahead < -margin_m
+
     def _nearest_oncoming_ahead(self):
         """(distance_m, closing_speed_mps) of the nearest oncoming vehicle in
         the opposing (adjacent) lane ahead of the ego; (+inf, 0.0) if none.
@@ -1691,7 +1707,12 @@ class BehaviorAgent(object):
         # ttc reset to 1000 at the beginning
         self.ttc = 1000
         # when overtake_counter > 0, another overtake/lane change is forbidden
-        if self.overtake_counter > 0 and not self.overtake_other_direction:
+        if self.overtake_counter > 0 and not self.overtake_other_direction \
+                and self._committed_brake_ttl <= 0:
+            # Do not burn maneuver time while RSS proper response has the ego
+            # stopped: the timer expiring mid-stall advanced the state machine
+            # to return-to-lane while still behind the subject (measured:
+            # return path rejoined into the truck at 11 m/s).
             self.overtake_counter -= 1
 
         # we reset destination push flag for every n rounds
@@ -1960,7 +1981,8 @@ class BehaviorAgent(object):
             return 0, None
 
         if not is_hazard:
-            if self.overtake_counter > 0 and self.overtake_other_direction:
+            if self.overtake_counter > 0 and self.overtake_other_direction \
+                    and self._committed_brake_ttl <= 0:
                 self.overtake_counter -= 1
             self.hazard_flag = False
 
@@ -2138,9 +2160,19 @@ class BehaviorAgent(object):
                                               f"pos=({_t[0].location.x:.1f},"
                                               f"{_t[0].location.y:.1f}) "
                                               f"spd={getattr(_o, 'kf_speed_mps', 0.0):.1f}")
-                            if _clear < _need:
+                            if _clear >= _need:
+                                self._ot_go_streak = getattr(
+                                    self, '_ot_go_streak', 0) + 1
+                            else:
+                                self._ot_go_streak = 0
+                            if _clear < _need or self._ot_go_streak < 2:
+                                # Two consecutive clear evaluations required:
+                                # a single instantaneous "clear" can be a
+                                # broadcast gap, and committing on it put the
+                                # ego into the closing oncoming (measured).
                                 self.overtake_wait_counter = \
-                                    self.overtake_wait_time / 2
+                                    self.overtake_wait_time / 2 \
+                                    if _clear < _need else 6
                                 self.num_overtake_collisions = 0
                                 if obstacle_speed < 1.0:
                                     return 0, None
@@ -2158,7 +2190,8 @@ class BehaviorAgent(object):
                     car_following_flag = True
                 end_time_9 = time.time()
         # return to other lane if overtaking
-        elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0:
+        elif self.overtake_counter <= 0 and self.overtake_other_direction and len(self.overtake_end_wpts) > 0 \
+                and self._subject_passed():
             self.overtake_counter = 100 # perform another lane change
 
             # DEBUG: Breakpoint when returning from overtake
