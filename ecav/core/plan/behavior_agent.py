@@ -1445,6 +1445,17 @@ class BehaviorAgent(object):
 
         vehicle_speed = get_speed(vehicle)
 
+        # Deterministic standoff behind a STOPPED lead: stop the approach at
+        # ~15 m center distance (~8 m bumper gap) instead of letting RSS
+        # emergency braking pick the stop point. RSS braking from full speed
+        # halts anywhere from 8 m down to <1 m bumper gap run-to-run, and an
+        # overtake launched from a sub-2 m gap clips the subject's corner
+        # while steering out (measured). Not applied during the launch
+        # itself, where distance shrinks as the ego pulls alongside.
+        if (not self.do_overtake and vehicle_speed < 2.0
+                and distance < 15.0):
+            return 0
+
         delta_v = max(1, (self._ego_speed - vehicle_speed) / 3.6)
         ttc = distance / delta_v if delta_v != 0 else distance / \
                                                       np.nextafter(0., 1.)
