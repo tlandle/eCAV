@@ -6,14 +6,46 @@ the evidence for the dual-state-model claim: architectures that look
 equivalent under GT separate under real perception. Scenarios must be chosen
 so the divergence is large, mechanistic, and sweepable, not incidental.
 
-## Arms
+## Arms: a contributor-count ladder, not a binary
 
-| Arm | Configuration | What it isolates |
+The primary axis is K, the number of perception-enabled vehicles
+contributing to the edge stack. The difference between ego-only and
+all-vehicles perception exists only THROUGH the cooperative stack (with no
+sharing, other vehicles' perception changes nothing for the ego), and
+divergence from GT is expected to be non-monotonic in K: information
+improves (complementary vantages, sub-threshold evidence combines), while
+timing degrades (compute and payload per contributor) and noise accumulates
+(false positives). Divergence-vs-K at fixed scenario and weather is the
+headline figure.
+
+| Rung | Configuration | Status |
 |---|---|---|
-| A | GT injection everywhere (world-queried state, zero perception compute) | the oracle baseline |
-| B | Ego-only local perception; all other actors GT/scripted | single-vehicle sensing error on the ego's own loop |
-| C | All vehicles + RSU sensor-derived, full edge stack (fusion, tracking, prediction) | the deployed configuration |
-| C-lat (control) | GT content injected but stamped with arm-C measured latencies | separates the two divergence channels |
+| A | GT injection, skip_model (zero fusion compute) | built: openscenario_1_e6a_oracle |
+| C-lat | GT content + real arm-C latency (existing injection semantics) | built: openscenario_1_e6clat_gt_latency |
+| B | Ego-local perception, no edge (no-cooperation endpoint) | built: openscenario_1_e6b_ego_local |
+| C-K1 | Edge stack, RSU + ego the only contributor | IS the existing openscenario_1_edge_worldfusion |
+| C-K2..N | Edge stack + observer CAVs contributing | needs the build path below |
+
+### C-K2 build path (needs one live iteration)
+
+CAV actors are NOT spawned from config (that sim_api path is commented
+out); managed CAVs bind by index to actors the scenario-runner XML spawns.
+Adding an observer contributor therefore takes three coordinated changes:
+1. XML: new scenario_1_e6k2.xml = scenario_1.xml + one parked vehicle at
+   the observer point. Geometry: truck at (278, 195.4) westbound; ego from
+   (317, 195.4); Leons eastbound along y=199. Observer on the south
+   shoulder at roughly (258, 192, 0.3) yaw 0: clear view along the
+   oncoming lane past the truck, off both driving lanes.
+2. Scenario behavior py (scenarios/scenario_1.py): leave the observer
+   static (no trigger); verify the behavior tree tolerates an unused actor.
+3. Config: cav2 entry mirroring cav1 (worldfusion backend, destination at
+   its own position), num_actors incremented; verify index binding picks
+   the right actor on the first smoke run (this is the risk; the smoke
+   run's checks: bind order, spawn clean, contributor count visible in the
+   edge's num_agents log line).
+
+K>2 repeats the pattern with more observers; scenario_1_dense.xml already
+adds Leons (traffic), not contributors, and stays the clutter dial for S5.
 
 The C-lat control matters: sensor-derived state diverges from GT through two
 channels, information (what is known: misses, late detections, false

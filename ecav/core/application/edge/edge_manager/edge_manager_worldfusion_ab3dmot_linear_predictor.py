@@ -132,10 +132,16 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._gt_max_range_m = float(gt_cfg.get('max_range_m', 70.0))
         self._gt_exclude_managed = bool(gt_cfg.get('exclude_managed', True))
         self._gt_occlusion = bool(gt_cfg.get('occlusion_check', False))
+        # skip_model: bypass the fusion forward pass entirely (oracle arm).
+        # Default False preserves the original semantics: model runs, its
+        # compute latency and payload stay realistic, output is replaced
+        # (that mode is the E6 "C-lat" control: GT content, arm-C latency).
+        self._gt_skip_model = bool(gt_cfg.get('skip_model', False))
         if self._gt_inject_enabled:
             print(f"[WorldFusion Edge] GT detection injection ENABLED "
                   f"(max_range={self._gt_max_range_m}m, "
-                  f"exclude_managed={self._gt_exclude_managed})")
+                  f"exclude_managed={self._gt_exclude_managed}, "
+                  f"skip_model={self._gt_skip_model})")
 
         # Load WorldFusion model. Multi-edge sims load byte-identical
         # checkpoints per edge; share one eval-mode instance per checkpoint
@@ -554,28 +560,39 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
             # 3. Stack features and compute pairwise transforms
             with frame.time("fusion"):
-                torch.cuda.empty_cache()
-                spatial_features = torch.cat(
-                    [d['spatial_features'] for d in feature_dicts], dim=0
-                ).float().cuda()
+                if self._gt_inject_enabled and self._gt_skip_model:
+                    # Oracle arm: GT replaces the model output entirely, so the
+                    # forward pass is skipped and fusion contributes no compute
+                    # latency. Tracking and prediction still run downstream.
+                    fused_feature, pred_dict = None, None
+                else:
+                    torch.cuda.empty_cache()
+                    spatial_features = torch.cat(
+                        [d['spatial_features'] for d in feature_dicts], dim=0
+                    ).float().cuda()
 
-                pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
-                record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
+                    pairwise_t_matrix = self._compute_world_pairwise_transforms(poses)
+                    record_len = torch.tensor([len(feature_dicts)], dtype=torch.int64).cuda()
 
-                # 4. Run backbone + Where2comm fusion
-                with torch.no_grad():
-                    fused_feature, pred_dict = self._run_fusion(
-                        spatial_features, pairwise_t_matrix, record_len
-                    )
-                # Hand the fused BEV context to the predictor (MTR uses it;
-                # the linear predictor has no such hook). Without this the
-                # predictor previously fell back to a placeholder tensor.
-                if fused_feature is not None and hasattr(self.predictor, 'set_fused_feature'):
-                    self.predictor.set_fused_feature(fused_feature.detach())
+                    # 4. Run backbone + Where2comm fusion
+                    with torch.no_grad():
+                        fused_feature, pred_dict = self._run_fusion(
+                            spatial_features, pairwise_t_matrix, record_len
+                        )
+                    # Hand the fused BEV context to the predictor (MTR uses it;
+                    # the linear predictor has no such hook). Without this the
+                    # predictor previously fell back to a placeholder tensor.
+                    if fused_feature is not None and hasattr(self.predictor, 'set_fused_feature'):
+                        self.predictor.set_fused_feature(fused_feature.detach())
 
             # 5. Post-process to get detections in world frame
             with frame.time("detection"):
-                det_results = self._to_ab3dmot_format(pred_dict, frame_id)
+                if pred_dict is None:
+                    # skip_model path: placeholder immediately replaced by the
+                    # GT injection below (skip_model implies injection enabled).
+                    det_results = {'dets': [], 'info': [], 'scores': [], 'frame': frame_id}
+                else:
+                    det_results = self._to_ab3dmot_format(pred_dict, frame_id)
                 num_dets = len(det_results.get('dets', []))
 
                 # 5.1 Optional GT injection: replace model output with simulator

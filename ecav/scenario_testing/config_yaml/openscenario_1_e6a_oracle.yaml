@@ -1,0 +1,358 @@
+description: |-
+  Blind overtake (Scenario 1, Town01) on the WorldFusion + MTR stack.
+  Ego overtakes a stopped firetruck using the oncoming lane; oncoming
+  traffic is occluded by the truck. Single-locale stage; two-locale
+  (cross-edge handoff) variant follows.
+
+scenario_name: openscenario_1_e6a_oracle
+
+distributed: false
+define: &perception_is_active true
+perception_active: *perception_is_active
+
+world:
+  sync_mode: true
+  client_host: &host localhost
+  client_port: &port 2000
+  fixed_delta_seconds: 0.05
+  seed: 11
+  weather:
+    sun_altitude_angle: 75
+    cloudiness: 0
+    precipitation: 0
+    precipitation_deposits: 0
+    wind_intensity: 0
+    fog_density: 0
+    fog_distance: 0
+    fog_falloff: 0
+    wetness: 0
+
+carla_traffic_manager:
+  sync_mode: true
+  global_distance: 5.0
+  # Near-stopped background traffic so it adds scene density without
+  # interfering with the ego/Lincoln LTAP dynamics.
+  global_speed_perc: -95
+  set_osm_mode: true
+  auto_lane_change: false
+  random: true
+  ignore_lights_percentage: 0
+  vehicle_list: []
+
+ego_vehicle_max_speed: 43
+
+scenario_runner:
+  town: town01
+  scenario: Scenario_1
+  num_actors: 4
+  configFile: ecav/scenario_testing/scenarios/scenario_1.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_1.py
+  host: *host
+  port: *port
+  timeout: 360   # wall-clock watchdog; the pipeline runs ~0.3 s/tick
+  debug: false
+  sync: false
+  repetitions: 1
+  agent: null
+  openscenario: null
+  route: null
+  reloadWorld: false
+  waitForEgo: false
+  trafficManagerPort: '8000'
+  trafficManagerSeed: '0'
+  record: ''
+  agentConfig: ''
+  file: false
+  json: false
+  junit: false
+  list: false
+  openscenarioparams: null
+  output: false
+  outputDir: ''
+  randomize: false
+  vehicle_index: 0
+
+# Minimal vehicle config for low VRAM
+vehicle_base: &vehicle_base
+  sensing: &base_sensing
+    perception: &base_perception
+      activate: true
+      camera:
+        visualize: 0
+        num: 4
+        image_width: 800
+        image_height: 600
+        fov: 70
+        positions:
+          - [ 1.5,  0.0, 1.7,   0]
+          - [ 0.0, -1.5, 1.7, -90]
+          - [ 0.0,  1.5, 1.7,  90]
+          - [-1.5,  0.0, 1.7, 180]
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1300000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -30.0
+        dropoff_general_rate: 0.1
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.15
+        noise_stddev: 0.02
+    localization: &base_localize
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.5
+        noise_lat_stddev: 1.5e-6
+        noise_lon_stddev: 1.5e-6
+        heading_direction_stddev: 1.0
+        speed_stddev: 0.5
+      debug_helper: &loc_debug_helper
+        show_animation: false
+        x_scale: 1.0
+        y_scale: 1.0
+  behavior: &base_behavior
+    prediction_mode_top_k: 2   # A/B arm 2: top-2 sweep
+    max_speed: 43
+    tailgate_speed: 121
+    speed_lim_dist: 3
+    speed_decrease: 15
+    safety_time: 4
+    emergency_param: .4
+    ignore_traffic_light: true
+    overtake_allowed: true
+    collision_time_ahead: 2
+    overtake_counter_recover: 35
+    sample_resolution: 4.5
+    local_planner: &base_local_planner
+      buffer_size: 12
+      trajectory_update_freq: 15
+      waypoint_update_freq: 9
+      min_dist: 3
+      trajectory_dt: 0.20
+      debug: false
+      debug_trajectory: false
+  controller: &base_controller
+    type: pid_controller
+    args: &control_args
+      lat:
+        k_p: 0.75
+        k_d: 0.02
+        k_i: 0.4
+      lon:
+        k_p: 0.37
+        k_d: 0.024
+        k_i: 0.032
+      dynamic: false
+      dt: ${world.fixed_delta_seconds}
+      max_brake: 1.0
+      max_throttle: 1.0
+      max_steering: 0.3
+  v2x: &base_v2x
+    enabled: true
+    communication_range: 35
+    loc_noise: 0.0
+    yaw_noise: 0.0
+    speed_noise: 0.0
+    lag: 0
+  map_manager:
+    pixels_per_meter: 2
+    raster_size: [224, 224]
+    lane_sample_resolution: 0.1
+    visualize: false
+    activate: true
+  safety_manager:
+    print_message: true
+    collision_sensor:
+      history_size: 30
+      col_thresh: 1
+    stuck_dector:
+      len_thresh: 500
+      speed_thresh: 0.5
+    offroad_dector: []
+    traffic_light_detector:
+      light_dist_thresh: 20
+
+rsu_base: &rsu_base
+  sensing:
+    perception:
+      activate: true
+      backend: worldfusion
+      camera:
+        visualize: 0
+        num: 0
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1300000
+        rotation_frequency: 20
+        upper_fov: 0.0
+        lower_fov: -40.0
+        dropoff_general_rate: 0.1
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.15
+        noise_stddev: 0.02
+    localization:
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+
+ecloud:
+  num_servers: 2
+  server_ping_time_s: 0.005
+  client_world_time_factor: 0.9
+  client_ping_spawn_s: 0.05
+  client_ping_tick_s: 0.005
+
+edge_base: &edge_base
+  max_capacity: 10
+  inter_gap: 0.6
+  open_gap: 1.2
+  warm_up_speed: 55
+  change_leader_speed: false
+  leader_speeds_profile: [85]
+  stage_duration: 10
+  target_speed: 100
+  edge_dt: 0.2
+  search_dt: 2
+  latency: 0.0
+  jitter_std: 0.0
+  latency_distribution: hybrid
+  edge_sets_destination: false
+  uplink_packet_loss_pct: 0.0
+  downlink_packet_loss_pct: 0.0
+  mode: PREDICTION
+
+scenario:
+  edge_list:
+    - <<: *edge_base
+      manager_type: worldfusion_mamba_adaptive
+      tracker_cfg:
+        motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
+        filter_thresh: 0.05
+        new_track_thresh: 0.2
+        # IoU-DISTANCE threshold in [0,1] (1-IoU); 5.0 saturates the
+        # gate and randomizes assignment among zero-overlap pairs.
+        match_thresh: 0.95
+        max_time_lost: 60
+        # Unreachable threshold = CV (last-delta) gating for all
+        # tracklets; the mamba motion model miscoasts at 0.2 s steps
+        # (fragmentation). Latent/memo state still accumulates.
+        enable_time_thresh: 1000000
+        max_window: 10
+        lost_match_dist_m: 2.0
+
+      # Multi-V2X trained WorldFusion checkpoint
+      worldfusion_model:
+        hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
+        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+        # mover det scores straddle the model default (0.15) and flicker
+        score_threshold: 0.10
+
+      predictor_type: mtr
+      mtr_predictor:
+        cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
+        # Stage-1 MTR trained on WorldFusion detections (Multi-V2X, no
+        # aggregator). minADE 1.39 m / MR 0.221 offline (job 10856291).
+        checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth
+        cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml
+        intention_points_file: ecav/ml_manager/models/mtr_wf_mamba/multiv2x_cluster_64_center_dict.pkl
+        dataset: multiv2x
+        aggregator: 'None'
+        past_frames: 10
+        future_frames: 25
+        time_interval: 0.2       # model step (5 Hz training rate)
+        history_subsample: 1     # WF tracker steps at fusion cadence (0.2 s)
+                                 # already = the model frame; 4 gave 0.8 s pasts
+        lane_map: auto           # render RSU-zone raster from the CARLA map
+        lane_range_m: 90.0
+        device: cuda
+        budget_ms: 50.0
+        enable_amortization: true
+        enable_risk_budget: true
+
+      adaptive_controller:
+        enabled: true
+        deadline_ms: 130.0
+
+      # GT detection injection: bypass perception model output, feed simulator
+      # ground-truth actor poses to the AB3DMOT tracker. Model still runs, so
+      # its compute time and ns-3 payload contribute realistic AoI. Used in
+      # paper closed-loop runs to isolate scheduler/AoI impact on safety.
+      gt_detection_injection:
+        enabled: true
+        max_range_m: 120.0
+        exclude_managed: true
+        occlusion_check: false
+        skip_model: true
+
+      world_anchor: [295.0, 200.0, 0.0, 0.0, 0.0, 0.0]
+
+      rsus:
+        - <<: *rsu_base
+          name: rsu1
+          spawn_position: [295.0, 200.0, 3.0]
+          sensing:
+            perception:
+              activate: true
+              backend: worldfusion
+              worldfusion_model:
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+              camera:
+                visualize: 0
+                num: 4
+                image_width: 800
+                image_height: 600
+                fov: 70
+                positions:
+                  - [2.5, 0.0, 1.0, 0]
+                  - [0.0, 0.3, 1.8, 100]
+                  - [0.0, -0.3, 1.8, -100]
+                  - [-2.0, 0.0, 1.5, 180]
+              lidar:
+                visualize: false
+                channels: 64
+                range: 120
+                points_per_second: 1300000
+                rotation_frequency: 20
+                upper_fov: 0.0
+                lower_fov: -40.0
+                dropoff_general_rate: 0.1
+                dropoff_intensity_limit: 0.7
+                dropoff_zero_intensity: 0.15
+                noise_stddev: 0.02
+            localization:
+              activate: true
+              dt: 0.05
+              gnss:
+                noise_alt_stddev: 0.05
+                noise_lat_stddev: 3.0e-6
+                noise_lon_stddev: 3.0e-6
+          id: -1
+
+      vehicles:
+        # Ego vehicle (cav1): westbound, overtakes the stopped truck
+        - <<: *vehicle_base
+          name: cav1
+          destination: [-28.8, 134.7, 0.5]
+          sensing:
+            <<: *base_sensing
+            perception:
+              <<: *base_perception
+              backend: worldfusion
+              worldfusion_model:
+                hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
+                checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+            localization:
+              <<: *base_localize
+
+        # NOTE: Additional CAVs require separate CARLA actors spawned
+        # via scenario_runner XML or start_actors.sh. For smoke test,
+        # 1 RSU + 1 CAV (ego) is the minimum viable configuration.
