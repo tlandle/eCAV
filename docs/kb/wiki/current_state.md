@@ -2946,3 +2946,20 @@ logs; (b) consider classifying collisions by partner (truck-graze at launch
 vs oncoming conflict) as separate metrics REPORTED SEPARATELY, since the
 launch defect is migration-independent and hits all arms; discuss with Tyler
 first. Harness continues detached; check eval_arms_v2.csv.
+
+## v3 full table: launch defect dominates and inverts the arms (2026-08-14)
+
+warm [2,1,1,1] kf [1,1,4,1] ~870-tick truck-grind signature; reactive
+[3,0,0,0] edgewarp [0,0,0,0] cold [0,5,0,0] mostly clean (their nonzero rows
+are short-signature conflict collisions, 208-353 ticks). Reading: arms with an
+EARLY migrated track (warm, kf) WAIT on the oncoming, then a presence gap
+lets commit fire mid-window; an RSS latch stalls the launch; the TIME-based
+overtake counter expires while stalled and the state machine advances to
+return-to-lane INTO the truck (tick-trace in evalv3_warm_1). Blind arms
+(edgewarp, cold) commit later, after the oncoming passed, and launch clean —
+the table currently measures the launch state-machine defect, not migration
+content. The three fixes (progress-based phases; RSS abort cancels overtake;
+gate requires continuously-observed-clear, hold window ~24 ticks) are
+REQUIRED before the safety table is meaningful. EdgeWarp naming decision:
+MIGRATION_MODE=edgewarp is THE named baseline (Tyler). Transfer to PACE in
+flight. Next session: implement the 3 fixes, re-run the 5-arm table.
