@@ -2931,3 +2931,18 @@ occlusion-aware GT instrument -> eval_arms_results.csv. This is the first
 REAL Q4 dataset. Next: reactive arm validates timing axis; then Q2 payload
 sweep (history_depth), Q3 trigger sweep (lookahead), accel-profile content
 axis, seeds.
+
+## v2 harness: launch grind persists ~50% despite standoff fix (2026-08-13)
+
+Clean serial v2 harness (4 arms x 4, eval_arms_v2.csv). Partial: warm
+[2,0,2,0], reactive [0,8]. The 87x-tick truck-grind persists in ~half of
+warm runs (standoff fix insufficient: stop point still varies; launch from a
+tight gap clips the truck corner). reactive rep2=8/706 unexamined. The
+migration mechanism is PROVEN (validated warm run: WAIT on predicted arrival,
+0 collisions; kf blind -> collides), but the overtake LAUNCH reliability is
+the remaining noise floor masking arm separation. Next: (a) diagnose launch
+variance (stop-point distribution, corner clearance) in evalv2_warm_1/3
+logs; (b) consider classifying collisions by partner (truck-graze at launch
+vs oncoming conflict) as separate metrics REPORTED SEPARATELY, since the
+launch defect is migration-independent and hits all arms; discuss with Tyler
+first. Harness continues detached; check eval_arms_v2.csv.
