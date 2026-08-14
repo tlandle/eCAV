@@ -29,8 +29,8 @@ protocol can serve a boundary only if the separation D between the
 boundary and the conflict satisfies D >= v * T_recover. We write the
 minimum separation as D*.
 
-This inverts the sizing question. With a reactive or cold protocol, D*
-dictates how small a locale can be: at 14 m/s a reactive handoff needs
+This inverts the sizing question. With EdgeWarp or a cold protocol, D*
+dictates how small a locale can be: at 14 m/s an EdgeWarp handoff needs
 29 m of clear road after every boundary, and a cold start needs 56 m.
 With predictive latent migration D* is under one meter, so locale size is
 set by load and radio coverage instead of by the migration protocol.
@@ -44,7 +44,7 @@ boundary-to-conflict separation is 21 to 25 m.
 
 The separation distribution answers the deployability question directly.
 A boundary is deployable for a protocol if its separation exceeds that
-protocol's D*. At residential speed (8.3 m/s), reactive migration can
+protocol's D*. At residential speed (8.3 m/s), EdgeWarp migration can
 serve 65 to 73 percent of boundaries and cold start 25 to 42 percent. At
 arterial speed (14 m/s), EdgeWarp serves 33 percent and cold start 18
 percent across both towns; on Town03 alone the shares fall to 27.5 and
