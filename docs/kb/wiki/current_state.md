@@ -2892,3 +2892,27 @@ arterial 14 m/s the deployable share is ours 100%, reactive 33%, cold 18%
 sizes; ours makes D* ~ 0 so sizing follows load/coverage. Figures q7a
 (partition map), q7b (separation histogram + D* overlays) delivered. Extend
 with OSM district + crossing rates later.
+
+## THE FLIP: warm 0 / kf 1 on occlusion-aware GT (2026-08-13)
+
+Chain of final fixes (all committed): GT LoS occlusion (BEV footprint +
+height check) with 60 m reliable range; GT z-filter (pre-spawn actors at
+z=-500 were detected by BEV range and forked identity); overtake launch
+proceeds at 25 km/h past a stationary subject; RSS proper-response exempts
+the COMMITTED OVERTAKE SUBJECT (with GT the always-predicted truck re-latched
+emergency stop on every pass attempt - 32 latches, ego pinned at the tail;
+the oncoming still triggers RSS normally).
+
+Result on openscenario_1_accel_gt (ONCOMING_SPEED=12, TRIGGER_DIST=300):
+- warm: 0 collision episodes. Gate trace is the designed behavior: migrated
+  occluded oncoming held at true speed (kf_speed 11.94 vs true 12),
+  need=76 m, WAIT while the dead-reckoned track closes 48->44->35->23 m,
+  clean pass after it clears. THE content-necessity mechanism works
+  end-to-end on the real stack with controlled perception.
+- kf (snapshot): gate blind (dbg=None; memo-1 latent has no velocity ->
+  stationary -> filtered), GO, 1 collision (867 contact ticks).
+IN FLIGHT: eval_arms.sh - 4 arms x 4 reps (warm/reactive/kf/cold) on the
+occlusion-aware GT instrument -> eval_arms_results.csv. This is the first
+REAL Q4 dataset. Next: reactive arm validates timing axis; then Q2 payload
+sweep (history_depth), Q3 trigger sweep (lookahead), accel-profile content
+axis, seeds.
