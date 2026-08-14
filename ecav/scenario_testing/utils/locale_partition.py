@@ -28,7 +28,7 @@ import carla
 # re-acquisition ~1 s + history depth ~2 s (see scale_out_evaluation.md Q7).
 PROTOCOLS = {
     "predictive latent (ours)": 0.05,
-    "reactive (EdgeWarp timing)": 2.05,
+    "EdgeWarp": 2.05,
     "cold (no migration)": 4.0,
 }
 SPEEDS = {"residential 8.3 m/s": 8.3, "arterial 14 m/s": 14.0}

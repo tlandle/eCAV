@@ -46,7 +46,7 @@ The separation distribution answers the deployability question directly.
 A boundary is deployable for a protocol if its separation exceeds that
 protocol's D*. At residential speed (8.3 m/s), reactive migration can
 serve 65 to 73 percent of boundaries and cold start 25 to 42 percent. At
-arterial speed (14 m/s), reactive serves 33 percent and cold start 18
+arterial speed (14 m/s), EdgeWarp serves 33 percent and cold start 18
 percent across both towns; on Town03 alone the shares fall to 27.5 and
 12.5 percent. Predictive latent migration serves every boundary at both
 speeds. Most of a real map's boundaries sit exactly in the separation
@@ -66,7 +66,7 @@ flow tie this study to the load evaluation (Q5).
   boundary at each inter-conflict midpoint.
 - Fig. separation: Boundary-to-conflict separations across Town01 and
   Town03 (n=66) against the minimum separation D* each protocol needs at
-  14 m/s. The median boundary (21-25 m) is below the reactive requirement
+  14 m/s. The median boundary (21-25 m) is below the EdgeWarp requirement
   (29 m); only predictive latent migration serves the full map.
 
 ## Notes for integration
