@@ -1836,7 +1836,22 @@ class BehaviorAgent(object):
         #                   (c) safety TTL expires (fallback upper bound)
         ego_loc = self._ego_pos.location if self._ego_pos else None
 
-        if is_hazard and self.ttc < self._collision_check.time_ahead:
+        # The committed overtake SUBJECT is exempt from proper response:
+        # passing it closely is the maneuver, and with edge/GT perception the
+        # stationary subject is predicted every tick, so RSS re-latched on it
+        # each time the ego moved to pass (measured: ego pinned at the truck
+        # tail for the whole run, 32 latches on cid=198). Every other threat,
+        # in particular the oncoming, still triggers proper response.
+        _rss_subject_exempt = False
+        if is_hazard and self.do_overtake and obstacle_vehicle is not None \
+                and getattr(self, '_overtake_subject_loc', None) is not None:
+            _ol = obstacle_vehicle.get_location()
+            _sx, _sy = self._overtake_subject_loc
+            if ((_ol.x - _sx)**2 + (_ol.y - _sy)**2) ** 0.5 < 4.0:
+                _rss_subject_exempt = True
+
+        if is_hazard and not _rss_subject_exempt \
+                and self.ttc < self._collision_check.time_ahead:
             # Enter proper response — record the threatening obstacle
             # and force emergency stop immediately (distance=0 bypasses
             # car_following → local_planner → PID, which only gives
