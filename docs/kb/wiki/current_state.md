@@ -2963,3 +2963,18 @@ gate requires continuously-observed-clear, hold window ~24 ticks) are
 REQUIRED before the safety table is meaningful. EdgeWarp naming decision:
 MIGRATION_MODE=edgewarp is THE named baseline (Tyler). Transfer to PACE in
 flight. Next session: implement the 3 fixes, re-run the 5-arm table.
+
+## Flow scenario + completion metrics (2026-08-14, Tyler's design)
+
+Metric set now: collision episodes + contact ticks + distance + time-to-
+completion + completed-within-deadline (gate.py COMPLETION line; harness v4
+CSV columns). Retroactive v3 completion: warm/kf stalled ~16 m/51 s (defect);
+blind arms ~82 m in 13-32 s (single-oncoming luck). NEW openscenario_1_flow_gt:
+8 oncoming at 60 m spacing (5 s headway at 12 m/s < blind clear-window) +
+scheduled end via scenario timeout; liveness = completion within deadline.
+Tyler: steady flow + deadline is more realistic than the single-oncoming
+scenario. RUN ORDER next session: (1) the 3 planner fixes (progress-based
+phases, RSS abort, continuous-clear gate); (2) 5-arm v4 harness on accel_gt;
+(3) 5-arm flow_gt (liveness axis: ours threads a predicted gap, blind arms
+time out or collide). PACE transfer still in flight (check pace_transfer.log,
+then untar + finetune launch per session log 08-13).
