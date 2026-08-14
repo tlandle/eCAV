@@ -207,7 +207,8 @@ class _PluggableEdgeBase(_BaseEdgeManager):
                 # KF carries. warm/default migrates the full memo history.
                 import os as _os
                 _hd = 1 if _os.environ.get(
-                    'MIGRATION_MODE', 'warm').lower() == 'kf' else None
+                    'MIGRATION_MODE', 'warm').lower() in ('kf', 'edgewarp') \
+                    else None
                 # Time-denominated ground velocity (m/s) from the source memo
                 # and the wrapper's measured frame cadence, so the destination
                 # dead-reckons correctly at its own cadence. The depth-1

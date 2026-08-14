@@ -1453,7 +1453,7 @@ class BehaviorAgent(object):
         # while steering out (measured). Not applied during the launch
         # itself, where distance shrinks as the ego pulls alongside.
         if (not self.do_overtake and vehicle_speed < 2.0
-                and distance < 15.0):
+                and distance < 25.0):
             return 0
 
         delta_v = max(1, (self._ego_speed - vehicle_speed) / 3.6)

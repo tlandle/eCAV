@@ -381,7 +381,7 @@ def run_scenario(opt, scenario_params):
                 # observed obstacle, and the tracker latent is all-dynamic
                 # (nothing to background-sync), so for this content it reduces
                 # to a blocking transfer at the boundary with no lead.
-                _lead = 0.0 if MIGRATION_MODE == "reactive" \
+                _lead = 0.0 if MIGRATION_MODE in ("reactive", "edgewarp") \
                     else OBSTACLE_HANDOFF_LOOKAHEAD_S
                 n_steps = int(_lead / world_dt) + 1
                 t_arr = np.arange(n_steps, dtype=np.float64) * world_dt
