@@ -5,6 +5,21 @@ updated: 2026-08-07
 
 Primary context-switching artifact. Read this first after a gap.
 
+## ISPASS E6 divergence ladder built (2026-08-13, commit c2cbb762)
+
+Design: docs/agent_plans/ispass_divergence_scenarios.md. Primary axis is K
+(perception-enabled contributor count), not a binary; divergence-vs-K is
+the headline figure. Built: skip_model knob in WorldFusionEdge (oracle arm
+pays no fusion compute; existing gt injection = C-lat control: GT content
++ real latency); arm configs openscenario_1_e6a_oracle / e6clat_gt_latency
+/ e6b_ego_local (C-K1 = existing edge_worldfusion); scripts/e6_sweep.sh
+(dry-run default, E6_GO=1 to execute, GPU-gated, idempotent, generates
+weather variants w1/w2 on the fly); scripts/e6_divergence_metrics.py
+(log parser, regexes need refining against first smoke run). C-K2+ needs
+one live iteration: CAVs bind by index to XML-spawned actors (config spawn
+path commented out), so observer contributors need XML + scenario-behavior
++ config changes, build path in the plan doc. NO RUNS YET (GPU gate).
+
 ## Papers block update (08-08/08-09): proposal comment rounds
 
 Three more Overleaf comment rounds merged and addressed (through 5ccee07):
