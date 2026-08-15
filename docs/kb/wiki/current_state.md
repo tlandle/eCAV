@@ -2978,3 +2978,22 @@ phases, RSS abort, continuous-clear gate); (2) 5-arm v4 harness on accel_gt;
 (3) 5-arm flow_gt (liveness axis: ours threads a predicted gap, blind arms
 time out or collide). PACE transfer still in flight (check pace_transfer.log,
 then untar + finetune launch per session log 08-13).
+
+## v4 stall root: below the behavior layer (2026-08-14)
+
+v4 warm rep1 trace: commit tick 220, do_ov latched, hazard_flag=False,
+ttc=1000 (NO behavior-level hold active — RSS/car-following/collision-manager
+subject exemptions all verified present: collision_manager pass-1/pass-2
+exempt _subject_loc, commit path exempts via _precheck_subject_loc), yet ego
+creeps 0.4-2.3 km/h from a 5 m gap into the truck corner and sits in contact
+to run end. The speed zeroing is BELOW the behavior branches: suspect the
+local planner's curvature-limited speed on the sharp launch path or an empty
+trajectory/waypoint buffer after set_global_plan (target ~0). ALSO: ego
+stopped at 283.7 again (5 m gap) — the 25 m standoff did not govern this
+run's approach; check why (car_following not the active branch during
+approach?). DECISIVE NEXT STEP (after flow table finishes; do not run
+concurrently): single warm run with BEHAVIOR_DEBUG=1 plus a per-tick
+[SPEED-DBG] target_speed trace at the branch-9/10/11 local_planner.run_step
+exits and inside local_planner (curvature limit) — identifies the emitting
+layer in one run. Flow table in flight (eval_flow_v1.csv); v4 complete
+(eval_arms_v4.csv, warm/kf 3-of-4 stall, reactive 4/4 clean 13-17 s).
