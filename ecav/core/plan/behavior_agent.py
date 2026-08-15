@@ -2242,7 +2242,8 @@ class BehaviorAgent(object):
             _ts_in = target_speed
             target_speed, target_loc = self._local_planner.run_step(
                 rx, ry, rk, target_speed=target_speed)
-            if os.environ.get('BEHAVIOR_DEBUG'):
+            import os as _osd
+            if _osd.environ.get('BEHAVIOR_DEBUG'):
                 print(f"[SPD-DBG] br=follow do_ov={self.do_overtake} "
                       f"ts_in={_ts_in} ts_out={target_speed:.1f}")
             end_time = time.time()
@@ -2255,7 +2256,8 @@ class BehaviorAgent(object):
         
         # 11. Normal behavior
         start_time = time.time()
-        if os.environ.get('BEHAVIOR_DEBUG') and self.do_overtake:
+        import os as _osd2
+        if _osd2.environ.get('BEHAVIOR_DEBUG') and self.do_overtake:
             print(f"[SPD-DBG] br=normal do_ov=True entering planner")
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
