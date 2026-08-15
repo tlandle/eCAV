@@ -2239,8 +2239,12 @@ class BehaviorAgent(object):
                 return 0, None
 
             target_speed = self.car_following_manager(obstacle_vehicle, distance, target_speed)
+            _ts_in = target_speed
             target_speed, target_loc = self._local_planner.run_step(
                 rx, ry, rk, target_speed=target_speed)
+            if os.environ.get('BEHAVIOR_DEBUG'):
+                print(f"[SPD-DBG] br=follow do_ov={self.do_overtake} "
+                      f"ts_in={_ts_in} ts_out={target_speed:.1f}")
             end_time = time.time()
             self.planning_metrics.update_agent_step_list(10, end_time-start_time)
             logger.debug("step 10 complete - following and exiting")
@@ -2251,6 +2255,8 @@ class BehaviorAgent(object):
         
         # 11. Normal behavior
         start_time = time.time()
+        if os.environ.get('BEHAVIOR_DEBUG') and self.do_overtake:
+            print(f"[SPD-DBG] br=normal do_ov=True entering planner")
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)
