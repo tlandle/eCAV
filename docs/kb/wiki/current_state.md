@@ -3042,3 +3042,18 @@ shortcut and NOT a finetune base. CONSEQUENCE: the launched PACE finetune
 to 80 epochs) remains the correct job. If recall is still short after it,
 the lever is new sim-generated close-range training data, not another
 checkpoint hunt.
+
+## caronly_ndm QUARANTINED; checkpoint discipline (2026-08-16)
+
+PROVENANCE_UNKNOWN.md added to worldfusion_multiv2x_caronly_ndm: .pth files
+(Jun 16) postdate the folder's config/result.txt (Apr 19) by two months,
+origin unrecorded; NOT trained on the NDm despite the name (Tyler); dataset
+unconfirmed; no translation aug. Its probe numbers (ep16 0.820 etc.) must
+not be cited. My earlier KB note this session claiming "Atlas-trained ndm-
+lineage" was ALSO wrong — treat provenance as unknown, full stop. Checkpoint
+record for all current tables (v5 accel, flow v2): GT instrument (no WF
+model in the loop for detection; WF model loaded = caronly_aug ep39 via
+thresh02 symlink but outputs replaced by GT injection). The same-data PACE
+finetune chain was stopped per Tyler: the required change is TRAINING DATA
+(sim-generated representative samples: RSU mast viewpoint, close-range
+oncoming, our towns), not more epochs on the same distribution.
