@@ -3013,3 +3013,17 @@ reachable. VALIDATED: warm completes 93.5 m/11.8 s clean and 95 m/19.7 s
 (one 24-tick graze, residual to check). The 870-tick grind is eliminated.
 v5 tables relaunched (eval_arms_v5.csv then eval_flow_v2.csv). Also fixed
 en route: SPD-DBG os-shadowing crash (function-local import os).
+
+## HEADLINE RESULT + everything launched (2026-08-16)
+
+Flow table (eval_flow_v2.csv) is the paper's headline: ours 4/4 complete,
+0 collisions; snapshot 0/4 complete (5.5 eps); EdgeWarp 2/4 (5.25 eps);
+reactive 3/4 (3.75 eps — timing axis PROVEN in flow); cold 3/4 (worst run
+10 eps). Real closed-loop data, controlled perception. Figure
+paper_flow_headline + results draft paper3_results_section.md committed.
+LAUNCHED: accel warm/reactive redo (8 runs, chained); PACE untar (251.6 GB
+verified byte-identical) with finetune sbatch chained behind it (gpu-h100,
+1 GPU first per Tyler: validate 1 GPU -> 2 -> full config; job dir
+scratch/ecav_train/worldfusion/ecav_finetune_caronly, resume from caronly
+epoch39, epoches extended to 80, PACE data paths). Check: ssh pace 'cat
+scratch/ecav_train/worldfusion/ecav_finetune_caronly/sbatch_result.txt'.
