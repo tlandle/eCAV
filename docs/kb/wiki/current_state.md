@@ -3027,3 +3027,18 @@ verified byte-identical) with finetune sbatch chained behind it (gpu-h100,
 scratch/ecav_train/worldfusion/ecav_finetune_caronly, resume from caronly
 epoch39, epoches extended to 80, PACE data paths). Check: ssh pace 'cat
 scratch/ecav_train/worldfusion/ecav_finetune_caronly/sbatch_result.txt'.
+
+## Provenance correction: "caronly_ndm" was NEVER trained on the NDm (2026-08-16, Tyler)
+
+The worldfusion_multiv2x_caronly_ndm checkpoints (ep5/7/16) were trained ON
+ATLAS (Azure was out; see Apr training-state note "epoch 5 on Atlas"). The
+dir name reflects the config lineage, not the machine. The July dossier's
+"ndm epochs ep5=0.499 ep7=0.802 ep16=0.820" shorthand means THESE
+Atlas-trained checkpoints. They also LACK random_world_translation (config
+verified: flip/rotation/scaling only), so their offline recall numbers carry
+the exact scene-overfit risk the epoch-27 story proved; they are NOT a live
+shortcut and NOT a finetune base. CONSEQUENCE: the launched PACE finetune
+(resume caronly_aug ep39 — the only strong checkpoint WITH translation aug —
+to 80 epochs) remains the correct job. If recall is still short after it,
+the lever is new sim-generated close-range training data, not another
+checkpoint hunt.
