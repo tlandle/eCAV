@@ -2997,3 +2997,19 @@ concurrently): single warm run with BEHAVIOR_DEBUG=1 plus a per-tick
 exits and inside local_planner (curvature limit) — identifies the emitting
 layer in one run. Flow table in flight (eval_flow_v1.csv); v4 complete
 (eval_arms_v4.csv, warm/kf 3-of-4 stall, reactive 4/4 clean 13-17 s).
+
+## STALL ROOT FIXED: in-path stationary lead never engaged car-following (2026-08-16)
+
+SPD-DBG trace: during approach AND stall, behavior ran branch NORMAL (886
+ticks, target 40 km/h, planner unclamped [TRAJ] target_after=40) — the TTC
+check classified the stopped truck ON the path as parked (spatial fallback
+ttc=1000), so car-following/standoff NEVER engaged; only RSS emergency
+latching stopped the ego, scattering the stop 2-8 m from the bumper, from
+where the launch understeers into the corner (max_steering 0.3). FIX
+(committed): step 5c engages car-following on approach when
+_find_blocking_lead() sees a stationary in-path lead within 60 m; stopped-
+lead branch caps approach to 15 km/h inside 50 m so the 25 m standoff stop is
+reachable. VALIDATED: warm completes 93.5 m/11.8 s clean and 95 m/19.7 s
+(one 24-tick graze, residual to check). The 870-tick grind is eliminated.
+v5 tables relaunched (eval_arms_v5.csv then eval_flow_v2.csv). Also fixed
+en route: SPD-DBG os-shadowing crash (function-local import os).
