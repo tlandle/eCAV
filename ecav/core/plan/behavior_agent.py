@@ -1468,9 +1468,13 @@ class BehaviorAgent(object):
         # overtake launched from a sub-2 m gap clips the subject's corner
         # while steering out (measured). Not applied during the launch
         # itself, where distance shrinks as the ego pulls alongside.
-        if (not self.do_overtake and vehicle_speed < 2.0
-                and distance < 25.0):
-            return 0
+        if not self.do_overtake and vehicle_speed < 2.0:
+            if distance < 25.0:
+                return 0
+            if distance < 50.0:
+                # approach a stopped lead slowly so the 25 m standoff stop is
+                # reachable within braking distance (from 40 km/h it is not)
+                return min(15.0, target_speed)
 
         delta_v = max(1, (self._ego_speed - vehicle_speed) / 3.6)
         ttc = distance / delta_v if delta_v != 0 else distance / \
@@ -1853,6 +1857,25 @@ class BehaviorAgent(object):
             self._blocked_subject = None
             self._blocked_ticks = 0
             self._blocked_absent = 0
+
+        # 5c. In-path stationary lead during APPROACH. The TTC hazard check
+        # classifies a stopped vehicle ON the ego's path as a parked car
+        # (spatial fallback, ttc=1000, no collision course), so car-following
+        # never engages on approach; the only stop then comes from an RSS
+        # emergency latch whose full-brake stop point scatters 2-8 m from the
+        # lead's bumper, and an overtake launched from that gap understeers
+        # into the lead's corner (measured). A stationary vehicle on the path
+        # IS a lead: engage car-following early so the approach decelerates
+        # to the standoff deterministically.
+        if (not is_hazard and not self.do_overtake
+                and self._ego_speed >= 4.0 and self._ego_pos is not None):
+            _lead = self._find_blocking_lead(max_ahead=60.0)
+            if _lead is not None:
+                _ll = _lead.get_location()
+                is_hazard = True
+                obstacle_vehicle = _lead
+                distance = ((_ll.x - self._ego_pos.location.x) ** 2 +
+                            (_ll.y - self._ego_pos.location.y) ** 2) ** 0.5
 
         # RSS-inspired proper response: once a prediction collision is
         # detected, the ego must execute a "proper response" (braking) until
