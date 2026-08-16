@@ -3057,3 +3057,25 @@ thresh02 symlink but outputs replaced by GT injection). The same-data PACE
 finetune chain was stopped per Tyler: the required change is TRAINING DATA
 (sim-generated representative samples: RSU mast viewpoint, close-range
 oncoming, our towns), not more epochs on the same distribution.
+
+## Representative-data generator requirements (2026-08-16, Tyler)
+
+Approved plan + one hard requirement: SCALE UP vehicle count dramatically.
+Generator design (build first thing next session):
+- Base: ecav/core/common/data_dumper.py (OPV2V/Multi-V2X folder layout,
+  per-agent pcd+yaml) wrapped in a dump scenario like
+  v2xp_datadump_town06_carla.py.
+- Geometry: RSU at 3 m mast (our deployment), close-range oncoming/crossing
+  traffic 8-16 m/s, Town01 + Town03, varied spawn offsets per episode.
+- DENSITY (Tyler): dramatically more vehicles than our 2-9 actor scenarios.
+  Spawn 30-80 background vehicles via carla_traffic_manager (autopilot)
+  per episode so RSU frames carry N at and beyond Multi-V2X's measured
+  distribution (mean 11.3, p95 21, max 33; see
+  project_multiv2x_n_distribution). Target N per RSU frame ~15-40.
+- Conventions at write time: z-clip [0,2] (feedback_mv2x_z_range),
+  intensity packed in the pcd rgb channel (feedback_pcd_rgb_is_intensity),
+  GT yaml schema matching Multi-V2X per-frame vehicle entries.
+- Output: scenario dirs droppable next to Multi-V2X on PACE; finetune from
+  caronly_aug ep39 on the MIX; validate 1 GPU -> 2 -> full.
+Density also serves Q5 (scale eval, 4-32 agents): the same dense scenario
+configs become the Q5 closed-loop settings.
