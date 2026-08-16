@@ -3079,3 +3079,26 @@ Generator design (build first thing next session):
   caronly_aug ep39 on the MIX; validate 1 GPU -> 2 -> full.
 Density also serves Q5 (scale eval, 4-32 agents): the same dense scenario
 configs become the Q5 closed-loop settings.
+
+## Dataset generator: contracts VERIFIED, build spec final (2026-08-16)
+
+Verified compatible end-to-end:
+- ecav/core/common/data_dumper.py writes %06d.pcd via open3d with intensity
+  in colors (= Multi-V2X rgb-packed convention) + per-frame yaml via
+  save_yaml, per perception_manager, OPV2V folder layout.
+- Loader (opencood/data_utils/datasets/multiv2x/intermediate_fusion_dataset
+  .py) reads cav_content['params']['lidar_pose'] + vehicle GT through the
+  opv2v postprocessor. Format chain closes; generator is WIRING not format
+  work.
+BUILD (next session, first task): dump scenario (yaml+py pair, e.g.
+mv2x_datadump_town01) that (1) spawns density tiers per episode: 1/3 sparse
+3-8, 1/3 medium 12-25, 1/3 busy 30-60 vehicles via carla_traffic_manager
+autopilot; (2) attaches DataDumper to each RSU perception manager (mast at
+z=3, our rsu lidar profile) + 2-3 CAV managers; (3) enforces z-clip [0,2]
+on dump; (4) sweeps Town01/Town03, spawn offsets, ONCOMING_SPEED 8-16;
+(5) writes scenario dirs named Town01__<date>_<ep> droppable next to
+Multi-V2X on PACE. Then: smoke 1 episode -> load with the trainer's dataset
+class locally (1 batch) to prove ingestion BEFORE mass generation. Mix
+finetune from caronly_aug ep39 (provenance documented), 1 GPU -> 2 -> full.
+Sparse+busy both included deliberately (sparse frames train the objectness
+floor against our FP tail; busy matches flow/Q5/deployment).
