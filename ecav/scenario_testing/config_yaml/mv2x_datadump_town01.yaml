@@ -84,3 +84,8 @@ scenario:
       destination: [330.0, 199.0, 0.3]
       v2x:
         communication_range: 45
+
+# stub: ecav.py sets scenario_runner.distributed/vehicle_index unconditionally
+scenario_runner:
+  distributed: false
+  vehicle_index: 0
