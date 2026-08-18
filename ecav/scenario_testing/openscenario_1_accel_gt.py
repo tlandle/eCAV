@@ -76,7 +76,7 @@ LOCALE_MIN_DWELL_TICKS = 4
 # NPC's constant-velocity trajectory exits locale 0. Chosen to fire while RSU0
 # still has an active NPC track (~1.0s = 18m at cruising speed, inside the
 # x=90-115 reacquisition window after moving RSU0 to x=55).
-OBSTACLE_HANDOFF_LOOKAHEAD_S = 1.0
+OBSTACLE_HANDOFF_LOOKAHEAD_S = float(os.environ.get('LOOKAHEAD_S', 1.0))
 
 scenario_runner = None
 
