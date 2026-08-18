@@ -35,9 +35,10 @@ def run_scenario(opt, scenario_params):
                                                    town='Town01',
                                                    cav_world=cav_world)
 
-        single_cav_list = \
-            scenario_manager.create_vehicle_manager(application=['single'],
-                                                    data_dump=True)
+        # RSU-only v1: this fork's VehicleManager requires edge-list
+        # vehicles; the RSU masts are the deployment viewpoint and the
+        # Multi-V2X format treats RSUs as agents, so RSU dumpers +
+        # autopilot traffic already produce valid training scenes.
         rsu_list = scenario_manager.create_rsu_manager(data_dump=True)
 
         traffic_manager, bg_veh_list = \
@@ -53,10 +54,6 @@ def run_scenario(opt, scenario_params):
 
         for _ in range(frames):
             scenario_manager.tick()
-            for single_cav in single_cav_list:
-                single_cav.update_info()
-                control = single_cav.run_step()
-                single_cav.vehicle.apply_control(control)
             for rsu in rsu_list:
                 rsu.update_info()
                 rsu.run_step()
