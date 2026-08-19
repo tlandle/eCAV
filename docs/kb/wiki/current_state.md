@@ -1,9 +1,21 @@
 ---
-updated: 2026-08-07
+updated: 2026-08-18
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## SEC 2026 travel grant package drafted (2026-08-18)
+
+Application materials in `~/repos/sec2026_travel_grant/`: request letter
+(1 page, PDF), advisor recommendation letter draft for Kishore (commits to
+covering uncovered expenses; email to haofanc@hawaii.edu or upload), CV
+rebuilt from tlandle.github.io/cv.md as PDF, cost estimate ($2,050: reg $500
+est, ATL-SJC Delta $450, 4 hotel nights $1,000, ground $100), form answers in
+applicant_info.md. SEC 2026 is Santa Clara, CA, Oct 13-16 2026. Deadline
+Sep 28 2026 23:59 EST. Letter states SRC non-participation; flip if entering.
+Registration estimate pending 2026 rates. Receipts must be saved; award
+requires main-program registration proof.
 
 ## ISPASS E6 divergence ladder built (2026-08-13, commit c2cbb762)
 

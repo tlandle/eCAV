@@ -157,6 +157,20 @@ def _npc_track_on_edge(edge, carla_id, gt_loc, pos_gate_m=6.0):
 def run_scenario(opt, scenario_params):
     """Run the Town06 obstacle-handoff scenario (sequential mode only)."""
     global scenario_runner
+    # Q6 impairment knobs: env-driven backhaul latency/jitter/loss applied
+    # to every edge before manager construction.
+    _lat = os.environ.get('NET_LAT_MS')
+    _jit = os.environ.get('NET_JITTER_MS')
+    _loss = os.environ.get('NET_LOSS_PCT')
+    if _lat or _jit or _loss:
+        for _e in scenario_params['scenario']['edge_list']:
+            if _lat:
+                _e['latency'] = float(_lat) / 1000.0
+            if _jit:
+                _e['jitter_std'] = float(_jit) / 1000.0
+            if _loss:
+                _e['uplink_packet_loss_pct'] = float(_loss)
+                _e['downlink_packet_loss_pct'] = float(_loss)
     cav_world = None
     scenario_manager = None
     eval_manager = None
