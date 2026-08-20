@@ -1907,6 +1907,31 @@ class BehaviorAgent(object):
 
         if is_hazard and not _rss_subject_exempt \
                 and self.ttc < self._collision_check.time_ahead:
+            # A proper response on a NON-subject threat during a committed
+            # overtake ABORTS the maneuver atomically: cancel the overtake
+            # state and restore the route plan, so the wait cycle re-arms
+            # and the next commit launches fresh from the standoff. Without
+            # this the state machine stays latched on a half-consumed
+            # overtake path after the stop and the ego grinds (measured:
+            # ~20% of launches, 800+ contact ticks).
+            if self.do_overtake:
+                self.do_overtake = False
+                self._overtake_subject_loc = None
+                self.overtake_other_direction = False
+                self.overtake_end_wpts.clear()
+                self.overtake_counter = 0
+                self.num_overtake_collisions = 0
+                self.overtake_wait_counter = self.overtake_wait_time
+                try:
+                    if self.end_waypoint is not None:
+                        self.set_destination(
+                            self._ego_pos.location,
+                            self.end_waypoint.transform.location,
+                            clean=True)
+                except Exception:  # noqa: BLE001
+                    logger.exception("overtake abort: replan failed")
+                logger.warning("[RSS] Overtake ABORTED for non-subject "
+                               "threat; wait cycle re-armed")
             # Enter proper response — record the threatening obstacle
             # and force emergency stop immediately (distance=0 bypasses
             # car_following → local_planner → PID, which only gives
