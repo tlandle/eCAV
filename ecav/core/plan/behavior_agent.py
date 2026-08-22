@@ -1914,7 +1914,20 @@ class BehaviorAgent(object):
             # this the state machine stays latched on a half-consumed
             # overtake path after the stop and the ego grinds (measured:
             # ~20% of launches, 800+ contact ticks).
-            if self.do_overtake:
+            _abort_ok = False
+            if self.do_overtake and self._ego_pos is not None \
+                    and getattr(self, '_overtake_subject_loc', None) is not None:
+                # Abort is only safe in the LAUNCH phase (ego still inline
+                # behind the subject). Once laterally committed into the
+                # opposing lane, stopping there strands the ego broadside to
+                # the flow (measured: struck within seconds); the committed
+                # case is handled by the freeze-and-resume path instead.
+                _sx, _sy = self._overtake_subject_loc
+                _eyaw = math.radians(self._ego_pos.rotation.yaw)
+                _lat = abs(-(_sx - self._ego_pos.location.x) * math.sin(_eyaw)
+                           + (_sy - self._ego_pos.location.y) * math.cos(_eyaw))
+                _abort_ok = _lat < 1.2
+            if self.do_overtake and _abort_ok:
                 self.do_overtake = False
                 self._overtake_subject_loc = None
                 self.overtake_other_direction = False
