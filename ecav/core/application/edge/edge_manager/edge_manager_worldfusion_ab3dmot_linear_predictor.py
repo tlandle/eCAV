@@ -604,11 +604,18 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     if self._gt_exclude_managed:
                         excl_ids = tuple(int(vm.vehicle.id)
                                          for vm in self.vehicle_manager_list)
+                    _origins = [
+                        (float(r['spawn_position'][0]),
+                         float(r['spawn_position'][1]),
+                         float(r['spawn_position'][2]))
+                        for r in self.cfg.get('rsus', [])
+                        if 'spawn_position' in r] or None
                     det_results = build_gt_dets(
                         self.world, self.world_anchor, frame_id,
                         exclude_actor_ids=excl_ids,
                         max_range_m=self._gt_max_range_m,
                         occlusion_check=self._gt_occlusion,
+                        sensor_origins=_origins,
                     )
                     logger.info("GT INJECT: replaced %d model dets with %d GT actor boxes",
                                 num_dets, len(det_results['dets']))

@@ -1,9 +1,32 @@
 ---
-updated: 2026-08-18
+updated: 2026-08-25
 ---
 # Current State
 
 Primary context-switching artifact. Read this first after a gap.
+
+## Defense deck frozen (2026-08-25, defense Thursday 2026-08-27)
+
+proposal_defense.pptx (68 slides, ~/repos/Dissertation_proposal) frozen
+after absorbing three committee-adjacent feedback emails (Harshit, Difei,
+Jinsun), the lab dry run, and five narrated recording passes. Five
+research questions spine on dividers/map/closing slide; freshness-first
+order (Jinsun); locale scene rebuilt with RSU camera box, base-station
+tower, elbowed fiber backhaul (commit 17300bf, on gtvault). Talk script
+regenerated from deck notes: 5016 spoken words, ~35 min at 145 wpm plus
+Q&A holds; target 40-45 delivered. Only typo fixes allowed now. NSDI
+evaluation.tex rewritten to six-step ground-up narrative with named arms.
+Details in raw/sessions/2026-08-25.md.
+
+## Conductor deep-dive defense note written (2026-08-22)
+
+Study document for the proposal defense at
+`~/repos/Dissertation_proposal/notes/paper_deep_dive_conductor.md`: full
+Conductor recall (pipeline, cliff, mechanisms, all result numbers, \ad{}
+resolutions, weak flanks from the rebuttal, drill table) plus a list of
+internal numeric inconsistencies to know before Q&A (11+8K fit vs measured
+114 ms at K_cav=22; scale claims N=32/24/12; 220 vs 234 ms aggregations).
+Details in raw/sessions/2026-08-22.md.
 
 ## SEC 2026 travel grant package drafted (2026-08-18)
 
