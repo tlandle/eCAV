@@ -132,6 +132,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._gt_max_range_m = float(gt_cfg.get('max_range_m', 70.0))
         self._gt_exclude_managed = bool(gt_cfg.get('exclude_managed', True))
         self._gt_occlusion = bool(gt_cfg.get('occlusion_check', False))
+        self._gt_rsu_origins = [
+            (float(r['spawn_position'][0]), float(r['spawn_position'][1]),
+             float(r['spawn_position'][2]))
+            for r in (cfg.get('rsus') or [])
+            if 'spawn_position' in r] or None
         # skip_model: bypass the fusion forward pass entirely (oracle arm).
         # Default False preserves the original semantics: model runs, its
         # compute latency and payload stay realistic, output is replaced
@@ -604,12 +609,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     if self._gt_exclude_managed:
                         excl_ids = tuple(int(vm.vehicle.id)
                                          for vm in self.vehicle_manager_list)
-                    _origins = [
-                        (float(r['spawn_position'][0]),
-                         float(r['spawn_position'][1]),
-                         float(r['spawn_position'][2]))
-                        for r in self.cfg.get('rsus', [])
-                        if 'spawn_position' in r] or None
+                    _origins = self._gt_rsu_origins
                     det_results = build_gt_dets(
                         self.world, self.world_anchor, frame_id,
                         exclude_actor_ids=excl_ids,
