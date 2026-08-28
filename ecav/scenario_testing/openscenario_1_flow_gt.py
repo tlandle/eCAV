@@ -78,6 +78,23 @@ LOCALE_MIN_DWELL_TICKS = 4
 # x=90-115 reacquisition window after moving RSU0 to x=55).
 OBSTACLE_HANDOFF_LOOKAHEAD_S = float(os.environ.get('LOOKAHEAD_S', 1.0))
 
+# ── Trigger-axis / refresh knobs (dissertation Q3 extension) ──
+# TRIGGER_MODE: 'predictive' projects the constant-velocity trajectory and
+# fires LOOKAHEAD_S before the predicted exit (default). 'band' is the
+# geometric alternative: fire when the NPC is within BAND_W_M meters of the
+# source-locale boundary, no trajectory involved. Both reuse MIGRATION_MODE's
+# payload semantics.
+TRIGGER_MODE = os.environ.get('TRIGGER_MODE', 'predictive').lower()
+BAND_W_M = float(os.environ.get('BAND_W_M', 20.0))
+# COMMIT_REFRESH='full' re-sends the full state once at the actual crossing
+# (the "phase 2" question: does a refresh at commit buy anything at this
+# payload size). Default 'none'.
+COMMIT_REFRESH = os.environ.get('COMMIT_REFRESH', 'none').lower()
+# MIRROR_PERIOD_S>0 re-sends the state every P seconds after the first
+# trigger until the crossing (the mirroring-rate axis: trigger-once at P=0
+# through standby replication as P shrinks).
+MIRROR_PERIOD_S = float(os.environ.get('MIRROR_PERIOD_S', 0.0))
+
 scenario_runner = None
 
 
@@ -184,6 +201,8 @@ def run_scenario(opt, scenario_params):
     npc_locale = {}            # carla_id -> sticky source locale id
     npc_handoff_done = {}      # carla_id -> (tick, dst_locale_id)
     npc_rsu_detect_tick = {}   # carla_id -> tick dst-RSU came in range
+    npc_refresh_done = {}      # carla_id -> tick of the commit refresh
+    npc_mirror_last_tick = {}  # carla_id -> tick of the last mirror resend
 
     try:
         scenario_params = add_current_time(scenario_params)
@@ -267,7 +286,11 @@ def run_scenario(opt, scenario_params):
         locale_tracker = VehicleLocaleTracker(router, min_dwell_ticks=LOCALE_MIN_DWELL_TICKS)
         daemon = SequentialMigrationDaemon()
         metrics_logger = MigrationMetricsLogger(MIGRATION_MODE, -1)
-        logger.info("[MIGRATION] mode=%s", MIGRATION_MODE)
+        logger.info(
+            "[MIGRATION] mode=%s trigger=%s band_w=%.1f refresh=%s "
+            "mirror_period=%.2f lookahead=%.2f",
+            MIGRATION_MODE, TRIGGER_MODE, BAND_W_M, COMMIT_REFRESH,
+            MIRROR_PERIOD_S, OBSTACLE_HANDOFF_LOOKAHEAD_S)
         link = InterLocaleLink(edge_list[0].latency_model)
 
         # Per-locale RSU positions for the advance-warning proxy.
@@ -370,6 +393,41 @@ def run_scenario(opt, scenario_params):
                                     "[SCENB] NPC %d advance-warning = %d ticks "
                                     "(handoff=%d, %s RSU in-range=%d)",
                                     nid, step - htick, htick, dst_lid, step)
+                    # Post-trigger resend policies. Both re-fire the same
+                    # transfer path, so bytes land in record_handoff_cost.
+                    if (COMMIT_REFRESH == 'full' or MIRROR_PERIOD_S > 0.0) \
+                            and nid not in npc_refresh_done \
+                            and MIGRATION_MODE != 'cold':
+                        _htick, _dst_lid = npc_handoff_done[nid]
+                        _src_lid2 = next(
+                            (l for l in locale_by_id if l != _dst_lid), None)
+                        _se = edge_by_locale.get(_src_lid2)
+                        _de = edge_by_locale.get(_dst_lid)
+                        _crossed = locale_by_id[_dst_lid].contains(nxy)
+                        if COMMIT_REFRESH == 'full' and _crossed \
+                                and _se is not None and _de is not None:
+                            _c = daemon.transfer_obstacle_state(
+                                nid, _se, _de, link, step, position=nxy)
+                            npc_refresh_done[nid] = step
+                            if _c is not None:
+                                scenario_manager.record_handoff_cost(_c)
+                                logger.info(
+                                    "[SCENB] COMMIT REFRESH tick=%d npc=%d "
+                                    "%s->%s bytes=%d", step, nid, _src_lid2,
+                                    _dst_lid, _c.payload_bytes)
+                        elif MIRROR_PERIOD_S > 0.0 and not _crossed \
+                                and _se is not None and _de is not None:
+                            _last = npc_mirror_last_tick.get(nid, _htick)
+                            if (step - _last) * world_dt >= MIRROR_PERIOD_S:
+                                _c = daemon.transfer_obstacle_state(
+                                    nid, _se, _de, link, step, position=nxy)
+                                npc_mirror_last_tick[nid] = step
+                                if _c is not None:
+                                    scenario_manager.record_handoff_cost(_c)
+                                    logger.info(
+                                        "[SCENB] MIRROR RESEND tick=%d npc=%d "
+                                        "%s->%s bytes=%d", step, nid,
+                                        _src_lid2, _dst_lid, _c.payload_bytes)
                     continue
 
                 # Sticky assignment: update only when containment is
@@ -395,15 +453,27 @@ def run_scenario(opt, scenario_params):
                 # observed obstacle, and the tracker latent is all-dynamic
                 # (nothing to background-sync), so for this content it reduces
                 # to a blocking transfer at the boundary with no lead.
-                _lead = 0.0 if MIGRATION_MODE in ("reactive", "edgewarp") \
-                    else OBSTACLE_HANDOFF_LOOKAHEAD_S
-                n_steps = int(_lead / world_dt) + 1
-                t_arr = np.arange(n_steps, dtype=np.float64) * world_dt
-                traj = np.column_stack([nloc.x + nvel.x * t_arr,
-                                        nloc.y + nvel.y * t_arr])
-                if not locale_by_id[src_lid].predicted_to_exit_within(
-                        traj, _lead, world_dt):
-                    continue
+                if TRIGGER_MODE == 'band' and MIGRATION_MODE not in (
+                        "reactive", "edgewarp"):
+                    # Geometric trigger: within BAND_W_M of the CROSSING
+                    # boundary, measured as distance to the destination
+                    # locale. Distance to the source's own polygon would
+                    # fire on the road's lateral edges for every vehicle
+                    # (measured: NPC 79 m from the crossing fired at W=20),
+                    # which is the boundary-parallel over-firing failure.
+                    _sd_dst = locale_by_id[dst_lid].signed_distance(nxy)
+                    if _sd_dst > BAND_W_M:
+                        continue
+                else:
+                    _lead = 0.0 if MIGRATION_MODE in ("reactive", "edgewarp") \
+                        else OBSTACLE_HANDOFF_LOOKAHEAD_S
+                    n_steps = int(_lead / world_dt) + 1
+                    t_arr = np.arange(n_steps, dtype=np.float64) * world_dt
+                    traj = np.column_stack([nloc.x + nvel.x * t_arr,
+                                            nloc.y + nvel.y * t_arr])
+                    if not locale_by_id[src_lid].predicted_to_exit_within(
+                            traj, _lead, world_dt):
+                        continue
                 src_edge = edge_by_locale.get(src_lid)
                 dst_edge = edge_by_locale.get(dst_lid)
                 if src_edge is None or dst_edge is None or src_edge is dst_edge:
@@ -560,6 +630,36 @@ def run_scenario(opt, scenario_params):
                 metrics_logger.dump(out_dir)
             except Exception:  # noqa: BLE001
                 logger.exception("migration metrics dump failed")
+
+        # One machine-readable row per run so the sweep extractor never
+        # reverse-engineers logs (KB: "fix the eval to log episodes").
+        try:
+            _hist = []
+            for edge in edge_list:
+                for vm in edge.vehicle_manager_list:
+                    _sm = getattr(vm, 'safety_manager', None)
+                    if _sm is None:
+                        continue
+                    for _sens in _sm.sensors:
+                        if hasattr(_sens, '_history'):
+                            _hist.extend(f for (f, *_rest) in _sens._history)
+            _hist.sort()
+            _contact = len(_hist)
+            _eps, _prev = 0, None
+            for _f in _hist:
+                if _prev is None or _f - _prev > 2:
+                    _eps += 1
+                _prev = _f
+            _tbytes = sum(c.payload_bytes for c in transfer_costs)
+            logger.info(
+                "[RUNROW] mode=%s trigger=%s band_w=%.1f refresh=%s "
+                "mirror=%.2f lookahead=%.2f episodes=%d contact_ticks=%d "
+                "transfers=%d bytes=%d",
+                MIGRATION_MODE, TRIGGER_MODE, BAND_W_M, COMMIT_REFRESH,
+                MIRROR_PERIOD_S, OBSTACLE_HANDOFF_LOOKAHEAD_S,
+                _eps, _contact, len(transfer_costs), _tbytes)
+        except Exception:  # noqa: BLE001
+            logger.exception("RUNROW emission failed")
 
         for fc in fusion_clients:
             fc.end_scenario()
