@@ -464,9 +464,15 @@ def run_scenario(opt, scenario_params):
                     _sd_dst = locale_by_id[dst_lid].signed_distance(nxy)
                     if _sd_dst > BAND_W_M:
                         continue
+                elif MIGRATION_MODE in ("reactive", "edgewarp"):
+                    # At-crossing transfer: fire when the NPC has actually
+                    # entered the destination locale. The old zero-lead
+                    # projection (horizon_s=0) could never fire, so these
+                    # arms silently ran as cold in this scenario.
+                    if not locale_by_id[dst_lid].contains(nxy):
+                        continue
                 else:
-                    _lead = 0.0 if MIGRATION_MODE in ("reactive", "edgewarp") \
-                        else OBSTACLE_HANDOFF_LOOKAHEAD_S
+                    _lead = OBSTACLE_HANDOFF_LOOKAHEAD_S
                     n_steps = int(_lead / world_dt) + 1
                     t_arr = np.arange(n_steps, dtype=np.float64) * world_dt
                     traj = np.column_stack([nloc.x + nvel.x * t_arr,
