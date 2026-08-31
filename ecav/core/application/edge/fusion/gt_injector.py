@@ -71,8 +71,7 @@ def build_gt_dets(carla_world,
                   exclude_actor_ids: Iterable[int] = (),
                   max_range_m: float = 70.0,
                   occlusion_check: bool = False,
-                  sensor_z: float = 3.0,
-                  sensor_origins=None) -> dict:
+                  sensor_z: float = 3.0) -> dict:
     """Build a GT detection batch in the same shape as the model output.
 
     Args:
@@ -113,25 +112,18 @@ def build_gt_dets(carla_world,
         loc = tf.location
         dx = loc.x - anchor_x
         dy = loc.y - anchor_y
-        # Visibility is the UNION of the edge's sensor origins (each RSU
-        # mast), not a radius around the edge anchor: a locale with several
-        # viewpoints sees what any of them sees.
-        _origins = sensor_origins if sensor_origins else \
-            [(anchor_x, anchor_y, anchor_z)]
-        if not any(math.hypot(loc.x - ox, loc.y - oy) <= max_range_m
-                   for ox, oy, _oz in _origins):
+        rng = math.hypot(dx, dy)
+        if rng > max_range_m:
             continue
         # Scenario actors park far below ground (z=-500) until triggered;
         # the BEV range test would otherwise detect them pre-spawn and birth
         # tracks at a bogus pose (measured: identity forked from it).
         if abs(loc.z - anchor_z) > 30.0:
             continue
-        if occlusion_check and not any(
-                (math.hypot(loc.x - ox, loc.y - oy) <= max_range_m
-                 and not _los_blocked(ox, oy, oz + sensor_z,
-                                      loc.x, loc.y, loc.z + 0.8,
-                                      occluders, {int(actor.id)}))
-                for ox, oy, oz in _origins):
+        if occlusion_check and _los_blocked(
+                anchor_x, anchor_y, anchor_z + sensor_z,
+                loc.x, loc.y, loc.z + 0.8,
+                occluders, {int(actor.id)}):
             continue
         actor_types.append(actor.type_id)
 

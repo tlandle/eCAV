@@ -5,6 +5,69 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## Khonsu design-study campaign IN FLIGHT (2026-08-28)
+
+Committee-mandated design studies running in
+evaluation_outputs/khonsu_design_sweep_v1 (12 configs x 10 reps, ~10 h):
+trigger axis (predictive vs boundary bands 5-80 m vs at-crossing), commit
+refresh, mirroring rate, headline-arm seed top-up. Harness commit
+9d5e1883 (band trigger vs DESTINATION locale, COMMIT_REFRESH,
+MIRROR_PERIOD_S, [RUNROW] self-describing summary with deduped episodes
++ binary collided). Extract with scripts/khonsu_design_extract.py.
+Sweep script resumable: rerun scripts/khonsu_design_sweep.sh with same
+LOGDIR to continue after any interruption. Dissertation gained the
+why-not-overlap subsection (6.1.1), the band-trigger analysis, and the
+ownership-handshake protocol reframe; results from this campaign fill
+their measured arms. Details: raw/sessions/2026-08-28.md.
+
+## Post-defense follow-up underway (2026-08-27)
+
+Proposal document revised per committee (communication -> future-work
+landscape study, timeline reallocated to Khonsu depth), pushed.
+Dissertation repo created at ~/repos/dissertation, seeded from proposal
+with per-chapter EXPAND agendas tracing to defense feedback; compiles.
+Next: Khonsu design studies, envelope sensor-fusion related work, ISPASS
+rewrite. Details in raw/sessions/2026-08-27.md.
+
+## Proposal DEFENDED (2026-08-27); committee reshapes scope
+
+Defense happened; recording transcribed and digested into
+`~/repos/Dissertation_proposal/notes/defense_feedback_2026-08-27.md`
+(transcript alongside). Verdict positive (Sukrit Kalra "definitive
+dissertation" comparison) with binding redirections: communication
+architecture demoted from proposed work to future-work landscape study
+(proposal document must be revised to match); deepen Khonsu instead
+(overlap-vs-adjacent locale study, two-phase transfer benefit
+measurement, event-based trigger cost-budget, context-vs-Kalman
+ablation, collision metric fix); dissertation depth additions (sensor
+fusion/particle filter framing, control-theory positioning, RSU cost
+trade-off, physics model citations); ISPASS rewrite with positioning
+table up front; NSDI September aspirational, slip acceptable. Writing
+flagged as too jargony again; de-jargoning rules now in memory
+(feedback_writing_simply).
+
+## Defense deck shipped (2026-08-26 evening, defense tomorrow)
+
+Final final: 66 slides (design-space transition slide added at 5),
+fragment bullets + paragraph-spacing fill deck-wide, methodology slide
+rewritten to Kishore's dictated structure (3 scenarios / 3 axes / found
+timing-vs-logic), GT slide before system design (Tyler's swap), all of
+Tyler's evening slide edits ported with formatting. Pushed and
+byte-verified on gtvault. Talk script synced (core 1-39).
+
+## Defense deck final (2026-08-26, defense Thursday 2026-08-27)
+
+Final build pushed and byte-verified on gtvault. Post-freeze rounds:
+Anirudh email (transition tease, bold takeaways, trims), Tyler's narration
+recorded over slides 1-36 and transcribed into the notes verbatim-cleaned
+(~40 min delivery, on target), and the Kishore meeting round (status chips
+removed, phrases not sentences deck-wide, fonts up, slide 10 grid-only,
+slide 15 containers 1..N + bold takeaway, pertinence-first locale opener,
+stage notes). Khonsu section is 4 slides with the 50-seed headline table.
+Narrated copy preserved as proposal_defense_recorded_2026-08-25.pptx.
+Deck is 65 slides, backups at 39. Session details in
+raw/sessions/2026-08-25.md.
+
 ## Defense deck frozen (2026-08-25, defense Thursday 2026-08-27)
 
 proposal_defense.pptx (68 slides, ~/repos/Dissertation_proposal) frozen

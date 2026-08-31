@@ -1907,44 +1907,6 @@ class BehaviorAgent(object):
 
         if is_hazard and not _rss_subject_exempt \
                 and self.ttc < self._collision_check.time_ahead:
-            # A proper response on a NON-subject threat during a committed
-            # overtake ABORTS the maneuver atomically: cancel the overtake
-            # state and restore the route plan, so the wait cycle re-arms
-            # and the next commit launches fresh from the standoff. Without
-            # this the state machine stays latched on a half-consumed
-            # overtake path after the stop and the ego grinds (measured:
-            # ~20% of launches, 800+ contact ticks).
-            _abort_ok = False
-            if self.do_overtake and self._ego_pos is not None \
-                    and getattr(self, '_overtake_subject_loc', None) is not None:
-                # Abort is only safe in the LAUNCH phase (ego still inline
-                # behind the subject). Once laterally committed into the
-                # opposing lane, stopping there strands the ego broadside to
-                # the flow (measured: struck within seconds); the committed
-                # case is handled by the freeze-and-resume path instead.
-                _sx, _sy = self._overtake_subject_loc
-                _eyaw = math.radians(self._ego_pos.rotation.yaw)
-                _lat = abs(-(_sx - self._ego_pos.location.x) * math.sin(_eyaw)
-                           + (_sy - self._ego_pos.location.y) * math.cos(_eyaw))
-                _abort_ok = _lat < 1.2
-            if self.do_overtake and _abort_ok:
-                self.do_overtake = False
-                self._overtake_subject_loc = None
-                self.overtake_other_direction = False
-                self.overtake_end_wpts.clear()
-                self.overtake_counter = 0
-                self.num_overtake_collisions = 0
-                self.overtake_wait_counter = self.overtake_wait_time
-                try:
-                    if self.end_waypoint is not None:
-                        self.set_destination(
-                            self._ego_pos.location,
-                            self.end_waypoint.transform.location,
-                            clean=True)
-                except Exception:  # noqa: BLE001
-                    logger.exception("overtake abort: replan failed")
-                logger.warning("[RSS] Overtake ABORTED for non-subject "
-                               "threat; wait cycle re-armed")
             # Enter proper response — record the threatening obstacle
             # and force emergency stop immediately (distance=0 bypasses
             # car_following → local_planner → PID, which only gives
@@ -2197,29 +2159,6 @@ class BehaviorAgent(object):
                             _t_man = 4.0      # s in the opposing lane
                             _ov = 7.0         # m/s, reduced overtake speed
                             _clear, _onc = self._nearest_oncoming_ahead()
-                            # Refresh-starvation guard: with many tracked
-                            # vehicles the edge's risk-budgeted predictor
-                            # refreshes each track every 16-32 ticks, longer
-                            # than the prediction hold, so a closing oncoming
-                            # can be absent from two consecutive evals and
-                            # absence reads as a clear road (measured: commit
-                            # at TTC 0.6 s). An oncoming seen in-band stays
-                            # not-clear, dead-reckoned by its last speed,
-                            # until it has positively passed.
-                            _now = self._tick_counter
-                            if _clear != float('inf'):
-                                self._onc_memory = (_now, _clear, _onc)
-                            elif getattr(self, '_onc_memory', None) is not None:
-                                _mt, _md, _ms = self._onc_memory
-                                _aged = (_now - _mt) * 0.05
-                                if _aged < 4.0:
-                                    _dr = _md - (_ms + 2.0) * _aged
-                                    if _dr > -6.0:
-                                        _clear, _onc = max(_dr, 0.5), _ms
-                                    else:
-                                        self._onc_memory = None
-                                else:
-                                    self._onc_memory = None
                             # Closing speed comes from the migrated/edge
                             # prediction (small floor only guards numerical
                             # zero). A full-latent migration recovers the true
