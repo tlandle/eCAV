@@ -5,6 +5,22 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## PROVENANCE ALERT: canonical flow table not reproducible (2026-08-31)
+
+Design-sweep campaign completed 150/150 on a uniform stack, then
+bisection showed the canonical q4 flow table (ecc4b092) does not
+reproduce from its own commit on today's environment (all probes grind
+at the truck; canonical warm was 4/4 clean). Not the code: planner, GT
+injection, full core, full canonical tree all probed. Also: reactive/
+edgewarp never fired transfers in flow_gt (zero-horizon trigger bug,
+fixed 4ccd5906), so those canonical rows are cold-with-other-seeds.
+DO NOT cite q4_flow_table.csv numbers going forward. Valid relative
+signals from the new sweep: lead time drives completion monotonically;
+bands over-fire vs forecast trigger; fixed reactive beats cold. Next:
+harden scenario determinism (light phase / oncoming gap structure),
+re-baseline everything, add warm lookahead {2,3,4} arms. Details:
+raw/sessions/2026-08-31.md.
+
 ## Khonsu design-study campaign IN FLIGHT (2026-08-28)
 
 Committee-mandated design studies running in
