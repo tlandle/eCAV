@@ -29,10 +29,13 @@ carla_restart () {
   echo "[carla] restarting"
   pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null
   sleep 5
-  ( cd "$CARLA_ROOT" && ./CarlaUE4.sh -RenderOffScreen > /dev/null 2>&1 & )
+  ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen > /dev/null 2>&1 < /dev/null & )
   for i in $(seq 1 24); do
     sleep 5
-    carla_ok && { echo "[carla] up"; return 0; }
+    if carla_ok; then
+      sleep 15   # settle: the port accepts before the sim can serve clients
+      echo "[carla] up"; return 0
+    fi
   done
   echo "[carla] FAILED to start"; return 1
 }
@@ -51,11 +54,16 @@ run_one () {
   fi
   RUN_N=$((RUN_N + 1))
   echo "[$(date +%H:%M:%S)] $tag"
-  env "$@" timeout 900 python ecav.py -t openscenario_1_flow_gt --apply_ml \
-      > "$log" 2>&1
+  env "$@" timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml \
+      > "$log" 2>&1 < /dev/null
   sleep 3
   if ! grep -q "actor_id" "$log"; then
-    echo "WARN: $tag incomplete (no ego eval)"
+    echo "WARN: $tag incomplete, retrying once"
+    carla_restart || exit 1
+    env "$@" timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml \
+        > "$log" 2>&1 < /dev/null
+    sleep 3
+    grep -q "actor_id" "$log" || echo "WARN: $tag incomplete after retry"
   fi
 }
 
