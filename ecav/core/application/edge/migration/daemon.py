@@ -231,7 +231,12 @@ class SequentialMigrationDaemon:
         own_dst.dest_prepare(carla_id, pe)
         dst_edge.import_tracked_obstacle_state(carla_id, payload)
         own_dst.dest_commit(carla_id, pe)
-        own_src.source_commit(carla_id)
+        # FENCING=off baseline (T7): the source does not fence itself at
+        # commit, so both sides stay publishable until the source would
+        # naturally drop the track — the double-publish window the paper's
+        # failure model admits. Default (fencing on) closes it atomically.
+        if _os.environ.get('FENCING', 'on').lower() != 'off':
+            own_src.source_commit(carla_id)
         cost = link.model_transfer(payload, src_edge, dst_edge, tick)
         self._costs.append(cost)
         logger.info(

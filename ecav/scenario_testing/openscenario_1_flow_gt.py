@@ -333,6 +333,21 @@ def run_scenario(opt, scenario_params):
             else:
                 scenario_manager.tick()
 
+            # T7 measurement: count double-publish windows — ticks where
+            # more than one edge holds a publishable epoch for the same
+            # track. Zero with fencing on; the FENCING=off arm reports the
+            # unfenced baseline.
+            _dbl = getattr(run_scenario, '_dbl_publish_ticks', {})
+            for _nid2 in list(npc_ids):
+                _pubs = []
+                for _e2 in edge_list:
+                    _own = getattr(_e2, 'ownership', None)
+                    if _own is not None:
+                        _pubs += _own.publishable_epochs(_nid2)
+                if len(_pubs) > 1:
+                    _dbl[_nid2] = _dbl.get(_nid2, 0) + 1
+            run_scenario._dbl_publish_ticks = _dbl
+
             # Per-tick snapshot upload (parity with Scenario A; keeps the store warm).
             for edge in edge_list:
                 for vm in edge.vehicle_manager_list:
@@ -498,6 +513,10 @@ def run_scenario(opt, scenario_params):
                         _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.05)
                         _fold_s = 3 * 0.2   # 3 edge cycles at edge_dt
                         _lead = min(2.5, _xfer_s + _fold_s + 0.35)
+                        logger.info(
+                            "[LEADROW] npc=%d lead=%.3f xfer_ema=%.3f "
+                            "fold=%.3f margin=0.350 tick=%d",
+                            nid, _lead, _xfer_s, _fold_s, step)
                     else:
                         _lead = OBSTACLE_HANDOFF_LOOKAHEAD_S
                     n_steps = int(_lead / world_dt) + 1
@@ -689,13 +708,18 @@ def run_scenario(opt, scenario_params):
                     _eps += 1
                 _prev = _f
             _tbytes = sum(c.payload_bytes for c in transfer_costs)
+            import os as _os2
+            _dblsum = sum(getattr(run_scenario, '_dbl_publish_ticks',
+                                  {}).values())
             logger.info(
                 "[RUNROW] mode=%s trigger=%s band_w=%.1f refresh=%s "
                 "mirror=%.2f lookahead=%.2f episodes=%d contact_ticks=%d "
-                "transfers=%d bytes=%d",
+                "transfers=%d bytes=%d fault=%s fencing=%s dbl_ticks=%d",
                 MIGRATION_MODE, TRIGGER_MODE, BAND_W_M, COMMIT_REFRESH,
                 MIRROR_PERIOD_S, OBSTACLE_HANDOFF_LOOKAHEAD_S,
-                _eps, _contact, len(transfer_costs), _tbytes)
+                _eps, _contact, len(transfer_costs), _tbytes,
+                _os2.environ.get('FAULT_MODE', 'none') or 'none',
+                _os2.environ.get('FENCING', 'on'), _dblsum)
         except Exception:  # noqa: BLE001
             logger.exception("RUNROW emission failed")
 
