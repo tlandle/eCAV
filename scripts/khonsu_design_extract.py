@@ -71,11 +71,30 @@ def main():
         tag = name[:-4]
         row["tag"] = tag
         row["rep"] = tag.rsplit("_r", 1)[-1] if "_r" in tag else ""
+        # Raw collision stream (uncapped): RUNROW's ct derives from the
+        # collision sensor's history_size=30 buffer and saturates. Episodes
+        # and contact ticks here come from the raw per-tick warnings,
+        # deduplicated at >1 s gaps — the reportable numbers.
+        import re as _re
+        _ts = []
+        for _ln in text.splitlines():
+            if 'WARNING' in _ln and 'Collision' in _ln and 'Eval' not in _ln:
+                _m = _re.search(r'(\d{2}):(\d{2}):(\d{2}),(\d{3})', _ln)
+                if _m:
+                    _h, _mn, _sec, _ms = map(int, _m.groups())
+                    _ts.append(_h*3600 + _mn*60 + _sec + _ms/1000.0)
+        _eps_raw, _last = 0, None
+        for _t in _ts:
+            if _last is None or _t - _last > 1.0:
+                _eps_raw += 1
+            _last = _t
+        row["eps_raw"] = _eps_raw
+        row["contact_raw"] = len(_ts)
         rows.append(row)
 
     cols = ["tag", "mode", "trigger", "band", "refresh", "mirror", "look",
             "rep", "eps", "ct", "collided", "dist_m", "time_s", "completed",
-            "tx", "by"]
+            "tx", "by", "eps_raw", "contact_raw"]
     out = open(args.out, "w", newline="") if args.out else sys.stdout
     w = csv.DictWriter(out, fieldnames=cols)
     w.writeheader()
