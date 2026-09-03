@@ -3223,3 +3223,18 @@ class locally (1 batch) to prove ingestion BEFORE mass generation. Mix
 finetune from caronly_aug ep39 (provenance documented), 1 GPU -> 2 -> full.
 Sparse+busy both included deliberately (sparse frames train the objectness
 floor against our FP tail; busy matches flow/Q5/deployment).
+
+## T2 ROOT CAUSE NAMED: sweep dropped the scenario env contract (2026-09-03)
+
+Controlled pair (same code, warm arm, BEHAVIOR_DEBUG): bare sweep env = 762
+contact ticks, no completion; ONCOMING_SPEED=12 TRIGGER_DIST=300 = 0/0 clean.
+khonsu_design_sweep.sh never set the envs, so ALL v1+v2 rows ran mixed-speed
+8/6 oncoming with the 150 m trigger — the pre-fix marginal commit geometry.
+The "30 contact ticks" cap in extractions is collision_sensor history_size=30.
+FIX pushed: contract baked as runner defaults (flow_gt/burst_gt/flow_single
+setdefault). Frozen lights were not the cause and stay. v2 rows DISCARDED;
+v1 relative rows provisional pending v3 confirmation. Campaign relaunched:
+v3 (6 arms x 10 + burst 15) -> q5 -> s5-redo (worktree script given explicit
+envs since 9d5e1883 predates the defaults). T7-live built on branch
+t7-live-epochs (epoch+FAULT_MODE+FENCING+LEADROW+RUNROW fields); merges after
+the queue. Writing session informed (named-cause message sent).
