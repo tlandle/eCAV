@@ -77,7 +77,9 @@ def main():
         # deduplicated at >1 s gaps — the reportable numbers.
         import re as _re
         _ts = []
-        for _ln in text.splitlines():
+        _text = open(os.path.join(args.logdir, name),
+                     encoding="utf-8", errors="ignore").read()
+        for _ln in _text.splitlines():
             if 'WARNING' in _ln and 'Collision' in _ln and 'Eval' not in _ln:
                 _m = _re.search(r'(\d{2}):(\d{2}):(\d{2}),(\d{3})', _ln)
                 if _m:
