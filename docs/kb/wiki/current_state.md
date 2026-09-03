@@ -5,6 +5,12 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-03 (eval session, relayed): T2 root cause = missing scenario env contract
+
+- khonsu_design_sweep.sh never set ONCOMING_SPEED=12 TRIGGER_DIST=300; every validated run (warm/kf flip, clean tables) had them. v1 AND v2 sweeps ran the unvalidated geometry (mixed 8/6 m/s oncoming, 150 m trigger), which reproduces the marginal commit geometry and the truck wedge. Controlled pair (warm, BEHAVIOR_DEBUG): bare env 1 episode / 762 raw contact ticks / no completion; contract env 0 / 0 / completes. The "30 contact ticks" figure was the collision-sensor history_size=30 buffer cap.
+- Fix pushed: contract values are runner defaults (os.environ.setdefault) in flow_gt, burst_gt, flow_single. Frozen lights stay (not the cause).
+- Consequences: v2 rows discarded; v1 relative findings provisional until v3; absolute-rate embargo until v3. v3 (6 arms x 10 + 15 burst, corrected scenario) relaunched ~26 h, then q5 scale, then s5 lookahead redo. Requested: canonical reproduction check at ecc4b092 with the contract env (would revise the August provenance alert from "irreproducible" to "env-dependent").
+
 ## 2026-09-03 (writing session): NSDI draft reframed after external review
 
 - External review (2/5 today, competitive if fixed) verified against code: payload migrates explicit history banks (memo/diff, 56K bytes) not a hidden state (`hidden_state` reserved, never set; no MTR cache); COMMIT text tied to radio while harness commits per track on geometric crossing; single-writer claim contradicted by the failure model; transport parametric; Falcon/LLM-state systems uncited; TrackSSM bib wrong (real: Bin Hu et al., arXiv 2409.00487).
