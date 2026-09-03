@@ -71,6 +71,65 @@ comparison, burst feasibility. Style: matplotlib, NAVY/GOLD palette used
 in the story deck, captions state the finding
 (memory: figures must have findings).
 
+## Review-driven additions (2026-09-03). Priority: T7, T8, T9 before T3/T4; T10, T11 after.
+Source: external NSDI review. Deadlines: abstract Sep 10, full paper Sep 17.
+The writing session is reframing the paper around these; do not edit ~/repos/scale_out_nsdi.
+
+## T7. Ownership epochs + fencing + failure injection (protocol correctness)
+The paper claims exactly one publisher per track, and its failure model admits
+"briefly both claim a track". Make the invariant true. In
+`ecav/core/application/edge/migration/payload.py` add `epoch: int` to
+`MigrationPayload` (monotonic per track, source increments at PREPARE, commit
+carries the epoch). Every published forecast carries `(actor_id, epoch)`;
+consumers (the ego eval path in `openscenario_1_flow_gt.py`) accept only the
+highest epoch seen and drop lower. Add `FAULT_MODE` knob: `lost_prepare`,
+`lost_ack`, `lost_commit`, `dup_commit`, `reorder`, `dst_crash`, each injected
+once per run at the transfer. Acceptance: 6 fault arms x 5 reps; a table of
+(fault, transfers, stale-epoch drops, double-publish windows in ticks,
+completion). Double-publish windows must be 0 with fencing on; report the
+number without fencing as the baseline.
+
+## T8. Real two-process transfer over gRPC + netem (replace the parametric link)
+Today `MigrationPayload.serialize()` is pickle and transfer time is computed,
+not sent. Build a minimal `migration.proto` (bytes payload + actor_id + epoch +
+schema_version), a `MigrationRelay` gRPC servicer running in a second process
+on Atlas, and have the flow scenario's PREPARE/COMMIT path send real bytes.
+Backhaul delay/loss via `tc qdisc add dev lo root netem delay 5ms 20ms loss 1%`
+(needs sudo; document the exact commands). Acceptance: p50/p95/p99 for
+PREPARE, delta-at-commit, import, and COMMIT under netem {0, 5, 20, 50} ms
+and loss {0, 1, 5}%; bytes on the wire per transfer; a `[RUNROW]` extension
+with these fields. Keep `TRANSFER_MODE=parametric` as the fallback.
+
+## T9. Post-handoff prediction metrics (minADE/minFDE), not only tracker displacement
+From existing microbench and flow runs, compute post-handoff minADE@3s,
+minFDE@5s, and miss rate (2 m) for the migrated tracks at the destination,
+per arm (cold, kf, warm, warm+delta), for the first 5 refreshes after commit.
+Prediction outputs are in the frames CSV / eval logs (see
+`scripts/khonsu_design_extract.py` for paths). Acceptance: one table, arms x
+metrics, with 95% CIs over seeds; CSV under `docs/kb/data/relay_eval_2026_08/`.
+
+## T10. Cross-locale association for unconnected actors (staged; may not finish)
+Today `stable_actor_id` is ground-truth injected. Implement an overlap-region
+track-continuation step at import: match the migrated track (source token +
+last bbox transformed into destination frame) against destination detections
+in the sensing overlap using temporal gating (predicted position at import
+time) + Mahalanobis distance on the KF covariance / bbox size; ambiguity
+(two candidates inside the gate) forces the explicit cold fallback. Knob
+`ASSOC_MODE={gt, gated}`; add pose-error injection `ASSOC_POSE_ERR_M` and a
+distractor NPC spawned alongside the crossing actor. Acceptance: ID-switch
+rate and false-association rate vs pose error {0, 0.5, 1, 2} m and distractor
+{off, on}, connected ego vs unconnected actor separately, 10 reps each.
+
+## T11. Trigger study on real trajectories (V2X-Seq), staged
+Offline: take V2X-Seq trajectory sequences (dataset path: ask Tyler; not on
+Atlas yet), draw synthetic locale boundaries every 250-300 m along the
+corridor, run the constant-velocity and MTR forecast triggers with lead
+{1, 2, 3, 4} s and bands {20, 40} m, and compute per trigger: crossing recall,
+wrong-destination rate, false-prefetch rate, late-prefetch rate, lead-time
+CDF, wasted bytes, and probability-threshold sensitivity. Acceptance: one
+table + lead-time CDF figure data CSV. This replaces the CARLA-only trigger
+comparison as the paper's trigger evidence if it finishes.
+
 Order: T1 (tonight, safe) and T2 (the gate) first; T3/T4 build while T2's rerun goes. T5/T6 belong to the parallel writing session; do not touch ~/repos/scale_out_nsdi. Commit style: one subject
 line, no co-author trailers (user rule). Update
 docs/kb/wiki/current_state.md after each block.
