@@ -484,7 +484,22 @@ def run_scenario(opt, scenario_params):
                     if not locale_by_id[dst_lid].contains(nxy):
                         continue
                 else:
-                    _lead = OBSTACLE_HANDOFF_LOOKAHEAD_S
+                    if TRIGGER_MODE == 'computed':
+                        # Budget-computed lead: fire prepare exactly when the
+                        # predicted time-to-crossing equals the measured
+                        # migration budget - transfer time (EMA over prior
+                        # handoffs this run) plus the destination fold-in
+                        # (edge cycles to ingest the latent into its own
+                        # fusion/tracking loop) plus a safety margin. Replaces
+                        # the fixed lookahead: fast vehicles fire earlier in
+                        # distance, slow ones later, and the lead never
+                        # exceeds what warmth requires (the measured cost of
+                        # too-early transfer is staleness on arrival).
+                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.05)
+                        _fold_s = 3 * 0.2   # 3 edge cycles at edge_dt
+                        _lead = min(2.5, _xfer_s + _fold_s + 0.35)
+                    else:
+                        _lead = OBSTACLE_HANDOFF_LOOKAHEAD_S
                     n_steps = int(_lead / world_dt) + 1
                     t_arr = np.arange(n_steps, dtype=np.float64) * world_dt
                     traj = np.column_stack([nloc.x + nvel.x * t_arr,
@@ -501,6 +516,11 @@ def run_scenario(opt, scenario_params):
                         nid, src_edge, dst_edge, link, step, position=nxy)
                 if cost is not None:
                     scenario_manager.record_handoff_cost(cost)
+                    # transfer-time EMA feeds the computed trigger's budget
+                    _prev = getattr(run_scenario, '_xfer_ema_s', None)
+                    _cur_s = cost.total_ms / 1000.0
+                    run_scenario._xfer_ema_s = _cur_s if _prev is None \
+                        else 0.3 * _cur_s + 0.7 * _prev
                     npc_handoff_done[nid] = (step, dst_lid)
                     logger.info(
                         "[SCENB] PREDICTIVE OBSTACLE HANDOFF tick=%d "
