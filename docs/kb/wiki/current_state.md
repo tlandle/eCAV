@@ -5,6 +5,13 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-03 (writing session): NSDI draft reframed after external review
+
+- External review (2/5 today, competitive if fixed) verified against code: payload migrates explicit history banks (memo/diff, 56K bytes) not a hidden state (`hidden_state` reserved, never set; no MTR cache); COMMIT text tied to radio while harness commits per track on geometric crossing; single-writer claim contradicted by the failure model; transport parametric; Falcon/LLM-state systems uncited; TrackSSM bib wrong (real: Bin Hu et al., arXiv 2409.00487).
+- Paper now (scale_out_nsdi ffeef16, 54ef3e5): "per-actor temporal inference state" replaces latent/hidden state; "one send" retracted, design = prepare + versioned delta at commit; per-actor COMMIT on polygon entry (ego also on binding move); epoch field + consumer fencing; explicit fault model; three contributions; related work on unit/trigger/criterion with Falcon, Megaphone, Llumnix, CacheGen, DejaVu, Mooncake, VIPS, Harbor; byte audit (1.3 KB, >80% explicit history; KF 448 B); sizing scoped to "our architecture"; computed trigger stated as implemented (EMA + 3 edge cycles + 0.35 s, cap 2.5 s); ownership-layer 8-scenario verification paragraph; frozen-lights hardening + FLOW_N + burst definition in methodology.
+- Not yet: headline numbers (placeholders), 12-page trim (19 pp with ptags, refs at p16), ARC citation (metadata unverified), Falcon co-authors entered as "and others".
+- Orchestration: eval session is the peer at uds 4031 (ListAgents `...-8d [72d64c]`); T7-T11 handed over via docs/agent_plans/nsdi_push_tasks.md; v2 hardened sweep running; T7 unit layer done (fault_injection_results.csv); T8 netem needs Tyler's sudo.
+
 ## PROVENANCE ALERT: canonical flow table not reproducible (2026-08-31)
 
 Design-sweep campaign completed 150/150 on a uniform stack, then
