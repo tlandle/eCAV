@@ -60,6 +60,11 @@ class Scenario_1(BasicScenario):
         # speed, which the timing-necessity arms (predictive vs reactive
         # migration) need; the default profile is unchanged when unset.
         import os as _os
+        _onc_spd = _os.environ.get('ONCOMING_SPEED')
+        if _onc_spd is not None:
+            _v = float(_onc_spd)
+            self.vehicle_velocities = [
+                (0 if i == 0 else _v) for i in range(self.num_vehicle)]
         # FLOW_N caps how many oncoming actors participate (first N lift
         # from their parked pose; the rest stay parked): the crossings-per-
         # minute axis for the scale evaluation, one knob on one XML.
@@ -68,11 +73,6 @@ class Scenario_1(BasicScenario):
             _n = int(_flow_n)
             for _i in range(1 + _n, self.num_vehicle):
                 self.vehicle_velocities[_i] = 0
-        _onc_spd = _os.environ.get('ONCOMING_SPEED')
-        if _onc_spd is not None:
-            _v = float(_onc_spd)
-            self.vehicle_velocities = [
-                (0 if i == 0 else _v) for i in range(self.num_vehicle)]
         # Distance at which an actor begins moving (ego within this range of
         # the actor spawn). TRIGGER_DIST decouples the oncoming's start from
         # the ego start so the oncoming's timeline (and its locale handoff) is
