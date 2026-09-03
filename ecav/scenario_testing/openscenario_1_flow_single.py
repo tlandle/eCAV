@@ -222,6 +222,18 @@ def run_scenario(opt, scenario_params):
             sr_process.start()
 
         world = scenario_manager.world
+        # Determinism hardening: freeze every traffic light green so the
+        # oncoming gap structure comes from the seeded spawn layout, not
+        # from whatever light phase the world clock happened to be in at
+        # episode start (measured: phase-coupled bunching made absolute
+        # rates irreproducible across identical configs).
+        for _tl in world.get_actors().filter('traffic.traffic_light*'):
+            try:
+                import carla as _carla
+                _tl.set_state(_carla.TrafficLightState.Green)
+                _tl.freeze(True)
+            except Exception:  # noqa: BLE001
+                pass
         ego_vehicle = None
         num_actors = 0
 
