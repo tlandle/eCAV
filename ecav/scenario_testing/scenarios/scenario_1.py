@@ -60,6 +60,14 @@ class Scenario_1(BasicScenario):
         # speed, which the timing-necessity arms (predictive vs reactive
         # migration) need; the default profile is unchanged when unset.
         import os as _os
+        # FLOW_N caps how many oncoming actors participate (first N lift
+        # from their parked pose; the rest stay parked): the crossings-per-
+        # minute axis for the scale evaluation, one knob on one XML.
+        _flow_n = _os.environ.get('FLOW_N')
+        if _flow_n is not None:
+            _n = int(_flow_n)
+            for _i in range(1 + _n, self.num_vehicle):
+                self.vehicle_velocities[_i] = 0
         _onc_spd = _os.environ.get('ONCOMING_SPEED')
         if _onc_spd is not None:
             _v = float(_onc_spd)
