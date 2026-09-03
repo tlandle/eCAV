@@ -84,6 +84,14 @@ OBSTACLE_HANDOFF_LOOKAHEAD_S = float(os.environ.get('LOOKAHEAD_S', 1.0))
 # geometric alternative: fire when the NPC is within BAND_W_M meters of the
 # source-locale boundary, no trajectory involved. Both reuse MIGRATION_MODE's
 # payload semantics.
+# Scenario env contract DEFAULTS: the validated flow geometry requires a
+# 12 m/s uniform oncoming stream and the 300 m actor trigger. The uniform
+# sweep invoked this runner bare and silently reverted to mixed speeds and
+# the 150 m trigger, reproducing the pre-fix commit geometry (measured:
+# bare 762 contact ticks vs contract 0, same code). Defaults make a bare
+# invocation THE validated scenario; explicit envs still override.
+os.environ.setdefault('ONCOMING_SPEED', '12')
+os.environ.setdefault('TRIGGER_DIST', '300')
 TRIGGER_MODE = os.environ.get('TRIGGER_MODE', 'predictive').lower()
 BAND_W_M = float(os.environ.get('BAND_W_M', 20.0))
 # COMMIT_REFRESH='full' re-sends the full state once at the actual crossing
