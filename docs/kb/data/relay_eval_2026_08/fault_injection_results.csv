@@ -1,0 +1,9 @@
+scenario,publishable_epochs,verdict
+clean_handoff,1,PASS
+lost_ack_dup_prepare,1,PASS
+lost_ack_dup_commit,1,PASS
+stale_payload,1,PASS
+wrong_destination,1,PASS
+abort_after_prepare,1,PASS
+both_sides_hold,1,PASS
+commit_without_prepare,1,PASS
