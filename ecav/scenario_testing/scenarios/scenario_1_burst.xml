@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<scenarios>
+    <scenario name="Scenario_1" type="Scenario_1" town="Town01">
+        <ego_vehicle x="317.4" y="195.4" z="0.3" yaw="180" model="vehicle.nissan.patrol" />
+        <other_actor x="278.0" y="195.4" z="-500" yaw="180" model="vehicle.carlamotors.carlacola" />
+        <!-- BURST-ADMISSION scenario: a 5-vehicle platoon at 15 m headway
+             crosses the locale boundary inside one handoff window (~1.9 s
+             at 12 m/s), so the destination must admit 5 migrations nearly
+             at once while the ego's overtake decision depends on the whole
+             platoon's arrival. Two stragglers follow at normal spacing to
+             keep pressure after the burst. -->
+        <other_actor x="225.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="210.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="195.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="180.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="165.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="95.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="35.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
+    </scenario>
+</scenarios>
