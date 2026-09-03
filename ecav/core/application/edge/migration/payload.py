@@ -120,6 +120,10 @@ class MigrationPayload:
     trigger_time_s: float
     tracks: List[TrackLatent] = field(default_factory=list)
     schema_version: int = 1
+    # Ownership epoch (T7): monotonic per track, incremented by the source at
+    # PREPARE; COMMIT carries the same epoch. Consumers accept only the
+    # highest epoch seen per track (see migration.ownership).
+    epoch: int = 0
 
     def payload_bytes(self) -> int:
         n = 64  # header overhead
