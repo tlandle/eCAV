@@ -146,6 +146,8 @@ Map: the arterial used by the flow scenario. Four locales of ~300 m centered on 
 ## T14. Overlap in three meanings, over overlap width (the professors' question)
 Arms: sensing overlap only (both locales observe the band, state still migrates on the forecast trigger); compute overlap (destination starts processing the actor at overlap entry, geometric prefetch); dual authority (both locales publish; planner rule = highest epoch, record disagreements). Sweep overlap width {20, 40, 80, 120} m. Metrics: fraction of handoffs warm before first use, bytes per crossing, fraction of planner ticks with two disagreeing forecasts for one actor (dueling rate, disagreement threshold 0.5 m at 1 s), age at use, collisions. 5 seeds per cell on the two-locale scenario. Priority: after T12, before T10/T11.
 
+## Rerun rule (Tyler, 2026-09-04): if an issue is found at any point during an experiment (harness, scenario, logging, environment), fix it and rerun the whole experiment on the fixed code so that every figure is drawn from one clean run set. Do not assemble a figure from partial or mixed-version rows, do not caveat a figure around a known defect, and do not carry a defective arm forward with a footnote. The v1/v2 provenance failure and the s5 pinned-worktree failures are the precedent: the fix each time was a rerun, not a caveat.
+
 ## Metric rule (Tyler): report collided-or-not per run (fraction of runs with any ego contact) and completed-without-collision. Do not report mean collision episodes per run.
 
 ## T15. Predictor-mode trigger (must-fix for the headline claim; reviewer 2026-09-04)
