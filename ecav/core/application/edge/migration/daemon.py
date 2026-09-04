@@ -228,6 +228,41 @@ class SequentialMigrationDaemon:
                 self._costs.append(cost)
                 return cost
 
+        # TRANSFER_MODE=grpc (T8): send the real serialized bytes to the
+        # relay process over loopback (netem-impaired when configured) and
+        # measure per-phase wall time; the in-process import then proceeds.
+        # parametric (default) keeps the modeled link only.
+        if _os.environ.get('TRANSFER_MODE', 'parametric') == 'grpc':
+            try:
+                import time as _time
+                import grpc as _grpc
+                import sys as _sys
+                if 'migration_pb2' not in _sys.modules:
+                    _sys.path.insert(0, 'ecav/protos')
+                import migration_pb2 as _mpb
+                import migration_pb2_grpc as _mgrpc
+                _ch = getattr(self, '_relay_ch', None)
+                if _ch is None:
+                    _ch = self._relay_ch = _grpc.insecure_channel(
+                        _os.environ.get('RELAY_ADDR', '127.0.0.1:50771'))
+                    self._relay_stub = _mgrpc.MigrationRelayStub(_ch)
+                _blob = payload.serialize()
+                _t0 = _time.monotonic()
+                self._relay_stub.Prepare(_mpb.TransferChunk(
+                    payload=_blob, actor_id=carla_id, epoch=pe,
+                    schema_version=payload.schema_version), timeout=5.0)
+                _t1 = _time.monotonic()
+                self._relay_stub.Commit(_mpb.TransferChunk(
+                    payload=b'', actor_id=carla_id, epoch=pe,
+                    schema_version=payload.schema_version), timeout=5.0)
+                _t2 = _time.monotonic()
+                logger.info(
+                    "[XFERROW] actor=%d epoch=%d bytes=%d prepare_ms=%.2f "
+                    "commit_ms=%.2f", carla_id, pe, len(_blob),
+                    (_t1 - _t0) * 1e3, (_t2 - _t1) * 1e3)
+            except Exception:  # noqa: BLE001
+                logger.exception("grpc transfer failed; parametric fallback")
+
         own_dst.dest_prepare(carla_id, pe)
         dst_edge.import_tracked_obstacle_state(carla_id, payload)
         own_dst.dest_commit(carla_id, pe)

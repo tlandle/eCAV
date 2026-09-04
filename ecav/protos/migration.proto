@@ -1,0 +1,22 @@
+syntax = "proto3";
+package migration;
+
+// T8: real-bytes transfer for cross-locale migration. The relay runs in a
+// second process; the source sends the serialized MigrationPayload over
+// loopback (optionally netem-impaired) and measures per-phase timing.
+service MigrationRelay {
+  rpc Prepare (TransferChunk) returns (Ack);
+  rpc Commit  (TransferChunk) returns (Ack);
+}
+
+message TransferChunk {
+  bytes payload = 1;         // pickled MigrationPayload
+  int64 actor_id = 2;
+  int64 epoch = 3;
+  int32 schema_version = 4;
+}
+
+message Ack {
+  bool ok = 1;
+  int64 epoch = 2;
+}
