@@ -207,7 +207,12 @@ def run_scenario(opt, scenario_params):
     metrics_logger = None
     npc_ids = set()            # moving non-hero, non-managed vehicles (Leons)
     npc_locale = {}            # carla_id -> sticky source locale id
-    npc_handoff_done = {}      # carla_id -> (tick, dst_locale_id)
+    npc_handoff_done = {}
+    # T19 per-handoff timing: first destination track, first ego use,
+    # crossing tick — emitted as [HANDOFFROW] lines at scenario end.
+    t19_first_dst = {}     # nid -> tick dst edge first maps a track to nid
+    t19_first_use = {}     # nid -> tick ego first consumes a forecast for nid
+    t19_crossing = {}      # nid -> tick containment flipped to destination      # carla_id -> (tick, dst_locale_id)
     npc_rsu_detect_tick = {}   # carla_id -> tick dst-RSU came in range
     npc_refresh_done = {}      # carla_id -> tick of the commit refresh
     npc_mirror_last_tick = {}  # carla_id -> tick of the last mirror resend
@@ -355,6 +360,31 @@ def run_scenario(opt, scenario_params):
                 if len(_pubs) > 1:
                     _dbl[_nid2] = _dbl.get(_nid2, 0) + 1
             run_scenario._dbl_publish_ticks = _dbl
+
+            # T19 firsts (cheap polls, only until each first is recorded)
+            for _nid3 in list(npc_ids):
+                if _nid3 in npc_handoff_done and _nid3 not in t19_first_dst:
+                    _dst3 = edge_by_locale.get(npc_handoff_done[_nid3][1])
+                    if _dst3 is not None and any(
+                            _c == _nid3 for _c in
+                            getattr(_dst3, 'track_to_carla', {}).values()):
+                        t19_first_dst[_nid3] = step
+                if _nid3 not in t19_crossing and _nid3 in npc_handoff_done:
+                    _dlid3 = npc_handoff_done[_nid3][1]
+                    _a3 = world.get_actor(_nid3)
+                    if _a3 is not None and locale_by_id[_dlid3].contains(
+                            (_a3.get_transform().location.x,
+                             _a3.get_transform().location.y)):
+                        t19_crossing[_nid3] = step
+                if _nid3 not in t19_first_use:
+                    for _e3 in edge_list:
+                        for _vm3 in _e3.vehicle_manager_list:
+                            for _p3 in getattr(_vm3.agent,
+                                               'generated_predictions', []):
+                                _o3 = _p3.obstacle_trajectory.obstacle
+                                if getattr(_o3, 'carla_id', -1) == _nid3:
+                                    t19_first_use[_nid3] = step
+                                    break
 
             # Per-tick snapshot upload (parity with Scenario A; keeps the store warm).
             for edge in edge_list:
@@ -716,6 +746,18 @@ def run_scenario(opt, scenario_params):
                     _eps += 1
                 _prev = _f
             _tbytes = sum(c.payload_bytes for c in transfer_costs)
+            for _nid4, (_ht4, _dl4) in npc_handoff_done.items():
+                _fd = t19_first_dst.get(_nid4, -1)
+                _fu = t19_first_use.get(_nid4, -1)
+                _cx = t19_crossing.get(_nid4, -1)
+                _warm = (_fd >= 0 and (_fu < 0 or _fd <= _fu)
+                         and (_cx < 0 or _fd <= _cx))
+                logger.info(
+                    "[HANDOFFROW] npc=%d prepare_tick=%d crossing_tick=%d "
+                    "first_dst_track_tick=%d first_use_tick=%d "
+                    "warm_before_first_use=%s dst=%s",
+                    _nid4, _ht4, _cx, _fd, _fu,
+                    "YES" if _warm else "no", _dl4)
             import os as _os2
             _dblsum = sum(getattr(run_scenario, '_dbl_publish_ticks',
                                   {}).values())
