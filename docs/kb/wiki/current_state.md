@@ -3290,3 +3290,21 @@ the-other-locale, sticky assignment, per-NPC bookkeeping). Build runs on a
 branch in parallel with the GPU queue (v3 -> q5 -> s5 -> provenance reps ->
 fault arms). Extractor now emits eps_raw/contact_raw from the raw collision
 stream (RUNROW ct is history_size=30 capped; do not cite).
+
+## v3 LANDED: corrected-scenario re-baseline, all rows valid (2026-09-04)
+
+75/75 content-verified (0 crashes). Binary metrics (Tyler's rule),
+success = completed-without-collision, N=10 flow / N=5 burst:
+FLOW: warm 7/10 (3 collided), reactive 9/10 (!), computed 5/10,
+kf 2/10, cold 2/10, edgewarp 0/10 (10/10 collided).
+BURST: warm 5/5 clean sweep; edgewarp 0/5; cold 0/5.
+Grind: RESOLVED as scenario-env artifact (median eps_raw=0 for warm/reactive).
+Notables: (1) burst is the paper's cleanest separation; (2) reactive edges
+warm on this geometry — consistent with the Q3 staleness cost of early
+transfer; the trigger table (s5 + T15 MTR trigger) adjudicates; (3) computed
+trigger underperforms warm — suspected first-crossing artifact: the transfer
+EMA seeds at 0.05 s before any handoff has been measured, giving the first
+(decisive) crossing a ~1.0 s lead built on a guess; fix = seed from the v3
+measured median or use first-fire floor. T15 (MTR-consuming trigger) queued
+per new spec; CV becomes ablation. Rows banked
+(design_sweep_v3_rows.csv). q5 running.
