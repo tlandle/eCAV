@@ -5,6 +5,12 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-04 (eval session landing, relayed): v3 re-baseline on the corrected scenario
+
+- docs/kb/data/relay_eval_2026_08/design_sweep_v3_rows.csv, 75/75 verified, zero crashes; binary metrics (completed-without-collision, collided from eps_raw). Flow (N=10/arm): observation history at crossing 9/10 clean; history 1 s ahead (Khonsu fixed lead) 7/10; Kalman snapshot 2/10; cold 2/10; EdgeWarp timing 0/10 (10/10 collided). Computed-lead arm 5/10, WITHHELD: transfer-time EMA seeds at 0.05 s before any handoff, so the first crossing's lead is a guess; fix folded into T15. Burst (N=5): history ahead 5/5 clean, EdgeWarp 0/5, cold 0/5. Grind resolved (env artifact); absolute-rate embargo lifted for v3-derived numbers only.
+- Interpretation rule from the eval session: on this geometry the source sees the actor to the crossing, so at-crossing transfer suffices; do not claim warm > reactive here; the trigger table (lookahead redo + T15) adjudicates timing. Written into the paper (scale_out_nsdi: tab:flow in §5.3, burst sentence in §5.8, flow named as the "source can see" case in §5.5) and the deck status slides.
+- Queue: q5 (running) -> s5 lookahead redo -> provenance reps -> T7-live + fault arms -> T9 -> T12 -> T15 -> T14; T13 corridor build started on a branch.
+
 ## 2026-09-04 (writing session, night): sections 2 and 3 restructured around scale-out
 
 - Follow-up pass (4e717d4): §2.2 renamed Multi-locale deployment, §2.3 Traffic conflicts cannot be partitioned away; overlap caveat (overlap does not supply prior history); §2.4 opens with the simple-handoff alternative; §2.5 as four requirements (continuity, timeliness, ownership, failure handling); §3 compatibility model made consistent (shared record schema, compatible versions may differ, model state reused only on match, no translation across families); radio independence in three sentences; trigger prepares the highest-probability neighbor, counting each mode toward the first boundary crossed; predictor-context field marked unused; epoch resolution stated as publish-after-commit and prefer e+1 on concurrent forecasts; consistency demoted from a runtime contract to an evaluation criterion (freshness is the invariant). Two code items to the eval session: T15 predictor-mode trigger (the evaluated trigger today is the CV projection; the paper flags this in §4.2 with a red placeholder) and T10 association moved ahead of T11.
