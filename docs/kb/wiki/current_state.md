@@ -3319,3 +3319,19 @@ EMA seeds at 0.05 s before any handoff has been measured, giving the first
 measured median or use first-fire floor. T15 (MTR-consuming trigger) queued
 per new spec; CV becomes ablation. Rows banked
 (design_sweep_v3_rows.csv). q5 running.
+
+## Q5 + provenance landed; s5 third attempt (2026-09-04)
+
+Q5 scale (FLOW_N x arm, n=5, success=completed&clean): N=2 warm 5/5 vs
+edgewarp 0/5 cold 0/5; N=4 warm 2/5 edgewarp 1/5 cold 0/5; N=8 warm 4/5
+edgewarp 0/5 cold 1/5. Ordering robust across density; warm's N=4 dip is
+within noise at n=5. Rows: q5_scale_rows.csv.
+PROVENANCE RESTORATION: 4/4 warm reps at ecc4b092 with the documented env =
+ZERO collisions. The August "irreproducible" verdict is now: reproducible
+with the documented env contract (completion-field verification pending one
+formatting check); reactive/edgewarp dead-trigger finding unaffected.
+s5: attempt 2 failed on worktree missing scenario_runner package (untracked
+vendored dir; worktrees need pb2 stubs regenerated AND scenario_runner +
+model assets linked — full checklist now known). Attempt 3 RUNNING with all
+deps verified. q5 chain completed overnight contrary to the writing
+session's snapshot; timing artifact of their check.
