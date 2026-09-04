@@ -153,6 +153,19 @@ The evaluated trigger today is a constant-velocity projection of the tracked vel
 
 ## Priority change: T10 (association for unconnected actors) moves ahead of T11. The reviewer's view is that simulator-supplied identity is too exposed for the submission now that cross-locale continuity is the central claim. A geometry + motion + IoU association in the overlap is sufficient; it does not need to be an ML contribution.
 
+## Section 4-5 review additions (2026-09-04, late)
+
+## T16. Faithful EdgeWarp-style arm (baseline fidelity)
+The current `edgewarp` arm is a snapshot at the handover event with no pre-copy, which is not EdgeWarp. Implement: predict the next radio attachment (use the cell-attachment predictor already in the ns-3 plane or a distance-to-cell-edge rule), pre-copy the same track record to the corresponding edge on that prediction, and send a final synchronization at the radio handover event. Keep the current arm as `handover_snapshot`. Acceptance: both arms in the flow and corridor tables.
+
+## T17. Import-age ablation
+At import the destination extrapolates the last box by the transferred ground velocity for the elapsed time (constant velocity). Measure first-destination-forecast error vs elapsed import age {0, 50, 100, 200, 400} ms, on the acceleration and straight scenarios, 10 reps. Acceptance: one small table or figure for §5.2.
+
+## T18. Lead-constant sensitivity
+Sweep M in {0.15, 0.35, 0.6} s and the lead cap in {1.5, 2.5, 4.0} s on the flow scenario with the forecast trigger; report completion and warm-before-first-use. Acceptance: one table for §5.5.
+
+## Two facts to confirm for the paper: (a) K = max_window = 10 in mamba3dmot/wrapper.py (used in the byte table); (b) what TRIGGER_DIST=300 controls in the flow scenario (the paper currently labels it "oncoming stream release distance"; correct it if wrong).
+
 Order: T1 (tonight, safe) and T2 (the gate) first; T3/T4 build while T2's rerun goes. T5/T6 belong to the parallel writing session; do not touch ~/repos/scale_out_nsdi. Commit style: one subject
 line, no co-author trailers (user rule). Update
 docs/kb/wiki/current_state.md after each block.
