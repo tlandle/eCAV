@@ -166,6 +166,31 @@ Sweep M in {0.15, 0.35, 0.6} s and the lead cap in {1.5, 2.5, 4.0} s on the flow
 
 ## Two facts to confirm for the paper: (a) K = max_window = 10 in mamba3dmot/wrapper.py (used in the byte table); (b) what TRIGGER_DIST=300 controls in the flow scenario (the paper currently labels it "oncoming stream release distance"; correct it if wrong).
 
+## Figure completeness additions (2026-09-04, Tyler: every figure in the deck and paper must be producible from a run)
+
+Audit of the seven expected-shape figures (slides/toy_figs.py) and the paper's figure placeholders against the tasks above: faults (T7), corridor (T13), and the trigger front (T15/s5/T18) have a producing eval; envelope, overlap, crossing load, and sizing do not fully; two shared quantities are not logged. The following close every gap. Each is required, not optional.
+
+## T19. Per-handoff timing rows (prerequisite for T15, T14, T13, T19b; do first)
+Extend the run log with one `[HANDOFFROW]` per migrated track: run tag, track id, crossing index, locale from/to, prepare send time, commit time, first destination publish time, first planner use time (first tick the ego's planner consumed a forecast for that track from the destination), warm_before_first_use (publish < first use), bytes sent, prepared_but_never_crossed (wasted), epoch. This is the primary metric of §5.5, §5.6, and §5.7 and the y-axis of the trigger and overlap figures; the current RUNROW (tx, by) cannot produce it. Acceptance: rows present in every arm from T15 onward; a one-run smoke showing warm_before_first_use for each crossing.
+
+## T19b. Crossing-load sweep (the load figure: p99 transfer-to-first-refresh vs concurrent tracks)
+Platoon size {1, 2, 4, 8, 16} crossing one boundary together (generalize the burst scenario's 5-vehicle platoon; spacing 15 m). Arms: Khonsu (forecast trigger), continuous replication, dual-service overlap (destination processes the platoon from overlap entry), handover snapshot, cold. Per track: transfer-to-first-refresh latency (prepare send to first destination forecast) p50/p95/p99, warm_before_first_use, collided-or-not per run. 5 reps per cell. Mark the p95 concurrent-crossing count observed in T13 on the axis. Acceptance: one CSV; the concurrent-track count at which Khonsu's p99 exceeds the handoff budget.
+
+## T20. Trigger oracle arm
+Prepare at exactly crossing_time - L using the simulator's ground-truth future trajectory (the actor's actual crossing time is known offline). Add TRIGGER_MODE=oracle. Runs in the T15 trigger study (two-locale) and as the "oracle" arm of T13. Acceptance: oracle point on the trigger front (warm-before-use, wasted bytes = 0 by construction) and the oracle row in the corridor table.
+
+## T21. Edge compute per vehicle-second
+Log per locale per tick the wall time of fusion + tracking + prediction and the number of vehicles served; derive edge compute per vehicle-second per arm. Needed for the overlap cost panel (T14), the alternatives figure (§5.6), and sizing (T22). Acceptance: the field in every RUNROW from T14 onward; a one-run smoke with the value for each locale.
+
+## T14 amendment
+Add the 20 m/s speed (ONCOMING_SPEED=20) for widths {20, 40, 80, 120} m, 5 seeds, all three forms. The overlap figure plots warm-before-use against width per speed; one speed cannot show that the lead from a fixed width shrinks with speed. Report edge compute per vehicle-second (T21) per form and width.
+
+## T12 amendment (one success rule everywhere)
+Report, per scenario and delay d, the fraction of seeds that complete without a collision (the full curve; the envelope figure draws it). tau(u) = the largest d at which every seed completes without a collision. The paper states this rule; the 0.95 wording is replaced. If a scenario needs finer resolution, 10 seeds at the two delays bracketing tau(u).
+
+## T22. Locale sizing analysis (after T8 and T13; analysis, not a run)
+For locale side L in 100..600 m step 25: compute utilization from the canvas sweep (exists, canvas_latency.csv); handoff-load utilization = crossing rate(L) x per-handoff cost / handoff budget, with crossing rate from the T13 traffic (crossings per boundary per minute at FLOW_N 4 and 8, scaled by 1/L) and per-handoff cost from T8 (prepare + commit + import + first refresh, p95). Output docs/kb/data/relay_eval_2026_08/q7_sizing_v2.csv with both curves; the feasible interval is where both are under 100%.
+
 Order: T1 (tonight, safe) and T2 (the gate) first; T3/T4 build while T2's rerun goes. T5/T6 belong to the parallel writing session; do not touch ~/repos/scale_out_nsdi. Commit style: one subject
 line, no co-author trailers (user rule). Update
 docs/kb/wiki/current_state.md after each block.
