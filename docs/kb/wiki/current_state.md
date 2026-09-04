@@ -3255,3 +3255,17 @@ v3 (6 arms x 10 + burst 15) -> q5 -> s5-redo (worktree script given explicit
 envs since 9d5e1883 predates the defaults). T7-live built on branch
 t7-live-epochs (epoch+FAULT_MODE+FENCING+LEADROW+RUNROW fields); merges after
 the queue. Writing session informed (named-cause message sent).
+
+## T12/T13 accepted; T13 go/no-go set (2026-09-03)
+
+T12 (safe-age tau(u) via consume-side delay, no migration): queued after T9.
+Scenario coverage: blind overtake/accel/stopped-lead exist; scenario_3 covers
+LTAP shape; SCP variant is a small build. T13 (multi-locale corridor
+capstone): CONDITIONAL YES for Sep 15 sent to the writing session —
+go/no-go = 3-locale smoke clean by Sep 9, else descope ladder (3 locales; 5
+arms dropping overlap/replication; core metrics) with an explicit flag to
+Tyler. Main surgery: the flow runner's two-locale assumptions (destination =
+the-other-locale, sticky assignment, per-NPC bookkeeping). Build runs on a
+branch in parallel with the GPU queue (v3 -> q5 -> s5 -> provenance reps ->
+fault arms). Extractor now emits eps_raw/contact_raw from the raw collision
+stream (RUNROW ct is history_size=30 capped; do not cite).
