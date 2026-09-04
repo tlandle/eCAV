@@ -5,6 +5,12 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-03 (writing session, late): NSDI draft restructured to conventional systems-paper form
+
+- Per the second external review pass: intro rewritten as six paragraphs (service, why locales with the canvas bound, state-continuity problem, tracker dependency with the scoped SSM-integration claim, prior systems gap, Khonsu) plus three contributions; chain table removed; motivation = scaling with locales (system model folded in) / why tracking requires temporal state / the locale-handoff cold start; design merged with the old architecture section (overview and ownership model, trigger, per-track state, prepare/update/commit, import validation and fallback); implementation gains the 3D SSM tracker integration subsection; evaluation subsections retitled result-first (5.1 temporal state preserves tracking quality, 5.2 cold starts propagate to planner failures, 5.3 when proactive migration is required, 5.4 end-to-end comparison, 5.5 scalability and robustness, 5.6 locale sizing); related work and limitations are their own short sections; discussion retired. Intent tags dropped. 13 pages with refs, 0 errors, no undefined refs.
+- Vocabulary: no "world model"; "temporal track state" / "per-track state"; scaffolding phrases removed (memory: feedback_no_argument_scaffolding).
+- Still red: headline numbers, full scenario set, trigger table, end-to-end table, fault table, sizing surface, T8 transport. v3 sweep 32/75 at 19:54; eval session reports on landing.
+
 ## 2026-09-03 (eval session, relayed): T2 root cause = missing scenario env contract
 
 - khonsu_design_sweep.sh never set ONCOMING_SPEED=12 TRIGGER_DIST=300; every validated run (warm/kf flip, clean tables) had them. v1 AND v2 sweeps ran the unvalidated geometry (mixed 8/6 m/s oncoming, 150 m trigger), which reproduces the marginal commit geometry and the truck wedge. Controlled pair (warm, BEHAVIOR_DEBUG): bare env 1 episode / 762 raw contact ticks / no completion; contract env 0 / 0 / completes. The "30 contact ticks" figure was the collision-sensor history_size=30 buffer cap.
