@@ -148,6 +148,11 @@ Arms: sensing overlap only (both locales observe the band, state still migrates 
 
 ## Metric rule (Tyler): report collided-or-not per run (fraction of runs with any ego contact) and completed-without-collision. Do not report mean collision episodes per run.
 
+## T15. Predictor-mode trigger (must-fix for the headline claim; reviewer 2026-09-04)
+The evaluated trigger today is a constant-velocity projection of the tracked velocity (openscenario_1_flow_gt.py TRIGGER_MODE=predictive). The paper's design says the trigger consumes the cooperative predictor's trajectories. Implement TRIGGER_MODE=mtr: for each MTR mode of the track, find the first locale boundary crossed within the horizon; sum mode probabilities by destination locale; prepare the destination with the highest probability once it exceeds theta (default 0.5; sweep 0.3-0.9 in the trigger study). Keep the CV projection as TRIGGER_MODE=cv (an ablation arm). Log per fire: destination, probability, lead. Acceptance: v3-style rerun of the warm/computed arms with the MTR trigger (10 reps), plus the trigger-study table with both triggers. Priority: after T12, before T14.
+
+## Priority change: T10 (association for unconnected actors) moves ahead of T11. The reviewer's view is that simulator-supplied identity is too exposed for the submission now that cross-locale continuity is the central claim. A geometry + motion + IoU association in the overlap is sufficient; it does not need to be an ML contribution.
+
 Order: T1 (tonight, safe) and T2 (the gate) first; T3/T4 build while T2's rerun goes. T5/T6 belong to the parallel writing session; do not touch ~/repos/scale_out_nsdi. Commit style: one subject
 line, no co-author trailers (user rule). Update
 docs/kb/wiki/current_state.md after each block.
