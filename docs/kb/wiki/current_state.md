@@ -5,6 +5,11 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-04 (writing session, late): systems-prose pass on the NSDI draft
+
+- Reviewer pass 4 applied (scale_out_nsdi f5dadc9): three-panel Figure 1 deleted (canvas plot is Figure 1; a small PREPARE/COMMIT sequence figure sits in §3); RQ paragraph removed from the intro (RQs stay in the deck and as the evaluation's internal structure); intro paragraph 2 in the reviewer's plain form; §2.2 and §2.3 collapsed (Singer/IMM/vision refs moved to Related Work; "colder of the two tracks" and the v/a walkthrough gone); §3 mechanical (two independent changes, t_o and t_c only with Delta_use <= tau(u), PREPARE/COMMIT paragraph, two numbered success conditions, record table, fallback table, trigger paragraph without adjectives, band described as a baseline); §4.2 module inventory cut; §5 opener "four parts", parameter table, topic-style subsection titles, corridor as figure + table + three sentences; load-driven migration deleted (one future-work sentence); overlap discussion in §7 cut to one paragraph; conclusion halved; intent tags shortened. Purge list clean in the PDF; no overfull boxes; 13 pages with tags.
+- Deck: v6 (21 slides, illustrative expected-shape figures) pushed to gtvault and committed at slides/ with builder, toy_figs.py, and PNGs.
+
 ## 2026-09-04 (writing session): reframe to "from one locale to metropolitan scale"; four RQs; corridor capstone
 
 - Paper (scale_out_nsdi e7ae5c7): abstract and intro open from Conductor's one-locale result and pose the main question (scale to a metropolitan deployment while preserving planner-usable predictions); four RQs (scale-out, state continuity, safe handoff, multi-locale operation) with section map; the 220-450 ms envelope is cited as motivation from unpublished earlier experiments and re-measured per scenario in a new §5 "Safe-age limit per handoff scenario" (T12); new §5 "Multi-locale operation on a corridor" (T13) as the RQ4 capstone with route-level metrics in four groups. Title still Tyler's call (candidates: "Khonsu: Scaling Cooperative Prediction Across Edge Locales" / "State Continuity for Multi-Locale Cooperative Prediction").
