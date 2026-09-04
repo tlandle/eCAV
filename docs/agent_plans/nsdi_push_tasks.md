@@ -130,6 +130,16 @@ CDF, wasted bytes, and probability-threshold sensitivity. Acceptance: one
 table + lead-time CDF figure data CSV. This replaces the CARLA-only trigger
 comparison as the paper's trigger evidence if it finishes.
 
+## Reframe additions (2026-09-04). The paper now asks: how does cooperative prediction scale from one locale (Conductor) to a metropolitan deployment? Four RQs: scale-out, state continuity, safe handoff, multi-locale operation.
+
+## T12. Re-measure the safe-age envelope inside the Khonsu scenarios (RQ3 needs it; the envelope paper is unpublished)
+For each closed-loop handoff scenario (blind overtake, acceleration, LTAP, SCP, stopped lead), inject a controlled forecast age at the planner (delay the consumed forecast by d ms, d in {100..600} step 50) with NO migration effects, and find the largest d at which the maneuver still completes without collision across seeds. That d is the scenario's safe-age limit tau(u). Acceptance: a table scenario x tau(u) with CIs, 5 seeds per point; the paper cites these instead of the 220-450 ms figure. Reuse the envelope harness knobs if they still exist (AOI_INJECT / forecast delay); otherwise add a consume-side delay knob in the ego eval path.
+
+## T13. Multi-locale corridor (RQ4, the capstone; biggest new build)
+Scenario: 3 to 5 consecutive locales along an arterial (A | B | C | D), each with its own canvas, RSU at its conflict anchor, and a service instance; adjacent sensing overlap sufficient for handoff. One ego drives the whole corridor. Actors cross boundaries independently, some accelerating or braking; conflicts at intersection centers AND traffic-generated between intersections (queue tail, stopped vehicle, overtake, merge); several tracks cross one boundary together; some migrations land on a destination already busy. Arms over the WHOLE route: cold, reactive/boundary, EdgeWarp timing, geometric overlap, continuous replication, Khonsu, oracle.
+Metrics per route: continuity (fraction of handoffs warm before use, post-handoff ADE/FDE, track resets/ID switches, fallbacks per km); planner safety (age at use vs tau(u), min TTC, collisions, hard/false braking, route completion); system (migrations/s, concurrent migrations, bytes/s between locales, import and first-refresh latency, per-locale compute utilization, prepared-but-unpublished tracks, failure point vs crossing rate); repeated handoffs (metrics by crossing index 1st/2nd/3rd, stale epochs, ping-pong).
+Build path: generalize the two-locale flow runner to N locales (registry already maps areas to locales), extend the RUNROW to per-handoff rows with crossing index and locale ids, and a corridor XML. Start with 3 locales and the existing ego route stitched; 5 reps per arm. Acceptance: one route-level table (arms x metrics) and one figure (metric vs crossing index). Priority: after v3 lands and T7-live; ahead of T10/T11 if time is short. Flag to Tyler if it cannot land by Sep 15.
+
 Order: T1 (tonight, safe) and T2 (the gate) first; T3/T4 build while T2's rerun goes. T5/T6 belong to the parallel writing session; do not touch ~/repos/scale_out_nsdi. Commit style: one subject
 line, no co-author trailers (user rule). Update
 docs/kb/wiki/current_state.md after each block.
