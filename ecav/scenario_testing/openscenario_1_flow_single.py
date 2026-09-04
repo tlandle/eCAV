@@ -56,6 +56,10 @@ logger = logging.getLogger(__name__)
 
 MAX_STEP = 1100  # blind overtake: stage+hold+commit+pass runs ~1000 ticks
 SCENARIO_NAME = 'openscenario_1_flow_single'
+# Scenario env contract defaults (see openscenario_1_flow_gt.py).
+os.environ.setdefault('ONCOMING_SPEED', '12')
+os.environ.setdefault('TRIGGER_DIST', '300')
+
 MIGRATION_MODE = os.environ.get("MIGRATION_MODE", "warm").lower()
 
 # Speed (m/s) above which a non-hero vehicle is taken to be the fast NPC.

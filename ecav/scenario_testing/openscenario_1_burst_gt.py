@@ -84,6 +84,9 @@ OBSTACLE_HANDOFF_LOOKAHEAD_S = float(os.environ.get('LOOKAHEAD_S', 1.0))
 # geometric alternative: fire when the NPC is within BAND_W_M meters of the
 # source-locale boundary, no trajectory involved. Both reuse MIGRATION_MODE's
 # payload semantics.
+# Scenario env contract defaults (see openscenario_1_flow_gt.py).
+os.environ.setdefault('ONCOMING_SPEED', '12')
+os.environ.setdefault('TRIGGER_DIST', '300')
 TRIGGER_MODE = os.environ.get('TRIGGER_MODE', 'predictive').lower()
 BAND_W_M = float(os.environ.get('BAND_W_M', 20.0))
 # COMMIT_REFRESH='full' re-sends the full state once at the actual crossing

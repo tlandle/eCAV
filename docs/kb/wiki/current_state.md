@@ -5,6 +5,70 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-04 (writing session, morning): Q5 scale and provenance closure written in
+
+- Correction: the eval chain did not stall; q5 and s5 ran overnight (my check fell between chain end and its verification). Q5 (q5_scale_rows.csv, n=5, N=2/4/8 oncoming): collision-free runs warm 5,2,4; handover snapshot 0,1,0; cold 0,0,1; ordering holds at every density; warm's N=4 dip is noise. Written into scale_out_nsdi §5.8 as tab:scale (collision-free runs only; completion field format at that commit still being confirmed by the eval session). Provenance closed: canonical warm arm at ecc4b092 reran 4/4 with zero collisions under the env contract; q4 table stays retired for the dead-trigger reason.
+- T8 mini-landing written in (scale_out_nsdi 84143fd): serialized MigrationPayload measured at 1247 B over the real gRPC relay (t7-live branch), so the paper says 1.25 KB everywhere (intro, §2.4, tab:bytes, §5.2); §4.2 Transport now states the relay and clean-loopback timings (prepare 1.81 ms, commit 0.29 ms) with the netem matrix (delay 0/5/20/50 ms x loss 0/1/5%) as the remaining placeholder. Sudo: atlas already has NOPASSWD ALL; the only gate is the eval session's tool prompt. PDF is 14 pp only because one reference spills; body ends before the references.
+- Figure completeness (Tyler: every figure must be producible from a run). Audit of the seven expected-shape figures vs tasks: faults T7, corridor T13, trigger front T15/s5/T18 covered; envelope (threshold rule), overlap (one speed, no compute metric), crossing load (no task), sizing (no task) not. Added to nsdi_push_tasks.md (cbaa79ca): T19 per-handoff timing rows with warm_before_first_use (prerequisite), T19b crossing-load sweep platoon {1,2,4,8,16} x 5 arms, T20 TRIGGER_MODE=oracle, T21 edge compute per vehicle-second, T14 amendment (20 m/s cells + compute), T12 amendment (tau(u) = largest delay with every seed clean; full curve reported), T22 sizing analysis. Paper eq:tau now states that rule (scale_out_nsdi 9b7c7dd). Deck: envelope toy figure redrawn on the rule, load and sizing slides marked Needed; pushed to gtvault and verified.
+- Eval session on the figure audit (afternoon): T19 merges with T7-live as one instrumentation drop (epochs + LEADROW + XFERROW + HANDOFFROW), Sep 5; T20 oracle rides T16, Sep 5-6; T21 compute accumulator before the T15 batch, Sep 6; T12 rule adopted verbatim; T14 amendments folded, Sep 10-11; T22 Sep 12-13. T19b decision (writing session): four existing arms (Khonsu, mirror, handover snapshot, cold) on Sep 8, dual-service column added when T14 lands. s5: pinned-worktree replay abandoned after a fourth failure (missing perception_pb2; zombie rows purged from the v1 CSV); lookahead {2,3,4} x 10 now running on current develop with the contract env into the v3 logdir, so the trigger table is v3-internal on one code version (at-crossing, 1-4 s, computed after fix, MTR, oracle). GPU oversubscribed Sep 8-11; slip order if needed: T19b fifth arm, then T14 speed cells; corridor keeps priority.
+- Eval ETAs (eval session): T16 Sep 5; T7-live fault arms Sep 5; T15 batch with T17/T18 Sep 6-7; T9 Sep 6; T12 Sep 8; T13 corridor build started, go/no-go Sep 9; T14 Sep 10-11; T10 after T13 smoke, at risk. T8 impaired runs need Tyler's sudo for netem. s5 lookahead redo third attempt running (worktree dependency checklist added).
+
+## 2026-09-04 (writing session, night): sections 4-5 in Conductor form
+
+- scale_out_nsdi d799afc (+ table sizing): §4 = 4.1 3D state-space tracking (K = 10 stated; same cadence in evaluation; MTR stateless; AB3DMOT baseline) and 4.2 cross-locale migration layer with Trigger / Import / State size / Transport paragraphs, a byte table (560 B history, ~680 B content, ~1.3 KB serialized, 448 B Kalman), constants with rationale, unit checks moved here, predictor-mode trigger stated with the CV runs flagged (T15). Old §4.3 platform and arms moved into §5.1 Methodology: platforms with section mapping, datasets with their uses, baselines defined once (handover snapshot renamed; faithful EdgeWarp-style arm pending T16; two named oracles: trigger oracle and single-instance oracle; overlap in three named forms), metrics standardized on Delta_use and success, constants table (activation radius label corrected per eval session; seeds policy 10 two-locale / 5 pilot). §5.2 state required (record ablation moved here; "lower-bounds" and "statistically indistinguishable" removed); §5.3 when continuity matters as a visibility x motion 2x2 with the v3 flow table as the visible/constant cell and the caveats; §5.4 freshness limit with tau(u) = max age with success probability >= 0.95; §5.5 trigger (warm-before-use vs wasted bytes; band described here; M and cap sensitivity); §5.6 alternatives incl. overlap width sweep; §5.7 corridor with four primary metrics and no 95% success criterion; §5.8 one scale axis (tracks per handoff window) + burst result + fault table + separate network sensitivity; §5.9 sizing with the concrete sweep. 13 pp, no undefined refs, no overfull.
+- Eval session: K=10 confirmed; TRIGGER_DIST is a per-actor activation radius (ego to spawn), corrected in the table; T16/T17/T18 queued, with T17/T18 folded into the T15 CARLA batch (plan of record). Deck v6 with v3 results committed (scale_out_nsdi slides/, KB baseline); gtvault push refused 423 Locked again, Tyler's title-slide deletion ported.
+
+## 2026-09-04 (eval session landing, relayed): v3 re-baseline on the corrected scenario
+
+- docs/kb/data/relay_eval_2026_08/design_sweep_v3_rows.csv, 75/75 verified, zero crashes; binary metrics (completed-without-collision, collided from eps_raw). Flow (N=10/arm): observation history at crossing 9/10 clean; history 1 s ahead (Khonsu fixed lead) 7/10; Kalman snapshot 2/10; cold 2/10; EdgeWarp timing 0/10 (10/10 collided). Computed-lead arm 5/10, WITHHELD: transfer-time EMA seeds at 0.05 s before any handoff, so the first crossing's lead is a guess; fix folded into T15. Burst (N=5): history ahead 5/5 clean, EdgeWarp 0/5, cold 0/5. Grind resolved (env artifact); absolute-rate embargo lifted for v3-derived numbers only.
+- Interpretation rule from the eval session: on this geometry the source sees the actor to the crossing, so at-crossing transfer suffices; do not claim warm > reactive here; the trigger table (lookahead redo + T15) adjudicates timing. Written into the paper (scale_out_nsdi: tab:flow in §5.3, burst sentence in §5.8, flow named as the "source can see" case in §5.5) and the deck status slides.
+- Queue: q5 (running) -> s5 lookahead redo -> provenance reps -> T7-live + fault arms -> T9 -> T12 -> T15 -> T14; T13 corridor build started on a branch.
+
+## 2026-09-04 (writing session, night): sections 2 and 3 restructured around scale-out
+
+- Follow-up pass (4e717d4): §2.2 renamed Multi-locale deployment, §2.3 Traffic conflicts cannot be partitioned away; overlap caveat (overlap does not supply prior history); §2.4 opens with the simple-handoff alternative; §2.5 as four requirements (continuity, timeliness, ownership, failure handling); §3 compatibility model made consistent (shared record schema, compatible versions may differ, model state reused only on match, no translation across families); radio independence in three sentences; trigger prepares the highest-probability neighbor, counting each mode toward the first boundary crossed; predictor-context field marked unused; epoch resolution stated as publish-after-commit and prefer e+1 on concurrent forecasts; consistency demoted from a runtime contract to an evaluation criterion (freshness is the invariant). Two code items to the eval session: T15 predictor-mode trigger (the evaluated trigger today is the CV projection; the paper flags this in §4.2 with a red placeholder) and T10 association moved ahead of T11.
+
+- scale_out_nsdi ea3cfef. §2 "Scaling Cooperative Prediction Across Locales": 2.1 geographic scaling limit (canvas measurement, cap specific to our stack, many instances required); 2.2 constructing a multi-locale deployment (locale definition, anchors, overlap, edge-server mapping, locale handoff, independence from radio cells); 2.3 conflicts and actors cross boundaries (placement contains fixed conflicts, not traffic-generated ones); 2.4 state required across locales (can a destination restart from a detection: Kalman vs history, forced-handoff 2.8-9.3x, temporal track state defined after the evidence); 2.5 requirements for cross-locale operation (six). §3 "Khonsu: Cross-Locale Operation": 3.1 track ownership (epoch defined here; ownership separate from radio); 3.2 forecast-driven preparation (crossing probability defined as summed mode probability, deterministic CV projection in the implementation; lead equation L = T_xfer + T_import + T_refresh + M); 3.3 migrated track state (table, plain prose); 3.4 prepare and commit (description-list protocol, connected ego separately with position-based binding, epoch rule, idempotence under faults); 3.5 publication and fallback (five checks with the extrapolation step stated concretely, freshness and consistency equations with d = displacement error and epsilon = source steady-state error, fallback table). Moved: 4/4 vs 3/4 result to §5.3 only; band baseline to §5.5; EMA/0.6 s/350 ms/2.5 s constants to §4.2; eight fault scenarios to §5.8; unconnected-actor discussion to a short assumption plus §7. Intro's central question restated at metropolitan scale with the three sub-problems. Evaluation opener follows the §2 chain. 13 pp with tags, no undefined refs.
+
+## 2026-09-04 (writing session, late): systems-prose pass on the NSDI draft
+
+- Abstract and intro rewritten again (492cfa2) to the reviewer's models: Safety Envelope directness for the abstract (no Conductor, SSM, epochs, or baseline list; three headline placeholders), Conductor cadence for the intro (physical opening, Conductor as scaffolding in paragraph 2, one central question, definitions after motivation, three enumerated contributions). Intro ends inside page 2. Writing standard going forward: short concrete sentences, system behavior first, definitions after motivation, one central question at most, ordinary verbs.
+
+- Pages 1-2 redline applied on top (37081fa): abstract answers four things with no Conductor, no example, no baseline list beyond reactive/overlap/replication/oracle; intro paragraphs in the reviewer's plain form (Conductor as prior work in paragraph 2, 300 ms and tau(u) separated, tracker and cold-start split into two paragraphs, neutral migration positioning, three bulleted contributions, epoch wording "highest committed ownership epoch"); "warm" defined at first use in \S3. Intro ends inside page 2.
+
+- Reviewer pass 4 applied (scale_out_nsdi f5dadc9): three-panel Figure 1 deleted (canvas plot is Figure 1; a small PREPARE/COMMIT sequence figure sits in §3); RQ paragraph removed from the intro (RQs stay in the deck and as the evaluation's internal structure); intro paragraph 2 in the reviewer's plain form; §2.2 and §2.3 collapsed (Singer/IMM/vision refs moved to Related Work; "colder of the two tracks" and the v/a walkthrough gone); §3 mechanical (two independent changes, t_o and t_c only with Delta_use <= tau(u), PREPARE/COMMIT paragraph, two numbered success conditions, record table, fallback table, trigger paragraph without adjectives, band described as a baseline); §4.2 module inventory cut; §5 opener "four parts", parameter table, topic-style subsection titles, corridor as figure + table + three sentences; load-driven migration deleted (one future-work sentence); overlap discussion in §7 cut to one paragraph; conclusion halved; intent tags shortened. Purge list clean in the PDF; no overfull boxes; 13 pages with tags.
+- Deck: v6 (21 slides, illustrative expected-shape figures) pushed to gtvault and committed at slides/ with builder, toy_figs.py, and PNGs.
+
+## 2026-09-04 (writing session): reframe to "from one locale to metropolitan scale"; four RQs; corridor capstone
+
+- Paper (scale_out_nsdi e7ae5c7): abstract and intro open from Conductor's one-locale result and pose the main question (scale to a metropolitan deployment while preserving planner-usable predictions); four RQs (scale-out, state continuity, safe handoff, multi-locale operation) with section map; the 220-450 ms envelope is cited as motivation from unpublished earlier experiments and re-measured per scenario in a new §5 "Safe-age limit per handoff scenario" (T12); new §5 "Multi-locale operation on a corridor" (T13) as the RQ4 capstone with route-level metrics in four groups. Title still Tyler's call (candidates: "Khonsu: Scaling Cooperative Prediction Across Edge Locales" / "State Continuity for Multi-Locale Cooperative Prediction").
+- Deck (scale_out_nsdi slides/khonsu_story.pptx f6ddf4c, builder slides/build_khonsu_story.py; gtvault push completed after Tyler closed the file, byte-verified): 16 slides in the research-program order: Conductor solved one locale -> metropolitan scale + main question + RQ1-4 -> RQ1 canvas/geometry -> partitioning problem (A/B/C schematic) -> RQ2 state (microbench, acceleration) -> safety condition (envelope re-measured) -> RQ3 alternatives, mechanism, evidence so far, overlap -> RQ4 corridor schematic + evaluation -> done/running/missing.
+- Eval session on T13: conditional yes for Sep 15 with a go/no-go on a 3-locale corridor smoke by end of Sep 9; descoping order if not: 3 locales, 5 arms (drop overlap/replication, already measured two-locale), core metrics first. Risks: two-locale assumptions in the flow runner, latent scenario bugs, GPU contention (build proceeds on a branch in parallel). T12 covers blind overtake / acceleration / stopped lead / LTAP; SCP needs a small scenario build and will be named as a gap.
+
+## 2026-09-03 (writing session, night): vocabulary and definition pass on the NSDI draft
+
+- Reviewer pass 3 applied (scale_out_nsdi 8296261): one term per concept (locale, edge server, actor, track, observation history, temporal track state, source/destination locale vs edge, locale handoff vs radio handover, final update, ownership epoch); every term defined at first use (abstract defines actors; intro defines track, planner, freshness budget, locale handoff, temporal track state, warm, ownership epoch; MTR, AB3DMOT, NHTSA, p95 expanded); 300 ms operating deadline vs 220-450 ms maneuver freshness budget vs 130 ms compute allocation distinguished; success stated as two conditions (age below budget; first forecast within tolerance); "single-writer" replaced by "one current owner + epoch check at the planner"; five import checks as a list; long sentences split; "reduces error by a factor of 2.8 to 9.3" everywhere; Figure 1 relabeled (Fusion cost bounds locale size; final update + commit (ownership epoch); temporal track state). Intent tags restored on all 86 paragraphs (reviewer treats them as required). 15 pp with tags on.
+- Remaining "learned state" occurrence is the paper title (Tyler's call).
+
+## 2026-09-03 (writing session, late): NSDI draft restructured to conventional systems-paper form
+
+- Per the second external review pass: intro rewritten as six paragraphs (service, why locales with the canvas bound, state-continuity problem, tracker dependency with the scoped SSM-integration claim, prior systems gap, Khonsu) plus three contributions; chain table removed; motivation = scaling with locales (system model folded in) / why tracking requires temporal state / the locale-handoff cold start; design merged with the old architecture section (overview and ownership model, trigger, per-track state, prepare/update/commit, import validation and fallback); implementation gains the 3D SSM tracker integration subsection; evaluation subsections retitled result-first (5.1 temporal state preserves tracking quality, 5.2 cold starts propagate to planner failures, 5.3 when proactive migration is required, 5.4 end-to-end comparison, 5.5 scalability and robustness, 5.6 locale sizing); related work and limitations are their own short sections; discussion retired. Intent tags dropped. 13 pages with refs, 0 errors, no undefined refs.
+- Vocabulary: no "world model"; "temporal track state" / "per-track state"; scaffolding phrases removed (memory: feedback_no_argument_scaffolding).
+- Still red: headline numbers, full scenario set, trigger table, end-to-end table, fault table, sizing surface, T8 transport. v3 sweep 32/75 at 19:54; eval session reports on landing.
+
+## 2026-09-03 (eval session, relayed): T2 root cause = missing scenario env contract
+
+- khonsu_design_sweep.sh never set ONCOMING_SPEED=12 TRIGGER_DIST=300; every validated run (warm/kf flip, clean tables) had them. v1 AND v2 sweeps ran the unvalidated geometry (mixed 8/6 m/s oncoming, 150 m trigger), which reproduces the marginal commit geometry and the truck wedge. Controlled pair (warm, BEHAVIOR_DEBUG): bare env 1 episode / 762 raw contact ticks / no completion; contract env 0 / 0 / completes. The "30 contact ticks" figure was the collision-sensor history_size=30 buffer cap.
+- Fix pushed: contract values are runner defaults (os.environ.setdefault) in flow_gt, burst_gt, flow_single. Frozen lights stay (not the cause).
+- Consequences: v2 rows discarded; v1 relative findings provisional until v3; absolute-rate embargo until v3. v3 (6 arms x 10 + 15 burst, corrected scenario) relaunched ~26 h, then q5 scale, then s5 lookahead redo. Requested: canonical reproduction check at ecc4b092 with the contract env (would revise the August provenance alert from "irreproducible" to "env-dependent").
+
+## 2026-09-03 (writing session): NSDI draft reframed after external review
+
+- External review (2/5 today, competitive if fixed) verified against code: payload migrates explicit history banks (memo/diff, 56K bytes) not a hidden state (`hidden_state` reserved, never set; no MTR cache); COMMIT text tied to radio while harness commits per track on geometric crossing; single-writer claim contradicted by the failure model; transport parametric; Falcon/LLM-state systems uncited; TrackSSM bib wrong (real: Bin Hu et al., arXiv 2409.00487).
+- Paper now (scale_out_nsdi ffeef16, 54ef3e5): "per-actor temporal inference state" replaces latent/hidden state; "one send" retracted, design = prepare + versioned delta at commit; per-actor COMMIT on polygon entry (ego also on binding move); epoch field + consumer fencing; explicit fault model; three contributions; related work on unit/trigger/criterion with Falcon, Megaphone, Llumnix, CacheGen, DejaVu, Mooncake, VIPS, Harbor; byte audit (1.3 KB, >80% explicit history; KF 448 B); sizing scoped to "our architecture"; computed trigger stated as implemented (EMA + 3 edge cycles + 0.35 s, cap 2.5 s); ownership-layer 8-scenario verification paragraph; frozen-lights hardening + FLOW_N + burst definition in methodology.
+- Not yet: headline numbers (placeholders), 12-page trim (19 pp with ptags, refs at p16), ARC citation (metadata unverified), Falcon co-authors entered as "and others".
+- Orchestration: eval session is the peer at uds 4031 (ListAgents `...-8d [72d64c]`); T7-T11 handed over via docs/agent_plans/nsdi_push_tasks.md; v2 hardened sweep running; T7 unit layer done (fault_injection_results.csv); T8 netem needs Tyler's sudo.
+
 ## PROVENANCE ALERT: canonical flow table not reproducible (2026-08-31)
 
 Design-sweep campaign completed 150/150 on a uniform stack, then
@@ -3216,3 +3280,66 @@ class locally (1 batch) to prove ingestion BEFORE mass generation. Mix
 finetune from caronly_aug ep39 (provenance documented), 1 GPU -> 2 -> full.
 Sparse+busy both included deliberately (sparse frames train the objectness
 floor against our FP tail; busy matches flow/Q5/deployment).
+
+## T2 ROOT CAUSE NAMED: sweep dropped the scenario env contract (2026-09-03)
+
+Controlled pair (same code, warm arm, BEHAVIOR_DEBUG): bare sweep env = 762
+contact ticks, no completion; ONCOMING_SPEED=12 TRIGGER_DIST=300 = 0/0 clean.
+khonsu_design_sweep.sh never set the envs, so ALL v1+v2 rows ran mixed-speed
+8/6 oncoming with the 150 m trigger — the pre-fix marginal commit geometry.
+The "30 contact ticks" cap in extractions is collision_sensor history_size=30.
+FIX pushed: contract baked as runner defaults (flow_gt/burst_gt/flow_single
+setdefault). Frozen lights were not the cause and stay. v2 rows DISCARDED;
+v1 relative rows provisional pending v3 confirmation. Campaign relaunched:
+v3 (6 arms x 10 + burst 15) -> q5 -> s5-redo (worktree script given explicit
+envs since 9d5e1883 predates the defaults). T7-live built on branch
+t7-live-epochs (epoch+FAULT_MODE+FENCING+LEADROW+RUNROW fields); merges after
+the queue. Writing session informed (named-cause message sent).
+
+## T12/T13 accepted; T13 go/no-go set (2026-09-03)
+
+T12 (safe-age tau(u) via consume-side delay, no migration): queued after T9.
+Scenario coverage: blind overtake/accel/stopped-lead exist; scenario_3 covers
+LTAP shape; SCP variant is a small build. T13 (multi-locale corridor
+capstone): CONDITIONAL YES for Sep 15 sent to the writing session —
+go/no-go = 3-locale smoke clean by Sep 9, else descope ladder (3 locales; 5
+arms dropping overlap/replication; core metrics) with an explicit flag to
+Tyler. Main surgery: the flow runner's two-locale assumptions (destination =
+the-other-locale, sticky assignment, per-NPC bookkeeping). Build runs on a
+branch in parallel with the GPU queue (v3 -> q5 -> s5 -> provenance reps ->
+fault arms). Extractor now emits eps_raw/contact_raw from the raw collision
+stream (RUNROW ct is history_size=30 capped; do not cite).
+
+## v3 LANDED: corrected-scenario re-baseline, all rows valid (2026-09-04)
+
+75/75 content-verified (0 crashes). Binary metrics (Tyler's rule),
+success = completed-without-collision, N=10 flow / N=5 burst:
+FLOW: warm 7/10 (3 collided), reactive 9/10 (!), computed 5/10,
+kf 2/10, cold 2/10, edgewarp 0/10 (10/10 collided).
+BURST: warm 5/5 clean sweep; edgewarp 0/5; cold 0/5.
+Grind: RESOLVED as scenario-env artifact (median eps_raw=0 for warm/reactive).
+Notables: (1) burst is the paper's cleanest separation; (2) reactive edges
+warm on this geometry — consistent with the Q3 staleness cost of early
+transfer; the trigger table (s5 + T15 MTR trigger) adjudicates; (3) computed
+trigger underperforms warm — suspected first-crossing artifact: the transfer
+EMA seeds at 0.05 s before any handoff has been measured, giving the first
+(decisive) crossing a ~1.0 s lead built on a guess; fix = seed from the v3
+measured median or use first-fire floor. T15 (MTR-consuming trigger) queued
+per new spec; CV becomes ablation. Rows banked
+(design_sweep_v3_rows.csv). q5 running.
+
+## Q5 + provenance landed; s5 third attempt (2026-09-04)
+
+Q5 scale (FLOW_N x arm, n=5, success=completed&clean): N=2 warm 5/5 vs
+edgewarp 0/5 cold 0/5; N=4 warm 2/5 edgewarp 1/5 cold 0/5; N=8 warm 4/5
+edgewarp 0/5 cold 1/5. Ordering robust across density; warm's N=4 dip is
+within noise at n=5. Rows: q5_scale_rows.csv.
+PROVENANCE RESTORATION: 4/4 warm reps at ecc4b092 with the documented env =
+ZERO collisions. The August "irreproducible" verdict is now: reproducible
+with the documented env contract (completion-field verification pending one
+formatting check); reactive/edgewarp dead-trigger finding unaffected.
+s5: attempt 2 failed on worktree missing scenario_runner package (untracked
+vendored dir; worktrees need pb2 stubs regenerated AND scenario_runner +
+model assets linked — full checklist now known). Attempt 3 RUNNING with all
+deps verified. q5 chain completed overnight contrary to the writing
+session's snapshot; timing artifact of their check.
