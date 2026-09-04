@@ -3343,3 +3343,17 @@ vendored dir; worktrees need pb2 stubs regenerated AND scenario_runner +
 model assets linked — full checklist now known). Attempt 3 RUNNING with all
 deps verified. q5 chain completed overnight contrary to the writing
 session's snapshot; timing artifact of their check.
+
+## Standing rule adopted -> consolidated eval plan (2026-09-05)
+
+Tyler's fix-and-rerun-whole rule reshapes the schedule into ONE frozen eval
+commit: merge t7-live (T7/T8/T19 instrumentation) + build T16 faithful-
+EdgeWarp + T20 oracle trigger + T21 compute metering + computed-trigger
+seeding fix on develop, freeze, then run THE batch on that commit: headline
+6 arms + burst + q5 cells + lookahead {2,3,4} + computed-fixed + MTR trigger
++ theta sweep + oracle + T17 age + T18 constants (~200 runs, ~33 h,
+Sep 6-8), then fault arms + netem, T19b (4 arms), corridor smoke Sep 8-9 on
+the SAME commit. Tonight's lookahead sweep demotes to pilot data (pre-merge
+version; not paper rows). All previously banked v3/q5 rows likewise become
+superseded-by-frozen-batch when it lands; the paper's figures draw from the
+frozen set only.
