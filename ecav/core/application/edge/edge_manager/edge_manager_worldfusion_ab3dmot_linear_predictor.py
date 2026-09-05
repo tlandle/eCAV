@@ -442,6 +442,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     for _ in range(n_cav)
                 ]
                 ul_ms = max(ul_samples_ms) if ul_samples_ms else 0.0
+                self._last_ul_ms = ul_ms  # for network_age_ms (T12)
                 ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
                 arrival = frame_idx + ul_ticks
             else:
@@ -803,7 +804,9 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             deliver_tick = tick + int(math.ceil(
                 (compute_ms + dl_ms) / self._sim_dt_ms))
             _src_tick = getattr(self, '_latest_source_tick', tick)
-            self._outbound_queue.append((deliver_tick, predictions, _src_tick))
+            _net_ms = getattr(self, '_last_ul_ms', 0.0) + dl_ms
+            self._outbound_queue.append(
+                (deliver_tick, predictions, _src_tick, _net_ms))
             if hasattr(frame, 'set_compute_dl'):
                 frame.set_compute_dl(compute_ms=compute_ms, dl_ms=dl_ms,
                                     deliver_tick=deliver_tick)
@@ -1963,12 +1966,15 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # Keep only entries that are still in flight (deliver_tick > tick).
         self._outbound_queue = [e for e in self._outbound_queue if e[0] > tick]
         ready.sort(key=lambda x: x[0])
-        _dt, _p, _src = ready[-1]
-        # T12: realized age at use = delivery tick - source frame tick, in ms
-        # (UL LUT staleness + compute + DL LUT delay). Same runs as tau(u).
-        logger.info("[AGEROW] tick=%d edge=%s realized_age_ms=%.1f lut_n=%s",
+        _dt, _p, _src, _net = ready[-1]
+        # T12: TOTAL age at use (Delta_use = t_c - t_o) = delivery - source
+        # frame tick (cadence + buffer + DL queue + network); tau(u) is
+        # defined on this. network_age_ms = UL+DL LUT delay only (radio
+        # contribution) for the load-to-age table. One row per decision.
+        logger.info("[AGEROW] tick=%d edge=%s realized_age_ms=%.1f "
+                    "network_age_ms=%.1f lut_n=%s",
                     tick, getattr(self, 'edgeid', '?'),
-                    (tick - _src) * self.dt * 1000.0,
+                    (tick - _src) * self.dt * 1000.0, _net,
                     __import__('os').environ.get('NS3_LUT_N', 'scene'))
         return _p
 
