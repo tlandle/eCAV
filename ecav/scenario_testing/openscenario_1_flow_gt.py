@@ -466,18 +466,26 @@ def run_scenario(opt, scenario_params):
                     # FINAL SYNC (delta resend) at the actual handover. The
                     # commit-resend path below is that final sync; force it on
                     # for the edgewarp arm.
-                    _ew_final_sync = (MIGRATION_MODE == 'edgewarp')
+                    # FINAL UPDATE at commit (paper 3.4): warm and faithful
+                    # EdgeWarp both send the source's LATEST record when the
+                    # actor enters the destination, applied before the
+                    # destination publishes. Without it the destination
+                    # publishes from the record prepared L s earlier -> stale
+                    # with lead (measured: 9/10 -> 2/10 as lead grows). The
+                    # ablation arm warm_nofinal keeps the no-final behavior to
+                    # show early prep is only safe with the final update.
+                    _final_sync = MIGRATION_MODE in ('warm', 'edgewarp')
                     if (COMMIT_REFRESH == 'full' or MIRROR_PERIOD_S > 0.0
-                            or _ew_final_sync) \
+                            or _final_sync) \
                             and nid not in npc_refresh_done \
-                            and MIGRATION_MODE != 'cold':
+                            and MIGRATION_MODE not in ('cold', 'warm_nofinal'):
                         _htick, _dst_lid = npc_handoff_done[nid]
                         _src_lid2 = next(
                             (l for l in locale_by_id if l != _dst_lid), None)
                         _se = edge_by_locale.get(_src_lid2)
                         _de = edge_by_locale.get(_dst_lid)
                         _crossed = locale_by_id[_dst_lid].contains(nxy)
-                        if (COMMIT_REFRESH == 'full' or _ew_final_sync) \
+                        if (COMMIT_REFRESH == 'full' or _final_sync) \
                                 and _crossed \
                                 and _se is not None and _de is not None:
                             _c = daemon.transfer_obstacle_state(
