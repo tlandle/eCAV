@@ -46,6 +46,8 @@ def load_rows():
             continue
         cols = {c.lower() for c in rows[0].keys()}
         base = os.path.basename(path)
+        if 'v1_rows' in base or 'v2_rows' in base:
+            continue  # unvalidated geometry sweeps; never part of a figure
         if 'publishable_epochs' in cols:
             kind = 'faults_unit'
         elif 'fault' in cols and ('stale_consumed' in cols or 'stale' in ' '.join(cols)):
