@@ -3386,3 +3386,12 @@ repeated kill/start cycles — likely needs clean CARLA restart + longer
 settle). Peak VRAM full stack: 9498 MiB of 12288 — T12 FITS. Smoke script:
 /tmp/cetus_smoke_run.sh on cetus, tmux session t12smoke. Next: reboot-clean
 CARLA, rerun smoke, then T12 waits for the frozen commit per the rule.
+
+## CETUS GREEN (2026-09-05): T12 host operational
+
+Smoke 14 clean: warm arm, episodes=0, transfers=4/2488 B, ego eval emitted,
+no errors. Per-run ~5.5 min (258 s scenario + 75 s settle); peak VRAM
+9642/12288 MiB. Logs: ~/ecloudsim_distributed_sandbox/evaluation_outputs/
+cetus_runs/ (latest.log symlink). Cetus idles until the frozen commit; T12
+(275 runs, ~25 h) runs there against the frozen hash. Next on Atlas:
+T15/T16/T20/T21/computed-fix builds, freeze, THE batch.
