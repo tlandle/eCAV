@@ -171,6 +171,16 @@ class WorldFusionAdaptiveEdge(WorldFusionEdge):
         result = super().run_step(tick)
         compute_ms = (time.perf_counter() - t0) * 1000
         self._compute_history.append(compute_ms)
+        # T21: per-locale compute accounting. Accumulate GPU-side compute
+        # (ms) and the vehicle-seconds it served (agents this tick x edge_dt),
+        # so compute-per-vehicle-second = sum(compute_ms)/1000 / veh_seconds.
+        if not hasattr(self, '_t21_compute_ms_sum'):
+            self._t21_compute_ms_sum = 0.0
+            self._t21_veh_seconds = 0.0
+        self._t21_compute_ms_sum += compute_ms
+        _k_served = 1 + (self._k_cav_star if self._k_cav_star is not None
+                         else n_cav)
+        self._t21_veh_seconds += _k_served * getattr(self, 'edge_dt', 0.2)
 
         # Update M_hat estimator
         k_total = 1 + (self._k_cav_star if self._k_cav_star is not None else n_cav)

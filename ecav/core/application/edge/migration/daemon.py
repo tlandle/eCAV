@@ -149,7 +149,129 @@ class SequentialMigrationDaemon:
                 carla_id, src_edge.edgeid,
             )
             return None
+
+        # ── Ownership epoch (T7): source PREPARE increments the per-track
+        # epoch; the payload carries it; the destination installs it as a
+        # shadow and commits (this call is prepare+commit for obstacles —
+        # the two-step split with a separate commit lives in the vehicle
+        # handoff; obstacle transfers are one-shot by design).
+        import os as _os
+        own_src = getattr(src_edge, 'ownership', None)
+        own_dst = getattr(dst_edge, 'ownership', None)
+        if own_src is None:
+            from ecav.core.application.edge.migration.ownership import                 OwnershipManager
+            own_src = src_edge.ownership = OwnershipManager(
+                node_id=str(src_edge.edgeid))
+        if own_dst is None:
+            from ecav.core.application.edge.migration.ownership import                 OwnershipManager
+            own_dst = dst_edge.ownership = OwnershipManager(
+                node_id=str(dst_edge.edgeid))
+        own_src.source_owns(carla_id)
+        pe, _cur = own_src.source_prepare(carla_id)
+        payload.epoch = pe
+
+        # ── FAULT_MODE (T7): inject exactly one fault at this transfer.
+        fault = _os.environ.get('FAULT_MODE', '')
+        fired = getattr(self, '_fault_fired', False)
+        if fault and not fired:
+            self._fault_fired = True
+            logger.warning("[FAULT] injecting %s at tid=%d epoch=%d",
+                           fault, carla_id, pe)
+            if fault == 'lost_prepare':
+                # payload never arrives; source keeps ownership
+                cost = link.model_transfer(payload, src_edge, dst_edge, tick)
+                self._costs.append(cost)
+                return cost
+            if fault == 'dst_crash':
+                # destination dies after prepare: shadow install then no commit
+                own_dst.dest_prepare(carla_id, pe)
+                cost = link.model_transfer(payload, src_edge, dst_edge, tick)
+                self._costs.append(cost)
+                return cost
+            if fault == 'dup_commit':
+                own_dst.dest_prepare(carla_id, pe)
+                dst_edge.import_tracked_obstacle_state(carla_id, payload)
+                own_dst.dest_commit(carla_id, pe)
+                own_dst.dest_commit(carla_id, pe)  # duplicate
+                own_src.source_commit(carla_id)
+                cost = link.model_transfer(payload, src_edge, dst_edge, tick)
+                self._costs.append(cost)
+                return cost
+            if fault == 'reorder':
+                # commit observed before prepare: must degrade, not dual-publish
+                ok = own_dst.dest_commit(carla_id, pe)
+                assert not ok
+                own_dst.dest_prepare(carla_id, pe)
+                dst_edge.import_tracked_obstacle_state(carla_id, payload)
+                own_dst.dest_commit(carla_id, pe)
+                own_src.source_commit(carla_id)
+                cost = link.model_transfer(payload, src_edge, dst_edge, tick)
+                self._costs.append(cost)
+                return cost
+            if fault == 'lost_ack':
+                # destination committed; source retries the whole transfer
+                own_dst.dest_prepare(carla_id, pe)
+                dst_edge.import_tracked_obstacle_state(carla_id, payload)
+                own_dst.dest_commit(carla_id, pe)
+                own_dst.dest_prepare(carla_id, pe)   # retry: stale, no-op
+                own_dst.dest_commit(carla_id, pe)    # retry: idempotent
+                own_src.source_commit(carla_id)
+                cost = link.model_transfer(payload, src_edge, dst_edge, tick)
+                self._costs.append(cost)
+                return cost
+            if fault == 'lost_commit':
+                # prepare lands, commit message lost: source retains
+                # authority (never released before ack) — degraded warm
+                own_dst.dest_prepare(carla_id, pe)
+                dst_edge.import_tracked_obstacle_state(carla_id, payload)
+                cost = link.model_transfer(payload, src_edge, dst_edge, tick)
+                self._costs.append(cost)
+                return cost
+
+        # TRANSFER_MODE=grpc (T8): send the real serialized bytes to the
+        # relay process over loopback (netem-impaired when configured) and
+        # measure per-phase wall time; the in-process import then proceeds.
+        # parametric (default) keeps the modeled link only.
+        if _os.environ.get('TRANSFER_MODE', 'parametric') == 'grpc':
+            try:
+                import time as _time
+                import grpc as _grpc
+                import sys as _sys
+                if 'migration_pb2' not in _sys.modules:
+                    _sys.path.insert(0, 'ecav/protos')
+                import migration_pb2 as _mpb
+                import migration_pb2_grpc as _mgrpc
+                _ch = getattr(self, '_relay_ch', None)
+                if _ch is None:
+                    _ch = self._relay_ch = _grpc.insecure_channel(
+                        _os.environ.get('RELAY_ADDR', '127.0.0.1:50771'))
+                    self._relay_stub = _mgrpc.MigrationRelayStub(_ch)
+                _blob = payload.serialize()
+                _t0 = _time.monotonic()
+                self._relay_stub.Prepare(_mpb.TransferChunk(
+                    payload=_blob, actor_id=carla_id, epoch=pe,
+                    schema_version=payload.schema_version), timeout=5.0)
+                _t1 = _time.monotonic()
+                self._relay_stub.Commit(_mpb.TransferChunk(
+                    payload=b'', actor_id=carla_id, epoch=pe,
+                    schema_version=payload.schema_version), timeout=5.0)
+                _t2 = _time.monotonic()
+                logger.info(
+                    "[XFERROW] actor=%d epoch=%d bytes=%d prepare_ms=%.2f "
+                    "commit_ms=%.2f", carla_id, pe, len(_blob),
+                    (_t1 - _t0) * 1e3, (_t2 - _t1) * 1e3)
+            except Exception:  # noqa: BLE001
+                logger.exception("grpc transfer failed; parametric fallback")
+
+        own_dst.dest_prepare(carla_id, pe)
         dst_edge.import_tracked_obstacle_state(carla_id, payload)
+        own_dst.dest_commit(carla_id, pe)
+        # FENCING=off baseline (T7): the source does not fence itself at
+        # commit, so both sides stay publishable until the source would
+        # naturally drop the track — the double-publish window the paper's
+        # failure model admits. Default (fencing on) closes it atomically.
+        if _os.environ.get('FENCING', 'on').lower() != 'off':
+            own_src.source_commit(carla_id)
         cost = link.model_transfer(payload, src_edge, dst_edge, tick)
         self._costs.append(cost)
         logger.info(

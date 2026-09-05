@@ -719,6 +719,22 @@ class MTREdgePredictor:
             cos_h, sin_h = math.cos(ch), math.sin(ch)
             cur_z = ot.trajectory[0].location.z
 
+            # T15: stash ALL modes' world-frame endpoints + probabilities for
+            # this track so the migration trigger can consume the multimodal
+            # forecast (per-mode boundary crossing, probability summed by
+            # destination). Endpoint = last horizon point of each mode.
+            if not hasattr(self, 'last_mtr_modes'):
+                self.last_mtr_modes = {}
+            _modes = []
+            _sc = pred_scores[i]
+            _sc_sum = float(_sc.sum()) if float(_sc.sum()) > 1e-6 else 1.0
+            for _m in range(pred_trajs.shape[1]):
+                _end_l = pred_trajs[i, _m, -1, :2]
+                _wx = cx + float(_end_l[0]) * cos_h - float(_end_l[1]) * sin_h
+                _wy = cy + float(_end_l[0]) * sin_h + float(_end_l[1]) * cos_h
+                _modes.append((_wx, _wy, float(_sc[_m]) / _sc_sum))
+            self.last_mtr_modes[int(tid)] = _modes
+
             def _to_world(local_traj):
                 # Model steps are self._dt seconds apart; consumers index the
                 # returned list at self._output_dt (one entry per sim tick).

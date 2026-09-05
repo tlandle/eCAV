@@ -93,6 +93,7 @@ OBSTACLE_HANDOFF_LOOKAHEAD_S = float(os.environ.get('LOOKAHEAD_S', 1.0))
 os.environ.setdefault('ONCOMING_SPEED', '12')
 os.environ.setdefault('TRIGGER_DIST', '300')
 TRIGGER_MODE = os.environ.get('TRIGGER_MODE', 'predictive').lower()
+MTR_THETA = float(os.environ.get('MTR_THETA', 0.5))
 BAND_W_M = float(os.environ.get('BAND_W_M', 20.0))
 # COMMIT_REFRESH='full' re-sends the full state once at the actual crossing
 # (the "phase 2" question: does a refresh at commit buy anything at this
@@ -207,7 +208,12 @@ def run_scenario(opt, scenario_params):
     metrics_logger = None
     npc_ids = set()            # moving non-hero, non-managed vehicles (Leons)
     npc_locale = {}            # carla_id -> sticky source locale id
-    npc_handoff_done = {}      # carla_id -> (tick, dst_locale_id)
+    npc_handoff_done = {}
+    # T19 per-handoff timing: first destination track, first ego use,
+    # crossing tick — emitted as [HANDOFFROW] lines at scenario end.
+    t19_first_dst = {}     # nid -> tick dst edge first maps a track to nid
+    t19_first_use = {}     # nid -> tick ego first consumes a forecast for nid
+    t19_crossing = {}      # nid -> tick containment flipped to destination      # carla_id -> (tick, dst_locale_id)
     npc_rsu_detect_tick = {}   # carla_id -> tick dst-RSU came in range
     npc_refresh_done = {}      # carla_id -> tick of the commit refresh
     npc_mirror_last_tick = {}  # carla_id -> tick of the last mirror resend
@@ -341,6 +347,46 @@ def run_scenario(opt, scenario_params):
             else:
                 scenario_manager.tick()
 
+            # T7 measurement: count double-publish windows — ticks where
+            # more than one edge holds a publishable epoch for the same
+            # track. Zero with fencing on; the FENCING=off arm reports the
+            # unfenced baseline.
+            _dbl = getattr(run_scenario, '_dbl_publish_ticks', {})
+            for _nid2 in list(npc_ids):
+                _pubs = []
+                for _e2 in edge_list:
+                    _own = getattr(_e2, 'ownership', None)
+                    if _own is not None:
+                        _pubs += _own.publishable_epochs(_nid2)
+                if len(_pubs) > 1:
+                    _dbl[_nid2] = _dbl.get(_nid2, 0) + 1
+            run_scenario._dbl_publish_ticks = _dbl
+
+            # T19 firsts (cheap polls, only until each first is recorded)
+            for _nid3 in list(npc_ids):
+                if _nid3 in npc_handoff_done and _nid3 not in t19_first_dst:
+                    _dst3 = edge_by_locale.get(npc_handoff_done[_nid3][1])
+                    if _dst3 is not None and any(
+                            _c == _nid3 for _c in
+                            getattr(_dst3, 'track_to_carla', {}).values()):
+                        t19_first_dst[_nid3] = step
+                if _nid3 not in t19_crossing and _nid3 in npc_handoff_done:
+                    _dlid3 = npc_handoff_done[_nid3][1]
+                    _a3 = world.get_actor(_nid3)
+                    if _a3 is not None and locale_by_id[_dlid3].contains(
+                            (_a3.get_transform().location.x,
+                             _a3.get_transform().location.y)):
+                        t19_crossing[_nid3] = step
+                if _nid3 not in t19_first_use:
+                    for _e3 in edge_list:
+                        for _vm3 in _e3.vehicle_manager_list:
+                            for _p3 in getattr(_vm3.agent,
+                                               'generated_predictions', []):
+                                _o3 = _p3.obstacle_trajectory.obstacle
+                                if getattr(_o3, 'carla_id', -1) == _nid3:
+                                    t19_first_use[_nid3] = step
+                                    break
+
             # Per-tick snapshot upload (parity with Scenario A; keeps the store warm).
             for edge in edge_list:
                 for vm in edge.vehicle_manager_list:
@@ -415,7 +461,14 @@ def run_scenario(opt, scenario_params):
                                     nid, step - htick, htick, dst_lid, step)
                     # Post-trigger resend policies. Both re-fire the same
                     # transfer path, so bytes land in record_handoff_cost.
-                    if (COMMIT_REFRESH == 'full' or MIRROR_PERIOD_S > 0.0) \
+                    # T16 faithful EdgeWarp: pre-copy a snapshot at the
+                    # predicted attachment (predictive timing above) then a
+                    # FINAL SYNC (delta resend) at the actual handover. The
+                    # commit-resend path below is that final sync; force it on
+                    # for the edgewarp arm.
+                    _ew_final_sync = (MIGRATION_MODE == 'edgewarp')
+                    if (COMMIT_REFRESH == 'full' or MIRROR_PERIOD_S > 0.0
+                            or _ew_final_sync) \
                             and nid not in npc_refresh_done \
                             and MIGRATION_MODE != 'cold':
                         _htick, _dst_lid = npc_handoff_done[nid]
@@ -424,7 +477,8 @@ def run_scenario(opt, scenario_params):
                         _se = edge_by_locale.get(_src_lid2)
                         _de = edge_by_locale.get(_dst_lid)
                         _crossed = locale_by_id[_dst_lid].contains(nxy)
-                        if COMMIT_REFRESH == 'full' and _crossed \
+                        if (COMMIT_REFRESH == 'full' or _ew_final_sync) \
+                                and _crossed \
                                 and _se is not None and _de is not None:
                             _c = daemon.transfer_obstacle_state(
                                 nid, _se, _de, link, step, position=nxy)
@@ -474,7 +528,7 @@ def run_scenario(opt, scenario_params):
                 # (nothing to background-sync), so for this content it reduces
                 # to a blocking transfer at the boundary with no lead.
                 if TRIGGER_MODE == 'band' and MIGRATION_MODE not in (
-                        "reactive", "edgewarp"):
+                        "reactive", "handover_snapshot"):
                     # Geometric trigger: within BAND_W_M of the CROSSING
                     # boundary, measured as distance to the destination
                     # locale. Distance to the source's own polygon would
@@ -484,7 +538,48 @@ def run_scenario(opt, scenario_params):
                     _sd_dst = locale_by_id[dst_lid].signed_distance(nxy)
                     if _sd_dst > BAND_W_M:
                         continue
-                elif MIGRATION_MODE in ("reactive", "edgewarp"):
+                elif TRIGGER_MODE == 'mtr':
+                    # T15: consume the cooperative predictor's MULTIMODAL
+                    # forecast instead of a constant-velocity projection.
+                    # For each MTR mode of this track, test whether its
+                    # world-frame endpoint lands in the destination locale;
+                    # sum the mode probabilities that do; fire the prepare
+                    # once that summed destination probability exceeds THETA.
+                    _src_edge_m = edge_by_locale.get(src_lid)
+                    _modes = None
+                    if _src_edge_m is not None:
+                        _pred = getattr(_src_edge_m, 'predictor', None)
+                        _mm = getattr(_pred, 'last_mtr_modes', {}) \
+                            if _pred is not None else {}
+                        # map carla_id -> tracker tid via the edge's table
+                        _tid = next((t for t, c in getattr(
+                            _src_edge_m, 'track_to_carla', {}).items()
+                            if c == nid), None)
+                        if _tid is not None:
+                            _modes = _mm.get(int(_tid))
+                    if not _modes:
+                        continue  # no multimodal forecast yet -> no fire
+                    _p_dst = sum(
+                        p for (wx, wy, p) in _modes
+                        if locale_by_id[dst_lid].contains((wx, wy)))
+                    if _p_dst < MTR_THETA:
+                        continue
+                elif TRIGGER_MODE == 'oracle':
+                    # T20 upper bound: fire exactly L seconds before the TRUE
+                    # crossing. Uses the actor's GROUND-TRUTH velocity (nvel
+                    # from CARLA, no perception/prediction error) projected
+                    # against the real boundary via the same exit test the
+                    # other arms use, with L = fold-in + margin (computed's
+                    # budget). This is the best any trigger could do.
+                    _L = 3 * 0.2 + 0.35
+                    _ns = int(_L / world_dt) + 1
+                    _ta = np.arange(_ns, dtype=np.float64) * world_dt
+                    _gt = np.column_stack([nloc.x + nvel.x * _ta,
+                                           nloc.y + nvel.y * _ta])
+                    if not locale_by_id[src_lid].predicted_to_exit_within(
+                            _gt, _L, world_dt):
+                        continue
+                elif MIGRATION_MODE in ("reactive", "handover_snapshot"):
                     # At-crossing transfer: fire when the NPC has actually
                     # entered the destination locale. The old zero-lead
                     # projection (horizon_s=0) could never fire, so these
@@ -503,9 +598,19 @@ def run_scenario(opt, scenario_params):
                         # distance, slow ones later, and the lead never
                         # exceeds what warmth requires (the measured cost of
                         # too-early transfer is staleness on arrival).
-                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.05)
+                        # Seed the transfer EMA from the v3-measured median
+                        # transfer time (40 ms) rather than a guess, so the
+                        # FIRST crossing (before any handoff has been measured)
+                        # computes its lead from data, not 0.05 s.
+                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.040)
                         _fold_s = 3 * 0.2   # 3 edge cycles at edge_dt
-                        _lead = min(2.5, _xfer_s + _fold_s + 0.35)
+                        # First-fire floor: never lead the decisive first
+                        # crossing by less than fold-in + margin.
+                        _lead = min(2.5, max(_fold_s + 0.35, _xfer_s + _fold_s + 0.35))
+                        logger.info(
+                            "[LEADROW] npc=%d lead=%.3f xfer_ema=%.3f "
+                            "fold=%.3f margin=0.350 tick=%d",
+                            nid, _lead, _xfer_s, _fold_s, step)
                     else:
                         _lead = OBSTACLE_HANDOFF_LOOKAHEAD_S
                     n_steps = int(_lead / world_dt) + 1
@@ -697,13 +802,39 @@ def run_scenario(opt, scenario_params):
                     _eps += 1
                 _prev = _f
             _tbytes = sum(c.payload_bytes for c in transfer_costs)
+            for _ei, _edge in enumerate(edge_list):
+                _cms = getattr(_edge, '_t21_compute_ms_sum', 0.0)
+                _vs = getattr(_edge, '_t21_veh_seconds', 0.0)
+                _cpvs = (_cms / 1000.0 / _vs) if _vs > 0 else 0.0
+                logger.info(
+                    "[COMPUTEROW] edge=%d locale=%s compute_s=%.3f "
+                    "veh_seconds=%.3f compute_per_veh_s=%.4f",
+                    _ei, getattr(_edge, 'edgeid', _ei), _cms / 1000.0,
+                    _vs, _cpvs)
+            for _nid4, (_ht4, _dl4) in npc_handoff_done.items():
+                _fd = t19_first_dst.get(_nid4, -1)
+                _fu = t19_first_use.get(_nid4, -1)
+                _cx = t19_crossing.get(_nid4, -1)
+                _warm = (_fd >= 0 and (_fu < 0 or _fd <= _fu)
+                         and (_cx < 0 or _fd <= _cx))
+                logger.info(
+                    "[HANDOFFROW] npc=%d prepare_tick=%d crossing_tick=%d "
+                    "first_dst_track_tick=%d first_use_tick=%d "
+                    "warm_before_first_use=%s dst=%s",
+                    _nid4, _ht4, _cx, _fd, _fu,
+                    "YES" if _warm else "no", _dl4)
+            import os as _os2
+            _dblsum = sum(getattr(run_scenario, '_dbl_publish_ticks',
+                                  {}).values())
             logger.info(
                 "[RUNROW] mode=%s trigger=%s band_w=%.1f refresh=%s "
                 "mirror=%.2f lookahead=%.2f episodes=%d contact_ticks=%d "
-                "transfers=%d bytes=%d",
+                "transfers=%d bytes=%d fault=%s fencing=%s dbl_ticks=%d",
                 MIGRATION_MODE, TRIGGER_MODE, BAND_W_M, COMMIT_REFRESH,
                 MIRROR_PERIOD_S, OBSTACLE_HANDOFF_LOOKAHEAD_S,
-                _eps, _contact, len(transfer_costs), _tbytes)
+                _eps, _contact, len(transfer_costs), _tbytes,
+                _os2.environ.get('FAULT_MODE', 'none') or 'none',
+                _os2.environ.get('FENCING', 'on'), _dblsum)
         except Exception:  # noqa: BLE001
             logger.exception("RUNROW emission failed")
 
