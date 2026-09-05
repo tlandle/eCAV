@@ -572,6 +572,23 @@ def run_scenario(opt, scenario_params):
                         if locale_by_id[dst_lid].contains((wx, wy)))
                     if _p_dst < MTR_THETA:
                         continue
+                    # LEAD GATE (paper 3.2): theta alone is not enough - also
+                    # require the predicted time-to-crossing to fall below L,
+                    # with L computed exactly as the computed branch (transfer
+                    # EMA + fold-in + margin, capped). Without this, mtr fires
+                    # whenever the predictor is confident (several s early on a
+                    # 6-8 s horizon), measuring confidence not the design.
+                    _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.040)
+                    _fold_s = 3 * 0.2
+                    _lead_m = min(2.5, max(_fold_s + 0.35,
+                                           _xfer_s + _fold_s + 0.35))
+                    _ns_m = int(_lead_m / world_dt) + 1
+                    _ta_m = np.arange(_ns_m, dtype=np.float64) * world_dt
+                    _traj_m = np.column_stack([nloc.x + nvel.x * _ta_m,
+                                              nloc.y + nvel.y * _ta_m])
+                    if not locale_by_id[src_lid].predicted_to_exit_within(
+                            _traj_m, _lead_m, world_dt):
+                        continue
                 elif TRIGGER_MODE == 'oracle':
                     # T20 upper bound: fire exactly L seconds before the TRUE
                     # crossing. Uses the actor's GROUND-TRUTH velocity (nvel
