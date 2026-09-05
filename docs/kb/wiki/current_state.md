@@ -3421,3 +3421,18 @@ Arm matrix: warm=Khonsu, edgewarp=faithful EdgeWarp, handover_snapshot,
 kf=Kalman snapshot, reactive=reactive history, cold. RULE: no row mixed
 across tags; corridor (T13) gets freeze-2. Cetus dep note: conda activate
 trips set -u (ADDR2LINE), use set +u in cetus scripts.
+
+## T13 corridor build (branch t13-corridor), 2026-09-05
+
+Runner surgery done for N-locale: _dest_locale_for (geometric adjacency by
+projected GT motion, replaces "the other locale"); handoff bookkeeping now
+(prepare_tick, src_lid, dst_lid, crossing_idx); HANDOFFROW gains crossing_idx
++ src/dst for repeated-handoff metrics; commit-refresh uses stored src.
+Scenario built: openscenario_1_corridor_gt = 4 locales A-D (~300m each,
+RSU at each anchor 325/205/85/-35, boundaries at midpoints), ego full 1.2km
+route, 13 actors (truck conflict at A, 6-vehicle oncoming stream crossing
+multiple boundaries, 3-vehicle platoon at B/C boundary, 2 queue-tail at C).
+NOT YET SMOKED: both GPUs busy (Atlas frozen batch, cetus T12+5.3) until
+~Sep 6. Go/no-go Sep 9: smoke the 3-4 locale corridor (warm, clean RUNROW +
+per-crossing HANDOFFROWs) when a machine frees; descope ladder stands.
+Corridor is freeze-2 (separate tag); no rows pooled with freeze-1.
