@@ -12,3 +12,15 @@ One CSV row per run. Binary outcome fields: `collided` (any ego contact), `compl
 | q3_lookahead_sweep.csv, q7_locale_sizing.csv | August pilots | superseded by s5 lookahead redo (scripts/khonsu_s5_lookahead_pinned.sh, worktree khonsu_v1_wt at 9d5e1883) and the sizing study | do not cite |
 
 Retired: q4_flow_table.csv (canonical warm arm reproduces 4/4 under the env contract, but the reactive and edgewarp arms never transferred). Provenance history in docs/kb/wiki/current_state.md (2026-08-31, 2026-09-03, 2026-09-04) and raw/sessions.
+
+## Radio plane (platform note, 2026-09-05)
+The default flow/accel runners use the ANALYTICAL C-V2X plane: SEE-V2X
+measured latency traces (HybridModel: real C-V2X RTT + backhaul lognormal +
+base_ms) plus SB-SPS PC5 Mode-4 contention (SbSpsMac, M=20 resources). This
+plane governs the UPLINK only (sensor -> edge, via the jitter buffer). The
+edge -> ego forecast DOWNLINK is instantaneous, gated only by
+downlink_packet_loss_pct (no delay stamp). Age at use is therefore carried by
+uplink staleness. Measured SEE-V2X RTT p50/p95: L 11.8/22.3, M 12.3/23.3,
+H 18.7/23.8 ms. The 5G-LENA ns-3 co-sim (ecav/core/networking/ns3_cosim) is a
+separate, unwired path. The paper's platform sentence must match whichever
+T12 age source Tyler selects.
