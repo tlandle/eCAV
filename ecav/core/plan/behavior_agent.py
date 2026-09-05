@@ -326,6 +326,23 @@ class BehaviorAgent(object):
         # a short hold window so an occluded, migration-only obstacle stays
         # continuously visible to the planner.
         _tick = self._tick_counter
+        # T12: inject a controlled forecast AGE at the planner. Buffer the
+        # consumed forecast and serve the snapshot from d ms ago, so the
+        # planner acts on a deliberately stale forecast with NO migration in
+        # play. Sweeping d finds tau(u), the safe-age limit per scenario.
+        import os as _osa
+        _aoi_ms = _osa.environ.get('AOI_INJECT_MS')
+        if _aoi_ms:
+            _delay_ticks = int(round(float(_aoi_ms) / 1000.0 / 0.05))
+            if not hasattr(self, '_aoi_buf'):
+                from collections import deque as _dq
+                self._aoi_buf = _dq(maxlen=max(1, _delay_ticks + 1))
+            self._aoi_buf.append(list(self.edge_predictions or []))
+            if len(self._aoi_buf) > _delay_ticks:
+                self.edge_predictions = self._aoi_buf[0] \
+                    if _delay_ticks > 0 else self.edge_predictions
+            else:
+                self.edge_predictions = []  # not enough history yet: no forecast
         _cache = self._edge_pred_cache
         for _p in (self.edge_predictions or []):
             _obs = _p.obstacle_trajectory.obstacle
