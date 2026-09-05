@@ -48,3 +48,17 @@ bilinear interp). ns-3 IS part of this platform. LUT ranges: UL p50 9.6-37.8,
 DL p50 5.3-304, DL p95 up to 952 ms at N=31 / 16.9KB. T12 (freeze-1e) sweeps
 NS3_LUT_N over the LUT range; MAC_BG_SENDERS dropped. The paper's platform
 sentence: ns-3-derived C-V2X Uu latency (payload/N-aware LUT), UL+DL.
+
+## AGEROW availability + adaptive-lineage LUT (2026-09-05, restart-4 rescinded)
+CONFIRMED (peer + code): edge_manager_worldfusion_ab3dmot_mtr_adaptive.run_step
+calls super().run_step at line 171; neither the adaptive nor the mamba
+subclass overrides delivery/latency, so WorldFusionEdge's ns-3 LUT sampling
+(UL at ingest, DL into the latest-wins outbound queue) is LIVE in every
+Khonsu run including frozen1c. The adaptive lineage was created after the
+Apr-30 LUT commit but inherits it; the earlier "grep per file missed
+inheritance" scare (restart 4) was wrong and RESCINDED - no code change, batch
+not stopped (beyond an accidental kill I immediately resumed).
+frozen1c rows: NO AGEROW (realized age at use not extractable for the headline
+batch); the extractable freshness fields are HANDOFFROW warm_before_first_use
+and bytes. AGEROW (realized age = delivery_tick - source_frame_tick, ms) is
+added at freeze-1e (outbound drain) and carried by T12 and all later tags.
