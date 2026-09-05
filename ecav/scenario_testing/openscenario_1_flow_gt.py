@@ -529,6 +529,21 @@ def run_scenario(opt, scenario_params):
                     _sd_dst = locale_by_id[dst_lid].signed_distance(nxy)
                     if _sd_dst > BAND_W_M:
                         continue
+                elif TRIGGER_MODE == 'oracle':
+                    # T20 upper bound: fire exactly L seconds before the TRUE
+                    # crossing. Uses the actor's GROUND-TRUTH velocity (nvel
+                    # from CARLA, no perception/prediction error) projected
+                    # against the real boundary via the same exit test the
+                    # other arms use, with L = fold-in + margin (computed's
+                    # budget). This is the best any trigger could do.
+                    _L = 3 * 0.2 + 0.35
+                    _ns = int(_L / world_dt) + 1
+                    _ta = np.arange(_ns, dtype=np.float64) * world_dt
+                    _gt = np.column_stack([nloc.x + nvel.x * _ta,
+                                           nloc.y + nvel.y * _ta])
+                    if not locale_by_id[src_lid].predicted_to_exit_within(
+                            _gt, _L, world_dt):
+                        continue
                 elif MIGRATION_MODE in ("reactive", "edgewarp"):
                     # At-crossing transfer: fire when the NPC has actually
                     # entered the destination locale. The old zero-lead
