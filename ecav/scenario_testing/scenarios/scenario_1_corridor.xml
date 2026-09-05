@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<scenarios>
+    <scenario name="Scenario_1" type="Scenario_1" town="Town01">
+        <ego_vehicle x="317.4" y="195.4" z="0.3" yaw="180" model="vehicle.nissan.patrol" />
+        <other_actor x="278.0" y="195.4" z="-500" yaw="180" model="vehicle.carlamotors.carlacola" />
+        <other_actor x="230.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="170.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="110.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="50.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="-10.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="-70.0" y="199.0" z="-500" yaw="0" model="vehicle.nissan.seat.leon" />
+        <other_actor x="140.0" y="199.0" z="-500" yaw="0" model="vehicle.audi.tt" />
+        <other_actor x="125.0" y="199.0" z="-500" yaw="0" model="vehicle.audi.tt" />
+        <other_actor x="110.0" y="199.0" z="-500" yaw="0" model="vehicle.audi.tt" />
+        <other_actor x="95.0" y="195.4" z="-500" yaw="180" model="vehicle.tesla.model3" />
+        <other_actor x="87.0" y="195.4" z="-500" yaw="180" model="vehicle.tesla.model3" />
+        <weather cloudiness="0" precipitation="0" sun_altitude_angle="75" />
+    </scenario>
+</scenarios>
