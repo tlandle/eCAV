@@ -157,7 +157,7 @@ The evaluated trigger today is a constant-velocity projection of the tracked vel
 
 ## Section 4-5 review additions (2026-09-04, late)
 
-## T16. Faithful EdgeWarp-style arm (baseline fidelity)
+## T16. Faithful EdgeWarp arm (baseline fidelity)
 The current `edgewarp` arm is a snapshot at the handover event with no pre-copy, which is not EdgeWarp. Implement: predict the next radio attachment (use the cell-attachment predictor already in the ns-3 plane or a distance-to-cell-edge rule), pre-copy the same track record to the corresponding edge on that prediction, and send a final synchronization at the radio handover event. Keep the current arm as `handover_snapshot`. Acceptance: both arms in the flow and corridor tables.
 
 ## T17. Import-age ablation
