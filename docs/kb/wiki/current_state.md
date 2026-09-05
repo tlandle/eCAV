@@ -3361,3 +3361,28 @@ the SAME commit. Tonight's lookahead sweep demotes to pilot data (pre-merge
 version; not paper rows). All previously banked v3/q5 rows likewise become
 superseded-by-frozen-batch when it lands; the paper's figures draw from the
 frozen set only.
+
+## Cetus T12 host bring-up: 95% complete (2026-09-04/05)
+
+tlandle@143.215.184.49, env opencda310 (cloned from opencda_py310, untouched
+original). FULL DEPENDENCY LEDGER (each was a real failure, in order):
+pb2 stubs (gen with env python: grpc_tools.protoc, ecav.py --build uses
+/usr/bin/python), scenario_runner vendored dir (rsync), merged_latency.csv
+(symlink target see-v2x-input/), CARLA agents pkg (PYTHONPATH=
+~/carla-0.9.15/PythonAPI/carla), opencood shadowed by site-packages install
+(rm site-pkgs copy + zz_ecav_worldfusion.pth pointing at repo), full
+worldfusion tree rsync (hypes_yaml etc. untracked), Atlas env pip diff
+(NOTE: freeze filter must not exclude "torch"-substring pkgs:
+efficientnet_pytorch), mamba_ssm + selective_scan_cuda .so copies,
+torch_cluster/scatter binary copies, model symlinks are ABSOLUTE ->
+rsync -aL to dereference, git-LFS pointers (mamba3dmot_weights.pth,
+ssm3dmot_weights.pth -> copy real files), sort/ + AB3DMOT_libs untracked
+dirs, MTR pretrained/ Swin dir (332M), CUDA ARCH: Atlas-built .so lack
+sm_86 kernels -> installed cuda-toolkit 12.8 into env (conda -c nvidia),
+rebuilt MTR ops + worldfusion pcdet with TORCH_CUDA_ARCH_LIST=8.6
+CUDA_HOME=env CPATH/LIBRARY_PATH=env targets. Both BUILD-OK.
+REMAINING: smoke 13 failed at ScenarioManager.world (CARLA init flake after
+repeated kill/start cycles — likely needs clean CARLA restart + longer
+settle). Peak VRAM full stack: 9498 MiB of 12288 — T12 FITS. Smoke script:
+/tmp/cetus_smoke_run.sh on cetus, tmux session t12smoke. Next: reboot-clean
+CARLA, rerun smoke, then T12 waits for the frozen commit per the rule.
