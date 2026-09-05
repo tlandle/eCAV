@@ -230,8 +230,15 @@ class SbSpsMac(MACModel):
             return {s: self._last_result[s] for s in sender_ids}
 
         # --- fresh tick ---
+        # T12 load knob: MAC_BG_SENDERS injects N phantom contenders that
+        # compete for the M sidelink resources each tick, raising the
+        # collision rate for the real senders (SB-SPS background load). Only
+        # real sender_ids are returned; phantoms use negative ids.
+        import os as _osm
+        _bg = int(_osm.environ.get('MAC_BG_SENDERS', 0) or 0)
+        _eff_senders = list(sender_ids) + [-(i + 1) for i in range(_bg)]
         # 1. init new senders
-        for sid in sender_ids:
+        for sid in _eff_senders:
             if sid not in self._state:
                 self._state[sid] = {
                     'resource': self._rng.randint(0, self._M - 1),
@@ -240,7 +247,7 @@ class SbSpsMac(MACModel):
 
         # 2. resource -> senders mapping
         res_users: Dict[int, List[int]] = defaultdict(list)
-        for sid in sender_ids:
+        for sid in _eff_senders:
             res_users[self._state[sid]['resource']].append(sid)
 
         # 3. collisions + fading
@@ -255,7 +262,7 @@ class SbSpsMac(MACModel):
             self._metrics.record(sid, delivered, drop_cause=cause)
 
         # 4. reselection
-        for sid in sender_ids:
+        for sid in _eff_senders:
             st = self._state[sid]
             st['rc'] -= 1
             if st['rc'] <= 0:

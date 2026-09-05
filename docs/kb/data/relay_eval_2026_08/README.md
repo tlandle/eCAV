@@ -24,3 +24,13 @@ uplink staleness. Measured SEE-V2X RTT p50/p95: L 11.8/22.3, M 12.3/23.3,
 H 18.7/23.8 ms. The 5G-LENA ns-3 co-sim (ecav/core/networking/ns3_cosim) is a
 separate, unwired path. The paper's platform sentence must match whichever
 T12 age source Tyler selects.
+
+## Visible-row tag justification (2026-09-05)
+5.3 visible cells (flow_visible, accel_visible) are labeled eval_tag=
+freeze-1c+vis, NOT re-run under a single tag with the occluded cells. Justified:
+the visible scenario files (scenario_1_flow_visible.xml, scenario_1_accel_
+visible.xml + their configs/runners) are ADDITIVE - new files added after
+freeze-1c. The occluded-cell arms never reference them (they load
+scenario_1_flow.xml / scenario_1_accel.xml), so occluded-arm behavior is
+byte-identical with or without the visible files present. The 2x2 figure
+therefore pools freeze-1c (occluded) + freeze-1c+vis (visible) rows validly.

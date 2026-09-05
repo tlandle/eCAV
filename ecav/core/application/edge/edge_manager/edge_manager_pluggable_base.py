@@ -132,6 +132,17 @@ class _PluggableEdgeBase(_BaseEdgeManager):
 
     def _advance_vehicles(self, tick, predictions):
         """Push predictions to vehicles and advance simulation."""
+        # T12: realized age at use = how stale the edge's freshest ingested
+        # frame is when it publishes (uplink staleness from the radio plane),
+        # in ms. Downlink is instantaneous, so this is the age the planner
+        # sees. Logged per publish for the load-to-age table from real runs.
+        _lst = getattr(self, '_latest_source_tick', None)
+        if _lst is not None and predictions:
+            _age_ms = (tick - _lst) * self.dt * 1000.0
+            logger.info("[AGEROW] tick=%d edge=%s realized_age_ms=%.1f "
+                        "bg_senders=%s", tick, getattr(self, 'edgeid', '?'),
+                        _age_ms, __import__('os').environ.get(
+                            'MAC_BG_SENDERS', '0'))
         for vm in self.vehicle_manager_list:
             if predictions and random.random() * 100 > self.downlink_pl:
                 vm.agent.edge_predictions = list(predictions)
