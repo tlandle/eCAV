@@ -34,3 +34,17 @@ freeze-1c. The occluded-cell arms never reference them (they load
 scenario_1_flow.xml / scenario_1_accel.xml), so occluded-arm behavior is
 byte-identical with or without the visible files present. The 2x2 figure
 therefore pools freeze-1c (occluded) + freeze-1c+vis (visible) rows validly.
+
+## CORRECTION to the radio-plane note (2026-09-05)
+The earlier "downlink instantaneous, loss only" note was WRONG for the flow
+runner. It described the BASE pluggable manager (_advance_vehicles). The flow
+runner's manager (WorldFusionAdaptiveEdge -> WorldFusionEdge, the
+linear_predictor) has use_ns3_lut DEFAULT TRUE and applies BOTH uplink and
+downlink ns-3 LUT latency: UL sampled per-CAV (max over N) into the jitter
+buffer, DL sampled (n_cav, dl_bytes) plus compute_ms into an outbound queue
+delivered at deliver_tick. So realized age at use is already ns-3-LUT-derived
+(ns3_uplink_lut.csv / ns3_downlink_lut.csv, N in {4,8,16,24,31} x payload,
+bilinear interp). ns-3 IS part of this platform. LUT ranges: UL p50 9.6-37.8,
+DL p50 5.3-304, DL p95 up to 952 ms at N=31 / 16.9KB. T12 (freeze-1e) sweeps
+NS3_LUT_N over the LUT range; MAC_BG_SENDERS dropped. The paper's platform
+sentence: ns-3-derived C-V2X Uu latency (payload/N-aware LUT), UL+DL.
