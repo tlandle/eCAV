@@ -3442,3 +3442,20 @@ NOT YET SMOKED: both GPUs busy (Atlas frozen batch, cetus T12+5.3) until
 ~Sep 6. Go/no-go Sep 9: smoke the 3-4 locale corridor (warm, clean RUNROW +
 per-crossing HANDOFFROWs) when a machine frees; descope ladder stands.
 Corridor is freeze-2 (separate tag); no rows pooled with freeze-1.
+
+## FREEZE-1b: warm final-update fix (2026-09-05)
+
+freeze-1 warm arm had NO commit final update (refresh=none default; commit
+resend only for edgewarp/COMMIT_REFRESH=full), so Khonsu published the
+L-seconds-stale prepared record -> worse with lead (9/10->2/10). Not paper
+3.4. FIX (freeze-1b = commit d4f592e6): FINAL UPDATE at crossing is part of
+MIGRATION_MODE=warm (source's latest full record before the destination
+publishes); warm_nofinal ablation keeps the no-final behavior. Smoke
+validated: 3 final syncs/run fire, lookahead=4 recovered to clean (was 0/3).
+Atlas frozen-1 batch STOPPED and RESTARTED on freeze-1b into frozen1b/ (FULL
+rerun, not partial: one-tag-per-figure rule forbids mixing freeze-1 non-warm
+rows with freeze-1b warm rows in the same figure; ~17h). Added warm_nofinal
+ablation (lookahead 1/2/4 x10). frozen1/ discarded. T12 (cetus) unaffected,
+continues; AOIROW age-at-use logging added to prove the delay bites (T12
+should rerun on freeze-1b to capture it). T13 branch must merge the
+warm-final fix before freeze-2.
