@@ -52,8 +52,9 @@ def load_rows():
             kind = 'faults_unit'
         elif 'fault' in cols and ('stale_consumed' in cols or 'stale' in ' '.join(cols)):
             kind = 'faults_live'
-        elif {'mode', 'collided'} <= cols and any('age' in c for c in cols):
-            kind = 'envelope'
+        elif any('realized_age' in c for c in cols) and any(c in cols for c in ('collided', 'run_collided')):
+            # T12 rows: prefer per-decision files (one row per planner decision)
+            kind = 'envelope_decisions' if 'realized_age_ms' in cols else 'envelope_runs'
         elif {'mode', 'collided', 'look'} <= cols:
             kind = 'runrows'
         elif any('platoon' in c or 'concurrent' in c for c in cols) and any('p99' in c for c in cols):
@@ -146,9 +147,11 @@ def check_density(rows):
 
 
 def check_envelope(rows):
-    agecol = next((c for c in rows[0] if 'age' in c.lower() and 'p' not in c.lower()[:1]), None)
+    agecol = 'realized_age_ms' if 'realized_age_ms' in rows[0] else next(
+        (c for c in rows[0] if 'realized_age' in c.lower() and 'p50' in c.lower()), None)
     if agecol is None:
         agecol = next((c for c in rows[0] if 'age' in c.lower()), None)
+    collcol = 'run_collided' if 'run_collided' in rows[0] else 'collided'
     scen = next((c for c in rows[0] if c.lower() in ('scenario', 'scen', 'u')), None)
     out = []
     for s in sorted({r.get(scen, 'all') for r in rows}) if scen else ['all']:
@@ -160,7 +163,7 @@ def check_envelope(rows):
             except Exception:
                 continue
             agg[b][0] += 1
-            agg[b][1] += 0 if yes(r.get('collided', '')) else 1
+            agg[b][1] += 0 if yes(r.get(collcol, '')) else 1
         if not agg:
             continue
         bins = sorted(agg)
@@ -214,7 +217,7 @@ def main():
         ('lead', lambda: check_lead(run) if run else 'NO DATA'),
         ('burst', lambda: check_burst(run) if run else 'NO DATA'),
         ('density', lambda: check_density(run) if run else 'NO DATA'),
-        ('envelope', lambda: check_envelope(kinds['envelope']) if kinds.get('envelope') else 'NO DATA'),
+        ('envelope', lambda: check_envelope(kinds['envelope_decisions'] or kinds['envelope_runs']) if (kinds.get('envelope_decisions') or kinds.get('envelope_runs')) else 'NO DATA'),
         ('faults', lambda: check_faults_unit(kinds['faults_unit']) if kinds.get('faults_unit') else 'NO DATA'),
         ('faults_live', lambda: check_faults_live(kinds['faults_live']) if kinds.get('faults_live') else 'NO DATA'),
         ('load', lambda: check_load(kinds['load']) if kinds.get('load') else 'NO DATA'),
