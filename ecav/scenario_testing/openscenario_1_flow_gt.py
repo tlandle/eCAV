@@ -752,6 +752,15 @@ def run_scenario(opt, scenario_params):
                     _eps += 1
                 _prev = _f
             _tbytes = sum(c.payload_bytes for c in transfer_costs)
+            for _ei, _edge in enumerate(edge_list):
+                _cms = getattr(_edge, '_t21_compute_ms_sum', 0.0)
+                _vs = getattr(_edge, '_t21_veh_seconds', 0.0)
+                _cpvs = (_cms / 1000.0 / _vs) if _vs > 0 else 0.0
+                logger.info(
+                    "[COMPUTEROW] edge=%d locale=%s compute_s=%.3f "
+                    "veh_seconds=%.3f compute_per_veh_s=%.4f",
+                    _ei, getattr(_edge, 'edgeid', _ei), _cms / 1000.0,
+                    _vs, _cpvs)
             for _nid4, (_ht4, _dl4) in npc_handoff_done.items():
                 _fd = t19_first_dst.get(_nid4, -1)
                 _fu = t19_first_use.get(_nid4, -1)
