@@ -5,12 +5,21 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
+
+- Between Sep 4 23:35 and Sep 5 14:30 nothing moved: no commits on any branch, no runs on Atlas, cetus idle. The eval session does not continue between prompts; the orchestrating (writing) session must kick each block. Sent the ordered Sep 5 list with instructions to run it to the end and message at each landing: computed-trigger seeding fix, T21, T20, T16, T15 (smoke), T12 knob, merge t7-live-epochs, freeze tag khonsu-eval-freeze-1, then batch on Atlas and T12 on cetus against the frozen hash. If T15 is not clean tonight, freeze Sep 6.
+
 ## 2026-09-04 (writing session, morning): Q5 scale and provenance closure written in
 
 - Correction: the eval chain did not stall; q5 and s5 ran overnight (my check fell between chain end and its verification). Q5 (q5_scale_rows.csv, n=5, N=2/4/8 oncoming): collision-free runs warm 5,2,4; handover snapshot 0,1,0; cold 0,0,1; ordering holds at every density; warm's N=4 dip is noise. Written into scale_out_nsdi §5.8 as tab:scale (collision-free runs only; completion field format at that commit still being confirmed by the eval session). Provenance closed: canonical warm arm at ecc4b092 reran 4/4 with zero collisions under the env contract; q4 table stays retired for the dead-trigger reason.
 - T8 mini-landing written in (scale_out_nsdi 84143fd): serialized MigrationPayload measured at 1247 B over the real gRPC relay (t7-live branch), so the paper says 1.25 KB everywhere (intro, §2.4, tab:bytes, §5.2); §4.2 Transport now states the relay and clean-loopback timings (prepare 1.81 ms, commit 0.29 ms) with the netem matrix (delay 0/5/20/50 ms x loss 0/1/5%) as the remaining placeholder. Sudo: atlas already has NOPASSWD ALL; the only gate is the eval session's tool prompt. PDF is 14 pp only because one reference spills; body ends before the references.
 - Figure completeness (Tyler: every figure must be producible from a run). Audit of the seven expected-shape figures vs tasks: faults T7, corridor T13, trigger front T15/s5/T18 covered; envelope (threshold rule), overlap (one speed, no compute metric), crossing load (no task), sizing (no task) not. Added to nsdi_push_tasks.md (cbaa79ca): T19 per-handoff timing rows with warm_before_first_use (prerequisite), T19b crossing-load sweep platoon {1,2,4,8,16} x 5 arms, T20 TRIGGER_MODE=oracle, T21 edge compute per vehicle-second, T14 amendment (20 m/s cells + compute), T12 amendment (tau(u) = largest delay with every seed clean; full curve reported), T22 sizing analysis. Paper eq:tau now states that rule (scale_out_nsdi 9b7c7dd). Deck: envelope toy figure redrawn on the rule, load and sizing slides marked Needed; pushed to gtvault and verified.
 - Eval session on the figure audit (afternoon): T19 merges with T7-live as one instrumentation drop (epochs + LEADROW + XFERROW + HANDOFFROW), Sep 5; T20 oracle rides T16, Sep 5-6; T21 compute accumulator before the T15 batch, Sep 6; T12 rule adopted verbatim; T14 amendments folded, Sep 10-11; T22 Sep 12-13. T19b decision (writing session): four existing arms (Khonsu, mirror, handover snapshot, cold) on Sep 8, dual-service column added when T14 lands. s5: pinned-worktree replay abandoned after a fourth failure (missing perception_pb2; zombie rows purged from the v1 CSV); lookahead {2,3,4} x 10 now running on current develop with the contract env into the v3 logdir, so the trigger table is v3-internal on one code version (at-crossing, 1-4 s, computed after fix, MTR, oracle). GPU oversubscribed Sep 8-11; slip order if needed: T19b fifth arm, then T14 speed cells; corridor keeps priority.
+- Run accounting (evaluation_outputs, RUNROW mtimes): 345 closed-loop runs since Aug 28 (v1 150, v2 75, v3 75, q5 45); per day Aug 28: 12, Aug 30: 21, Aug 31: 117, Sep 1-2: 0 (grind diagnosis), Sep 3: 167, Sep 4: 28. 225 discarded (v1/v2 unvalidated geometry), 120 usable. Throughput when running ~10 min/run on the one Atlas GPU. Rerun rule (Tyler) adopted by the eval session as ONE frozen eval commit: Sep 5 merge t7-live + T16 + T20 + T21 + computed-trigger fix, freeze; Sep 6-8 ~200-run batch (headline 6 arms, burst, q5 cells, lookahead 2-4 s, computed, MTR trigger with theta sweep, oracle, T17, T18); then fault arms x fencing, netem matrix, T19b four arms Sep 8-9; corridor smoke Sep 8-9. Consequence: tonight's lookahead rows and the banked v3/q5/burst rows become pilot data, superseded by the frozen set; final figures only from the frozen set. Writing session conditions sent: one freeze only; T12 (275 runs, ~45 h) not in the batch list, placement required or a second GPU is raised with Tyler.
+- Freeze readiness (eval session, Sep 4 evening): T19 rows and T7/T8 instrumentation built on branch; computed-trigger fix, T16, T20, T21, and the T12 consume-side delay knob all go into the frozen commit Sep 5; the risk is T15 (MTR-mode trigger + theta), built and smoke-tested Sep 5 or the freeze slips to Sep 6 (batch Sep 7-9, corridor smoke ahead of the batch tail, T19b behind). T12 (275 runs, ~45-50 GPU h) does not fit on Atlas before Sep 12: with a second GPU by Sep 7 it lands Sep 9-10; on Atlas alone it starts Sep 10 and finishes ~Sep 12 on nights. Second-GPU requirements: CARLA 0.9.15, repo at the frozen commit, opencda310 env, ~50 GPU h; Azure is the fit (April ablations ran the full stack on the A10), PACE has no CARLA. Azure A10 (20.81.176.215) ssh timed out Sep 4; raised with Tyler.
+- Second GPU resolved: Azure is out (eCloudSim, 2026Q1-6211, KishoreTeaching subscriptions all Disabled; only the CoC Education Lab is enabled, zero spend, NCSv3 quota only; the A10 edge-server cannot start). Tyler assigned his cetus workstation tlandle@143.215.184.49: RTX 3080 Ti 12 GB, 32 cores, 62 GB RAM, 408 GB free, CARLA 0.9.15 present, anaconda envs incl. opencda_py310, no repo, passwordless sudo, ssh works with the atlas key. Assigned to the eval session as the T12 host (clone at the frozen commit, env check, rsync checkpoints 5.9 GB, --build, smoke run, report peak GPU memory since 12 GB may be tight vs Atlas's 16 GB).
+- Per-run wall time settled: 4.7 min median (p90 5.3) from v3 log mtimes, for 30 s of scenario time (600 synchronous ticks at ~260 ms wall each = 154 s) + fresh CARLA per run (~60-75 s) + model load (~50-70 s) + teardown. The 10 min figure (mine and the eval session's) was stale padding from the manual-run era. No safe cuts: RESTART_EVERY=1 stays (CARLA state bleed is a measured historical failure). Plan math: ~900 remaining runs = ~70 GPU h. Atlas: frozen batch 16 h + faults/netem 6 h + T19b 8 h + corridor ~3 h (6-7 min/run est., to be measured at smoke) = ~33 h over Sep 6-10. Cetus: T12 275 runs at ~5.5-6 min = ~26 h, Sep 7-9. Fits with margin for one rerun. Cetus bring-up: clone OK, opencda_py310 verified (torch 2.9.1+cu128), rsync in flight, smoke + peak VRAM pending.
+- Cetus smoke 14 GREEN (Sep 4 23:34): full flow run on the 3080 Ti, RUNROW mode=warm trigger=predictive lookahead=1.00 episodes=0 contact_ticks=0 transfers=4 bytes=2488, 630 ticks, zero errors, ego eval dict present. Per-run wall 258 s scenario + 75 s CARLA settle = 5.5 min (Atlas 4.7). Peak VRAM 9,642 of 12,288 MiB. Bring-up needed 14 attempts (CUDA extensions rebuilt for sm_86 with a CUDA 12.8 toolkit in the cloned opencda310 env; ledger in the eval session's entry). Cetus logs: ~/ecloudsim_distributed_sandbox/evaluation_outputs/cetus_runs/ (latest.log symlink; RUN_WALL_S and PEAK_VRAM_MIB appended per log). Cetus idles until the frozen commit; T12 (275 runs, ~26 h) launches there against the frozen hash, Sep 7-9. Writing-session note: a pgrep -f pattern in a remote watch matches its own ssh shell; use the [b]racket trick.
 - Eval ETAs (eval session): T16 Sep 5; T7-live fault arms Sep 5; T15 batch with T17/T18 Sep 6-7; T9 Sep 6; T12 Sep 8; T13 corridor build started, go/no-go Sep 9; T14 Sep 10-11; T10 after T13 smoke, at risk. T8 impaired runs need Tyler's sudo for netem. s5 lookahead redo third attempt running (worktree dependency checklist added).
 
 ## 2026-09-04 (writing session, night): sections 4-5 in Conductor form
@@ -3343,3 +3352,51 @@ vendored dir; worktrees need pb2 stubs regenerated AND scenario_runner +
 model assets linked — full checklist now known). Attempt 3 RUNNING with all
 deps verified. q5 chain completed overnight contrary to the writing
 session's snapshot; timing artifact of their check.
+
+## Standing rule adopted -> consolidated eval plan (2026-09-05)
+
+Tyler's fix-and-rerun-whole rule reshapes the schedule into ONE frozen eval
+commit: merge t7-live (T7/T8/T19 instrumentation) + build T16 faithful-
+EdgeWarp + T20 oracle trigger + T21 compute metering + computed-trigger
+seeding fix on develop, freeze, then run THE batch on that commit: headline
+6 arms + burst + q5 cells + lookahead {2,3,4} + computed-fixed + MTR trigger
++ theta sweep + oracle + T17 age + T18 constants (~200 runs, ~33 h,
+Sep 6-8), then fault arms + netem, T19b (4 arms), corridor smoke Sep 8-9 on
+the SAME commit. Tonight's lookahead sweep demotes to pilot data (pre-merge
+version; not paper rows). All previously banked v3/q5 rows likewise become
+superseded-by-frozen-batch when it lands; the paper's figures draw from the
+frozen set only.
+
+## Cetus T12 host bring-up: 95% complete (2026-09-04/05)
+
+tlandle@143.215.184.49, env opencda310 (cloned from opencda_py310, untouched
+original). FULL DEPENDENCY LEDGER (each was a real failure, in order):
+pb2 stubs (gen with env python: grpc_tools.protoc, ecav.py --build uses
+/usr/bin/python), scenario_runner vendored dir (rsync), merged_latency.csv
+(symlink target see-v2x-input/), CARLA agents pkg (PYTHONPATH=
+~/carla-0.9.15/PythonAPI/carla), opencood shadowed by site-packages install
+(rm site-pkgs copy + zz_ecav_worldfusion.pth pointing at repo), full
+worldfusion tree rsync (hypes_yaml etc. untracked), Atlas env pip diff
+(NOTE: freeze filter must not exclude "torch"-substring pkgs:
+efficientnet_pytorch), mamba_ssm + selective_scan_cuda .so copies,
+torch_cluster/scatter binary copies, model symlinks are ABSOLUTE ->
+rsync -aL to dereference, git-LFS pointers (mamba3dmot_weights.pth,
+ssm3dmot_weights.pth -> copy real files), sort/ + AB3DMOT_libs untracked
+dirs, MTR pretrained/ Swin dir (332M), CUDA ARCH: Atlas-built .so lack
+sm_86 kernels -> installed cuda-toolkit 12.8 into env (conda -c nvidia),
+rebuilt MTR ops + worldfusion pcdet with TORCH_CUDA_ARCH_LIST=8.6
+CUDA_HOME=env CPATH/LIBRARY_PATH=env targets. Both BUILD-OK.
+REMAINING: smoke 13 failed at ScenarioManager.world (CARLA init flake after
+repeated kill/start cycles — likely needs clean CARLA restart + longer
+settle). Peak VRAM full stack: 9498 MiB of 12288 — T12 FITS. Smoke script:
+/tmp/cetus_smoke_run.sh on cetus, tmux session t12smoke. Next: reboot-clean
+CARLA, rerun smoke, then T12 waits for the frozen commit per the rule.
+
+## CETUS GREEN (2026-09-05): T12 host operational
+
+Smoke 14 clean: warm arm, episodes=0, transfers=4/2488 B, ego eval emitted,
+no errors. Per-run ~5.5 min (258 s scenario + 75 s settle); peak VRAM
+9642/12288 MiB. Logs: ~/ecloudsim_distributed_sandbox/evaluation_outputs/
+cetus_runs/ (latest.log symlink). Cetus idles until the frozen commit; T12
+(275 runs, ~25 h) runs there against the frozen hash. Next on Atlas:
+T15/T16/T20/T21/computed-fix builds, freeze, THE batch.
