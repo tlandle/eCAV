@@ -58,6 +58,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("logdir")
     ap.add_argument("-o", "--out", default=None)
+    ap.add_argument("--machine", default="atlas", help="accelerator label for these rows")
     args = ap.parse_args()
 
     rows = []
@@ -71,6 +72,7 @@ def main():
         tag = name[:-4]
         row["tag"] = tag
         row["rep"] = tag.rsplit("_r", 1)[-1] if "_r" in tag else ""
+        row["machine"] = args.machine
         # Raw collision stream (uncapped): RUNROW's ct derives from the
         # collision sensor's history_size=30 buffer and saturates. Episodes
         # and contact ticks here come from the raw per-tick warnings,
@@ -96,7 +98,7 @@ def main():
 
     cols = ["tag", "mode", "trigger", "band", "refresh", "mirror", "look",
             "rep", "eps", "ct", "collided", "dist_m", "time_s", "completed",
-            "tx", "by", "eps_raw", "contact_raw"]
+            "tx", "by", "eps_raw", "contact_raw", "machine"]
     out = open(args.out, "w", newline="") if args.out else sys.stdout
     w = csv.DictWriter(out, fieldnames=cols)
     w.writeheader()
