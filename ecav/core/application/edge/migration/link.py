@@ -82,7 +82,11 @@ class InterLocaleLink:
         # model: base + payload/bandwidth + queueing (0.5 x service).
         import os as _osw
         self._wired = _osw.environ.get('TRANSFER_MEDIUM', 'wired') == 'wired'
-        self._backhaul_base_ms = float(_osw.environ.get('BACKHAUL_BASE_MS', 2.0))
+        # 5G-MOBIX D5.2 v3.0 Table 30 (CS_14 inter-MEC, fibre 100km):
+        # one-way network latency ~3 ms, stdev ~0.5 ms, zero loss (TCP).
+        self._backhaul_base_ms = float(_osw.environ.get('BACKHAUL_BASE_MS', 3.0))
+        self._backhaul_jitter_ms = float(
+            _osw.environ.get('BACKHAUL_JITTER_MS', 0.5))
         self._backhaul_bw_mbps = float(
             _osw.environ.get('BACKHAUL_BW_MBPS', 1000.0))
 
@@ -112,8 +116,11 @@ class InterLocaleLink:
         if self._wired:
             _service_ms = (n_bytes * 8.0 / (self._backhaul_bw_mbps * 1e6)) \
                 * 1000.0
-            sim_network_ms = self._backhaul_base_ms + _service_ms + \
-                0.5 * _service_ms  # base + transmission + queueing
+            import random as _rnd
+            _jit = _rnd.gauss(0.0, self._backhaul_jitter_ms) \
+                if self._backhaul_jitter_ms > 0 else 0.0
+            sim_network_ms = max(0.5, self._backhaul_base_ms + _jit) \
+                + _service_ms + 0.5 * _service_ms  # 5G-MOBIX + tx + queue
         else:
             sim_network_ms = self._latency_model.sample_ms()
         total_ms = sim_serialize_ms + sim_network_ms + sim_serialize_ms

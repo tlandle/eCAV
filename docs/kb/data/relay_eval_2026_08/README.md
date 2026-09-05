@@ -74,3 +74,17 @@ EMA, so frozen1c is NOT invalidated (Tyler's ruling). FIX (develop, for
 freeze-2/T8/later): InterLocaleLink wired model = base 2ms + payload/1Gbps +
 0.5x queueing; computed EMA reseeded to ~2ms. TRANSFER_MEDIUM=wired default.
 NETEM matrix HELD until citable 5G-MOBIX wired-backhaul figures arrive.
+
+## Wired backhaul figures: 5G-MOBIX D5.2 (2026-09-05)
+Source: 5G-MOBIX D5.2 v3.0 "Report on technical evaluation" section 4.5.4,
+CS_14 inter-MEC exchange. Table 30 (MEC-to-MEC over fibre, 100km ES-PT
+corridor): one-way network latency avg 1.8-3.6 ms, median 1.6-3.6, p95
+2.4-3.7, max 3.6-5.2, stdev 0.1-0.8 ms; 11km NL federation added no
+measurable delay; executive-summary bullet: direct inter-MEC over leased line
+across operators adds 15-20 ms per hop; wired packet loss zero (TCP).
+InterLocaleLink wired model uses base 3 ms + 0.5 ms jitter (stdev) +
+serialization + payload/1Gbps + 0.5x queue; computed-trigger EMA reseeded
+~3 ms. netem matrix (Table 31 equivalent): (delay,jitter) = (0,0),(3,0.5),
+(20,1),(50,2) ms x loss {0,0.1,1}%. 3ms=fibre op-point, 20ms=leased-line
+hop (both MEASURED); 50ms and 1% loss = stress beyond measurement (labeled
+_stress in row tags); 0.1% = nominal wired loss.
