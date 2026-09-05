@@ -3460,3 +3460,18 @@ ablation (lookahead 1/2/4 x10). frozen1/ discarded. T12 (cetus) unaffected,
 continues; AOIROW age-at-use logging added to prove the delay bites (T12
 should rerun on freeze-1b to capture it). T13 branch must merge the
 warm-final fix before freeze-2.
+
+## Cetus 5.3 was on wrong tag; corrected (2026-09-05)
+
+The c53 5.3-completion chain was launched on freeze-1 (cetus HEAD 8976a592);
+its warm arm is invalid under the freeze-1b final-update fix. Killed it.
+New cpost chain (armed, waits for T12 to finish): checkout freeze-1b ->
+AOIROW probe (blindovertake d0/300/600 + accel d0/300) -> 5.3 completion on
+freeze-1b (occl/maneuv x10 + other two cells seeds 6-10) into
+frozen1b_cetus/. T12's 120 runs stay valid (no migration, AOI in freeze-1,
+tag-independent numbers). AOI decision tree (from writing session): if
+blindovertake clean through 600 with AOIROW showing delay reaches planner +
+no local bypass -> dead-reckon compensates constant-velocity, extend
+blindovertake to 700/800/1000 x5 for a measured tau(u); if AOIROW shows
+local predictions covering the occluded oncoming -> scenario defect, T12
+fixed + full rerun. Probe reported as a landing with AOIROW lines.
