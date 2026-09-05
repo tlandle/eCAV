@@ -3479,3 +3479,24 @@ no local bypass -> dead-reckon compensates constant-velocity, extend
 blindovertake to 700/800/1000 x5 for a measured tau(u); if AOIROW shows
 local predictions covering the occluded oncoming -> scenario defect, T12
 fixed + full rerun. Probe reported as a landing with AOIROW lines.
+
+## FREEZE-1c: mtr lead gate + 2x2 collapse finding (2026-09-05)
+
+Sign-off caught: freeze-1b mtr trigger fired on theta alone (no lead gate),
+measuring predictor confidence not the design. FIX (freeze-1c = 86eac073):
+mtr requires theta AND predicted_to_exit_within with computed L (paper 3.2).
+Batch restarted from block A on 1c (frozen1c/), tail rebuilt.
+2x2 FINDING: both openscenario_1_flow_gt AND openscenario_1_accel_gt carry
+the carlacola truck occluder ("truck occludes the oncoming" in accel XML) ->
+BOTH OCCLUDED. So: occluded/constant = flow (hl_ rows); occluded/maneuvering
+= accel; flow+ONCOMING_ACCEL=1 DUPLICATES accel; VISIBLE row has NO scenario
+(named gap - would need a no-truck variant). Dropped c_occlconst (dup of
+hl_). Block D = accel (c_occlmaneuv) 6 arms x5 Atlas + seeds 6-10 cetus.
+kf paper definition -> "snapshot content on forecast trigger, no final
+update". ns-3/T12 finding: radio plane drives UPLINK (sensor->edge) latency
+via HybridModel (real SEE-V2X C-V2X trace) + SbSpsMac (SB-SPS contention);
+edge->ego forecast DOWNLINK is instantaneous (packet-loss-gated only, no
+delay). SEE-V2X trace p50/p95 per regime: L 11.8/22.3, M 12.3/23.3,
+H 18.7/23.8 ms - real levels are 12-24ms, far below the 50-800ms target,
+so reaching 800ms needs SbSpsMac contention load or base_ms, or the ns-3
+co-sim (freeze-1c+ wiring). Adjudication owed to writing session.
