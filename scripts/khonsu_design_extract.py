@@ -59,6 +59,9 @@ def main():
     ap.add_argument("logdir")
     ap.add_argument("-o", "--out", default=None)
     ap.add_argument("--machine", default="atlas", help="accelerator label for these rows")
+    ap.add_argument("--oncoming-speed", default="12")
+    ap.add_argument("--trigger-dist", default="300")
+    ap.add_argument("--tag", default="khonsu-eval-freeze-1b")
     args = ap.parse_args()
 
     rows = []
@@ -73,6 +76,17 @@ def main():
         row["tag"] = tag
         row["rep"] = tag.rsplit("_r", 1)[-1] if "_r" in tag else ""
         row["machine"] = args.machine
+        row["oncoming_speed"] = args.oncoming_speed
+        row["trigger_dist"] = args.trigger_dist
+        row["eval_tag"] = args.tag
+        _mode = row.get("mode", "")
+        # final_update: builtin for warm/edgewarp on freeze-1b; none otherwise
+        if "1b" in args.tag and _mode in ("warm", "edgewarp"):
+            row["final_update"] = "builtin"
+        elif row.get("refresh") == "full":
+            row["final_update"] = "commit_full"
+        else:
+            row["final_update"] = "none"
         # Raw collision stream (uncapped): RUNROW's ct derives from the
         # collision sensor's history_size=30 buffer and saturates. Episodes
         # and contact ticks here come from the raw per-tick warnings,
@@ -98,7 +112,7 @@ def main():
 
     cols = ["tag", "mode", "trigger", "band", "refresh", "mirror", "look",
             "rep", "eps", "ct", "collided", "dist_m", "time_s", "completed",
-            "tx", "by", "eps_raw", "contact_raw", "machine"]
+            "tx", "by", "eps_raw", "contact_raw", "machine", "oncoming_speed", "trigger_dist", "eval_tag", "final_update"]
     out = open(args.out, "w", newline="") if args.out else sys.stdout
     w = csv.DictWriter(out, fieldnames=cols)
     w.writeheader()
