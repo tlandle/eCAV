@@ -187,6 +187,9 @@ Log per locale per tick the wall time of fusion + tracking + prediction and the 
 ## T14 amendment
 Add the 20 m/s speed (ONCOMING_SPEED=20) for widths {20, 40, 80, 120} m, 5 seeds, all three forms. The overlap figure plots warm-before-use against width per speed; one speed cannot show that the lead from a fixed width shrinks with speed. Report edge compute per vehicle-second (T21) per form and width.
 
+## T12 amendment 2 (Tyler, 2026-09-05 night): age through ns-3, not injected delay
+The age at use must be produced by the ns-3 radio plane. Sweep the radio-plane load (the LatencyModel knob that moves the sampled C-V2X latency distribution) over enough levels that realized age at use spans ~50-800 ms; log realized age of the consumed forecast per planner decision (AOIROW + load level); derive tau(u) from realized age in 50 ms bins with the same rule; report the load-level to age mapping (p50/p95 per level). The injected-delay (AOI_INJECT_MS) runs are pilot data only and do not enter the paper.
+
 ## T12 amendment (one success rule everywhere)
 Report, per scenario and delay d, the fraction of seeds that complete without a collision (the full curve; the envelope figure draws it). tau(u) = the largest d at which every seed completes without a collision. The paper states this rule; the 0.95 wording is replaced. If a scenario needs finer resolution, 10 seeds at the two delays bracketing tau(u).
 
