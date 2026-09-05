@@ -5,6 +5,10 @@ updated: 2026-08-25
 
 Primary context-switching artifact. Read this first after a gap.
 
+## 2026-09-05 (writing session, 14:30): eval session idled overnight; Sep 5 plan restarted
+
+- Between Sep 4 23:35 and Sep 5 14:30 nothing moved: no commits on any branch, no runs on Atlas, cetus idle. The eval session does not continue between prompts; the orchestrating (writing) session must kick each block. Sent the ordered Sep 5 list with instructions to run it to the end and message at each landing: computed-trigger seeding fix, T21, T20, T16, T15 (smoke), T12 knob, merge t7-live-epochs, freeze tag khonsu-eval-freeze-1, then batch on Atlas and T12 on cetus against the frozen hash. If T15 is not clean tonight, freeze Sep 6.
+
 ## 2026-09-04 (writing session, morning): Q5 scale and provenance closure written in
 
 - Correction: the eval chain did not stall; q5 and s5 ran overnight (my check fell between chain end and its verification). Q5 (q5_scale_rows.csv, n=5, N=2/4/8 oncoming): collision-free runs warm 5,2,4; handover snapshot 0,1,0; cold 0,0,1; ordering holds at every density; warm's N=4 dip is noise. Written into scale_out_nsdi §5.8 as tab:scale (collision-free runs only; completion field format at that commit still being confirmed by the eval session). Provenance closed: canonical warm arm at ecc4b092 reran 4/4 with zero collisions under the env contract; q4 table stays retired for the dead-trigger reason.
