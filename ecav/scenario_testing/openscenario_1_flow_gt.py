@@ -93,6 +93,7 @@ OBSTACLE_HANDOFF_LOOKAHEAD_S = float(os.environ.get('LOOKAHEAD_S', 1.0))
 os.environ.setdefault('ONCOMING_SPEED', '12')
 os.environ.setdefault('TRIGGER_DIST', '300')
 TRIGGER_MODE = os.environ.get('TRIGGER_MODE', 'predictive').lower()
+MTR_THETA = float(os.environ.get('MTR_THETA', 0.5))
 BAND_W_M = float(os.environ.get('BAND_W_M', 20.0))
 # COMMIT_REFRESH='full' re-sends the full state once at the actual crossing
 # (the "phase 2" question: does a refresh at commit buy anything at this
@@ -536,6 +537,32 @@ def run_scenario(opt, scenario_params):
                     # which is the boundary-parallel over-firing failure.
                     _sd_dst = locale_by_id[dst_lid].signed_distance(nxy)
                     if _sd_dst > BAND_W_M:
+                        continue
+                elif TRIGGER_MODE == 'mtr':
+                    # T15: consume the cooperative predictor's MULTIMODAL
+                    # forecast instead of a constant-velocity projection.
+                    # For each MTR mode of this track, test whether its
+                    # world-frame endpoint lands in the destination locale;
+                    # sum the mode probabilities that do; fire the prepare
+                    # once that summed destination probability exceeds THETA.
+                    _src_edge_m = edge_by_locale.get(src_lid)
+                    _modes = None
+                    if _src_edge_m is not None:
+                        _pred = getattr(_src_edge_m, 'predictor', None)
+                        _mm = getattr(_pred, 'last_mtr_modes', {}) \
+                            if _pred is not None else {}
+                        # map carla_id -> tracker tid via the edge's table
+                        _tid = next((t for t, c in getattr(
+                            _src_edge_m, 'track_to_carla', {}).items()
+                            if c == nid), None)
+                        if _tid is not None:
+                            _modes = _mm.get(int(_tid))
+                    if not _modes:
+                        continue  # no multimodal forecast yet -> no fire
+                    _p_dst = sum(
+                        p for (wx, wy, p) in _modes
+                        if locale_by_id[dst_lid].contains((wx, wy)))
+                    if _p_dst < MTR_THETA:
                         continue
                 elif TRIGGER_MODE == 'oracle':
                     # T20 upper bound: fire exactly L seconds before the TRUE
