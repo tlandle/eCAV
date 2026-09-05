@@ -88,3 +88,13 @@ serialization + payload/1Gbps + 0.5x queue; computed-trigger EMA reseeded
 (20,1),(50,2) ms x loss {0,0.1,1}%. 3ms=fibre op-point, 20ms=leased-line
 hop (both MEASURED); 50ms and 1% loss = stress beyond measurement (labeled
 _stress in row tags); 0.1% = nominal wired loss.
+
+## Age-at-use floor is a result (2026-09-05)
+Delta_use (t_c - t_o, total age of the consumed forecast's newest observation
+at use) has a MINIMUM of ~300 ms at the lightest load, quantized in ~150 ms
+steps, set by the edge cadence (edge_dt=0.2s) + jitter buffer + DL queue, NOT
+network. The freshness axis starts at this floor; tau(u) is defined on total
+Delta_use (AGEROW realized_age_ms). network_age_ms (UL+DL LUT only, added
+freeze-1f=7c28b753) is the radio contribution per load for the load-to-age
+table. T12 reruns on 1f (N=4 on 1e was pilot). 50ms bins kept; levels land on
+300,450,600,... (sparse bins expected).
