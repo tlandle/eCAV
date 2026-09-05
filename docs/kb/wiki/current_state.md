@@ -3401,3 +3401,20 @@ no errors. Per-run ~5.5 min (258 s scenario + 75 s settle); peak VRAM
 cetus_runs/ (latest.log symlink). Cetus idles until the frozen commit; T12
 (275 runs, ~25 h) runs there against the frozen hash. Next on Atlas:
 T15/T16/T20/T21/computed-fix builds, freeze, THE batch.
+
+## FROZEN: khonsu-eval-freeze-1 = commit 8976a592 (tag obj 9a1ff170), 2026-09-05
+
+All Sep 5 builds landed and merged: computed-fix, T21 compute, T20 oracle,
+T16 faithful edgewarp (+handover_snapshot rename), T15 MTR trigger, T7/T8/T19
+instrumentation, T12 AOI_INJECT_MS knob. MTR-trigger smoke GREEN (trigger=mtr,
+4 transfers, 3 handoff rows, no errors). Two machines running the frozen tag:
+- Atlas: frozen_batch (evaluation_outputs/frozen1) - headline 6+handover_snap
+  x10 flow, trigger sweep (computed/mtr/oracle/look2-4) x10, theta sweep x5,
+  burst 3x5, density FLOW_N{2,4,8}x3x5, 5.3 cells (accel=vis/maneuver,
+  flow=occl/const) 6x5. ~220 runs, ~17 h.
+- Cetus: T12 tau(u) (evaluation_outputs/t12_tau) - blindovertake + accel x
+  12 delays(0-600) x5 seeds = 120 runs, ~11 h.
+Arm matrix: warm=Khonsu, edgewarp=faithful EdgeWarp, handover_snapshot,
+kf=Kalman snapshot, reactive=reactive history, cold. RULE: no row mixed
+across tags; corridor (T13) gets freeze-2. Cetus dep note: conda activate
+trips set -u (ADDR2LINE), use set +u in cetus scripts.
