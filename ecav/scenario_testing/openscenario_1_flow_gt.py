@@ -578,7 +578,7 @@ def run_scenario(opt, scenario_params):
                     # EMA + fold-in + margin, capped). Without this, mtr fires
                     # whenever the predictor is confident (several s early on a
                     # 6-8 s horizon), measuring confidence not the design.
-                    _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.040)
+                    _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.002)
                     _fold_s = 3 * 0.2
                     _lead_m = min(2.5, max(_fold_s + 0.35,
                                            _xfer_s + _fold_s + 0.35))
@@ -627,7 +627,7 @@ def run_scenario(opt, scenario_params):
                         # transfer time (40 ms) rather than a guess, so the
                         # FIRST crossing (before any handoff has been measured)
                         # computes its lead from data, not 0.05 s.
-                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.040)
+                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.002)
                         _fold_s = 3 * 0.2   # 3 edge cycles at edge_dt
                         # First-fire floor: never lead the decisive first
                         # crossing by less than fold-in + margin.

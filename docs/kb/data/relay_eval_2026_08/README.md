@@ -62,3 +62,15 @@ frozen1c rows: NO AGEROW (realized age at use not extractable for the headline
 batch); the extractable freshness fields are HANDOFFROW warm_before_first_use
 and bytes. AGEROW (realized age = delivery_tick - source_frame_tick, ms) is
 added at freeze-1e (outbound drain) and carried by T12 and all later tags.
+
+## Medium mismatch: inter-locale transfer accounted as radio (2026-09-05)
+frozen1c/1e: InterLocaleLink(edge.latency_model) sampled the transfer's
+network cost from the C-V2X RADIO model, but inter-locale transfer is WIRED
+backhaul between edge servers. SCOPE: accounting only (link.py never delays
+the mechanism) + the computed-trigger EMA seed (40ms was a radio number).
+The LEADROW/XFERROW transfer times and computed-lead EMA are affected; the
+lead EFFECT is <0.05s, and warm/predictive/mtr/oracle arms do not use the
+EMA, so frozen1c is NOT invalidated (Tyler's ruling). FIX (develop, for
+freeze-2/T8/later): InterLocaleLink wired model = base 2ms + payload/1Gbps +
+0.5x queueing; computed EMA reseeded to ~2ms. TRANSFER_MEDIUM=wired default.
+NETEM matrix HELD until citable 5G-MOBIX wired-backhaul figures arrive.
