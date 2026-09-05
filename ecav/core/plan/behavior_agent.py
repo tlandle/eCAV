@@ -337,12 +337,23 @@ class BehaviorAgent(object):
             if not hasattr(self, '_aoi_buf'):
                 from collections import deque as _dq
                 self._aoi_buf = _dq(maxlen=max(1, _delay_ticks + 1))
+            _fresh_n = len(self.edge_predictions or [])
             self._aoi_buf.append(list(self.edge_predictions or []))
             if len(self._aoi_buf) > _delay_ticks:
                 self.edge_predictions = self._aoi_buf[0] \
                     if _delay_ticks > 0 else self.edge_predictions
             else:
                 self.edge_predictions = []  # not enough history yet: no forecast
+            # T12 evidence: prove the delay bites. Log the injected age, the
+            # buffer depth, the fresh-vs-served forecast counts, and whether
+            # the ego also has UNDELAYED local forecasts (bypass check).
+            logger.info(
+                "[AOIROW] tick=%d inject_ms=%s delay_ticks=%d bufdepth=%d "
+                "fresh=%d served=%d local_undelayed=%d",
+                self._tick_counter, _aoi_ms, _delay_ticks,
+                len(self._aoi_buf), _fresh_n,
+                len(self.edge_predictions or []),
+                len(getattr(self, 'local_predictions', []) or []))
         _cache = self._edge_pred_cache
         for _p in (self.edge_predictions or []):
             _obs = _p.obstacle_trajectory.obstacle
