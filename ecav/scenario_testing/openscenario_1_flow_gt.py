@@ -153,6 +153,37 @@ def _build_locale_router(edge_cfgs, edge_list):
     return LocaleRouter(registry), edge_by_locale, locale_by_id
 
 
+def _dest_locale_for(src_lid, nxy, nvel, locale_by_id, horizon_s=4.0):
+    """Destination locale an actor is heading into (N-locale general).
+
+    Two-locale code picked "the other locale". For a corridor of >2
+    locales the destination is the ADJACENT locale the actor's motion
+    enters next: project the ground-truth velocity forward and return the
+    first locale (other than the source) that contains a projected point.
+    Falls back to the neighbor by x-order in the direction of travel.
+    """
+    import numpy as _np
+    _steps = _np.arange(1, int(horizon_s / 0.5) + 1) * 0.5
+    for _t in _steps:
+        px, py = nxy[0] + nvel.x * _t, nxy[1] + nvel.y * _t
+        for lid, loc in locale_by_id.items():
+            if lid != src_lid and loc.contains((px, py)):
+                return lid
+    # fallback: neighbor by x-center in the velocity's x direction
+    def _cx(loc):
+        return float(loc.polygon[:, 0].mean())
+    src_cx = _cx(locale_by_id[src_lid])
+    cands = [(lid, _cx(loc)) for lid, loc in locale_by_id.items()
+             if lid != src_lid]
+    if not cands:
+        return None
+    if nvel.x < 0:
+        left = [(lid, cx) for lid, cx in cands if cx < src_cx]
+        return max(left, key=lambda t: t[1])[0] if left else None
+    right = [(lid, cx) for lid, cx in cands if cx > src_cx]
+    return min(right, key=lambda t: t[1])[0] if right else None
+
+
 def _npc_track_on_edge(edge, carla_id, gt_loc, pos_gate_m=6.0):
     """Return the edge's tracklet for carla_id.
 
@@ -209,6 +240,7 @@ def run_scenario(opt, scenario_params):
     npc_ids = set()            # moving non-hero, non-managed vehicles (Leons)
     npc_locale = {}            # carla_id -> sticky source locale id
     npc_handoff_done = {}
+    npc_crossing_idx = {}  # T13: per-NPC boundary-crossing counter (1st/2nd/3rd...)
     # T19 per-handoff timing: first destination track, first ego use,
     # crossing tick — emitted as [HANDOFFROW] lines at scenario end.
     t19_first_dst = {}     # nid -> tick dst edge first maps a track to nid
@@ -448,7 +480,7 @@ def run_scenario(opt, scenario_params):
                 if nid in npc_handoff_done:
                     # advance-warning bookkeeping vs the destination RSU
                     if nid not in npc_rsu_detect_tick:
-                        htick, dst_lid = npc_handoff_done[nid]
+                        htick, _shl, dst_lid, _cxi = npc_handoff_done[nid]
                         rp = rsu_pos_by_locale.get(dst_lid)
                         if rp is not None:
                             d = ((nxy[0] - rp[0]) ** 2
@@ -471,9 +503,7 @@ def run_scenario(opt, scenario_params):
                             or _ew_final_sync) \
                             and nid not in npc_refresh_done \
                             and MIGRATION_MODE != 'cold':
-                        _htick, _dst_lid = npc_handoff_done[nid]
-                        _src_lid2 = next(
-                            (l for l in locale_by_id if l != _dst_lid), None)
+                        _htick, _src_lid2, _dst_lid, _cxi = npc_handoff_done[nid]
                         _se = edge_by_locale.get(_src_lid2)
                         _de = edge_by_locale.get(_dst_lid)
                         _crossed = locale_by_id[_dst_lid].contains(nxy)
@@ -516,7 +546,7 @@ def run_scenario(opt, scenario_params):
                 src_lid = npc_locale.get(nid)
                 if src_lid is None:
                     continue
-                dst_lid = next((l for l in locale_by_id if l != src_lid), None)
+                dst_lid = _dest_locale_for(src_lid, nxy, actor.get_velocity(), locale_by_id)
                 if dst_lid is None:
                     continue
                 nvel = actor.get_velocity()
@@ -634,7 +664,9 @@ def run_scenario(opt, scenario_params):
                     _cur_s = cost.total_ms / 1000.0
                     run_scenario._xfer_ema_s = _cur_s if _prev is None \
                         else 0.3 * _cur_s + 0.7 * _prev
-                    npc_handoff_done[nid] = (step, dst_lid)
+                    _cx_idx = npc_crossing_idx.get(nid, 0) + 1
+                    npc_crossing_idx[nid] = _cx_idx
+                    npc_handoff_done[nid] = (step, src_lid, dst_lid, _cx_idx)
                     logger.info(
                         "[SCENB] PREDICTIVE OBSTACLE HANDOFF tick=%d "
                         "carla_id=%d npc=(%.1f,%.1f) %s->%s bytes=%d "
@@ -811,18 +843,21 @@ def run_scenario(opt, scenario_params):
                     "veh_seconds=%.3f compute_per_veh_s=%.4f",
                     _ei, getattr(_edge, 'edgeid', _ei), _cms / 1000.0,
                     _vs, _cpvs)
-            for _nid4, (_ht4, _dl4) in npc_handoff_done.items():
+            for _nid4, _hv in npc_handoff_done.items():
+                # T13: tuple is (prepare_tick, src_lid, dst_lid, crossing_idx)
+                _ht4, _sl4, _dl4, _cxi4 = _hv
                 _fd = t19_first_dst.get(_nid4, -1)
                 _fu = t19_first_use.get(_nid4, -1)
                 _cx = t19_crossing.get(_nid4, -1)
                 _warm = (_fd >= 0 and (_fu < 0 or _fd <= _fu)
                          and (_cx < 0 or _fd <= _cx))
                 logger.info(
-                    "[HANDOFFROW] npc=%d prepare_tick=%d crossing_tick=%d "
-                    "first_dst_track_tick=%d first_use_tick=%d "
-                    "warm_before_first_use=%s dst=%s",
-                    _nid4, _ht4, _cx, _fd, _fu,
-                    "YES" if _warm else "no", _dl4)
+                    "[HANDOFFROW] npc=%d crossing_idx=%d prepare_tick=%d "
+                    "crossing_tick=%d first_dst_track_tick=%d "
+                    "first_use_tick=%d warm_before_first_use=%s "
+                    "src=%s dst=%s",
+                    _nid4, _cxi4, _ht4, _cx, _fd, _fu,
+                    "YES" if _warm else "no", _sl4, _dl4)
             import os as _os2
             _dblsum = sum(getattr(run_scenario, '_dbl_publish_ticks',
                                   {}).values())
