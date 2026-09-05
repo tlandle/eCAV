@@ -548,9 +548,15 @@ def run_scenario(opt, scenario_params):
                         # distance, slow ones later, and the lead never
                         # exceeds what warmth requires (the measured cost of
                         # too-early transfer is staleness on arrival).
-                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.05)
+                        # Seed the transfer EMA from the v3-measured median
+                        # transfer time (40 ms) rather than a guess, so the
+                        # FIRST crossing (before any handoff has been measured)
+                        # computes its lead from data, not 0.05 s.
+                        _xfer_s = getattr(run_scenario, '_xfer_ema_s', 0.040)
                         _fold_s = 3 * 0.2   # 3 edge cycles at edge_dt
-                        _lead = min(2.5, _xfer_s + _fold_s + 0.35)
+                        # First-fire floor: never lead the decisive first
+                        # crossing by less than fold-in + margin.
+                        _lead = min(2.5, max(_fold_s + 0.35, _xfer_s + _fold_s + 0.35))
                         logger.info(
                             "[LEADROW] npc=%d lead=%.3f xfer_ema=%.3f "
                             "fold=%.3f margin=0.350 tick=%d",
