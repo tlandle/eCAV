@@ -427,6 +427,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # only N_cav uplink packets contend.
             if self._lut_sampler is not None:
                 n_cav = max(1, len(feature_dicts) - 1)  # exclude RSU
+                import os as _osn
+                _nover = _osn.environ.get('NS3_LUT_N')
+                if _nover:
+                    n_cav = int(_nover)  # T12 load sweep override
                 # Per-CAV UL payload = bytes of one agent's spatial_features.
                 first_feat = feature_dicts[0].get('spatial_features')
                 if first_feat is not None and hasattr(first_feat, 'numel'):
@@ -782,6 +786,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             compute_ms = (time.perf_counter() - t_compute_start) * 1000.0
             if self._lut_sampler is not None:
                 n_cav_for_dl = max(1, num_agents - 1)  # exclude RSU
+                import os as _osn2
+                _nover2 = _osn2.environ.get('NS3_LUT_N')
+                if _nover2:
+                    n_cav_for_dl = int(_nover2)  # T12 load sweep override
                 try:
                     import pickle as _pkl
                     dl_bytes = (len(_pkl.dumps(predictions))
@@ -794,7 +802,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 dl_ms = 0.0
             deliver_tick = tick + int(math.ceil(
                 (compute_ms + dl_ms) / self._sim_dt_ms))
-            self._outbound_queue.append((deliver_tick, predictions))
+            _src_tick = getattr(self, '_latest_source_tick', tick)
+            self._outbound_queue.append((deliver_tick, predictions, _src_tick))
             if hasattr(frame, 'set_compute_dl'):
                 frame.set_compute_dl(compute_ms=compute_ms, dl_ms=dl_ms,
                                     deliver_tick=deliver_tick)
@@ -1948,14 +1957,20 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         """
         if not self._outbound_queue:
             return None
-        ready = [(dt, p) for dt, p in self._outbound_queue if dt <= tick]
+        ready = [e for e in self._outbound_queue if e[0] <= tick]
         if not ready:
             return None
         # Keep only entries that are still in flight (deliver_tick > tick).
-        self._outbound_queue = [(dt, p) for dt, p in self._outbound_queue
-                                if dt > tick]
+        self._outbound_queue = [e for e in self._outbound_queue if e[0] > tick]
         ready.sort(key=lambda x: x[0])
-        return ready[-1][1]
+        _dt, _p, _src = ready[-1]
+        # T12: realized age at use = delivery tick - source frame tick, in ms
+        # (UL LUT staleness + compute + DL LUT delay). Same runs as tau(u).
+        logger.info("[AGEROW] tick=%d edge=%s realized_age_ms=%.1f lut_n=%s",
+                    tick, getattr(self, 'edgeid', '?'),
+                    (tick - _src) * self.dt * 1000.0,
+                    __import__('os').environ.get('NS3_LUT_N', 'scene'))
+        return _p
 
     def _update_agents(self, tick: int, predictions: Optional[List]):
         """
