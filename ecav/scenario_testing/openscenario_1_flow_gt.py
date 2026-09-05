@@ -460,7 +460,14 @@ def run_scenario(opt, scenario_params):
                                     nid, step - htick, htick, dst_lid, step)
                     # Post-trigger resend policies. Both re-fire the same
                     # transfer path, so bytes land in record_handoff_cost.
-                    if (COMMIT_REFRESH == 'full' or MIRROR_PERIOD_S > 0.0) \
+                    # T16 faithful EdgeWarp: pre-copy a snapshot at the
+                    # predicted attachment (predictive timing above) then a
+                    # FINAL SYNC (delta resend) at the actual handover. The
+                    # commit-resend path below is that final sync; force it on
+                    # for the edgewarp arm.
+                    _ew_final_sync = (MIGRATION_MODE == 'edgewarp')
+                    if (COMMIT_REFRESH == 'full' or MIRROR_PERIOD_S > 0.0
+                            or _ew_final_sync) \
                             and nid not in npc_refresh_done \
                             and MIGRATION_MODE != 'cold':
                         _htick, _dst_lid = npc_handoff_done[nid]
@@ -469,7 +476,8 @@ def run_scenario(opt, scenario_params):
                         _se = edge_by_locale.get(_src_lid2)
                         _de = edge_by_locale.get(_dst_lid)
                         _crossed = locale_by_id[_dst_lid].contains(nxy)
-                        if COMMIT_REFRESH == 'full' and _crossed \
+                        if (COMMIT_REFRESH == 'full' or _ew_final_sync) \
+                                and _crossed \
                                 and _se is not None and _de is not None:
                             _c = daemon.transfer_obstacle_state(
                                 nid, _se, _de, link, step, position=nxy)
@@ -519,7 +527,7 @@ def run_scenario(opt, scenario_params):
                 # (nothing to background-sync), so for this content it reduces
                 # to a blocking transfer at the boundary with no lead.
                 if TRIGGER_MODE == 'band' and MIGRATION_MODE not in (
-                        "reactive", "edgewarp"):
+                        "reactive", "handover_snapshot"):
                     # Geometric trigger: within BAND_W_M of the CROSSING
                     # boundary, measured as distance to the destination
                     # locale. Distance to the source's own polygon would
@@ -544,7 +552,7 @@ def run_scenario(opt, scenario_params):
                     if not locale_by_id[src_lid].predicted_to_exit_within(
                             _gt, _L, world_dt):
                         continue
-                elif MIGRATION_MODE in ("reactive", "edgewarp"):
+                elif MIGRATION_MODE in ("reactive", "handover_snapshot"):
                     # At-crossing transfer: fire when the NPC has actually
                     # entered the destination locale. The old zero-lead
                     # projection (horizon_s=0) could never fire, so these
