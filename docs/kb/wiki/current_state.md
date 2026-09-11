@@ -5,6 +5,14 @@ updated: 2026-09-10
 
 Primary context-switching artifact. Read this first after a gap.
 
+## RECURRING PATTERN: outcome decided by something other than the mechanism under test (name it; check it FIRST)
+
+Three times this campaign a closed-loop outcome that looked like a method difference was decided by something else. Before comparing arms on any outcome, verify the outcome is actually driven by the mechanism under test.
+1. Corridor: every arm sideswipes the parked truck (fixed obstacle / causal phantom); route_success does not separate migration arms. Revealed by the collision-partner resolver (kad.resolve_collision_partner).
+2. Maneuvering panel: the closed-loop collision was carried by whether the acceleration completed, not by record depth. Revealed by the maturity control (1-frame kf completes identically to 10-frame warm).
+3. Regions 8-12 m/s (2026-09-11): all failing runs launch the overtake with ttc=1000, the gate blind to the oncoming at commit, arm-independent (incl. oracle); and the speed axis confounds t_avail with traffic difficulty (success FALLS as t_avail RISES). Revealed by ttc-at-launch (EGO-DBG) + the t_avail-vs-success anti-correlation. Isolation = T25b geometry sweep (t_avail varied at fixed speed 12, traffic held constant).
+CHECKS before an arm comparison: (a) collision partner (mechanism's target vs a fixed/phantom thing); (b) the gate's ttc/perception at the decision (does the ego even see the hazard); (c) the independent variable for confounds (does changing it move more than intended). A control that holds the mechanism fixed (maturity control; fixed-speed geometry sweep) is the isolation.
+
 ## 2026-09-10 (code session): figure-vs-block arm audit; every block checked; capacity rescoped; EdgeWarp appendix conflict; new landers
 
 Peer-driven cross-check: for each block my chain feeds, compare the arm list the FIGURE iterates against what the RUNNER drives. Figures identify arms by arm_of(r) (mode/trigger/band columns) OR by a tag-prefix arm column (TRIGGER_ORDER) OR by ld_ tag split. Three mismatches found and fixed, plus a paper-claim conflict.
