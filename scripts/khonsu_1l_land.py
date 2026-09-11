@@ -596,6 +596,10 @@ def _seed_from(stem):
 def _arm_label(stem, text, mode):
     if "warmabl" in stem or "MIGRATION_ACCEL=0" in text:
         return "warm_ablation"
+    # no-handoff reference: single-locale scenario, no crossing/migration, so the
+    # RUNROW mode is not the arm identity; the tag is (tab_fde arm_key -> nohandoff).
+    if "nohandoff" in stem:
+        return "nohandoff"
     return ARM_MODE_LABEL.get(mode, mode)
 
 
