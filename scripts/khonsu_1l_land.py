@@ -54,7 +54,7 @@ HLN_EXTRA = ["ns3_lut_n", "age_med_ms", "age_p95_ms"]
 # displacement at the horizon, mean over the first five post-commit refreshes.
 # No ADE / minADE / miss-rate columns (Tyler's rule).
 FDE_COLS = ["tag", "arm", "seed", "fde5_m", "fde3_m", "fde5_top_m",
-            "window_anchor", "eval_tag", "machine"]
+            "window_anchor", "collision_partner_resolved", "eval_tag", "machine"]
 # Top-mode frozen-rate lander (freeze-1k headline).
 TOPMODE_COLS = ["tag", "arm", "seed", "completed", "collided",
                 "forecast_blocks", "frozen_blocks", "eval_tag"]
@@ -713,6 +713,8 @@ def run_fde(args):
             "fde3_m": round(sum(f3) / len(f3), 3) if f3 else "",
             "fde5_top_m": round(sum(f5top) / len(f5top), 3) if f5top else "",
             "window_anchor": anchor_kind,
+            "collision_partner_resolved": kad.resolve_collision_partner(
+                d, kad.identify_ego_cid(d)),
             "eval_tag": args.tag,
             "machine": args.machine,
         })
