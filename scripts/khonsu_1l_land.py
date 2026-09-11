@@ -59,7 +59,7 @@ FDE_COLS = ["tag", "arm", "seed", "fde5_m", "fde3_m", "fde5_top_m",
 TOPMODE_COLS = ["tag", "arm", "seed", "completed", "collided",
                 "forecast_blocks", "frozen_blocks", "eval_tag"]
 MODES_HDR_RE = re.compile(
-    r"\[MODESROW\] tick=(\d+) tid=(-?\d+) cid=(-?\d+) h=([0-9.]+)")
+    r"\[MODESROW\] (?:locale=\S+ )?tick=(\d+) tid=(-?\d+) cid=(-?\d+) h=([0-9.]+)")
 MODE_TUP_RE = re.compile(
     r"m(\d+)=\((nan|-?[0-9.]+),(nan|-?[0-9.]+),(-?[0-9.]+)\)")
 FROZEN_DISP_M = 1.0     # top-mode self-motion over 5 s below this = frozen
