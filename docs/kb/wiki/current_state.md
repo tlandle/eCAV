@@ -4712,3 +4712,35 @@ freeze-1p, lands in `frozen_1p_bnd`.
 
 NOT launched: atlas is running t25 seeds 6-10 (the flock serialises anyway), and
 replacing a figure's x-axis is Tyler's decision, not mine.
+
+### 2026-09-11 (late): corridor compliance, measured vs generated definitions
+
+First measured corridor seed landed from cetus 22:39 (`frozen1m_corridor_rows.csv`,
+traffic_n=1, seed 1, 4 arms). Readiness agrees with the generated data (measured warm
+0.90 against generated 0.847). Compliance does not: measured warm **0.40** against
+`\nCoCompKhonsu` = 99.
+
+**Not a bug in the age origin.** `FINAL_SET` in `khonsu_corridor_land.py:60` includes
+`warm`, so Khonsu's age-at-use is measured from the crossing tick (the final sync),
+not from the prepare tick. Early preparation is not penalised. I had this wrong
+first; corrected here so it is not rediscovered.
+
+**The denominator differs between measured and generated.**
+`_age_and_compliance` returns `("", False)` when `first_use < 0`, so a crossing the
+planner never consumed counts as a compliance failure. The generator has no such
+category: `gen_corridor` emits a `compliant` flag for every crossing, all of them
+used. So the two numbers are not measuring the same quantity.
+
+Measured warm: 10 crossings, 6 with a recorded use, 4 compliant. Reported 4/10 = 0.40.
+Conditioned on crossings actually used, 4/6 = 0.67. The two failures were 550 and
+600 ms against tau = 500 ms. Unused crossings are common across arms (replication 5
+of 10, warm 4 of 10, cold 2 of 9).
+
+**The question for the figure owner:** a track prepared but never consumed is
+over-preparation, which `bytes_per_crossing` already reports. Counting it as a
+*freshness* failure folds two different costs into one number. Either condition
+compliance on use and report unused separately, or teach the generator the same
+denominator. Whichever is chosen, both sides must use it.
+
+One seed at traffic_n=1, and the generated corridor has no traffic_n=1 cell, so this
+is a definition finding, not yet a quantitative one.
