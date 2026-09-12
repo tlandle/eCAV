@@ -4759,3 +4759,27 @@ snapshot (kf, 0.83) and history at crossing (0.67), and at 24 m/s oracle drops t
 signal: at these operating points the outcome is not decided by the trigger.
 
 Remaining 100 cells project to finish about 07:50 on 2026-09-12.
+
+### 2026-09-12 02:40: boundary harness validated, and a confound in my own design
+
+Static validation of the boundary sweep (YAML parses, locale extents exact, 10 m
+hysteresis preserved, both locales non-degenerate, every boundary west of the
+conflict, only the intended lines changed): PASS at every sweep point.
+
+It exposed a confound I had built in. Moving only the shared edge also **resizes
+both locales**: locale_0 spans 200 m at b=170 and 95 m at b=275. Fusion cost scales
+with locale width (S2), so the destination's cycle cost would have drifted along
+the sweep. Size: measured fusion is ~63 ms against the 130 ms allocation, and the
+implied swing is ~55 ms against an 8.8 s T_avail range, so roughly 0.6% and second
+order. Given seven logged instances of a small confound deciding an outcome in this
+project, removed rather than accepted.
+
+`set_locale_boundary.py` now takes optional fixed widths and translates the whole
+partition instead of resizing it, with guards that locale_0 still contains the
+conflict and RSU0 and that locale_1 still contains RSU1. The runner defaults to
+`WIDTHS=170,120`, which are the current widths, so **b=250 reproduces the existing
+configuration byte for byte** and the sweep carries an anchor against already
+collected data. Sweep is now b = 220 / 235 / 250 / 262 / 275, giving T_avail of
+5.5 / 4.2 / 3.0 / 2.0 / 0.9 s at 12 m/s. Still not launched.
+
+Campaign: seed 7 finished 02:23 (~4.4 min/cell, steady). 75 cells left, ETA ~07:45.

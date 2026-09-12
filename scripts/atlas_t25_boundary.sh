@@ -16,8 +16,9 @@ set +u
 # itself are untouched. Measured conflict x ~ 286 (blocked egos stall at
 # 286-292 in the frozen_1n logs); the patcher refuses a boundary past it.
 #
-# T_avail at ONCOMING_SPEED=12: b=170 -> 9.7s, 200 -> 7.2s, 230 -> 4.7s,
-# 255 -> 2.6s, 275 -> 0.9s.
+# T_avail at ONCOMING_SPEED=12: b=220 -> 5.5s, 235 -> 4.2s, 250 -> 3.0s,
+# 262 -> 2.0s, 275 -> 0.9s. Widths are held fixed (see WIDTHS) so fusion cost
+# does not drift with the boundary; b=250 reproduces the current configuration.
 #
 # Adapted from atlas_t25_1m.sh (same scenario
 # openscenario_1_flow_gt, same lander khonsu_t25_land.py, same defaults-BEFORE-$@
@@ -33,19 +34,24 @@ set +u
 #     read crossing_tick from HANDOFFROW; flagged to the figure owner).
 # Env: BOUNDS (default "170 200 230 255 275"), SEEDS (default "1 2 3 4 5"),
 #      ARMS (default "cold kf reactive warm oracle"), ONCOMING_SPEED (default 12),
-#      SMOKE=1 -> warm b230 s1 only.
+#      SMOKE=1 -> warm b250 s1 only (the baseline-reproducing point).
 MAIN=/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox
 WT=$MAIN/idfix_wt
 SP=/tmp/claude-1000/-home-atlas-TrafficSimulator-eCloud-ecloudsim-distributed-sandbox/88f56d4f-259d-44e9-bdb2-c8ace70b6018/scratchpad
 CARLA_ROOT=/home/atlas/carla-0.9.15
-BOUNDS=${BOUNDS:-"170 200 230 255 275"}
+BOUNDS=${BOUNDS:-"220 235 250 262 275"}
 ONC=${ONCOMING_SPEED:-12}
+# WIDTHS="w1,w0" holds both locale widths fixed and translates the partition, so
+# the destination's fusion cost does not drift along the sweep. Empty = simple
+# sweep (shared edge moves, both locales resize). 170,120 makes b=250 reproduce
+# the current configuration exactly, giving the sweep an anchor against existing data.
+WIDTHS=${WIDTHS:-"170,120"}
 SEEDS=${SEEDS:-"1 2 3 4 5"}
 ARMS=${ARMS:-"cold kf reactive warm oracle"}
-if [ "${SMOKE:-0}" = "1" ]; then BOUNDS="230"; SEEDS="1"; ARMS="warm"; fi
+if [ "${SMOKE:-0}" = "1" ]; then BOUNDS="250"; SEEDS="1"; ARMS="warm"; fi
 exec 9>/tmp/atlas_1l_central.lock
 flock -w 14400 9 || { echo "[t25-1m] lock wait timed out"; exit 1; }
-echo "[t25-bnd] lock acquired $(date +%H:%M:%S) bounds='$BOUNDS' onc=$ONC seeds='$SEEDS' arms='$ARMS' smoke=${SMOKE:-0}"
+echo "[t25-bnd] lock acquired $(date +%H:%M:%S) bounds='$BOUNDS' widths='$WIDTHS' onc=$ONC seeds='$SEEDS' arms='$ARMS' smoke=${SMOKE:-0}"
 cd "$WT" || exit 1
 pkill -9 -f "CarlaUE4" 2>/dev/null; sleep 3
 source /home/atlas/anaconda3/etc/profile.d/conda.sh && conda activate opencda310
@@ -68,7 +74,7 @@ COMMON=(
 YAML=ecav/scenario_testing/config_yaml/openscenario_1_flow_gt.yaml
 cp "$YAML" /tmp/t25bnd_yaml.bak
 set_boundary () { cp /tmp/t25bnd_yaml.bak "$YAML"
-  python3 "$MAIN/scripts/set_locale_boundary.py" "$YAML" "$1" || exit 3; }
+  python3 "$MAIN/scripts/set_locale_boundary.py" "$YAML" "$1" $WIDTHS || exit 3; }
 DESTS=()
 _backup () { local i=0; for p in "${COMMON[@]}"; do d=${p%%|*}; cp "$d" "/tmp/t25m_${i}.bak"; DESTS+=("$d"); i=$((i+1)); done; }
 restore () { local i=0; for p in "${COMMON[@]}"; do d=${p%%|*}; cp "/tmp/t25m_${i}.bak" "$d"; i=$((i+1)); done
