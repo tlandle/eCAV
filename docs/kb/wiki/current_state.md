@@ -4744,3 +4744,18 @@ denominator. Whichever is chosen, both sides must use it.
 
 One seed at traffic_n=1, and the generated corridor has no traffic_n=1 cell, so this
 is a definition finding, not yet a quantitative one.
+
+### 2026-09-12 00:40: seed 6 lands, the T25 inversion holds at n=6
+
+Seed 6 completed 00:36 (25 cells in 1h50m, ~4.4 min/cell). Landing seeds 1-6
+(`/tmp/t25_s1to6.csv`, not written into the frozen file) reproduces the inverted
+slope with 20% more data. No-collision rate for the no-transfer arm across
+8-24 m/s: 1/6, 1/6, 5/6, 6/6, 5/6. Generated falls 0.93 -> 0.00 over the same
+range. The direction is not a small-sample artifact.
+
+At 8 m/s the ideal trigger (oracle, 0.50) still scores at or below the velocity
+snapshot (kf, 0.83) and history at crossing (0.67), and at 24 m/s oracle drops to
+0.83 with one failure while every transfer arm is perfect. Both are the same
+signal: at these operating points the outcome is not decided by the trigger.
+
+Remaining 100 cells project to finish about 07:50 on 2026-09-12.
