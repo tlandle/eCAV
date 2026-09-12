@@ -4631,3 +4631,62 @@ standardizes reported measurements on the A10 (see memory: khonsu hardware state
 and this system parameter is derived from hardware that is not the A10. Defensible given
 the node has been down since April, but it is a substitution, and both per-call numbers
 and both derived caps belong in the data.
+
+## 2026-09-11 (late): freeze-1n T25 measured, and the regions x-axis runs backwards
+
+The 150-cell freeze-1n T25 block finished on atlas at 06:12 (5 arms x 6 speeds x 5
+seeds, all RUNROW-complete, `frozen1n_t25_rows.csv`). It is the first measured data
+for the regions figure (Fig 6, evaluation.tex 5.3). **The measured speed axis has the
+opposite slope to the generated one.**
+
+No-collision rate by arm x oncoming speed (measured, n=5/cell):
+
+```
+  speed |  cold    kf   reactive  warm  oracle
+     6  |  0.00  0.20   0.20     0.40   0.00     <- v6 already dropped by the peer
+     8  |  0.20  0.80   0.60     0.40   0.60
+    12  |  0.20  0.80   1.00     0.80   1.00
+    16  |  0.80  1.00   1.00     1.00   1.00
+    20  |  1.00  1.00   1.00     1.00   1.00
+    24  |  0.80  1.00   1.00     1.00   1.00
+```
+
+Generated (`frozengen_t25_rows.csv`, n=40/cell) has cold at 0.97 -> 0.00 as speed
+rises; measured has cold at 0.20 -> 1.00. Monotone, and in opposite directions.
+
+**Cause.** Oncoming speed is not a clean proxy for `T_avail`. The figure's model is
+`T_avail = d/v`, so faster = less preparation time = harder. But in this scenario the
+oncoming vehicle IS the hazard, and a faster one clears the conflict point before the
+ego arrives. That second effect dominates. Speed sets conflict difficulty and
+preparation time at once, and the two run opposite ways.
+
+Corroboration that the hard end is not decided by the mechanism: at 6 and 8 m/s
+`oracle` (a perfect crossing trigger) scores 0.00 and 0.60, at or below `warm` and
+`kf`. When the ideal trigger cannot win, the outcome is not the trigger's.
+
+Seventh instance of "outcome decided by something other than the mechanism under
+test". The peer had already found the 6 m/s end of this ("the oncoming stream does not
+clear within the scenario, so 6 m/s measured the scenario not the method") and set the
+sweep floor to 8. The inversion is the same defect across the whole axis, not just the
+floor.
+
+**What does hold.** No state transfer separates from every form of state transfer
+(cold 0.20 at 8-12 m/s against 0.60-1.00 for the transfer arms). That is the §5.2
+claim and it survives. What does not separate is warm vs reactive vs kf, which is the
+§5.3 claim.
+
+**Proposed clean knob: move the locale boundary, not a vehicle.** Locale extents are
+YAML polygons (`openscenario_1_flow_gt.yaml:222` locale_0 x in [240,360], `:290`
+locale_1 x in [80,250]; the 240-250 overlap is the hysteresis band). Moving the shared
+boundary changes the crossing-to-conflict distance, hence `T_avail`, with vehicle
+speeds, spawn phase, road geometry and the conflict itself all unchanged. Needs the
+conflict x confirmed first so the boundary never sweeps past it (RSU0 at x=325, RSU1
+at x=205, ego destination [-28.8,134.7] so the ego runs westbound and the oncoming
+eastbound). NOT the `ONCOMING_SHIFT_X` sweep, which moves the hazard and so has the
+same confound.
+
+Flagged to Tyler; the x-axis of a paper figure is his call, not mine.
+
+**Atlas was idle 16.5 h** after the block finished with no successor queued. Launched
+seeds 6-10 over speeds 8-24 (the runner skips completed cells), which doubles n at
+every cell and is valid however the axis question resolves. ~125 cells, ~10 h.
