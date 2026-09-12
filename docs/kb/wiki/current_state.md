@@ -4783,3 +4783,41 @@ collected data. Sweep is now b = 220 / 235 / 250 / 262 / 275, giving T_avail of
 5.5 / 4.2 / 3.0 / 2.0 / 0.9 s at 12 m/s. Still not launched.
 
 Campaign: seed 7 finished 02:23 (~4.4 min/cell, steady). 75 cells left, ETA ~07:45.
+
+## 2026-09-12 07:46: freeze-1n T25 complete at n=10, axis inversion confirmed
+
+275/275 logs with RUNROW, zero hard failures, zero retries across the whole
+seeds 6-10 block. Landed to `/tmp/t25_all10.csv` (the frozen file is untouched).
+Speeds 8-24 are now n=10 per cell; speed 6 stays n=5 and stays out of the figure.
+
+```
+  speed |   cold      kf   reactive   warm   oracle
+     8  |  0.10    0.80     0.70     0.60    0.60
+    12  |  0.30    0.90     1.00     0.90    1.00
+    16  |  0.70    1.00     1.00     1.00    1.00
+    20  |  1.00    1.00     1.00     1.00    1.00
+    24  |  0.90    1.00     1.00     1.00    0.90
+```
+
+**The inversion is settled.** No-transfer arm, measured 0.10 -> 0.30 -> 0.70 ->
+1.00 -> 0.90 across 8-24 m/s; generated 0.93 -> 0.25 -> 0.05 -> 0.10 -> 0.00.
+Opposite directions at n=10 with no ambiguity. Oncoming speed sets conflict
+difficulty more strongly than it sets preparation time.
+
+**Pooled over 8-24 m/s (n=50/arm), with Wilson intervals:**
+cold 0.60 [0.46, 0.72]; kf 0.94 [0.84, 0.98]; reactive 0.94 [0.84, 0.98];
+warm 0.90 [0.79, 0.96]; oracle 0.90 [0.79, 0.96].
+
+So **no state transfer separates from every form of state transfer** (cold's
+interval excludes all four others). That is the S5.2 claim and it holds at n=10.
+**No transfer method separates from any other** (four overlapping intervals, and
+Khonsu is not above the snapshot baselines). That is the S5.3 claim and this
+scenario does not support it.
+
+**Oracle is not the ceiling**, at 8 m/s (0.60 against kf 0.80) and at 24 m/s (0.90
+against warm 1.00). A perfect crossing trigger losing to a velocity snapshot is
+the direct statement that the trigger is not deciding the outcome here.
+
+Nothing in the paper changes on this yet: the x-axis decision is Tyler's, and the
+boundary harness (89e1134b, width-controlled, anchored at b=250) is ready to run.
+Atlas is now idle and the flock is free.
