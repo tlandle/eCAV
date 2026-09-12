@@ -4690,3 +4690,25 @@ Flagged to Tyler; the x-axis of a paper figure is his call, not mine.
 **Atlas was idle 16.5 h** after the block finished with no successor queued. Launched
 seeds 6-10 over speeds 8-24 (the runner skips completed cells), which doubles n at
 every cell and is valid however the axis question resolves. ~125 cells, ~10 h.
+
+### Boundary-sweep harness built (not launched; axis change is Tyler's call)
+
+Conflict geometry read out of the frozen_1n logs (`[LOC] v=197`, ego carla id 197):
+ego spawns x=317.4 and runs west. Completed runs reach x~218 in 550-690 ticks;
+blocked runs stall at x=286-292 and hit the 1100-tick cap. So **the conflict is at
+x ~ 286**, 36 m east of the boundary at x=250, and the ego crosses the boundary
+itself later in a successful run (218 < 250). At ONCOMING_SPEED=12 that puts the
+freeze-1n T_avail at about 3 s, and the speed sweep does vary it (1.5 s at 24 m/s to
+4.5 s at 8 m/s). The model of T_avail is right; the confound is that speed also sets
+how fast the hazard clears, which dominates.
+
+`scripts/set_locale_boundary.py` rewrites only the four polygon x-coordinates
+(locale_1 x-max = B, locale_0 x-min = B - 10, preserving the hysteresis overlap) and
+refuses B >= 286 so the NPC can never cross after the interaction it is being
+prepared for. `scripts/atlas_t25_boundary.sh` sweeps B = 170 200 230 255 275 at fixed
+ONCOMING_SPEED=12, giving T_avail 9.7 / 7.2 / 4.7 / 2.6 / 0.9 s. The YAML joins the
+trap-restore set, so a killed block never leaves a moved boundary behind. Tagged
+freeze-1p, lands in `frozen_1p_bnd`.
+
+NOT launched: atlas is running t25 seeds 6-10 (the flock serialises anyway), and
+replacing a figure's x-axis is Tyler's decision, not mine.
