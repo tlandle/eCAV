@@ -308,3 +308,23 @@ mean neighbour degree 3.33 against the generator's 2.6 + 0.4 ln(97/16 + 1)
 = 3.38. A 3 x 3 km area at 300 m gives the figure's 100 locales, and the
 generator's degree law is what fixed-size tiling produces on a real grid.
 
+Invalidation condition 4, PINNED (paper side, 2026-09-12 late): the check is
+the boundary-to-conflict SEPARATION MEDIAN and the INTER-ANCHOR ROAD COUNT,
+not the anchor count. The anchor count depends on node representation, and
+netconvert's 20 m junction join is an intended normalisation: a
+dual-carriageway crossing is one conflict zone, which is what Athens needs.
+Reproduction target verified: the repository's locale_partition.py code run
+UNCHANGED on the client-side carla.Map reproduces the committed Q7 numbers
+exactly (Town03: 31 junctions, 40 roads, median 21.0 m; Town01: 12, 26,
+23.5 m), so the target is the committed table. The netconvert partition on
+Town03: 41 roads, median 21.1 m, with the differing road named in the KB.
+
+Extended Athens network (3.5 x 3.5 km OSM box around the pNEUMA centre,
+network only): separation median 23.8 m (the CARLA towns' 21 to 25 m band,
+a real-city confirmation of the Q7 separation regime), lane-km 361; at the
+300 m tiling the mean neighbour degree is 3.9 to 4.1 on every window from
+2.4 to 3.5 km, against the generator's 3.2 to 3.5, so on the Athens grid the
+degree constant sits about 15 percent above the law (Midtown landed on it).
+Window for the figure's 100 locales: 2.8 km (L = 97) or 3.0 km (L = 95);
+the exact L is reported, never rounded to 100.
+
