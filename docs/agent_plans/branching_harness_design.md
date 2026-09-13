@@ -1,6 +1,6 @@
 # Branching-Junction Harness Design (freeze-1p follow-on, NSDI experiment 1 of 4)
 
-Status: DESIGN FOR PEER REVIEW before any build. 2026-09-12.
+Status: shape APPROVED by paper side 2026-09-12 with changes a-g applied below. Next: map survey, then scenario build.
 
 ## Purpose
 
@@ -20,20 +20,19 @@ begins), and meets a downstream conflict shortly after entry into whichever
 branch it takes. The conflict is what makes readiness measurable: state must be
 ready at the taken branch's locale before the recipient CAV's first use.
 
-Junction degree k in {2, 3, 4, 6}. Map survey is build step 1:
+Junction degree k in {2, 3, 4, 5}. Map survey is build step 1:
 
 - k=2: any fork / T-junction approached on the stem (Town01/02 have many).
 - k=3: crossroads approached on one arm (Town01/03/05).
 - k=4: full crossroads with U-turn permitted, or a 5-arm junction minus one
   (Town03/05).
-- k=6: RISK. The largest physical junction in the available maps
-  (Town01-07,10) is Town03's roundabout (~5 arms). If the survey confirms
-  nothing reaches 6, the honest options are (a) sweep {2,3,4,5} and say so, or
-  (b) count the roundabout's bidirectional arms as distinct destinations if
-  the road network genuinely permits both. We will NOT fabricate a degree by
-  partitioning locales finer than the physical branches, because destination
-  uncertainty must correspond to physically distinct branches. Decision goes
-  to you after the survey, before the scenario is built.
+- k=6: not available. The largest physical junction in the available maps
+  (Town01-07,10) is Town03's roundabout (~5 arms). Decision (peer review):
+  sweep {2,3,4,5} and say so. Bidirectional roundabout arms are NOT counted
+  as distinct destinations: direction of travel is resolved from heading, so
+  that would be a fabricated degree. Locales are never cut finer than the
+  physical branches. The survey max k is reported to the paper side before
+  any scenario is built; the paper side owns the Figure 9 x-axis change.
 
 ## Arms (six; placement decision is the ONLY thing that varies)
 
@@ -42,7 +41,7 @@ Junction degree k in {2, 3, 4, 6}. Map survey is build step 1:
 | Khonsu | computed trigger consuming multimodal MTR destination probabilities (per-mode boundary crossing, probability summed by destination; `last_mtr_modes` stash) | TRIGGER_MODE=computed + mtr consumption path exists |
 | Oracle | knows the taken branch at trigger time | TRIGGER_MODE=oracle exists |
 | Velocity projection | CV extrapolation picks the single projected branch | TRIGGER_MODE=predictive exists |
-| Top-1 mode only | argmax MTR mode's branch, ignore the rest of the distribution | small variant of the mtr trigger (new flag) |
+| Top-1 mode only | argmax MTR mode's branch, ignore the rest of the distribution. Shares Khonsu's lead computation L EXACTLY: same trigger tick, same L; only destination selection differs, never timing. Enforced in code, not by convention. | small variant of the mtr trigger (new flag) |
 | EdgeWarp radio trigger | radio-level trigger, destination = the cell being entered | MIGRATION_MODE=edgewarp_full exists |
 | Replicate-to-all | on trigger, send the identical record to ALL k branch locales | NEW arm (the brute-force comparison) |
 
@@ -61,9 +60,10 @@ when/where prepares are issued, never in what is sent.
 ## What would make the comparison meaningless (invalidation conditions)
 
 1. Non-identical transferred state across arms. Guard: HANDOFFROW already
-   carries bytes=; add a payload content hash to the emit. Per (seed, handoff),
-   the hash must be IDENTICAL across all six arms or the run set is invalid.
-   Checked by the lander, not by eye.
+   carries bytes=; add a payload content hash to the emit, computed over the
+   SERIALIZED bytes that crossed the link, not the in-memory record. Per
+   (seed, handoff), the hash must be IDENTICAL across all six arms or the run
+   set is invalid. Checked by the lander, not by eye.
 2. Non-identical scenes. Guard: the branching actor's route (including which
    branch it takes) is scripted per seed and identical across arms; paired
    spawn-phase seeds as in the flow scenario. Verify per (seed): the actor's
@@ -84,24 +84,33 @@ when/where prepares are issued, never in what is sent.
 
 - READYROW per handoff: taken branch, prepare tick per destination, commit
   tick, first-use tick at the taken destination, ready-before-first-use bool,
-  lead time s. Feeds readiness vs certainty.
+  lead time s, plus two failure-decomposition bools: wrong_destination (state
+  was prepared, but not at the taken branch) and right_destination_too_late
+  (prepared at the taken branch, but after first use). Readiness is the
+  conjunction; the destination x time figure cannot be validated unless the
+  lander can split them. Feeds readiness vs certainty.
 - PLACEROW per handoff: k, set of locales prepared, count (speculative
   placement cost). Feeds placement vs junction degree. Replicate-to-all
   gives count=k by construction; Khonsu gives the probability-selected subset.
-- CONFROW at T-minus {2.0, 1.0, 0.5} s before branch entry: per-branch
-  probability (mode scores summed by destination), argmax branch, taken
-  branch. Feeds the distribution + calibration (fraction correct at each
-  confidence bin). Also answers where on the 0.35-0.95 synthetic axis MTR
-  actually operates.
+- CONFROW at the TRIGGER TICK (the confidence the policy actually consumed;
+  this is the sample calibration is built on) and additionally at T-minus
+  {2.0, 1.0, 0.5} s before branch entry: per-branch probability (mode scores
+  summed by destination), argmax branch, taken branch. Feeds the distribution
+  + calibration (fraction correct at each confidence bin). Also answers where
+  on the 0.35-0.95 axis MTR actually operates.
 - ISOROW/MTRTIME stay on (same predictor build as the campaign).
 
 ## Grid and cost
 
-k in {2,3,4,6 or survey-max} x 6 arms x 10 seeds = 240 routes (if 4 degrees).
-At ~4-7 min/route: ~16-28 h single host. Runs AFTER the current campaign
-completes; whichever host frees first. Smoke first: one k=3 route, Khonsu +
-replicate-to-all only, verifying READYROW/PLACEROW/CONFROW parse and the
-payload-hash identity across the two arms, before the full grid.
+k in {2,3,4,5} x 6 arms x 10 seeds = 240 routes. At ~4-7 min/route: ~16-28 h
+single host. Runs AFTER the current campaign completes; whichever host frees
+first. Grid order is SEED-MAJOR (as atlas_t25_1m.sh) so an interrupted grid
+leaves a complete coarse figure. Smoke first: one k=3 route, three arms:
+Khonsu, replicate-to-all, AND Oracle. Oracle must be ~100% ready at k=3; if
+it is not, the conflict timeline is wrong and nothing downstream measures the
+trigger (the T25 tell: oracle below kf at 8 m/s). Smoke also verifies
+READYROW/PLACEROW/CONFROW parse and the payload-hash identity across arms.
+Smoke output goes to the paper side before the grid runs.
 
 ## Build order
 
