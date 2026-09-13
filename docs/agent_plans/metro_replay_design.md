@@ -217,3 +217,14 @@ calibration statistics and the paper side picks the figure's rows. The
 x axis comes from subsampling a slot's real active tracks (200 to 3200,
 ceiling = the slot's full count), never from generated demand.
 
+Paper-side additions (2026-09-12, pNEUMA approved): (1) CADENCE: subsample
+every trajectory to the 0.2 s edge-cycle grid BEFORE partitioning and
+counting, so a crossing is a cycle-granular event and at most one crossing
+per track per cycle (lane-splitting and jitter cannot double-count); report
+the crossing rate at 25 Hz once beside the 5 Hz value. (2) X-AXIS: the real
+point's x is the instantaneous active-track count (vehicles present in the
+partitioned area per cycle, median and p95 over the session) for cars,
+taxis, buses and trucks; also vehicles per km of lane; pNEUMA is a morning
+peak and the paper says so. Any SUMO extension sweeps active tracks up to
+3200 with demand scaled from that measured density.
+
