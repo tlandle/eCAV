@@ -316,9 +316,15 @@ def run(args):
         # locale; a consumption's coupled age = max(mechanism age, (cycle - last
         # executed pass + 1) x CYCLE). Induced work at skipped cycles is not deferred
         # (the lighter assumption for the replication arms).
+        # Owned-pass model per row (paper side, 2026-09-13): the K = 16 row IS the
+        # single-batch capacity model, for admission AND for its owned pass
+        # (predict(K) as one batch, 89 ms at 16); the deployed row keeps the cap
+        # pattern throughout (predict(2) + predict(K-1)); the demand row (no
+        # admission) keeps the cap pattern on every owned track by definition.
+        _single_owned = (args.admit_rule == "single" and K_ADMIT is not None)
         _pat_cache = {}
         def _owned_pass(na):
-            if na not in _pat_cache: _pat_cache[na] = costs.predict_call_pattern(na, cap=args.cap, pad=args.pad_isolated) if na else 0.0
+            if na not in _pat_cache: _pat_cache[na] = (costs.ms("predict", na) if _single_owned else costs.predict_call_pattern(na, cap=args.cap, pad=args.pad_isolated)) if na else 0.0
             return _pat_cache[na]
         RATE_STEPS = ((1.0, 1), (2.0, 2), (4.0, 4), (5.0, 5), (None, 10))
         def _p95_20(hist):   # np.percentile(list, 95) (linear interpolation) on <= 20 values
@@ -382,7 +388,9 @@ def run(args):
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
            "cost_source": costs.source, "cost_meta": costs.meta, "charging_curve": "monotone envelope (cumulative max) of the measured medians", "cap": args.cap, "pad_isolated": args.pad_isolated,
            "freshness_coupling": {"rule": "deployed rate fallback (WorldFusionAdaptiveEdge.run_step 168-176, 213-222): per-locale p95 over the last 20 executed passes of pre_pred + owned pass + induced load vs deadline -> rate_k 1/2/4/5/10 (<= 1x/2x/4x/5x/else); one pass per rate_k cycles; coupled age = max(mechanism age, (cycle - last executed pass + 1) x 0.2 s); induced work at skipped cycles not deferred",
-                                  "pre_pred_ms": args.pre_pred_ms, "deadline_ms": args.deadline_ms},
+                                  "pre_pred_ms": args.pre_pred_ms, "deadline_ms": args.deadline_ms,
+                                  "owned_pass_model": ("single batch predict(K_admit) (the K-capacity row's own model)" if (args.admit_rule == "single" and K_ADMIT is not None) else "cap pattern predict(2) + predict(N-1) on the admitted tracks"),
+                                  "skipped_cycle_induced_work": "not deferred (the lighter case for replication)"},
            "n_owned_per_locale_cycle": owned_stats, "trace_stats": trace_stats, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
 
