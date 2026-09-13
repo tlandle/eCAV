@@ -56,7 +56,7 @@ def main():
     ap.add_argument("--osm", required=True); ap.add_argument("--full_net", required=True)
     ap.add_argument("--window_km", type=float, default=3.0); ap.add_argument("--target_active", type=float, required=True)
     ap.add_argument("--sim_s", type=int, default=900); ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--out", default="ext"); ap.add_argument("--calib_s", type=int, default=300)
+    ap.add_argument("--out", default="ext"); ap.add_argument("--calib_s", type=int, default=0, help="0 = calibrate on full-length runs (default)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True); log = os.path.join(a.out, "sumo_extension.log"); t0 = time.time()
     net_path = os.path.join(a.out, f"athens_w{a.window_km:g}.net.xml")
@@ -67,14 +67,22 @@ def main():
     # calibration: one short run at a guessed period, then scale (active ~ 1/period)
     # two-pass calibration: active ~ 1/period once the network is in steady state
     # (a 120 s run undershoots; use calib_s >= 300 and correct on the measured median)
-    period = 1.0; calib = []
-    for it in range(2):
-        fcd0 = run_sumo(net_path, period, a.calib_s, a.seed, os.path.join(a.out, f"calib{it}_s{a.seed}"), log)
+    # calibration on FULL-LENGTH runs (a 300 s run is not steady state on a 3 km
+    # network: it undershoots by ~2x); the last accepted calibration run IS the
+    # trace when it lands within 10 percent of the target.
+    period = 1.0; calib = []; fcd = None; calib_len = a.calib_s if a.calib_s > 0 else a.sim_s
+    for it in range(4):
+        fcd0 = run_sumo(net_path, period, calib_len, a.seed, os.path.join(a.out, f"calib{it}_t{int(a.target_active)}_s{a.seed}"), log)
         med0, p95_0 = active_count(fcd0); calib.append((period, med0))
         print(f"calibration {it}: period {period:.3f} s -> active median {med0:.0f} (target {a.target_active:.0f}) ({time.time()-t0:.0f}s)", flush=True)
-        if abs(med0 - a.target_active) / max(a.target_active, 1.0) < 0.05: break
+        if abs(med0 - a.target_active) / max(a.target_active, 1.0) < 0.10 and calib_len == a.sim_s:
+            fcd = fcd0; break
         period = period * med0 / max(a.target_active, 1.0)
-    fcd = run_sumo(net_path, period, a.sim_s, a.seed, os.path.join(a.out, f"ext_L{L}_t{int(a.target_active)}_s{a.seed}"), log)
+    final = os.path.join(a.out, f"ext_L{L}_t{int(a.target_active)}_s{a.seed}.fcd.xml")
+    if fcd is None:
+        fcd = run_sumo(net_path, period, a.sim_s, a.seed, final[:-8], log)
+    else:
+        os.replace(fcd, final); fcd = final
     med, p95 = active_count(fcd)
     meta = {"net": os.path.basename(net_path), "window_km": a.window_km, "L_300m": L, "lane_km": P["lane_km"], "target_active": a.target_active,
             "period_s": period, "calibration": calib, "active_median": med, "active_p95": p95, "vehicles_per_lane_km": med / P["lane_km"], "sim_s": a.sim_s, "seed": a.seed,

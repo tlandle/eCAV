@@ -25,7 +25,7 @@ echo "[ext-sweep] $(date '+%F %T') window $WIN km, top point target $TOP active 
 for T in 200 400 800 1600 3200 $TOP; do
   F=$(ls "$OUT"/ext_L*_t${T}_s${SEED}.fcd.xml 2>/dev/null | head -1)
   if [ -z "$F" ]; then
-    python sumo_extension.py --osm athens_ext.osm --full_net athens_ext.net.xml --window_km $WIN --target_active $T --sim_s 900 --calib_s 300 --seed $SEED --out "$OUT" 2>&1 | tail -3
+    python sumo_extension.py --osm athens_ext.osm --full_net athens_ext.net.xml --window_km $WIN --target_active $T --sim_s 900 --calib_s 0 --seed $SEED --out "$OUT" 2>&1 | tail -3
     F=$(ls "$OUT"/ext_L*_t${T}_s${SEED}.fcd.xml 2>/dev/null | head -1)
   fi
   [ -n "$F" ] || { echo "[ext-sweep] no trace for target $T"; continue; }
