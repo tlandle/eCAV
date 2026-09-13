@@ -287,3 +287,13 @@ rule: depth must equal the configured record depth (10, RECORD_DEPTH env) on
 every prepare or the run is flagged (an early trigger can ship a partial
 record; size equality cannot see it). scripts/atlas_branch.sh defaults to 8.
 
+BLOCKER (2026-09-13): the Khonsu and top-1 arms consume MTR destination
+probabilities from the mode stash. Under the campaign's agent-set isolation
+the stash carries six identical modes at 1/64 (mode collapse at batch size
+1), so the trigger cannot reach theta; with a second key the scoring head
+puts a stationary mode on top. The smoke now hard-fails on a khonsu/top1 cell
+without a FIREROW and on the diversity gate; it is out of the lock queue
+until the predictor fix (Tyler's choice, see current_state.md) passes a
+one-cell verify on both gates. The certainty axis of Figure 8 depends on
+which fix is chosen; under option (2) it does not exist for this model.
+
