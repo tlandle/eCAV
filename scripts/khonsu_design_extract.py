@@ -41,7 +41,7 @@ def parse_log(path):
     # Signatures: the startup error, or zero GT-inject actors, or no EGO-DBG.
     if ("is not found in your CARLA repo" in text
             or "has no attribute 'world'" in text
-            or "[GT INJECT DBG]" not in text
+            or ("[GT INJECT DBG]" not in text and "[ISOROW]" not in text)   # freeze-1p (perception active): no GT-inject marker; ISOROW is emitted per prediction frame once actors are tracked
             or "[EGO-DBG]" not in text):
         return "INVALID"
     row = {k: m.group(k) for k in (
