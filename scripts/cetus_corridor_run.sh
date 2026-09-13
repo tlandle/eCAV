@@ -41,6 +41,16 @@ grep -q "PUBGATE_SRC" ecav/core/application/edge/edge_manager/edge_manager_world
 grep -q "CONSUMEDEPOCH" ecav/core/plan/behavior_agent.py || { echo "ABORT epoch behavior missing"; exit 1; }
 grep -q "CORRIDORCROSS" ecav/scenario_testing/openscenario_1_corridor_gt.py || { echo "ABORT corridor runner missing"; exit 1; }
 pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 3
+
+# MODE-DIVERSITY GATE (paper side, 2026-09-13): the MTR trigger arms consume mode
+# probabilities; under the agent-set isolation every MODESROW collapsed to six
+# identical endpoints at 1/64, so the trigger cannot fire. Refuse to start unless
+# the last completed cells of the predecessor block pass the >= 95 percent
+# diversity gate. The chain must not carry a block into a dead trigger while
+# nobody is watching.
+GATE_LOGS=$(ls -t $WT/evaluation_outputs/frozen_1p_t12/*.log 2>/dev/null | head -3)
+if [ -z "$GATE_LOGS" ]; then echo "[cetus-corridor] ABORT: no predecessor logs to gate on"; exit 3; fi
+python3 "$WT/scripts/diag/check_mode_diversity.py" $GATE_LOGS || { echo "[cetus-corridor] ABORT: MODESROW mode diversity below the gate on the predecessor block; the MTR trigger cannot fire under mode collapse. HELD until the isolation fix restores diversity."; exit 3; }
 R="$WT/evaluation_outputs/frozen_1p_corridor"; mkdir -p "$R"
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"

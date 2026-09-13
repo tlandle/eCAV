@@ -45,6 +45,16 @@ git checkout origin/develop -- scripts/verify_models.sh scripts/models.manifest 
 bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT models mismatch"; exit 1; }
 grep -q "PUBGATE_SRC" ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py || { echo "ABORT overlay not applied"; exit 1; }
 
+
+# MODE-DIVERSITY GATE (paper side, 2026-09-13): the MTR trigger arms consume mode
+# probabilities; under the agent-set isolation every MODESROW collapsed to six
+# identical endpoints at 1/64, so the trigger cannot fire. Refuse to start unless
+# the last completed cells of the predecessor block pass the >= 95 percent
+# diversity gate. The chain must not carry a block into a dead trigger while
+# nobody is watching.
+GATE_LOGS=$(ls -t $WT/evaluation_outputs/frozen_1p_capacity/*.log 2>/dev/null | head -3)
+if [ -z "$GATE_LOGS" ]; then echo "[flow-arms] ABORT: no predecessor logs to gate on"; exit 3; fi
+python3 "$WT/scripts/diag/check_mode_diversity.py" $GATE_LOGS || { echo "[flow-arms] ABORT: MODESROW mode diversity below the gate on the predecessor block; the MTR trigger cannot fire under mode collapse. HELD until the isolation fix restores diversity."; exit 3; }
 R="$WT/evaluation_outputs/frozen_1p_flow_arms"; mkdir -p "$R"; rm -f "$R"/_done
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
