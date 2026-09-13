@@ -140,6 +140,22 @@ def run(args):
     for tid, (kk, labs, xs, ys, vxs, vys, dbs, ibs) in seqs.items():
         for k, loc in zip(kk, labs):
             if loc >= 0: owned[(int(loc), int(k))] += 1
+    # trace statistics beside the generator's constants (same definitions as the
+    # pNEUMA survey: 5 Hz cycle grid, crossings per track-second, near-boundary
+    # fraction of track-cycles at 20/30/50 m, active tracks per cycle, veh/lane-km)
+    _cross = _tc = 0; _nb = {20: 0, 30: 0, 50: 0}; _act = defaultdict(int)
+    for tid, (kk, labs, xs, ys, vxs, vys, dbs, ibs) in seqs.items():
+        valid = labs >= 0; _tc += int(valid.sum())
+        _cross += int(((labs[1:] != labs[:-1]) & valid[1:] & valid[:-1]).sum())
+        for r in _nb: _nb[r] += int((dbs[valid] <= r).sum())
+        for k in kk[valid]: _act[int(k)] += 1
+    _actv = np.array(sorted(_act.values())) if _act else np.zeros(1)
+    trace_stats = {"crossing_rate_per_track_s_5hz": (_cross / (_tc * CYCLE)) if _tc else None,
+                   "near_boundary_frac": {str(r): (_nb[r] / _tc if _tc else None) for r in _nb},
+                   "active_tracks_p50": float(np.median(_actv)), "active_tracks_p95": float(np.percentile(_actv, 95)),
+                   "vehicles_per_lane_km": float(np.median(_actv) / P["lane_km"]) if P["lane_km"] > 0 else None, "lane_km": P["lane_km"],
+                   "generator": {"crossing_rate_per_track_s": 0.013, "near_boundary_frac": 0.22, "degree_at_L": 2.6 + math.log(L / 16.0 + 1.0) * 0.4}}
+    print(f"trace stats: crossings/track/s {trace_stats['crossing_rate_per_track_s_5hz']:.4f} (gen 0.013) near20 {trace_stats['near_boundary_frac']['20']:.3f} (gen 0.22) active p50 {trace_stats['active_tracks_p50']:.0f} p95 {trace_stats['active_tracks_p95']:.0f} veh/lane-km {trace_stats['vehicles_per_lane_km']:.2f} degree used {deg_used:.2f} (gen {trace_stats['generator']['degree_at_L']:.2f})", flush=True)
     _ov = np.array(list(owned.values())) if owned else np.zeros(1)
     owned_stats = {"p50": float(np.median(_ov)), "p95": float(np.percentile(_ov, 95)), "max": int(_ov.max()), "locale_cycles_with_tracks": int(len(owned))}
     # ADMISSION CONTROL (paper 5.1; the runtime's budgeted predictor): the destination
@@ -299,7 +315,7 @@ def run(args):
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
-           "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "pad_isolated": args.pad_isolated, "n_owned_per_locale_cycle": owned_stats, "arms": results}
+           "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "pad_isolated": args.pad_isolated, "n_owned_per_locale_cycle": owned_stats, "trace_stats": trace_stats, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
 
 def main():

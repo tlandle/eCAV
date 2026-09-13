@@ -12,7 +12,8 @@ COLS = ["file", "trace", "trace_sha", "net", "tile_m", "L", "tracks", "cycles", 
         "p95_load_frac", "p95_load_frac_standalone", "max_locale_cycle_frac", "mean_load_frac",
         "within_limit_postcross_frac", "within_limit_postcross_w5", "within_limit_postcross_w15", "within_limit_frac_pooled",
         "displaced_owned_frac_mean", "displaced_owned_frac_p95", "batch_owned_plus_added_p50", "batch_owned_plus_added_p95",
-        "imports", "deltas", "predict_replicas", "bytes_per_s_per_locale", "postcross_consumptions", "consumptions"]
+        "imports", "deltas", "predict_replicas", "bytes_per_s_per_locale", "postcross_consumptions", "consumptions",
+        "crossing_rate_per_track_s", "near_boundary_frac_20m", "active_tracks_p50", "active_tracks_p95", "vehicles_per_lane_km"]
 def main():
     out, files = sys.argv[1], sys.argv[2:]
     rows = []
@@ -23,7 +24,9 @@ def main():
                 "admit_rule": o.get("admit_rule", "none"), "admit_budget_ms": o.get("admit_budget_ms"), "K_admit": o.get("K_admit"), "K_deployed_cycle": o.get("K_deployed_cycle"),
                 "admission_ratio_p50": o.get("admission_ratio_p50"), "admission_ratio_p5": o.get("admission_ratio_p95_low"), "charge": j["arms"][next(iter(j["arms"]))].get("charge"),
                 "pad_isolated": j.get("pad_isolated"), "cap": j.get("cap"), "nb_m": j.get("nb_m"), "nbr_mode": j.get("nbr_mode"), "degree_used": j.get("degree_used"), "degree_topological": j.get("degree_topological"),
-                "cost_source": j.get("cost_source"), "cost_file": (j.get("cost_meta") or {}).get("file")}
+                "cost_source": j.get("cost_source"), "cost_file": (j.get("cost_meta") or {}).get("file"),
+                "crossing_rate_per_track_s": (j.get("trace_stats") or {}).get("crossing_rate_per_track_s_5hz"), "near_boundary_frac_20m": ((j.get("trace_stats") or {}).get("near_boundary_frac") or {}).get("20"),
+                "active_tracks_p50": (j.get("trace_stats") or {}).get("active_tracks_p50"), "active_tracks_p95": (j.get("trace_stats") or {}).get("active_tracks_p95"), "vehicles_per_lane_km": (j.get("trace_stats") or {}).get("vehicles_per_lane_km")}
         for arm, r in j["arms"].items():
             row = dict(base); row["arm"] = arm
             for c in COLS:
