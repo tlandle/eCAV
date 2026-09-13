@@ -122,3 +122,30 @@ Smoke output goes to the paper side before the grid runs.
 5. Smoke (step 5 gate: peer reviews smoke output before the grid).
 6. Full grid + lander + report (distribution and calibration reported plainly,
    including if confidences cluster >=0.9 making the sweep a stress region).
+
+## Map survey result (2026-09-12, OpenDRIVE parse of all loadable towns)
+
+Method: per junction, count external non-junction roads; cluster their outward
+headings at the junction end within 25 degrees so dual carriageways (two
+OpenDRIVE roads ~8 m apart, same heading) count as one physical arm; exclude
+roundabout ring connector stubs (0.2-2.4 m arcs). Scripts:
+scratchpad junction_survey.py, junction_headings.py.
+
+| Town | max physical arms | note |
+|---|---|---|
+| 01, 02 | 3 | T-junctions only |
+| 04, 05, 06, 07, 10HD, 11, 12, 13 | 4 | crossroads |
+| 15 | 3 | two nominal 5-arm junctions (877, 322) are dual carriageways |
+| 03 | 5 | junction 861 at (-80,10): N, S, W, SW arms + 22 m E link into the roundabout. Nominal 6-arm junction 1469 is the roundabout cluster (ring stubs), disqualified |
+
+Destinations per approach: 3 arms -> k=2, 4 arms -> k=3, 5 arms -> k=4.
+k=5 needs a physical 6-arm junction; none exists. Sweep is {2, 3, 4}.
+U-turn destinations are not used to reach k=5 (not a branch through traffic
+would accept; same reasoning as the roundabout arms). k=4 site geometry: the
+east branch enters the roundabout after 22 m, so its locale is short and its
+downstream conflict sits at the roundabout entry yield; branch locales are not
+symmetric at k=4 and the paper must say so.
+
+Candidate sites (to be confirmed at scenario build): k=2 Town01 T-junction;
+k=3 Town05 crossroads (flat, four symmetric arms); k=4 Town03 junction 861.
+Waiting on the paper side's Figure 9 axis decision before building scenarios.
