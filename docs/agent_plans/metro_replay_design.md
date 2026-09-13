@@ -388,3 +388,15 @@ it; degree restricted to observed boundaries to be reported as a second
 number. JSON: evaluation_outputs/metro/pneuma_20181024_0900_pad50_survey.json
 (and the 200 m-pad run, L = 48, 0.0112, 0.160/0.248/0.460, degree 4.21).
 
+Step 1 across the five morning slots of 2018-10-24 (0830 to 1100, same
+network and tiling, L = 36): crossings per track-second 0.0148 / 0.0123 /
+0.0121 / 0.0123 / 0.0122 (median 0.0123; generator 0.013); near-boundary
+fraction at 20 m 0.207 / 0.209 / 0.196 / 0.176 / 0.180 (median 0.196;
+generator 0.22, nb = 20 m is the corridor's own band); active tracks median
+1181 / 1359 / 1418 / 1356 / 1259 (median 1356) and 13.0 / 14.9 / 15.6 /
+14.9 / 13.8 vehicles per lane-km (median 14.9; the real point's density,
+38 tracks per 300 m locale); neighbour degree 3.72 over all boundaries and
+3.09 / 3.00 / 2.87 / 2.87 / 2.91 over observed boundaries (median 2.91,
+on the law's 3.07); 40 to 43 percent of boundaries observed per slot.
+JSONs: evaluation_outputs/metro/pneuma_20181024_<slot>_survey.json.
+
