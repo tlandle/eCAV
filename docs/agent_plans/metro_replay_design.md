@@ -205,3 +205,15 @@ exercised on a Midtown Atlanta extract (scratchpad metro/district_survey.py):
 4:173, 5:5, 6:1}, median inter-junction road 206 m; that extract is not the
 district (no real trajectories) and is kept only as the pipeline test.
 
+Tyler clarification (2026-09-12 late): "or a dataset". The real trajectory
+dataset IS the district: replay the partition and the five arms DIRECTLY on
+pNEUMA's trajectories, no SUMO in the loop. SUMO is used only if the
+100-locale point is not reachable on the dataset's own area, and then only
+as a calibrated extension of the same real network, marked as extrapolation.
+Open until the survey lands: locale count depends on the partition rule
+(per-junction Q7 anchors give ~100 locales of ~100 m on central Athens;
+300 m grouping gives 12-16); both partitions are reported with their
+calibration statistics and the paper side picks the figure's rows. The
+x axis comes from subsampling a slot's real active tracks (200 to 3200,
+ceiling = the slot's full count), never from generated demand.
+
