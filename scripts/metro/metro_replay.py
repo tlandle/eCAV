@@ -56,10 +56,12 @@ class Costs:
         xs, ys, fx, pr = self.curve[op]
         if n <= xs[-1]: return float(np.interp(n, xs, ys))
         return fx + pr * n
-    def predict_call_pattern(self, n, cap=1):
-        """Runtime pattern under the agent-set cap: cap tracks alone + the rest batched."""
+    def predict_call_pattern(self, n, cap=1, pad=True):
+        """Runtime pattern under the agent-set cap: cap tracks alone (each padded to
+        N=2 under the freeze-1q fix, so charged at the batch-2 cost) + the rest batched."""
         if n <= 0: return 0.0
-        k = min(cap, n); return k * self.ms("predict", 1) + (self.ms("predict", n - k) if n - k > 0 else 0.0)
+        k = min(cap, n); iso = self.ms("predict", 2 if pad else 1)
+        return k * iso + (self.ms("predict", n - k) if n - k > 0 else 0.0)
 
 def load_pneuma(csv, net, tree, offnet=15.0, max_rows=None):
     _, tracks = ps.parse_pneuma(csv, max_rows); out = []
@@ -200,7 +202,7 @@ def run(args):
         for key in keys:
             ms = costs.ms("create", imp.get(key, 0)) if imp.get(key, 0) else 0.0
             ms += costs.ms("delta", dlt.get(key, 0)) if dlt.get(key, 0) else 0.0
-            ms += costs.predict_call_pattern(prd.get(key, 0), cap=args.cap) if prd.get(key, 0) else 0.0
+            ms += costs.predict_call_pattern(prd.get(key, 0), cap=args.cap, pad=args.pad_isolated) if prd.get(key, 0) else 0.0
             load[key] = ms
         # pooled over ALL locale-cycles (zero where no replication work)
         pooled = np.zeros(L * ncyc);
@@ -227,7 +229,7 @@ def run(args):
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
-           "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "arms": results}
+           "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "pad_isolated": args.pad_isolated, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
 
 def main():
@@ -240,6 +242,7 @@ def main():
     ap.add_argument("--tau", type=float, default=0.3); ap.add_argument("--xfer_ms", type=float, default=40.0)
     ap.add_argument("--cold_cycles", type=int, default=4, help="cycles until a cold destination has a forecast (fold-in 3 + prediction 1)")
     ap.add_argument("--replica_ttl_cycles", type=int, default=25); ap.add_argument("--cap", type=int, default=1)
+    ap.add_argument("--pad_isolated", type=int, default=1, help="1 = isolated calls padded to N=2 (freeze-1q fix), charged at the batch-2 cost")
     ap.add_argument("--postcross_w", type=int, default=10, help="handoff window (cycles after a crossing) for the second freshness population")
     ap.add_argument("--record_bytes", type=float, default=2600.0); ap.add_argument("--delta_bytes", type=float, default=120.0)
     ap.add_argument("--subsample", type=int, default=None); ap.add_argument("--seed", type=int, default=0); ap.add_argument("--max_rows", type=int, default=None)
