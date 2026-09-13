@@ -18,7 +18,7 @@ set +u
 # Lander: scripts/khonsu_1l_land.py t12lut (per-run sweep + per-decision file).
 # Chained AFTER flow-arms (idle-waits for frozen_1n_flow_arms/_done + GPU idle).
 WT=$HOME/cetus_1m_wt; CARLA_ROOT=$HOME/carla-0.9.15
-FA_DONE="$WT/evaluation_outputs/frozen_1n_flow_arms/_done"
+FA_DONE="$WT/evaluation_outputs/frozen_1p_flow_arms/_done"
 cd "$WT" || exit 1
 source $HOME/anaconda3/etc/profile.d/conda.sh && conda activate opencda310
 export PYTHONPATH=/tmp/torch_compat_1m:$CARLA_ROOT/PythonAPI/carla:${PYTHONPATH:-}
@@ -44,7 +44,7 @@ bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT models mismatch"; exit 1
 grep -q "PUBGATE_SRC" ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py || { echo "ABORT overlay not applied"; exit 1; }
 grep -q "NS3_LUT_N indexes the LUT CELL" ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py || { echo "ABORT freeze-1l LUT-cell fix not present"; exit 1; }
 
-R="$WT/evaluation_outputs/frozen_1n_t12"; mkdir -p "$R"; rm -f "$R"/_done
+R="$WT/evaluation_outputs/frozen_1p_t12"; mkdir -p "$R"; rm -f "$R"/_done
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
   grep -q "is not found in your CARLA repo\|has no attribute 'world'" "$lg" 2>/dev/null && return 0
@@ -66,7 +66,7 @@ run () { local scn="$1" n="$2" seed="$3"; local tag="t12_${scn}_n${n}_s${seed}"
     carla_restart; t0=$(date +%s); echo "[$(date +%H:%M:%S)] $tag ($runner) attempt $attempt"
     echo "[LAUNCHENV] NS3_LUT_N=$n MIGRATION_MODE=warm ONCOMING_SPEED=12 TRIGGER_DIST=300 KHONSU_SEED=$seed" > "$log"
     ( env NS3_LUT_N=$n MIGRATION_MODE=warm ONCOMING_SPEED=12 TRIGGER_DIST=300 KHONSU_SEED=$seed \
-        EVAL_TAG=khonsu-eval-freeze-1n timeout -k 30 900 python ecav.py -t "$runner" --apply_ml >> "$log" 2>&1 ) || true
+        EVAL_TAG=khonsu-eval-freeze-1p timeout -k 30 900 python ecav.py -t "$runner" --apply_ml >> "$log" 2>&1 ) || true
     t1=$(date +%s); echo "[CELLTIME] $tag sim_wall=$((t1-t0))s" | tee -a "$R/_timing.txt"
     _degenerate "$log" || break
     echo "[retry] $tag degenerate"

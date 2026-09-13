@@ -11,7 +11,7 @@ CARLA_ROOT=$HOME/carla-0.9.15
 # so the whole campaign shares the single GPU without contention. Idle-wait for
 # the predecessor's _done (default the t12 age sweep; override CHAIN_WAIT; NOWAIT=1
 # skips for standalone use), then for the GPU to be idle, before taking the lock.
-CHAIN_WAIT=${CHAIN_WAIT:-$HOME/cetus_1m_wt/evaluation_outputs/frozen_1n_t12/_done}
+CHAIN_WAIT=${CHAIN_WAIT:-$HOME/cetus_1m_wt/evaluation_outputs/frozen_1p_t12/_done}
 if [ "${NOWAIT:-0}" != "1" ] && [ -n "$CHAIN_WAIT" ]; then
   echo "[cetus-corridor] waiting for $CHAIN_WAIT ($(date +%H:%M:%S))"
   for i in $(seq 1 17280); do   # 17280 * 10s = 48h (capacity+flow-arms+t12 ~30h)
@@ -41,7 +41,7 @@ grep -q "PUBGATE_SRC" ecav/core/application/edge/edge_manager/edge_manager_world
 grep -q "CONSUMEDEPOCH" ecav/core/plan/behavior_agent.py || { echo "ABORT epoch behavior missing"; exit 1; }
 grep -q "CORRIDORCROSS" ecav/scenario_testing/openscenario_1_corridor_gt.py || { echo "ABORT corridor runner missing"; exit 1; }
 pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 3
-R="$WT/evaluation_outputs/frozen_1n_corridor"; mkdir -p "$R"
+R="$WT/evaluation_outputs/frozen_1p_corridor"; mkdir -p "$R"
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
   grep -q "is not found in your CARLA repo\|has no attribute 'world'" "$lg" 2>/dev/null && return 0
@@ -53,7 +53,7 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
   for attempt in 1 2; do
     carla_restart; echo "[$(date +%H:%M:%S)] $tag attempt $attempt : $@"
     echo "[LAUNCHENV] ONCOMING_SPEED=12 TRIGGER_DIST=300 $@" > "$log"
-    ( env "$@" ONCOMING_SPEED=12 TRIGGER_DIST=300 EVAL_TAG=khonsu-eval-freeze-1n timeout -k 30 2100 python ecav.py -t openscenario_1_corridor_gt --apply_ml >> "$log" 2>&1 ) || true
+    ( env "$@" ONCOMING_SPEED=12 TRIGGER_DIST=300 EVAL_TAG=khonsu-eval-freeze-1p timeout -k 30 2100 python ecav.py -t openscenario_1_corridor_gt --apply_ml >> "$log" 2>&1 ) || true
     _degenerate "$log" || break
     echo "[retry] $tag degenerate"
   done

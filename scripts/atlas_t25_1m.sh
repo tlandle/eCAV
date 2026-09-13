@@ -27,7 +27,7 @@ SEEDS=${SEEDS:-"1 2 3 4 5"}
 ARMS=${ARMS:-"cold kf reactive warm oracle"}
 if [ "${SMOKE:-0}" = "1" ]; then SPEEDS="12"; SEEDS="1"; ARMS="warm"; fi
 exec 9>/tmp/atlas_1l_central.lock
-flock -w 14400 9 || { echo "[t25-1m] lock wait timed out"; exit 1; }
+flock -w 172800 9 || { echo "[t25-1m] lock wait timed out"; exit 1; }
 echo "[t25-1m] lock acquired $(date +%H:%M:%S) speeds='$SPEEDS' seeds='$SEEDS' arms='$ARMS' smoke=${SMOKE:-0}"
 cd "$WT" || exit 1
 pkill -9 -f "CarlaUE4" 2>/dev/null; sleep 3
@@ -61,7 +61,7 @@ grep -q "SEEDROW" ecav/scenario_testing/scenarios/scenario_1.py || { echo "ABORT
 git fetch origin develop -q 2>/dev/null || true
 git checkout origin/develop -- scripts/verify_models.sh scripts/models.manifest 2>/dev/null || true
 bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT: model artefacts differ from manifest; results from this host are not comparable"; exit 1; }
-R="$WT/evaluation_outputs/frozen_1n_t25"; mkdir -p "$R"
+R="$WT/evaluation_outputs/${OUTDIR:-frozen_1n_t25}"; mkdir -p "$R"
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
   grep -q "is not found in your CARLA repo\|has no attribute 'world'" "$lg" 2>/dev/null && return 0
@@ -75,7 +75,7 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
   for attempt in 1 2; do
     carla_restart; echo "[$(date +%H:%M:%S)] $tag attempt $attempt : $@"
     echo "[LAUNCHENV] defaults(ONCOMING_SPEED=12 TRIGGER_DIST=300) then $@" > "$log"
-    ( env ONCOMING_SPEED=12 TRIGGER_DIST=300 "$@" EVAL_TAG=khonsu-eval-freeze-1n timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
+    ( env ONCOMING_SPEED=12 TRIGGER_DIST=300 "$@" EVAL_TAG=${EVAL_TAG:-khonsu-eval-freeze-1n} timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
     _degenerate "$log" || break
     echo "[retry] $tag degenerate (startup transient)"
   done

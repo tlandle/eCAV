@@ -19,6 +19,7 @@ CARLA_ROOT=/home/atlas/carla-0.9.15
 SEEDS=${SEEDS:-"1 2 3 4 5 6 7 8 9 10"}
 ARMS=${ARMS:-"cold kf handoversnap edgewarp reactive warm"}
 FIXED_SPEED=${FIXED_SPEED:-12}
+VTAG=${VTAG:-}
 if [ "${ORDER_CHECK:-0}" = "1" ]; then SEEDS="1"; ARMS="warm"; fi
 exec 9>/tmp/atlas_1l_central.lock
 flock -w 43200 9 || { echo "[fde] lock wait timed out"; exit 1; }
@@ -54,7 +55,7 @@ grep -q "MODESROW" ecav/core/application/edge/edge_manager/edge_manager_worldfus
 git fetch origin develop -q 2>/dev/null || true
 git checkout origin/develop -- scripts/verify_models.sh scripts/models.manifest 2>/dev/null || true
 bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT: model artefacts differ from manifest"; exit 1; }
-R="$WT/evaluation_outputs/frozen_1n_fde"; mkdir -p "$R"
+R="$WT/evaluation_outputs/${OUTDIR:-frozen_1n_fde}"; mkdir -p "$R"
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
   grep -q "is not found in your CARLA repo\|has no attribute 'world'" "$lg" 2>/dev/null && return 0
@@ -68,7 +69,7 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
   for attempt in 1 2; do
     carla_restart; echo "[$(date +%H:%M:%S)] $tag attempt $attempt : $@"
     echo "[LAUNCHENV] defaults(ONCOMING_SPEED=$FIXED_SPEED TRIGGER_DIST=300) then $@" > "$log"
-    ( env ONCOMING_SPEED=$FIXED_SPEED TRIGGER_DIST=300 "$@" EVAL_TAG=khonsu-eval-freeze-1n timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
+    ( env ONCOMING_SPEED=$FIXED_SPEED TRIGGER_DIST=300 "$@" EVAL_TAG=${EVAL_TAG:-khonsu-eval-freeze-1n} timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
     _degenerate "$log" || break
     echo "[retry] $tag degenerate"
   done
@@ -84,7 +85,7 @@ arm_env () { case "$1" in
   esac; }
 # seed-major: an interrupted grid is complete-but-coarse (n=1, then n=2, ...).
 for s in $SEEDS; do for md in $ARMS; do
-  run "fd_${md}_r${s}" $(arm_env $md) ONCOMING_SPEED=$FIXED_SPEED KHONSU_SEED=$s
+  run "fd_${VTAG}${md}_r${s}" $(arm_env $md) ONCOMING_SPEED=$FIXED_SPEED KHONSU_SEED=$s
 done; done
 pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null
 echo "FDE seeds='$SEEDS' arms='$ARMS' speed=$FIXED_SPEED $(date +%H:%M:%S)" > "$R/_fde_done"

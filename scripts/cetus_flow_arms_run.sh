@@ -19,7 +19,7 @@ set +u
 WT=$HOME/cetus_1m_wt; CARLA_ROOT=$HOME/carla-0.9.15
 # Default gate is capacity _done; override with WAIT_FILE to insert the byte-field
 # inert-proof gate (flow-arms waits for _proof_ok, written after the proof passes).
-CAP_DONE="${WAIT_FILE:-$WT/evaluation_outputs/frozen_1n_capacity/_done}"
+CAP_DONE="${WAIT_FILE:-$WT/evaluation_outputs/frozen_1p_capacity/_done}"
 cd "$WT" || exit 1
 source $HOME/anaconda3/etc/profile.d/conda.sh && conda activate opencda310
 export PYTHONPATH=/tmp/torch_compat_1m:$CARLA_ROOT/PythonAPI/carla:${PYTHONPATH:-}
@@ -45,7 +45,7 @@ git checkout origin/develop -- scripts/verify_models.sh scripts/models.manifest 
 bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT models mismatch"; exit 1; }
 grep -q "PUBGATE_SRC" ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py || { echo "ABORT overlay not applied"; exit 1; }
 
-R="$WT/evaluation_outputs/frozen_1n_flow_arms"; mkdir -p "$R"; rm -f "$R"/_done
+R="$WT/evaluation_outputs/frozen_1p_flow_arms"; mkdir -p "$R"; rm -f "$R"/_done
 carla_restart () { pkill -9 -f "CarlaUE4/Binaries" 2>/dev/null; sleep 6; ( cd "$CARLA_ROOT" && setsid nohup ./CarlaUE4.sh -RenderOffScreen >/dev/null 2>&1 9>&- & ); sleep 55; }
 _degenerate () { local lg="$1"
   grep -q "is not found in your CARLA repo\|has no attribute 'world'" "$lg" 2>/dev/null && return 0
@@ -58,7 +58,7 @@ run () { local tag="$1"; shift; local log="$R/${tag}.log"
   for attempt in 1 2; do
     carla_restart; t0=$(date +%s); echo "[$(date +%H:%M:%S)] $tag attempt $attempt : $@"
     echo "[LAUNCHENV] defaults(ONCOMING_SPEED=12 TRIGGER_DIST=300) then $@" > "$log"
-    ( env ONCOMING_SPEED=12 TRIGGER_DIST=300 "$@" EVAL_TAG=khonsu-eval-freeze-1n timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
+    ( env ONCOMING_SPEED=12 TRIGGER_DIST=300 "$@" EVAL_TAG=khonsu-eval-freeze-1p timeout -k 30 900 python ecav.py -t openscenario_1_flow_gt --apply_ml >> "$log" 2>&1 ) || true
     t1=$(date +%s); echo "[CELLTIME] $tag sim_wall=$((t1-t0))s" | tee -a "$R/_timing.txt"
     _degenerate "$log" || break
     echo "[retry] $tag degenerate"
