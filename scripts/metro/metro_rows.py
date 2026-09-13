@@ -10,6 +10,8 @@ COLS = ["file", "trace", "trace_sha", "net", "tile_m", "L", "tracks", "cycles", 
         "admit_rule", "admit_budget_ms", "K_admit", "K_deployed_cycle", "admission_ratio_p50", "admission_ratio_p5", "charge", "pad_isolated", "cap",
         "nb_m", "nbr_mode", "degree_used", "degree_topological", "cost_source", "cost_file", "arm",
         "p95_load_frac", "p95_load_frac_standalone", "max_locale_cycle_frac", "mean_load_frac",
+        "within_limit_postcross_coupled", "within_limit_postcross_coupled_w5", "within_limit_postcross_coupled_w15", "within_limit_frac_coupled",
+        "rate_k_frac_gt1_at_consumption", "rate_k_mean_at_consumption", "rate_k_frac_owned_locale_cycles", "pass_ms_p95_executed", "pass_ms_p95_owned_only",
         "within_limit_postcross_frac", "within_limit_postcross_w5", "within_limit_postcross_w15", "within_limit_frac_pooled",
         "displaced_owned_frac_mean", "displaced_owned_frac_p95", "batch_owned_plus_added_p50", "batch_owned_plus_added_p95",
         "imports", "deltas", "predict_replicas", "bytes_per_s_per_locale", "postcross_consumptions", "consumptions",
@@ -36,5 +38,5 @@ def main():
     with open(out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=COLS, extrasaction="ignore"); w.writeheader(); [w.writerow(r) for r in rows]
     print(f"{len(rows)} rows -> {out}")
-    for r in rows: print(f"  {r['file']:44s} {r['admit_rule']:8s} K={r['K_admit']} {r['arm']:12s} load {100*(r['p95_load_frac'] or 0):6.1f}%  window {100*(r['within_limit_postcross_frac'] or 0):5.1f}%  displaced {r.get('displaced_owned_frac_mean')}")
+    for r in rows: print(f"  {r['file']:44s} {r['admit_rule']:8s} K={r['K_admit']} {r['arm']:12s} load {100*(r['p95_load_frac'] or 0):6.1f}%  window {100*(r['within_limit_postcross_frac'] or 0):5.1f}% coupled {100*(r.get('within_limit_postcross_coupled') or 0):5.1f}%  displaced {r.get('displaced_owned_frac_mean')}")
 if __name__ == "__main__": main()

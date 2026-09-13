@@ -17,6 +17,11 @@ delta_ready, reactive. Definitions fixed by the paper side (design doc):
   ten-frame predictor input; branching conflicts sit ~2 s after entry);
   pooled owner-cycle population kept for the text; W = 5 and 15 as CSV
   sensitivity columns;
+  FIGURE right axis = the LOAD-COUPLED within-limit fraction: the deployed
+  adaptive controller's rate fallback (WorldFusionAdaptiveEdge.run_step lines
+  168-176 and 213-222) replayed per locale on pre_pred + owned pass + induced
+  load; the mechanism-only fraction stays as a CSV column and excludes
+  load-induced rate fallback (paper side, 2026-09-13);
   p95 pooled over (locale, cycle); batching = one call per N records per
   cycle at the batch-N cost; the runtime's prediction call pattern with the
   agent-set cap (cap=1: fastest alone + the rest batched) is charged.
@@ -25,6 +30,8 @@ Costs: --costs JSON from scripts/metro/microbench_ops.py (measured); with
 row is flagged cost_source=generator (never a paper number).
 """
 import argparse, json, math, os, sys, time, hashlib
+from array import array
+from collections import deque
 from collections import defaultdict
 import numpy as np
 from scipy.spatial import cKDTree
@@ -211,8 +218,8 @@ def run(args):
     for arm in args.arms.split(","):
         # per (locale, cycle) op counters: imports, deltas, predict replicas
         imp = defaultdict(int); dlt = defaultdict(int); prd = defaultdict(int); byts = defaultdict(float)
-        consume = []   # (age_s) per consumption (pooled owner-cycle population)
-        consume_pc = []  # ages of consumptions within POSTCROSS_W cycles after a crossing (handoff window)
+        # per consumption: mechanism age, owner locale, cycle, cycles since a crossing (-1 = no prior owner or past 15)
+        c_age = array("f"); c_own = array("i"); c_k = array("i"); c_since = array("i")
         # per-track replica state per locale: cycle installed
         for tid, (kk, labs, xs, ys, vxs, vys, dbs, ibs) in seqs.items():
             replicas = {}          # locale -> (cycle installed, has_forecast_cycle or None)
@@ -238,8 +245,7 @@ def run(args):
                     replicas = {}; prepared_dst = None
                 # ---- consumption at the owner
                 age = CYCLE if (forecast_ready_at is not None and k >= forecast_ready_at) else (k - owner_since + 1) * CYCLE + CYCLE
-                consume.append(age)
-                if prev_owner_exists and k - owner_since < 15: consume_pc.append((age, k - owner_since))   # (age, cycles since crossing)
+                c_age.append(age); c_own.append(owner); c_k.append(k); c_since.append((k - owner_since) if (prev_owner_exists and k - owner_since < 15) else -1)
                 # ---- replication policy (destination-side work for non-owners)
                 near = dbs[j] <= nb_m
                 if arm == "warm":
@@ -298,12 +304,57 @@ def run(args):
         pooled_sa = np.zeros(L * ncyc)
         for (loc, k), ms in load_sa.items():
             if 0 <= loc < L and 0 <= k < ncyc: pooled_sa[loc * ncyc + k] = ms
-        ages = np.array(consume); pc = np.array(consume_pc).reshape(-1, 2)
-        def within_w(w): 
-            sel = pc[pc[:, 1] < w, 0] if len(pc) else pc
+        ages = np.frombuffer(c_age, dtype=np.float32).astype(float); c_own_a = np.frombuffer(c_own, dtype=np.int32); c_k_a = np.frombuffer(c_k, dtype=np.int32); c_since_a = np.frombuffer(c_since, dtype=np.int32)
+        # LOAD-COUPLED freshness (paper side, 2026-09-13). The deployed adaptive
+        # controller (WorldFusionAdaptiveEdge.run_step lines 168-176, 213-222) keeps a
+        # 20-pass compute history per locale and, once >= 5 passes are in it, sets
+        # rate_k = 1/2/4/5/10 from the p95 of the WHOLE pass against the deadline
+        # (<= 1x / 2x / 4x / 5x / else); at rate_k the locale executes one pass every
+        # rate_k cycles and the agents hold the last delivered forecast. Whole pass at
+        # (locale, cycle) = pre_pred + owned prediction pass (pattern(admitted N_owned))
+        # + the arm's induced load as charged (ms). The controller is replayed per
+        # locale; a consumption's coupled age = max(mechanism age, (cycle - last
+        # executed pass + 1) x CYCLE). Induced work at skipped cycles is not deferred
+        # (the lighter assumption for the replication arms).
+        _pat_cache = {}
+        def _owned_pass(na):
+            if na not in _pat_cache: _pat_cache[na] = costs.predict_call_pattern(na, cap=args.cap, pad=args.pad_isolated) if na else 0.0
+            return _pat_cache[na]
+        RATE_STEPS = ((1.0, 1), (2.0, 2), (4.0, 4), (5.0, 5), (None, 10))
+        def _p95_20(hist):   # np.percentile(list, 95) (linear interpolation) on <= 20 values
+            s_ = sorted(hist); pos = 0.95 * (len(s_) - 1); lo = int(pos)
+            return s_[lo] if lo + 1 >= len(s_) else s_[lo] + (s_[lo + 1] - s_[lo]) * (pos - lo)
+        owned_pass_ms = np.zeros((L, ncyc))
+        for (loc, k), no in owned.items():
+            if 0 <= loc < L and 0 <= k < ncyc: owned_pass_ms[loc, k] = _owned_pass(admitted(no))
+        T_all = args.pre_pred_ms + owned_pass_ms
+        for (loc, k), ms in load.items():
+            if 0 <= loc < L and 0 <= k < ncyc: T_all[loc, k] += ms
+        last_exec = np.zeros((L, ncyc), dtype=np.int32); rate_of = np.ones((L, ncyc), dtype=np.int8); pass_ms_exec = []
+        for loc in range(L):
+            hist = deque(maxlen=20); rk = 1; since = 0; le = 0; Trow = T_all[loc]
+            for k in range(ncyc):
+                run_pass = True
+                if rk > 1:
+                    since += 1
+                    if since < rk: run_pass = False
+                    else: since = 0
+                if run_pass:
+                    le = k; hist.append(Trow[k]); pass_ms_exec.append(Trow[k])
+                    if len(hist) >= 5:
+                        p95 = _p95_20(hist)
+                        for mult, r_ in RATE_STEPS:
+                            if mult is None or p95 <= args.deadline_ms * mult: rk = r_; break
+                last_exec[loc, k] = le; rate_of[loc, k] = rk
+        ages_c = np.maximum(ages, (c_k_a - last_exec[c_own_a, c_k_a] + 1) * CYCLE) if len(ages) else ages
+        rk_cons = rate_of[c_own_a, c_k_a] if len(ages) else np.ones(0, dtype=np.int8)
+        _own_mask = owned_pass_ms > 0; rk_owned = rate_of[_own_mask]
+        rate_dist = {str(r_): (float((rk_owned == r_).mean()) if rk_owned.size else None) for r_ in (1, 2, 4, 5, 10)}
+        def within_w(w, a=ages):
+            sel = a[(c_since_a >= 0) & (c_since_a < w)] if len(a) else a
             return (float((sel < tau).mean()) if len(sel) else None, int(len(sel)))
         w5, w10, w15 = within_w(5), within_w(args.postcross_w), within_w(15)
-        ages_pc = pc[pc[:, 1] < args.postcross_w, 0] if len(pc) else pc
+        w5c, w10c, w15c = within_w(5, ages_c), within_w(args.postcross_w, ages_c), within_w(15, ages_c)
         bytes_per_s = sum(byts.values()) / (ncyc * CYCLE) / max(L, 1)
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
@@ -316,14 +367,23 @@ def run(args):
                         "within_limit_frac_400": float((ages < 0.4).mean()) if len(ages) else None,
                         "within_limit_postcross_frac": w10[0], "postcross_consumptions": w10[1], "postcross_w_cycles": args.postcross_w,
                         "within_limit_postcross_w5": w5[0], "within_limit_postcross_w15": w15[0],   # sensitivity columns (CSV only, not the figure)
+                        "within_limit_postcross_coupled": w10c[0], "within_limit_postcross_coupled_w5": w5c[0], "within_limit_postcross_coupled_w15": w15c[0],   # FIGURE right axis (load-coupled)
+                        "within_limit_frac_coupled": float((ages_c < tau).mean()) if len(ages_c) else None,
+                        "rate_k_frac_owned_locale_cycles": rate_dist, "rate_k_mean_at_consumption": float(rk_cons.mean()) if rk_cons.size else None,
+                        "rate_k_frac_gt1_at_consumption": float((rk_cons > 1).mean()) if rk_cons.size else None,
+                        "pass_ms_p95_executed": float(np.percentile(pass_ms_exec, 95)) if pass_ms_exec else None,
+                        "pass_ms_p95_owned_only": float(np.percentile((args.pre_pred_ms + owned_pass_ms)[_own_mask], 95)) if _own_mask.any() else None,
                         "consumptions": int(len(ages)), "imports": int(sum(imp.values())), "deltas": int(sum(dlt.values())), "predict_replicas": int(sum(prd.values())),
                         "bytes_per_s_per_locale": bytes_per_s}
         r = results[arm]
-        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack ({args.charge}; standalone {r['p95_load_frac_standalone']*100:6.1f}%; batch admitted+added p50/p95 {r['batch_owned_plus_added_p50']}/{r['batch_owned_plus_added_p95']}; displaced owned frac mean/p95 {r['displaced_owned_frac_mean']}/{r['displaced_owned_frac_p95']})  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
+        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack ({args.charge}; standalone {r['p95_load_frac_standalone']*100:6.1f}%; batch admitted+added p50/p95 {r['batch_owned_plus_added_p50']}/{r['batch_owned_plus_added_p95']}; displaced owned frac mean/p95 {r['displaced_owned_frac_mean']}/{r['displaced_owned_frac_p95']})  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%; COUPLED {(r['within_limit_postcross_coupled'] or 0)*100:5.1f}%, rate_k>1 at {(r['rate_k_frac_gt1_at_consumption'] or 0)*100:4.1f}% of consumptions, pass p95 {r['pass_ms_p95_executed'] or 0:.0f} ms vs owned-only {r['pass_ms_p95_owned_only'] or 0:.0f} ms)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
-           "cost_source": costs.source, "cost_meta": costs.meta, "charging_curve": "monotone envelope (cumulative max) of the measured medians", "cap": args.cap, "pad_isolated": args.pad_isolated, "n_owned_per_locale_cycle": owned_stats, "trace_stats": trace_stats, "arms": results}
+           "cost_source": costs.source, "cost_meta": costs.meta, "charging_curve": "monotone envelope (cumulative max) of the measured medians", "cap": args.cap, "pad_isolated": args.pad_isolated,
+           "freshness_coupling": {"rule": "deployed rate fallback (WorldFusionAdaptiveEdge.run_step 168-176, 213-222): per-locale p95 over the last 20 executed passes of pre_pred + owned pass + induced load vs deadline -> rate_k 1/2/4/5/10 (<= 1x/2x/4x/5x/else); one pass per rate_k cycles; coupled age = max(mechanism age, (cycle - last executed pass + 1) x 0.2 s); induced work at skipped cycles not deferred",
+                                  "pre_pred_ms": args.pre_pred_ms, "deadline_ms": args.deadline_ms},
+           "n_owned_per_locale_cycle": owned_stats, "trace_stats": trace_stats, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
 
 def main():
