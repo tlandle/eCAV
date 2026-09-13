@@ -289,3 +289,4 @@ scripts/metro/microbench_ops.py; runner scripts/metro/run_microbench.sh
 device and host load are recorded beside the curve. Survey and district
 scripts: scripts/metro/pneuma_survey.py, district_survey.py.
 
+Step 3 RELEASED (Tyler confirmed option (a), 2026-09-12 late): Athens OSM network extended to ~9 km2 so the Q7 partition gives 100 locales at 300 m, SUMO demand scaled from the pNEUMA-measured vehicles per lane-km so active tracks reach 3200, five arms charged with the measured appendix C curves; the extension's own crossing rate, near-boundary fraction and neighbour degree reported beside pNEUMA's and the generator's. Order: step 1 (pNEUMA slot) -> step 2 (microbench after the campaign) -> step 3 -> compare_measured.py vs frozengen_metro_rows.csv.
