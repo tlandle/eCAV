@@ -250,3 +250,28 @@ per-junction level and k-means groupings; the 300 m level is added as a
 fixed-size tiling of the covered area (not k-means over anchors), so the
 locale size, not the count, is what is held.
 
+## SCOPE NARROWED (paper side, Tyler's steer, 2026-09-12 ~23:10): match the generated figure exactly
+
+TARGET = fig:metro as generated: 100 locales of ~300 m (~9 km2), active
+tracks {200, 400, 800, 1600, 3200}, five arms (warm, replall, delta_state,
+delta_ready, reactive), y = p95 destination load as a fraction of the 70 ms
+slack and within-limit fraction. Same axes, every input measured.
+DROPPED (paper-side additions, not Tyler's ask): the per-junction ~100 m
+partition, the fig:sizing row, the two-partition survey, option (b).
+KEEP, in order:
+1. pNEUMA: one all-drone slot, fixed-size 300 m tiling, 5 Hz subsample,
+   cars+taxis+buses+trucks; measure crossings per track per second (gen
+   0.013), near-boundary fraction (gen 0.22), neighbour degree (gen
+   2.6 + 0.4 ln(L/16+1)), vehicles per lane-km, instantaneous active tracks.
+   That is the whole survey.
+2. Per-operation costs at batches 1 to 32 on the real import (create),
+   delta-apply and predict paths, replacing gen_batchcost's linear
+   placeholders; predict anchored at the campaign's 36 ms per call at batch 1.
+3. HELD until the paper side confirms option (a): SUMO on the Athens OSM
+   network extended to ~9 km2 -> 100 locales at 300 m under the Q7 rule,
+   demand scaled from the measured pNEUMA density so active tracks reach
+   3200, five arms charged with the measured curve; report the extension's
+   crossing rate / near-boundary / degree against pNEUMA's and the
+   generator's so the calibration is shown.
+4. compare_measured.py against frozengen_metro_rows.csv.
+
