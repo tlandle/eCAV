@@ -122,6 +122,12 @@ for (site, seed), rs in sorted(by_ss.items()):
     # (3) route: the actor must enter BRANCH_TAKEN in every arm
     for a, r in arms.items():
         if r["route_ok"] != "YES": chk.append(f"FAIL route {r['tag']}: taken={r['taken']} entered={r['entered']} route_ok={r['route_ok']}")
+    # (3b) Khonsu's MTR trigger must actually FIRE on the smoke route (mode
+    # collapse under isolation caps the destination probability at 6/64 < theta,
+    # so a silent non-fire would run 240 routes of a trigger that never fires)
+    for a in ("khonsu", "top1"):
+        if a in arms and arms[a]["fire_rule"] not in ("theta", "top1"):
+            chk.append(f"FAIL {a} trigger never fired {site} s{seed}: fire_rule={arms[a]['fire_rule'] or 'none'} prepared={arms[a]['prepared']}")
     # (4) oracle readiness (conflict timeline sanity)
     if "oracle" in arms and arms["oracle"]["ready"] != "YES":
         chk.append(f"WARN oracle not ready {site} s{seed}: prepared={arms['oracle']['prepared']} first_dst={arms['oracle']['first_dst_track_tick']} crossing={arms['oracle']['crossing_tick']} first_use={arms['oracle']['first_use_tick']}")

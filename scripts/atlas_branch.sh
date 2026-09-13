@@ -80,7 +80,12 @@ run () { local site="$1" tag="$2"; shift 2; local R="$WT/evaluation_outputs/bran
     echo "[retry] $tag degenerate (startup transient)"
   done
   grep -q RUNROW "$log" 2>/dev/null || { echo "[HARD FAIL] $tag no RUNROW after $attempt attempts; STOPPING"; exit 2; }
-  grep -q "\[READYROW\]" "$log" 2>/dev/null || { echo "[HARD FAIL] $tag RUNROW but no READYROW (actor never resolved); STOPPING"; exit 2; }; }
+  grep -q "\[READYROW\]" "$log" 2>/dev/null || { echo "[HARD FAIL] $tag RUNROW but no READYROW (actor never resolved); STOPPING"; exit 2; }
+  # mode-diversity + trigger-fire gates (paper side 2026-09-13): the MTR trigger cannot fire under mode collapse
+  case "$tag" in *_khonsu_*|*_top1_*)
+    grep -q "\[FIREROW\].*rule=\(theta\|top1\)" "$log" 2>/dev/null || { echo "[HARD FAIL] $tag: the MTR trigger never fired (no FIREROW rule=theta/top1); mode collapse? STOPPING"; exit 2; }
+    python3 scripts/diag/check_mode_diversity.py "$log" || { echo "[HARD FAIL] $tag: MODESROW mode diversity below the gate; STOPPING"; exit 2; } ;;
+  esac; }
 arm_env () { case "$1" in
     khonsu)    echo "MIGRATION_MODE=warm TRIGGER_MODE=mtr" ;;
     oracle)    echo "MIGRATION_MODE=warm TRIGGER_MODE=oracle" ;;
