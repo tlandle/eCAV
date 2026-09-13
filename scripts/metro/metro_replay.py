@@ -44,7 +44,15 @@ class Costs:
             j = json.load(open(path)); self.meta = {"file": os.path.basename(path), "sha": hashlib.sha256(open(path, "rb").read()).hexdigest()[:16], "device": j.get("device")}
             for op, d in j["ops"].items():
                 rows = {int(k): v["median_ms"] for k, v in d["rows"].items()}
-                self.curve[op] = (sorted(rows), [rows[k] for k in sorted(rows)], d["fit_fixed_ms"], d["fit_per_record_ms"])
+                xs = sorted(rows); ys = [rows[k] for k in xs]
+                # MONOTONE ENVELOPE for charging: the measured medians are not
+                # monotone at small N (predict 43.0 ms at N=2, 38.8 at N=4, 5-rep
+                # noise around a flat region), and a marginal charge from a
+                # non-monotone curve can go negative. Charging uses the cumulative
+                # maximum of the measured points (stated in the doc); the raw
+                # points are what the appendix table reports.
+                ys = list(np.maximum.accumulate(np.array(ys, dtype=float)))
+                self.curve[op] = (xs, ys, d["fit_fixed_ms"], d["fit_per_record_ms"])
         else:
             self.meta = {"file": "gen_batchcost placeholders"}
             for op, (fx, pr) in GEN_COSTS.items():
@@ -275,7 +283,7 @@ def run(args):
             # marginal = predict(N_owned-1+N_added) - predict(N_owned-1); a locale
             # with no owned tracks runs its pass only for the replicas (pattern(N_added)).
             na = admitted(no)
-            p_mg = (costs.predict_call_pattern(na + nr, cap=args.cap, pad=args.pad_isolated) - costs.predict_call_pattern(na, cap=args.cap, pad=args.pad_isolated)) if nr else 0.0
+            p_mg = max(0.0, costs.predict_call_pattern(na + nr, cap=args.cap, pad=args.pad_isolated) - costs.predict_call_pattern(na, cap=args.cap, pad=args.pad_isolated)) if nr else 0.0
             if nr:
                 batch_sizes.append(na + nr)
                 if K_ADMIT is not None and no > 0:
@@ -315,7 +323,7 @@ def run(args):
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
-           "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "pad_isolated": args.pad_isolated, "n_owned_per_locale_cycle": owned_stats, "trace_stats": trace_stats, "arms": results}
+           "cost_source": costs.source, "cost_meta": costs.meta, "charging_curve": "monotone envelope (cumulative max) of the measured medians", "cap": args.cap, "pad_isolated": args.pad_isolated, "n_owned_per_locale_cycle": owned_stats, "trace_stats": trace_stats, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
 
 def main():
