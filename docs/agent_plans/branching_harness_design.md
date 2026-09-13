@@ -149,3 +149,49 @@ symmetric at k=4 and the paper must say so.
 Candidate sites (to be confirmed at scenario build): k=2 Town01 T-junction;
 k=3 Town05 crossroads (flat, four symmetric arms); k=4 Town03 junction 861.
 Waiting on the paper side's Figure 9 axis decision before building scenarios.
+
+## Build decisions (2026-09-12, after the survey and code reads)
+
+Sites (CARLA frame, polygons in scratchpad branching_sites.json):
+- k=2: Town01 junction 87, approach on the 109 m stem (road 24), branches
+  road 5 (70 m) and road 6 (224 m).
+- k=3: Town05 junction 207, approach on the 88 m arm (road 41), branches
+  roads 21 (54 m), 22 (46 m), 40 (40 m).
+- k=4: Town03 junction 861, approach on the 114 m north arm (road 3),
+  branches roads 4 (92 m), 62 (37 m), 44 (35 m), 61 (22 m, into the roundabout).
+Approach locale = the arm rectangle extended 14 m through the junction box, so
+the trigger's exit test fires at the branch mouths, not a junction-transit
+early. Branch locales start at their own arm mouth, 35 m long. Conflict point
+= 20 m after branch entry on every branch (19.7 m on the 22 m link).
+
+Recipient CAV and conflict, uniform on every branch: one CAV per branch facing
+the junction behind a stopped blocker vehicle, so it must overtake into the
+NPC's lane at the conflict point. The NPC becomes the oncoming for whichever
+branch it takes; the overtake gate, first-use bookkeeping, and the binary
+collision metric carry over from the flow scenario unchanged. This makes the
+conflict type identical across branches, including the roundabout-side east
+branch at k=4 (removes the residual noted earlier), and matches T_avail by
+construction. The branch is fixed per seed by the runner script (seed s takes
+branch s mod k, so each branch is taken equally) and passed to both the
+scenario and the runner as BRANCH_TAKEN.
+
+Code shape (all as new overlay files under a branching/ workspace; the
+freeze-1p campaign overlay is not edited because the queued atlas T25 block
+copies it at start):
+- runner_branch.py: candidate set per source locale (yaml locale.neighbors,
+  default all others), per-arm fire set, prepares issued to every locale in
+  the fire set, bookkeeping keyed (tick, src, prepared set), READYROW /
+  PLACEROW / CONFROW (per tick while in the approach locale; the lander picks
+  the trigger tick and the T-2/1/0.5 s samples), payload hash in HANDOFFROW.
+- daemon_branch.py: cost.payload_hash = sha256 of the serialized bytes that
+  crossed the link.
+- sim_api overlay: vehicles bound to heroes by a GLOBAL index across edges
+  (today a per-edge index binds hero[0] to every edge's first vehicle) and
+  vehicle_count summed over edges. Behavior-preserving for every existing
+  yaml (all of which list vehicles under edge 0 only).
+- scenario_1_branch.py: NPC route via GlobalRoutePlanner to the taken branch,
+  WaypointFollower(plan=...); k egos + k blockers from the XML.
+GPU: each edge loads its own WorldFusion model; a 2-edge cell uses ~8.2 GB of
+16 GB. k=3 (4 edges) is expected to fit; k=4 (5 edges) is measured at the k=3
+smoke and, if it does not fit, WorldFusion weights get a shared cache like the
+MTR one.
