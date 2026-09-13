@@ -169,3 +169,39 @@ predict after the campaign); (1) district partition at 100 locales; (2)
 SUMO demand and FCD; (3) engine; (4) lander; (5) smoke at 200 tracks, five
 arms; output to the paper side before the sweep.
 
+## District: pNEUMA (Athens), chosen 2026-09-12 under Tyler's criterion "find one based on real data"
+
+Selection criterion (paper side, in order): real vehicle trajectories with
+CONTINUOUS coverage across a district so a locale crossing is an observed
+event; a real road network; enough area for a 300 m partition; public and
+citable. pNEUMA (open-traffic.epfl.ch, Zenodo 10491409, CC BY 4.0): 1.3 km2
+of central Athens, >100 km of lanes, ~100 intersections, 10 drones hovering
+simultaneously (continuous district coverage; major arterials fully, some
+minor streets partially), five weekday mornings x 2.5 h in 30 min slots,
+>0.5 M trajectories, CSV per drone/date/slot plus merged all-drone files,
+one row per vehicle with lat/lon, speed, accelerations every 0.04 s.
+Rejected: V2X-Seq (KB: zero observations within 50 m of candidate
+boundaries; intersection-centric sensing), inD/rounD (site-level), nuPlan
+(fallback only, not cited). Traffic source is therefore REAL for the
+calibration; SUMO is only the tool that extends the Athens network to the
+100-locale point with demand calibrated to pNEUMA's measured statistics,
+stated plainly.
+
+Measured on pNEUMA at the 300 m partition (replaces the generator's
+constants; reported side by side): crossings per track per second (0.013),
+near-boundary fraction (0.22), neighbour degree at L (2.6 + 0.4 ln(L/16+1)),
+junction degree distribution, per-boundary crossings per minute, and
+per-boundary observation coverage (fraction of the boundary band with
+trajectories, so an unobserved minor street cannot read as a zero crossing
+rate). Vehicle classes: cars, taxis, buses, trucks are tracked road users;
+powered two-wheelers reported separately (lane-splitting inflates crossings).
+
+Tooling: conda env metro_env (python 3.10; carla 0.9.15 from PyPI; eclipse-
+sumo 1.27.1 with `SUMO_HOME=$CONDA_PREFIX/lib/python3.10/site-packages/sumo`
+and its bin on PATH; sumolib, traci, shapely, numpy, lxml). opencda310
+untouched. The OSM -> Osm2Odr -> carla.Map -> junction survey pipeline was
+exercised on a Midtown Atlanta extract (scratchpad metro/district_survey.py):
+685 OSM junction nodes in 3 x 3 km, degree histogram {1:93, 2:148, 3:265,
+4:173, 5:5, 6:1}, median inter-junction road 206 m; that extract is not the
+district (no real trajectories) and is kept only as the pipeline test.
+
