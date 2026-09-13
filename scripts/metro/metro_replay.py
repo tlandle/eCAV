@@ -142,7 +142,47 @@ def run(args):
             if loc >= 0: owned[(int(loc), int(k))] += 1
     _ov = np.array(list(owned.values())) if owned else np.zeros(1)
     owned_stats = {"p50": float(np.median(_ov)), "p95": float(np.percentile(_ov, 95)), "max": int(_ov.max()), "locale_cycles_with_tracks": int(len(owned))}
-    print(f"N_owned per locale-cycle: p50 {owned_stats['p50']:.0f} p95 {owned_stats['p95']:.0f} max {owned_stats['max']}", flush=True)
+    # ADMISSION CONTROL (paper 5.1; the runtime's budgeted predictor): the destination
+    # admits K_admit tracks to full prediction per cycle, the largest N whose call
+    # pattern fits the prediction budget; the rest get the fallback. The owned pass
+    # is pattern(min(N_owned, K_admit)); an added track is charged marginally above
+    # that ("on-top" face); if replicas compete for the K slots they displace owned
+    # tracks ("displacement" face). --admit_budget_ms 0 disables admission (demand).
+    K_ADMIT = None; K_PATTERN = None
+    if args.admit_budget_ms > 0:
+        # paper side's rule (5.1): K_admit = the largest N whose single batched call
+        # predict(N) fits the prediction budget (92 ms -> 16 on the measured curve).
+        # The two-call cap pattern (predict(2) + predict(N-1)) gives a smaller K,
+        # reported as a sensitivity value, not used for the figure.
+        K_PATTERN = max([n for n in range(1, 2000) if costs.predict_call_pattern(n, cap=args.cap, pad=args.pad_isolated) <= args.admit_budget_ms] or [1])
+        K_single = max([n for n in range(1, 2000) if costs.ms("predict", n) <= args.admit_budget_ms] or [1])
+        # DEPLOYED rule (the runtime's own): budget_{t+1} = deadline - (pre_pred + prediction_t)
+        # (WorldFusionAdaptiveEdge.run_step lines 168/193-194 measure the WHOLE pass, then set
+        # the predictor's budget for the next tick); K_t = max(int((budget_t - 25) / avg), 1)
+        # with avg = mean over the issued calls of (elapsed - 25) / n (_risk_budget_select);
+        # iterated on the measured curve until it repeats; report the cycle.
+        K_DEPLOYED_CYCLE = None
+        if args.admit_rule == "deployed" or True:
+            def calls_for(K):
+                iso = costs.ms("predict", 2 if args.pad_isolated else 1); rest = costs.ms("predict", K - 1) if K > 1 else 0.0
+                per = [(iso - 25.0) / (2 if args.pad_isolated else 1)] + ([(rest - 25.0) / (K - 1)] if K > 1 else [])
+                return iso + rest, float(np.mean(per))
+            K, seen, seq = 1, {}, []
+            for it in range(50):
+                pred_ms, avg = calls_for(K); budget = max(5.0, args.deadline_ms - (args.pre_pred_ms + pred_ms))
+                seq.append(K)
+                Kn = max(int((budget - 25.0) / max(avg, 0.1)), 1)
+                if Kn in seen and seen[Kn] >= 0: 
+                    cyc = seq[seen[Kn]:]; K_DEPLOYED_CYCLE = sorted(set(cyc)); break
+                seen[Kn] = len(seq); K = Kn
+            if K_DEPLOYED_CYCLE is None: K_DEPLOYED_CYCLE = [K]
+        K_DEPLOYED = int(round(np.mean(K_DEPLOYED_CYCLE)))
+        K_ADMIT = args.k_admit if args.k_admit > 0 else {"single": K_single, "pattern": K_PATTERN, "deployed": K_DEPLOYED}[args.admit_rule]
+    def admitted(no): return no if K_ADMIT is None else min(no, K_ADMIT)
+    _ratio = np.array([min(1.0, admitted(v) / v) for v in _ov if v > 0]) if K_ADMIT else np.ones(1)
+    owned_stats.update({"K_admit": K_ADMIT, "K_admit_cap_pattern": K_PATTERN, "K_deployed_cycle": K_DEPLOYED_CYCLE if args.admit_budget_ms > 0 else None, "admit_rule": args.admit_rule, "admit_budget_ms": args.admit_budget_ms,
+                        "admission_ratio_p50": float(np.median(_ratio)), "admission_ratio_p95_low": float(np.percentile(_ratio, 5)), "admission_ratio_mean": float(_ratio.mean())})
+    print(f"N_owned per locale-cycle: p50 {owned_stats['p50']:.0f} p95 {owned_stats['p95']:.0f} max {owned_stats['max']} | K_admit={K_ADMIT} ({args.admit_rule} rule, budget {args.admit_budget_ms} ms; cap-pattern K {K_PATTERN}; deployed-rule cycle {owned_stats.get('K_deployed_cycle')}) admission ratio p50 {owned_stats['admission_ratio_p50']:.2f} 5th pct {owned_stats['admission_ratio_p95_low']:.2f}", flush=True)
     results = {}
     for arm in args.arms.split(","):
         # per (locale, cycle) op counters: imports, deltas, predict replicas
@@ -208,7 +248,7 @@ def run(args):
                 # reactive: nothing before the crossing
         # ---- per (locale, cycle) load in ms
         keys = set(imp) | set(dlt) | set(prd)
-        load = {}; load_sa = {}; batch_sizes = []
+        load = {}; load_sa = {}; batch_sizes = []; displaced_frac = []
         for key in keys:
             base = costs.ms("create", imp.get(key, 0)) if imp.get(key, 0) else 0.0
             base += costs.ms("delta", dlt.get(key, 0)) if dlt.get(key, 0) else 0.0
@@ -218,8 +258,12 @@ def run(args):
             # owned pass (predict(2) for the isolated+pad track cancels out), so
             # marginal = predict(N_owned-1+N_added) - predict(N_owned-1); a locale
             # with no owned tracks runs its pass only for the replicas (pattern(N_added)).
-            p_mg = (costs.predict_call_pattern(no + nr, cap=args.cap, pad=args.pad_isolated) - costs.predict_call_pattern(no, cap=args.cap, pad=args.pad_isolated)) if nr else 0.0
-            if nr: batch_sizes.append(no + nr)
+            na = admitted(no)
+            p_mg = (costs.predict_call_pattern(na + nr, cap=args.cap, pad=args.pad_isolated) - costs.predict_call_pattern(na, cap=args.cap, pad=args.pad_isolated)) if nr else 0.0
+            if nr:
+                batch_sizes.append(na + nr)
+                if K_ADMIT is not None and no > 0:
+                    displaced_frac.append(max(0, na + nr - K_ADMIT) / no if (na + nr) > K_ADMIT else 0.0)   # owned tracks losing their slot if replicas compete
             load_sa[key] = base + p_sa
             load[key] = base + (p_mg if args.charge == "marginal" else p_sa)
         # pooled over ALL locale-cycles (zero where no replication work)
@@ -240,6 +284,8 @@ def run(args):
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
                         "p95_load_frac_standalone": float(np.percentile(pooled_sa, 95) / SLACK_MS), "charge": args.charge,
+                        "displaced_owned_frac_mean": float(np.mean(displaced_frac)) if displaced_frac else None,
+                        "displaced_owned_frac_p95": float(np.percentile(displaced_frac, 95)) if displaced_frac else None,
                         "batch_owned_plus_added_p50": float(np.median(batch_sizes)) if batch_sizes else None,
                         "batch_owned_plus_added_p95": float(np.percentile(batch_sizes, 95)) if batch_sizes else None,
                         "within_limit_frac": float((ages < tau).mean()) if len(ages) else None,
@@ -249,7 +295,7 @@ def run(args):
                         "consumptions": int(len(ages)), "imports": int(sum(imp.values())), "deltas": int(sum(dlt.values())), "predict_replicas": int(sum(prd.values())),
                         "bytes_per_s_per_locale": bytes_per_s}
         r = results[arm]
-        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack ({args.charge}; standalone {r['p95_load_frac_standalone']*100:6.1f}%; batch owned+added p50/p95 {r['batch_owned_plus_added_p50']}/{r['batch_owned_plus_added_p95']})  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
+        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack ({args.charge}; standalone {r['p95_load_frac_standalone']*100:6.1f}%; batch admitted+added p50/p95 {r['batch_owned_plus_added_p50']}/{r['batch_owned_plus_added_p95']}; displaced owned frac mean/p95 {r['displaced_owned_frac_mean']}/{r['displaced_owned_frac_p95']})  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
@@ -268,6 +314,10 @@ def main():
     ap.add_argument("--replica_ttl_cycles", type=int, default=25); ap.add_argument("--cap", type=int, default=1)
     ap.add_argument("--pad_isolated", type=int, default=1, help="1 = isolated calls padded to N=2 (freeze-1q fix), charged at the batch-2 cost")
     ap.add_argument("--charge", default="marginal", choices=("marginal", "standalone"), help="replica prediction charge: marginal on the destination's owned batch (default) or a standalone batch")
+    ap.add_argument("--admit_budget_ms", type=float, default=92.0, help="prediction budget per cycle for admission control (130 ms allocation - ~38 ms fusion+tracking); 0 = no admission (demand)")
+    ap.add_argument("--admit_rule", default="single", choices=("single", "pattern", "deployed"), help="K_admit: single batched predict(K) <= budget (paper 5.1); the two-call cap pattern; or the runtime's own feedback rule iterated to its cycle (deployed)")
+    ap.add_argument("--deadline_ms", type=float, default=130.0); ap.add_argument("--pre_pred_ms", type=float, default=38.0)
+    ap.add_argument("--k_admit", type=int, default=0, help="explicit K_admit override (0 = derive)")
     ap.add_argument("--postcross_w", type=int, default=10, help="handoff window (cycles after a crossing) for the second freshness population")
     ap.add_argument("--record_bytes", type=float, default=2600.0); ap.add_argument("--delta_bytes", type=float, default=120.0)
     ap.add_argument("--subsample", type=int, default=None); ap.add_argument("--seed", type=int, default=0); ap.add_argument("--max_rows", type=int, default=None)
