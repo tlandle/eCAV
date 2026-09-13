@@ -400,3 +400,30 @@ generator 0.22, nb = 20 m is the corridor's own band); active tracks median
 on the law's 3.07); 40 to 43 percent of boundaries observed per slot.
 JSONs: evaluation_outputs/metro/pneuma_20181024_<slot>_survey.json.
 
+CORRECTION on the degree (paper side, 2026-09-13 ~02:00): the +21 percent
+attributed to "dense irregular grid" was a coverage artifact. Restricted to
+OBSERVED boundaries the pNEUMA degree is 3.09 / 3.00 / 2.87 / 2.87 / 2.91
+across the morning, on the law's 3.07 at L = 36; the all-boundaries 3.72
+counts side streets the drones do not observe and that carry no tracks.
+The generator's degree law HOLDS on real peak traffic. Consequences:
+1. The measured pNEUMA point uses the degree that falls out of the crossings
+   themselves: the engine's replication neighbours are, by default, the
+   locales across boundaries that carry traffic in the trace (--nbr_mode
+   observed); 3.72 is reported beside it as the topological degree with the
+   coverage fraction. Near-boundary band nb = 20 m (the corridor's band).
+2. The SUMO extension routes demand onto every street, so its effective
+   degree is near the topological 3.9 to 4.1, a real and stated difference,
+   not an error. PREDICTION, rewritten before step 3 runs: the +15 percent on
+   the three replication arms (warm unchanged) applies to the EXTENSION
+   curves only; the measured pNEUMA point should land on the generated curve
+   for all arms.
+3. The figure/CSV report the full slot spread: crossings 0.0121 to 0.0148
+   (median 0.0123 vs 0.013), near-boundary at 20 m 0.176 to 0.209 (vs 0.22,
+   drifting down late morning), active tracks 1181 to 1418, 13.0 to 15.6
+   vehicles per lane-km, coverage 40 to 43 percent. Two of three constants
+   match within the slot spread and the third matches once coverage is
+   accounted for.
+Retroactive fact for the plan: the freeze-1n batched block scores 0.498 on
+the mode-diversity gate (its single-track calls collapsed), so its
+mode-derived columns were half collapsed; goes beside the pre-cap caveat.
+

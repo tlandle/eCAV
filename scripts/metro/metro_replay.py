@@ -98,6 +98,7 @@ def run(args):
         ga, gb = grp.get(ja), grp.get(jb)
         if ga != gb: b_pts.append(xy); b_loc.append((ga, gb)); nbrs[ga].add(gb); nbrs[gb].add(ga)
     b_tree = cKDTree(np.array(b_pts))
+    nbrs_topo = {k: set(v) for k, v in nbrs.items()}
     costs = Costs(args.costs)
     traces = load_fcd(args.trace, tree) if args.trace.endswith(".xml") else load_pneuma(args.trace, net, tree, max_rows=args.max_rows)
     if args.subsample and args.subsample < len(traces):
@@ -112,7 +113,22 @@ def run(args):
         vx = np.gradient(x5, k5 * CYCLE) if len(k5) > 1 else np.zeros_like(x5); vy = np.gradient(y5, k5 * CYCLE) if len(k5) > 1 else np.zeros_like(y5)
         db, ib = b_tree.query(np.c_[x5, y5])
         seqs[tid] = (k5 - kmin, labs, x5, y5, vx, vy, db, ib)
-    print(f"partition L={L}, boundaries {len(b_pts)}, tracks {len(traces)}, cycles {ncyc} ({time.time()-t0:.0f}s)", flush=True)
+    # Replication candidates per locale. 'observed' (default): neighbours across
+    # boundaries that carry traffic in THIS trace (any track within 30 m during
+    # the session), so replicas follow the crossings the data contains (paper
+    # side, 2026-09-13: the measured point must not inherit the topological
+    # degree of unobserved side streets; the SUMO extension puts traffic on every
+    # street, so there observed ~ topological, a stated difference).
+    seen_b = set()
+    for tid, (kk, labs, xs, ys, vxs, vys, dbs, ibs) in seqs.items():
+        seen_b.update(set(ibs[dbs <= 30.0].tolist()))
+    if args.nbr_mode == "observed":
+        nbrs = defaultdict(set)
+        for j in seen_b:
+            ga, gb = b_loc[j]; nbrs[ga].add(gb); nbrs[gb].add(ga)
+    deg_topo = float(np.mean([len(v) for v in nbrs_topo.values()])) if nbrs_topo else 0.0
+    deg_used = float(np.mean([len(v) for v in nbrs.values()])) if nbrs else 0.0
+    print(f"partition L={L}, boundaries {len(b_pts)} (observed {len(seen_b)}), degree topological {deg_topo:.2f} used({args.nbr_mode}) {deg_used:.2f}, tracks {len(traces)}, cycles {ncyc} ({time.time()-t0:.0f}s)", flush=True)
     xfer_s = args.xfer_ms / 1000.0; fold = 3 * CYCLE; lead = min(2.5, max(fold + 0.35, xfer_s + fold + 0.35))
     lead_cycles = int(round(lead / CYCLE)); nb_m = args.nb_m; tau = args.tau
     results = {}
@@ -209,7 +225,8 @@ def run(args):
         r = results[arm]
         print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
-           "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
+           "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
+           "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
            "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
 
@@ -218,7 +235,8 @@ def main():
     ap.add_argument("--trace", required=True); ap.add_argument("--net", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--costs", default="generator", help="microbench JSON or 'generator' (placeholders, flagged)")
     ap.add_argument("--arms", default=",".join(ARMS)); ap.add_argument("--tile", type=int, default=300)
-    ap.add_argument("--nb_m", type=float, default=30.0, help="near-boundary distance for the replication arms")
+    ap.add_argument("--nb_m", type=float, default=20.0, help="near-boundary band for the replication arms (20 m = the corridor's own band)")
+    ap.add_argument("--nbr_mode", default="observed", choices=("observed", "topological"), help="replication neighbours: across observed boundaries (default) or all topological neighbours")
     ap.add_argument("--tau", type=float, default=0.3); ap.add_argument("--xfer_ms", type=float, default=40.0)
     ap.add_argument("--cold_cycles", type=int, default=4, help="cycles until a cold destination has a forecast (fold-in 3 + prediction 1)")
     ap.add_argument("--replica_ttl_cycles", type=int, default=25); ap.add_argument("--cap", type=int, default=1)
