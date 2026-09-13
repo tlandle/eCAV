@@ -8,9 +8,9 @@ import glob, json, os, sys
 D = sys.argv[1]
 def pick(j):
     t = j["levels"]["tile300"]; tr = t["tracked"]
-    return {"L": t["L"], "boundaries": t["boundaries"], "degree_mean": t.get("neighbour_degree_mean"), "degree_observed": t.get("neighbour_degree_observed_mean", t.get("observed_degree_mean")),
+    return {"L": t["L"], "boundaries": t["boundaries"], "degree_mean": t.get("neighbour_degree_mean"), "degree_observed": tr.get("neighbour_degree_observed_boundaries"),
             "crossing_rate_5hz": tr["crossing_rate_per_track_s_5hz"], "near20": tr["near_boundary_frac"]["20"], "boundaries_observed_frac": tr.get("boundaries_observed_frac"),
-            "active_p50": (j.get("active_tracks_per_cycle") or {}).get("p50") if isinstance(j.get("active_tracks_per_cycle"), dict) else j.get("active_tracks_per_cycle"),
+            "active_median": (j.get("active_tracks_per_cycle") or {}).get("median"),
             "veh_per_lane_km": j.get("vehicles_per_lane_km_median")}
 for f in sorted(glob.glob(f"{D}/pneuma_20181024_*_survey_det.json")):
     g = f.replace("_survey_det.json", "_survey.json")
