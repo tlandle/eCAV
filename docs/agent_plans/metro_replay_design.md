@@ -1,116 +1,124 @@
 # Metropolitan Replay Design (NSDI experiment 2 of 4)
 
-Status: DRAFT 2026-09-12, awaiting the paper side's claim/figure spec
-(question sent; the open items are marked OPEN). Nothing built. Order after
-the branching harness (experiment 1), whose k3 smoke is queued on atlas.
+Status: DRAFT v2, 2026-09-12. Spec from the paper side (fig:metro, Figure 14
+in 5.9, and appendix C batch-cost microbenchmark). v1's bytes-per-second
+currency was wrong: the paper's claim is that the cost separating Khonsu
+from replication is destination PREDICTION processing, not bandwidth. Open
+items marked OPEN. Nothing built; order after the branching harness.
 
-## Purpose
+## Claim the experiment feeds
 
-Q7 (deployability) measured boundary geometry on CARLA towns and left two
-things queued: the same rule on real city geometry (an OpenStreetMap
-district) and per-boundary crossing rates from traffic flow, which tie the
-geometry study to load. This experiment supplies both and adds the cost
-comparison the reviewers asked for at city scale: per-actor predictive
-migration (Khonsu) against replication baselines, measured as bytes and
-messages per locale per second and as readiness at the crossing, under
-replayed metropolitan traffic. CARLA cannot run a district with hundreds of
-vehicles and one edge stack per locale, so the replay is trace-driven and
-offline; the closed-loop claims stay with the campaign and the branching
-harness.
+fig:metro: x = active tracks {200, 400, 800, 1600, 3200} at 100 locales, and
+a second sweep over locales {16, 36, 64, 100} (OPEN: at which track count).
+Left y = p95 destination processing load per edge cycle as a fraction of the
+70 ms cycle slack (200 ms cycle minus the 130 ms allocation). Right y =
+fraction of forecasts within the age limit. Paper numbers at 100 locales and
+3200 tracks: delta_state 7% load, Khonsu 18%, delta_ready 139%, full-record
+290%; Khonsu 93% within limit. Finding: keyed-delta replication is cheaper
+than Khonsu but its forecasts are stale; making its replicas forecast-ready
+costs 139% of the slack. Bytes/s is a secondary column only.
+
+The draft's numbers come from a generator with assumed traffic statistics
+(near-boundary fraction 0.22 of active tracks, neighbour degree
+2.6 + 0.4 ln(locales/16 + 1), crossing rate 0.013 per track per second
+calibrated to the corridor). The replay MEASURES these from SUMO
+trajectories on real city geometry and reports measured against generator
+side by side; it never substitutes the generator's constants.
+
+## Arms (five, fixed by the paper; EdgeWarp is not in this figure)
+
+| Arm | Replay rule per 200 ms edge cycle | Destination processing charged |
+|---|---|---|
+| warm (Khonsu) | computed trigger on the CV projection (transfer EMA + fold-in + margin, capped); one prepare to the projected destination; final update at the crossing | import + prediction only for the tracks it prepares, at the batch size it prepares them in |
+| replall (full record) | every cycle, retransmit and import the complete record of every near-boundary track to every neighbour | full import + prediction for every replica every cycle |
+| delta_state | install a replica once, then every cycle apply only the newest observation through a stable replica id; no prediction until the crossing | delta apply for every replica every cycle; prediction only at the crossing |
+| delta_ready | delta_state plus a prediction refresh for every replica every cycle | delta apply + prediction for every replica every cycle |
+| reactive | history transferred at the crossing, no lead | import + prediction at the crossing |
+
+Periodic at the 200 ms edge cycle ("each cycle"), not event-driven; no
+period sweep (extra if ever added, not the figure).
+
+## Cost model (appendix C, measured, batches 1 to 32)
+
+Per operation: full import 3.1 ms per track; delta apply 0.15 ms per track;
+prediction 8.0 ms base + 2.5 ms per track per batch. OPEN: the replay wants
+the measured per-batch-size curve points (1 to 32) rather than the linear
+fit, so the per-record cost at batch N is read from the batch-N point.
+"Genuinely batch": one serialization and one import call per N records per
+cycle per locale, with the per-record ms taken from the batch-N point of the
+microbench curve, never N times the batch-1 cost. Load per locale per cycle
+= sum of charged operations in ms; the figure reports p95 over locale-cycles
+(OPEN: confirm the aggregation) divided by 70 ms.
+
+Freshness: OPEN, needed before the engine is written: the age limit value
+and the per-arm definition of a forecast's age (for delta_state the replica
+holds fresh observations but no forecast until the crossing; whether the
+count is per track per cycle at the serving locale, or per crossing).
 
 ## Method
 
-1. Map: an OSM district extract converted to OpenDRIVE with carla.Osm2Odr
-   (client side, no server) and to a SUMO network with netconvert. The
-   partition rule of Q7 (locales anchored on junctions, boundaries at
-   inter-junction midpoints) is applied to the OpenDRIVE road graph with the
-   same code path as locale_partition.py, moved to the client-side carla.Map
-   so no CARLA server is needed. OPEN: which district (candidate: a 2 x 2 km
-   grid-like urban district with arterials and residential streets so both
-   Q7 speed classes appear; the junction degree distribution is reported
-   next to the CARLA towns' so the reader can see how it differs).
-2. Traffic: SUMO on the district with randomTrips/duarouter at a set of
-   demand levels (vehicles per hour per km of road), floating car data at
-   20 Hz (position, speed, heading, lane). One trace per (demand, seed) is
-   the input to EVERY arm (invalidation condition 1).
-3. Replay: an offline engine walks each trace at 20 Hz through the locale
-   registry (LocaleRouter as in the runner), keeps per-actor sticky locale
-   assignment, and runs each arm's trigger on the actor's constant-velocity
-   projection (the runner's computed L: transfer EMA + fold-in + margin,
-   capped) and each arm's transfer accounting. Per-transfer bytes and time
-   are the campaign's measured record cost (HANDOFFROW bytes, TransferCost
-   total_ms distribution), not modeled constants. Readiness per crossing:
-   prepared at the entered locale with first-import time (prepare tick +
-   measured transfer time + fold-in) before the crossing tick; wrong
-   destination and late prepare decomposed as in the branching READYROW.
-   No perception and no MTR in the replay: destination inference is CV on
-   the trace (the branching harness carries the MTR destination question in
-   closed loop; the replay reports how often CV picks the wrong branch at
-   each junction degree, which is the link between the two).
-4. Load and geometry outputs: per boundary crossings per minute, per locale
-   concurrent tracked actors, prepares per second, imports per second,
-   bytes per second in and out; the Q7 separation table on the district.
+1. Map: an OSM district extract to OpenDRIVE with carla.Osm2Odr (client
+   side) and to a SUMO network with netconvert. The Q7 partition rule
+   (locales anchored on junctions, boundaries at inter-junction midpoints)
+   runs on the OpenDRIVE road graph through the client-side carla.Map, same
+   function as locale_partition.py; the Town03 result must reproduce the
+   committed Q7 numbers (invalidation 4). The district needs at least 100
+   junction anchors; the locale sweep uses nested sub-windows with 16, 36,
+   64 and 100 anchors (OPEN: or the paper's own meaning of the locale axis).
+   District choice (OPEN, Tyler may have a preference): chosen for
+   calibration-matchability; junction degree distribution and per-boundary
+   crossing rate reported against Town01/Town03 and against the corridor's
+   0.013 per track per second.
+2. Traffic: SUMO with randomTrips/duarouter, demand levels set so the
+   active track count in the deployment reaches each x value; floating car
+   data at 20 Hz (position, speed, heading, lane). One trace per (demand,
+   seed) is the input to every arm.
+3. Replay engine: walks the trace by 200 ms cycles through the locale
+   registry (LocaleRouter, Locale, sticky assignment as in the runner);
+   per locale per cycle it knows owned tracks, near-boundary tracks,
+   replicas per arm, prepares, crossings; it charges the arm's operations
+   from the cost model; it records freshness per the OPEN definition.
+   Trigger is CV on the trace (destination + crossing time); MTR is not in
+   the loop; the branching harness carries the MTR destination question.
+4. Measured statistics reported against the generator: near-boundary
+   fraction, neighbour degree, replicas per locale, crossing rate per track
+   per second, per-boundary crossings per minute, CV wrong-destination rate
+   by junction degree.
 
-## Arms (placement and timing policy varies; the record does not)
+## Invalidation conditions (lander-checked, in ms of destination processing)
 
-| Arm | Rule in the replay |
-|---|---|
-| Khonsu | per actor, computed trigger, one prepare to the CV-projected destination, final update at the crossing |
-| Replicate-to-neighbours | per actor, same trigger tick, one prepare per adjacent locale |
-| EdgeWarp | per actor, pre-copy at predicted attachment + final sync at the crossing (edgewarp_full timing) |
-| Reactive | per actor, one transfer at the crossing, no lead |
-| Batched replication (period T_b) | every T_b each locale sends ONE message per neighbour carrying ALL its current track records; cost = per-message header + N x record bytes, serialized once per message; readiness = a crossing is ready if the last batch before it left at least transfer + fold-in before the crossing |
-| Cold | nothing sent; readiness by re-acquisition (Q7 T_recover) |
+1. Trace differs across arms: every arm replays the identical FCD file
+   (hash in every run row).
+2. Costs not the measured ones: the per-operation table (appendix C file
+   and its hash) is logged per run; any other constant flags the run.
+3. Batching violated: per locale per cycle at most one import call and one
+   prediction call per arm, N records each, per-record ms from the batch-N
+   point; a lander check counts calls against locales x cycles.
+4. Partition rule differs from Q7: Town03 through the same function must
+   reproduce locale_partition.csv.
+5. Crossing time modeled: the crossing is the trace's own entry into the
+   destination polygon, per actor, per cycle.
+6. District unlike the calibration: degree distribution and crossing rate
+   reported next to the towns and the corridor; a district whose crossing
+   rate differs from 0.013 by more than a factor the paper side sets is
+   reported as such, not silently used.
+7. Generator constants substituted for measurements anywhere in the replay.
 
-"Genuinely batch" (paper side): the batched baseline must pay one message
-per neighbour per period with N records inside, never N per-record
-messages, and its record bytes must be the same measured record as Khonsu's.
-Its readiness improves as T_b shrinks and its bytes/s grows as N x k / T_b;
-the sweep over T_b is what puts it on the same axes as Khonsu. OPEN: T_b
-sweep values (proposal {0.2, 0.5, 1, 2, 5} s) and whether an event-driven
-batched variant (send when a batch fills) is wanted.
+## Outputs
 
-## Figures (OPEN: which the paper takes and their axes)
-
-- Cost vs load: bytes/s and messages/s per locale against demand, one line
-  per arm (batched at each T_b), city-scale replay.
-- Readiness vs cost: readiness fraction against bytes/s per locale, points
-  per arm and T_b (the batched frontier against Khonsu's point).
-- Crossing rate vs separation per boundary on the district (feeds Q7's
-  "crossing rates tie to load").
-- CV wrong-destination rate against junction degree on the district (the
-  link to the branching harness).
-
-## Invalidation conditions (checked by the lander, not by eye)
-
-1. Trajectory source differs across arms: every arm replays the identical
-   trace file (hash of the FCD file logged in every run row).
-2. Record cost not measured: per-transfer bytes and time must come from the
-   campaign's HANDOFFROW / TransferCost samples (file and its hash logged);
-   a run with modeled constants is flagged.
-3. Batched baseline not batching: every batch message must carry N >= 1
-   records with one header; a lander check counts messages against
-   period x neighbours and flags any per-record emission.
-4. Locale rule differs from Q7: the partition is produced by the same
-   function on the district and on Town03, and the Town03 result must
-   reproduce the committed locale_partition.csv numbers.
-5. Readiness measured against modeled crossings: the crossing tick is the
-   trace's own entry into the destination locale polygon, per actor.
-6. District unlike the towns without saying so: the junction degree and
-   separation distributions of the district are reported next to Town01
-   and Town03 in the same table.
+fig_metro_tracks.csv (x tracks, per arm: p95 load fraction, within-limit
+fraction, bytes/s secondary), fig_metro_locales.csv, metro_stats.csv
+(measured vs generator statistics), district_q7.csv (separation table on
+the district), cv_destination_by_degree.csv, checks.txt.
 
 ## Tooling and build order
 
-- Install eclipse-sumo into opencda310 with pip (user level, no root; OPEN
-  unless Tyler objects). carla.Osm2Odr is present. netconvert from the SUMO
-  package; the repo's scripts/netconvert_carla.py converts OpenDRIVE to a
-  SUMO net with the CARLA traffic-light landmarks.
-- Build: (1) district extract + OpenDRIVE + SUMO net + partition (offline,
-  CPU only, can run during the campaign); (2) SUMO demand generation and FCD
-  export at three demand levels x 5 seeds; (3) replay engine reusing
-  LocaleRouter/Locale and the runner's trigger code paths; (4) lander with
-  the six checks; (5) smoke: one demand level, one seed, Khonsu + batched
-  (T_b = 1 s) + reactive, output to the paper side before the sweep.
-- Cost: CPU only. The replay of a 20 Hz trace with ~500 actors over 10 min
-  is minutes per arm. No host contention with the campaign.
+- Separate conda env metro_env (python 3.10, eclipse-sumo user level,
+  shapely, numpy, the carla 0.9.15 wheel for Osm2Odr and carla.Map).
+  opencda310 is not touched while the campaign runs in it (paper side and
+  Tyler flagged). CPU only, no CARLA server, no GPU; runs beside the
+  campaign.
+- Build: (1) district extract + OpenDRIVE + SUMO net + partition and the
+  Town03 reproduction check; (2) SUMO demand and FCD export; (3) engine;
+  (4) lander; (5) smoke at the smallest sweep point (16 locales, 200
+  tracks), all five arms, output to the paper side before the sweep.
