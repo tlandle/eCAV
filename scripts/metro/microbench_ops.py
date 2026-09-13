@@ -89,7 +89,7 @@ def bench_delta(tracker_dst, N, reps):
         ms.append((_now() - t0) * 1e3)
     return ms, len(pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL))
 
-def build_predictor(edge_cfg_yaml, world_dt=0.05):
+def build_predictor(edge_cfg_yaml, world_dt=0.05, overrides=None):
     """Construct the overlay MTREdgePredictor exactly as the edge manager does
     (campaign yaml mtr_predictor block), with the budget/adaptation off so
     _run_mtr runs exactly the N tracks handed to it."""
@@ -97,6 +97,7 @@ def build_predictor(edge_cfg_yaml, world_dt=0.05):
     from ecav.core.prediction.mtr_edge_predictor import MTREdgePredictor
     cfg = OmegaConf.load(edge_cfg_yaml)
     mp = OmegaConf.to_container(cfg.scenario.edge_list[0].mtr_predictor, resolve=True)
+    if overrides: mp.update(overrides)   # e.g. {'history_subsample': 4} for the spacing check; logged by the caller
     return MTREdgePredictor(
         cmp_root=mp.get('cmp_root'), mtr_checkpoint=mp.get('checkpoint'), cfg_yaml=mp.get('cfg_yaml'),
         intention_points_file=mp.get('intention_points_file'), dataset=mp.get('dataset', 'opv2v'),

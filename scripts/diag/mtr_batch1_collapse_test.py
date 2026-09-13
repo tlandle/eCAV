@@ -42,24 +42,27 @@ PLACEMENTS = {"behind150_adjlane": (-150.0, 3.5), "behind300_adjlane": (-300.0, 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--edge_yaml", default="ecav/scenario_testing/config_yaml/openscenario_1_flow_gt.yaml")
     ap.add_argument("--out", default="evaluation_outputs/diag/mtr_batch1_collapse.json"); ap.add_argument("--reps", type=int, default=5)
+    ap.add_argument("--history_subsample", type=int, default=None, help="override the yaml's history_subsample (spacing check); frames sized to fit")
     a = ap.parse_args(); os.makedirs(os.path.dirname(a.out), exist_ok=True)
-    pred = build_predictor(a.edge_yaml)
+    ov = {"history_subsample": a.history_subsample} if a.history_subsample else None
+    pred = build_predictor(a.edge_yaml, overrides=ov); FR = 12 * (a.history_subsample or 1) + 4
+    print(f"predictor history_subsample={pred._subsample} past_frames={pred._past_frames} frames_per_track={FR}")
     res = {"A_alone": [], "C_real_pair_same_lane": []}
     for r in range(a.reps):
-        base = make_trajectories(pred, 1, seed=r)                     # tid 100, 12 m/s along +x
+        base = make_trajectories(pred, 1, seed=r, frames=FR)                     # tid 100, 12 m/s along +x
         tid = 100
         # A
         preds = pred._run_mtr(dict(base), 200 + r, 200 + r); res["A_alone"].append(modes_of(pred, tid, base[tid]))
         # B: static dummy at several placements relative to the centre object (drives +x)
         x0 = base[tid].trajectory[0].location.x; y0 = base[tid].trajectory[0].location.y
         for name, (dx, dy) in PLACEMENTS.items():
-            dummy = make_trajectories(pred, 1, seed=1000 + r, speed=0.0); dt = dummy[100]
+            dummy = make_trajectories(pred, 1, seed=1000 + r, speed=0.0, frames=FR); dt = dummy[100]
             for tf in dt.trajectory: tf.location.x = x0 + dx; tf.location.y = y0 + dy
             dt.obstacle.track_id = 999; dt.obstacle.carla_id = 9999
             preds = pred._run_mtr({tid: base[tid], 999: dt}, 300 + r, 300 + r)
             res.setdefault("B_dummy_" + name, []).append(modes_of(pred, tid, base[tid]))
         # C: real second agent, same lane, 30 m behind, same speed
-        other = make_trajectories(pred, 1, seed=2000 + r); ot = other[100]
+        other = make_trajectories(pred, 1, seed=2000 + r, frames=FR); ot = other[100]
         x0 = base[tid].trajectory[0].location.x; y0 = base[tid].trajectory[0].location.y
         for k, tf in enumerate(ot.trajectory): tf.location.x = x0 - 30.0 - 0.6 * k; tf.location.y = y0
         ot.obstacle.track_id = 101; ot.obstacle.carla_id = 5001
