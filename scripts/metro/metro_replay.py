@@ -133,6 +133,16 @@ def run(args):
     print(f"partition L={L}, boundaries {len(b_pts)} (observed {len(seen_b)}), degree topological {deg_topo:.2f} used({args.nbr_mode}) {deg_used:.2f}, tracks {len(traces)}, cycles {ncyc} ({time.time()-t0:.0f}s)", flush=True)
     xfer_s = args.xfer_ms / 1000.0; fold = 3 * CYCLE; lead = min(2.5, max(fold + 0.35, xfer_s + fold + 0.35))
     lead_cycles = int(round(lead / CYCLE)); nb_m = args.nb_m; tau = args.tau
+    # owned tracks per (locale, cycle): the destination's own prediction batch that
+    # imported replicas JOIN; the marginal charge is pattern(owned + replicas) -
+    # pattern(owned). Standalone (replicas as their own batch) kept as a column.
+    owned = defaultdict(int)
+    for tid, (kk, labs, xs, ys, vxs, vys, dbs, ibs) in seqs.items():
+        for k, loc in zip(kk, labs):
+            if loc >= 0: owned[(int(loc), int(k))] += 1
+    _ov = np.array(list(owned.values())) if owned else np.zeros(1)
+    owned_stats = {"p50": float(np.median(_ov)), "p95": float(np.percentile(_ov, 95)), "max": int(_ov.max()), "locale_cycles_with_tracks": int(len(owned))}
+    print(f"N_owned per locale-cycle: p50 {owned_stats['p50']:.0f} p95 {owned_stats['p95']:.0f} max {owned_stats['max']}", flush=True)
     results = {}
     for arm in args.arms.split(","):
         # per (locale, cycle) op counters: imports, deltas, predict replicas
@@ -198,17 +208,28 @@ def run(args):
                 # reactive: nothing before the crossing
         # ---- per (locale, cycle) load in ms
         keys = set(imp) | set(dlt) | set(prd)
-        load = {}
+        load = {}; load_sa = {}; batch_sizes = []
         for key in keys:
-            ms = costs.ms("create", imp.get(key, 0)) if imp.get(key, 0) else 0.0
-            ms += costs.ms("delta", dlt.get(key, 0)) if dlt.get(key, 0) else 0.0
-            ms += costs.predict_call_pattern(prd.get(key, 0), cap=args.cap, pad=args.pad_isolated) if prd.get(key, 0) else 0.0
-            load[key] = ms
+            base = costs.ms("create", imp.get(key, 0)) if imp.get(key, 0) else 0.0
+            base += costs.ms("delta", dlt.get(key, 0)) if dlt.get(key, 0) else 0.0
+            nr = prd.get(key, 0); no = owned.get(key, 0)
+            p_sa = costs.predict_call_pattern(nr, cap=args.cap, pad=args.pad_isolated) if nr else 0.0
+            # marginal (paper side): added tracks join the BATCHED REMAINDER of the
+            # owned pass (predict(2) for the isolated+pad track cancels out), so
+            # marginal = predict(N_owned-1+N_added) - predict(N_owned-1); a locale
+            # with no owned tracks runs its pass only for the replicas (pattern(N_added)).
+            p_mg = (costs.predict_call_pattern(no + nr, cap=args.cap, pad=args.pad_isolated) - costs.predict_call_pattern(no, cap=args.cap, pad=args.pad_isolated)) if nr else 0.0
+            if nr: batch_sizes.append(no + nr)
+            load_sa[key] = base + p_sa
+            load[key] = base + (p_mg if args.charge == "marginal" else p_sa)
         # pooled over ALL locale-cycles (zero where no replication work)
         pooled = np.zeros(L * ncyc);
         for (loc, k), ms in load.items():
             if 0 <= loc < L and 0 <= k < ncyc: pooled[loc * ncyc + k] = ms
         per_loc_max = max((ms for ms in load.values()), default=0.0)
+        pooled_sa = np.zeros(L * ncyc)
+        for (loc, k), ms in load_sa.items():
+            if 0 <= loc < L and 0 <= k < ncyc: pooled_sa[loc * ncyc + k] = ms
         ages = np.array(consume); pc = np.array(consume_pc).reshape(-1, 2)
         def within_w(w): 
             sel = pc[pc[:, 1] < w, 0] if len(pc) else pc
@@ -218,6 +239,9 @@ def run(args):
         bytes_per_s = sum(byts.values()) / (ncyc * CYCLE) / max(L, 1)
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
+                        "p95_load_frac_standalone": float(np.percentile(pooled_sa, 95) / SLACK_MS), "charge": args.charge,
+                        "batch_owned_plus_added_p50": float(np.median(batch_sizes)) if batch_sizes else None,
+                        "batch_owned_plus_added_p95": float(np.percentile(batch_sizes, 95)) if batch_sizes else None,
                         "within_limit_frac": float((ages < tau).mean()) if len(ages) else None,
                         "within_limit_frac_400": float((ages < 0.4).mean()) if len(ages) else None,
                         "within_limit_postcross_frac": w10[0], "postcross_consumptions": w10[1], "postcross_w_cycles": args.postcross_w,
@@ -225,11 +249,11 @@ def run(args):
                         "consumptions": int(len(ages)), "imports": int(sum(imp.values())), "deltas": int(sum(dlt.values())), "predict_replicas": int(sum(prd.values())),
                         "bytes_per_s_per_locale": bytes_per_s}
         r = results[arm]
-        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
+        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack ({args.charge}; standalone {r['p95_load_frac_standalone']*100:6.1f}%; batch owned+added p50/p95 {r['batch_owned_plus_added_p50']}/{r['batch_owned_plus_added_p95']})  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
-           "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "pad_isolated": args.pad_isolated, "arms": results}
+           "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "pad_isolated": args.pad_isolated, "n_owned_per_locale_cycle": owned_stats, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
 
 def main():
@@ -243,6 +267,7 @@ def main():
     ap.add_argument("--cold_cycles", type=int, default=4, help="cycles until a cold destination has a forecast (fold-in 3 + prediction 1)")
     ap.add_argument("--replica_ttl_cycles", type=int, default=25); ap.add_argument("--cap", type=int, default=1)
     ap.add_argument("--pad_isolated", type=int, default=1, help="1 = isolated calls padded to N=2 (freeze-1q fix), charged at the batch-2 cost")
+    ap.add_argument("--charge", default="marginal", choices=("marginal", "standalone"), help="replica prediction charge: marginal on the destination's owned batch (default) or a standalone batch")
     ap.add_argument("--postcross_w", type=int, default=10, help="handoff window (cycles after a crossing) for the second freshness population")
     ap.add_argument("--record_bytes", type=float, default=2600.0); ap.add_argument("--delta_bytes", type=float, default=120.0)
     ap.add_argument("--subsample", type=int, default=None); ap.add_argument("--seed", type=int, default=0); ap.add_argument("--max_rows", type=int, default=None)
