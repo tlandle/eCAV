@@ -328,3 +328,29 @@ degree constant sits about 15 percent above the law (Midtown landed on it).
 Window for the figure's 100 locales: 2.8 km (L = 97) or 3.0 km (L = 95);
 the exact L is reported, never rounded to 100.
 
+Closed and pre-registered (paper side, 2026-09-13 ~00:20):
+- Invalidation 4 closed as reproduced with identified differences: the three
+  named merges (Q7 roads 23+22, and 52 and 60 into their chains) are the
+  rule's text ("one boundary per inter-junction road") applied to a network
+  representation, not losses; the 4 m minimum is Q7's own.
+- Window 2.8 km, L = 97 (matches Midtown's L = 97, close to 100); the exact L
+  is printed on the figure.
+- Athens degree 3.9 to 4.1 against the law's 3.2 to 3.5 is a real property of
+  a dense irregular grid (Midtown's regular lattice landed on the law) and is
+  NOT tuned away: the replay uses the measured Athens degree and reports it
+  beside the law and beside Midtown. Predicted direction, stated before the
+  run: replicas per locale = near-boundary fraction x degree / L, so the
+  three replication arms' destination load lands about 15 percent ABOVE the
+  generated curves and warm stays where it is (its cost follows crossings);
+  Khonsu's relative advantage widens. compare_measured.py showing that shape
+  means the degree constant moved and nothing else; anything else means
+  something else moved and is looked for.
+- The 23.8 m Athens separation median (3.5 x 3.5 km window) earns one
+  sentence in the deployability section: a real city inside the CARLA
+  towns' 21 to 25 m band.
+Tooling: scripts/metro/sumo_extension.py (crop to the window, randomTrips
++ duarouter, calibration run to set the departure period for a target
+active-track count, 0.2 s FCD, meta JSON labelled calibrated extrapolation);
+dry run on the cropped network in progress to validate the pipeline and the
+replay engine end to end (generator costs, flagged; not a result).
+
