@@ -368,3 +368,23 @@ corridor's within-limit numbers are per crossing for the same reason.
 Window widened to 3.0 km so L lands at 97 to 100 after netconvert's
 boundary drop; exact L printed.
 
+## Step 1 MEASURED (pNEUMA 2018-10-24 09:00-09:30, all drones, 2026-09-13 ~00:40)
+
+Population 10,402 trajectories: 4,509 cars, 1,645 taxis, 248 buses, 586
+medium/heavy, 3,411 motorcycles (kept separate), 3 others. Alignment to the
+network: median 3.0 m, 91% within 10 m. Covered network (50 m pad): 482
+anchors, 791 inter-anchor roads, 91 lane-km, separation median 25.3 m. At
+300 m: L = 36, 214 boundaries. Measured constants (generator in brackets):
+crossings per track-second 0.0123 at 5 Hz, 0.0124 at 25 Hz (0.013);
+near-boundary fraction 0.208 / 0.318 / 0.548 within 20 / 30 / 50 m (0.22,
+which matches a 21 m band; proposal nb = 20 m); neighbour degree 3.72 at
+L = 36 (law 3.07), the same +15 to +20% as the extended Athens network.
+x coordinate: active tracks median 1,359, p95 1,468; 14.9 vehicles per
+lane-km; morning peak. Motorcycles: 0.0181 crossings per track-second,
+0.217 near 30 m. Guard: 40% of boundaries had a tracked vehicle within 30 m
+in the slot (29% saw a crossing; 6.2 crossings/min median on those); the
+crossing rate is per observed track-second so empty boundaries do not bias
+it; degree restricted to observed boundaries to be reported as a second
+number. JSON: evaluation_outputs/metro/pneuma_20181024_0900_pad50_survey.json
+(and the 200 m-pad run, L = 48, 0.0112, 0.160/0.248/0.460, degree 4.21).
+
