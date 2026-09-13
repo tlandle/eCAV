@@ -33,5 +33,5 @@ def main():
     with open(out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=COLS, extrasaction="ignore"); w.writeheader(); [w.writerow(r) for r in rows]
     print(f"{len(rows)} rows -> {out}")
-    for r in rows: print(f"  {r['file']:44s} {r['admit_rule']:8s} K={r['K_admit']} {r['arm']:12s} load {100*(r['p95_load_frac'] or 0):6.1f}%  window {100*(r['within_limit_postcross_frac'] or 0):5.1f}%  displaced {r['displaced_owned_frac_mean']}")
+    for r in rows: print(f"  {r['file']:44s} {r['admit_rule']:8s} K={r['K_admit']} {r['arm']:12s} load {100*(r['p95_load_frac'] or 0):6.1f}%  window {100*(r['within_limit_postcross_frac'] or 0):5.1f}%  displaced {r.get('displaced_owned_frac_mean')}")
 if __name__ == "__main__": main()
