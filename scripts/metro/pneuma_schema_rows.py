@@ -21,7 +21,8 @@ for row in ("demand", "admit92", "admit50", "deployed"):
                      "load_standalone": round(r["p95_load_frac_standalone"], 4), "displacement_mean": r.get("displaced_owned_frac_mean"), "displacement_p95": r.get("displaced_owned_frac_p95"),
                      "K_admit": o.get("K_admit"), "admit_rule": o.get("admit_rule"), "bytes_per_s_per_locale": round(r["bytes_per_s_per_locale"]),
                      "crossing_rate_per_track_s": ts.get("crossing_rate_per_track_s_5hz"), "near_boundary_frac_20m": (ts.get("near_boundary_frac") or {}).get("20"),
-                     "vehicles_per_lane_km": ts.get("vehicles_per_lane_km"), "degree_used": j.get("degree_used"), "charging_curve": j.get("charging_curve"), "trace": j.get("trace"), "trace_sha": j.get("trace_sha")})
+                     "vehicles_per_lane_km": ts.get("vehicles_per_lane_km"), "degree_used": j.get("degree_used"), "charging_curve": j.get("charging_curve"), "trace": j.get("trace"), "trace_sha": j.get("trace_sha"),
+                     "notes": ("coupled freshness = deployed rate fallback replayed per locale, induced work at skipped cycles not deferred (the lighter case for replication)" + ("; low-density floor: one padded call plus one remainder call on a locale with no owned tracks" if (arm in ("replall", "delta_ready") and (ts.get("active_tracks_p50") or 0) <= 450) else "")),})
     out = os.path.join(D, f"pneuma_0900_metro_rows_{row}.csv")
     with open(out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); [w.writerow(r) for r in rows]

@@ -22,7 +22,8 @@ for f in sorted(glob.glob(f"{E}/replay_ext_L*_t*_s1_*.json")):
                          "pass_p95_ms": round(r["pass_ms_p95_executed"], 1), "pass_p95_owned_only_ms": round(r["pass_ms_p95_owned_only"] or 0, 1), "load_standalone": round(r["p95_load_frac_standalone"], 4),
                          "displacement_mean": r.get("displaced_owned_frac_mean"), "displacement_p95": r.get("displaced_owned_frac_p95"), "K_admit": o.get("K_admit"), "admit_rule": rule,
                          "crossing_rate_per_track_s": ts.get("crossing_rate_per_track_s_5hz"), "near_boundary_frac_20m": (ts.get("near_boundary_frac") or {}).get("20"),
-                         "vehicles_per_lane_km": ts.get("vehicles_per_lane_km"), "degree_used": j.get("degree_used"), "label": "calibrated extrapolation (SUMO on the real Athens network)"})
+                         "vehicles_per_lane_km": ts.get("vehicles_per_lane_km"), "degree_used": j.get("degree_used"), "label": "calibrated extrapolation (SUMO on the real Athens network)",
+                         "notes": ("coupled freshness = deployed rate fallback replayed per locale, induced work at skipped cycles not deferred (the lighter case for replication)" + ("; low-density floor: one padded call plus one remainder call on a locale with no owned tracks" if (arm in ("replall", "delta_ready") and (ts.get("active_tracks_p50") or 0) <= 450) else "")),})
     pts[(t, rule)] = j
 for tag, rows in out.items():
     if not rows: continue
