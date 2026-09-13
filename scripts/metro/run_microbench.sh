@@ -37,6 +37,6 @@ git checkout origin/develop -- scripts/verify_models.sh scripts/models.manifest 
 bash scripts/verify_models.sh "$(pwd)" || { echo "ABORT: model artefacts differ from manifest"; exit 1; }
 TS=$(date +%Y%m%d_%H%M%S)
 echo "[microbench] $TS host $(hostname) load $L1 gpu: $(nvidia-smi --query-gpu=name,memory.used --format=csv,noheader | head -1)"
-python "$SP/metro/microbench_ops.py" --ops "${OPS:-create,delta,predict}" --device "${DEVICE:-cuda:0}" --reps "${REPS:-10}" \
+python "$SP/metro/microbench_ops.py" --ops "${OPS:-create,delta,predict}" --device "${DEVICE:-cuda:0}" --reps "${REPS:-10}" --batches "${BATCHES:-1,2,4,8,16,32}" \
   --edge_yaml ecav/scenario_testing/config_yaml/openscenario_1_flow_gt.yaml --out "$OUT/microbench_${TS}.json" 2>&1 | tee "$OUT/microbench_${TS}.log"
 echo "[microbench] DONE $(date +%H:%M:%S) -> $OUT/microbench_${TS}.json"
