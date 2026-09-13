@@ -33,6 +33,7 @@ import sumolib
 TRACKED = {"Car", "Taxi", "Bus", "Medium Vehicle", "Heavy Vehicle"}
 TWO_WHEEL = {"Motorcycle"}
 CYCLE_S = 0.2
+MIN_ROAD_M = 4.0
 
 # ----------------------------------------------------------------- pNEUMA
 def parse_pneuma(path, max_rows=None):
@@ -130,7 +131,7 @@ def partition(net, step_m=2.0):
             near_a = s_ <= total / 2.0
             lab = (a if near_a else b) if (a in anchors and b in anchors) else (a if a in anchors else b)
             X.append(x_); Y.append(y_); LAB.append(lab)
-        if a in anchors and b in anchors and a != b:
+        if a in anchors and b in anchors and a != b and total >= MIN_ROAD_M:   # Q7's own minimum (locale_partition.py: length < 4 m skipped)
             mx, my = np.interp(total / 2.0, d, sh[:, 0]), np.interp(total / 2.0, d, sh[:, 1])
             roads[key] = (a, b, (float(mx), float(my)), float(total))
     return dict(X=np.array(X), Y=np.array(Y), LAB=np.array(LAB), anchors=anchors, roads=roads, lane_km=lane_km,
