@@ -41,7 +41,7 @@ COMMON=(
   "ecav/scenario_testing/scenarios/scenario_1.py|scenario_1_1l.py"
   "ecav/core/plan/behavior_agent.py|behavior_agent_1m.py"
   "ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py|edge_manager_merged_1l_epoch.py"
-  "ecav/core/prediction/mtr_edge_predictor.py|mtr_edge_predictor_1m.py"
+  "ecav/core/prediction/mtr_edge_predictor.py|${PRED_OVERLAY:-mtr_edge_predictor_1m.py}"
 )
 DESTS=()
 _backup () { local i=0; for p in "${COMMON[@]}"; do d=${p%%|*}; cp "$d" "/tmp/fde_${i}.bak"; DESTS+=("$d"); i=$((i+1)); done; }

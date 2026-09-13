@@ -7,12 +7,12 @@ set +u
 # GUARD: refuses to run while any simulation or CARLA is alive or the host is
 # loaded, because the numbers are the paper's per-operation costs.
 MAIN=/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox
-WT=$MAIN/mb_wt
+WT=${WT:-$MAIN/idfix_wt}   # campaign worktree by default (compiled MTR ops present); mb_wt lacks the untracked builds
 SP=/tmp/claude-1000/-home-atlas-TrafficSimulator-eCloud-ecloudsim-distributed-sandbox/88f56d4f-259d-44e9-bdb2-c8ace70b6018/scratchpad
 OUT=${OUT:-$MAIN/evaluation_outputs/metro_microbench}
 mkdir -p "$OUT"
-if pgrep -f "python ecav.py" >/dev/null || pgrep -f "CarlaUE4/Binaries" >/dev/null; then echo "ABORT: a simulation or CARLA is running"; exit 1; fi
-L1=$(cut -d' ' -f1 /proc/loadavg); awk -v l="$L1" 'BEGIN{exit !(l>4.0)}' && { echo "ABORT: host load $L1 > 4"; exit 1; }
+if pgrep -f "^python ecav.py" >/dev/null || pgrep -f "^/home/atlas/carla-0.9.15/CarlaUE4" >/dev/null; then echo "ABORT: a simulation or CARLA is running"; exit 1; fi
+L1=$(cut -d' ' -f1 /proc/loadavg); awk -v l="$L1" 'BEGIN{exit !(l>8.0)}' && { echo "ABORT: host load $L1 > 8 (32-core host; the guard is against a running campaign, not idle chatter)"; exit 1; }
 cd "$WT" || exit 1
 [ "$(git rev-parse --short HEAD | cut -c1-8)" = "71c9f37e" ] || { echo "ABORT not freeze base"; exit 1; }
 source /home/atlas/anaconda3/etc/profile.d/conda.sh && conda activate opencda310

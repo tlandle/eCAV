@@ -31,12 +31,15 @@ def diversity(path):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("logs", nargs="+"); ap.add_argument("--min_frac", type=float, default=0.95)
+    ap.add_argument("--require_rows", default="", help="comma-separated markers that must be present once per log (e.g. PADROW,RANKROW for the freeze-1q overlay)")
     a = ap.parse_args(); fail = False
     for p in a.logs:
         n, ok = diversity(p); frac = ok / n if n else 0.0
         status = "PASS" if (n > 0 and frac >= a.min_frac) else "FAIL"
+        missing = [r for r in a.require_rows.split(",") if r and f"[{r}]" not in open(p, errors="ignore").read()]
+        if missing: status = "FAIL"
         if status == "FAIL": fail = True
-        print(f"[MODE-DIVERSITY] {status} {p}: rows={n} diverse={ok} frac={frac:.3f} (gate >= {a.min_frac})")
+        print(f"[MODE-DIVERSITY] {status} {p}: rows={n} diverse={ok} frac={frac:.3f} (gate >= {a.min_frac}) missing_rows={missing or 'none'}")
     sys.exit(2 if fail else 0)
 
 if __name__ == "__main__":

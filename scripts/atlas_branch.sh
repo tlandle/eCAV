@@ -34,7 +34,7 @@ COMMON=(
   "ecav/core/application/edge/migration/daemon.py|$BR/daemon_branch.py"
   "ecav/core/plan/behavior_agent.py|$SP/behavior_agent_1m.py"
   "ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py|$SP/edge_manager_merged_1l_epoch.py"
-  "ecav/core/prediction/mtr_edge_predictor.py|$SP/mtr_edge_predictor_1m.py"
+  "ecav/core/prediction/mtr_edge_predictor.py|$SP/${PRED_OVERLAY:-mtr_edge_predictor_1m.py}"
   "ecav/scenario_testing/utils/sim_api.py|$BR/sim_api_branch.py"
 )
 NEWF=(
