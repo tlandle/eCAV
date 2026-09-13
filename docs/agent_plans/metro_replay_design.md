@@ -228,3 +228,25 @@ taxis, buses and trucks; also vehicles per km of lane; pNEUMA is a morning
 peak and the paper says so. Any SUMO extension sweeps active tracks up to
 3200 with demand scaled from that measured density.
 
+CORRECTION (paper side, 2026-09-12 late): the generator's locale sweep is
+FIXED locale size (~300 m) over a GROWING area, not one area cut finer
+(near-boundary fraction constant at 0.22 across L; degree rising toward the
+interior value is the boundary effect). fig:metro's 100-locale point is 100
+locales of ~300 m, about 9 km2. Consequences for pNEUMA (1.3 km2):
+- 300 m partition (12 to 16 locales) = the MEASURED corridor-scale point of
+  fig:metro, x = subsampled active tracks (ceiling = the slot's full count).
+- per-junction partition (~100 locales of ~100 m) is a different regime
+  (below the paper's practical minimum, 2.1 and 5.11) and becomes the first
+  REAL row of fig:sizing (Figure 16, 5.11: small locales push handoff
+  frequency and import load past the cycle slack); report crossings per
+  track per second and import load per cycle there.
+- fig:metro's 100-locale point: Tyler's choice between (a) a SUMO extension
+  of the same real Athens network to ~9 km2 with demand calibrated to
+  pNEUMA's measured density, labelled calibrated extrapolation, or (b) the
+  paper restates its deployment-scale claim at the real L. Until he
+  answers: measure and report BOTH partitions; do not build the extension.
+The survey script (scratchpad metro/pneuma_survey.py) already produces the
+per-junction level and k-means groupings; the 300 m level is added as a
+fixed-size tiling of the covered area (not k-means over anchors), so the
+locale size, not the count, is what is held.
+
