@@ -427,3 +427,5 @@ Retroactive fact for the plan: the freeze-1n batched block scores 0.498 on
 the mode-diversity gate (its single-track calls collapsed), so its
 mode-derived columns were half collapsed; goes beside the pre-cap caveat.
 
+Engine on the real pNEUMA 0900 slot (2026-09-13, placeholder costs, flagged): freshness columns are cost-independent and stand (post-crossing 2 s window: warm 99.8, replall 99.8, delta_ready 99.8, delta_state 89.7, reactive 79.8 percent; pooled 99.1-99.5); load columns wait for step 2's measured curves. Step 2 (microbench) can run on the now-idle GPU once the predictor fix shape is decided, because the padded isolated call changes the runtime's prediction call pattern (cost(2) + cost(N-1) under cap=1), not the per-batch curve.
+
