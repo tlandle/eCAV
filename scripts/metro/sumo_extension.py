@@ -29,10 +29,11 @@ def crop_net(osm, full_net, window_km, out_net, log):
     net = sumolib.net.readNet(full_net, withInternal=False); P = ps.partition(net)
     xs = np.array([v[0] for v in P["anchors"].values()]); ys = np.array([v[1] for v in P["anchors"].values()])
     cx, cy, h = xs.mean(), ys.mean(), window_km * 500.0
-    bnd = f"{cx-h:.1f},{cy-h:.1f},{cx+h:.1f},{cy+h:.1f}"
+    lon1, lat1 = net.convertXY2LonLat(cx - h, cy - h); lon2, lat2 = net.convertXY2LonLat(cx + h, cy + h)
+    bnd = f"{lon1:.6f},{lat1:.6f},{lon2:.6f},{lat2:.6f}"     # geo boundary: applied at OSM import, before projection
     sh(["netconvert", "--osm-files", osm, "-o", out_net, "--geometry.remove", "--junctions.join", "--junctions.join-dist", "20",
         "--roundabouts.guess", "--ramps.guess", "--remove-edges.isolated", "--keep-edges.by-vclass", "passenger", "--no-turnarounds",
-        "--proj.utm", "--keep-edges.in-boundary", bnd], log)
+        "--proj.utm", "--keep-edges.in-geo-boundary", bnd], log)
     return bnd
 
 def active_count(fcd, cycle=0.2):
@@ -64,15 +65,19 @@ def main():
     grp = ps.tile_anchors(P["anchors"], 300); L = len(set(grp.values()))
     print(f"cropped net: anchors {len(P['anchors'])} roads {len(P['roads'])} lane_km {P['lane_km']:.1f} L(300 m)={L} ({time.time()-t0:.0f}s)", flush=True)
     # calibration: one short run at a guessed period, then scale (active ~ 1/period)
-    period0 = 1.0
-    fcd0 = run_sumo(net_path, period0, a.calib_s, a.seed, os.path.join(a.out, f"calib_s{a.seed}"), log)
-    med0, p95_0 = active_count(fcd0)
-    period = period0 * med0 / max(a.target_active, 1.0)
-    print(f"calibration: period {period0:.2f} s -> active median {med0:.0f}; period for target {a.target_active:.0f} = {period:.3f} s ({time.time()-t0:.0f}s)", flush=True)
+    # two-pass calibration: active ~ 1/period once the network is in steady state
+    # (a 120 s run undershoots; use calib_s >= 300 and correct on the measured median)
+    period = 1.0; calib = []
+    for it in range(2):
+        fcd0 = run_sumo(net_path, period, a.calib_s, a.seed, os.path.join(a.out, f"calib{it}_s{a.seed}"), log)
+        med0, p95_0 = active_count(fcd0); calib.append((period, med0))
+        print(f"calibration {it}: period {period:.3f} s -> active median {med0:.0f} (target {a.target_active:.0f}) ({time.time()-t0:.0f}s)", flush=True)
+        if abs(med0 - a.target_active) / max(a.target_active, 1.0) < 0.05: break
+        period = period * med0 / max(a.target_active, 1.0)
     fcd = run_sumo(net_path, period, a.sim_s, a.seed, os.path.join(a.out, f"ext_L{L}_t{int(a.target_active)}_s{a.seed}"), log)
     med, p95 = active_count(fcd)
     meta = {"net": os.path.basename(net_path), "window_km": a.window_km, "L_300m": L, "lane_km": P["lane_km"], "target_active": a.target_active,
-            "period_s": period, "active_median": med, "active_p95": p95, "vehicles_per_lane_km": med / P["lane_km"], "sim_s": a.sim_s, "seed": a.seed,
+            "period_s": period, "calibration": calib, "active_median": med, "active_p95": p95, "vehicles_per_lane_km": med / P["lane_km"], "sim_s": a.sim_s, "seed": a.seed,
             "fcd": os.path.basename(fcd), "label": "calibrated extrapolation (SUMO demand on the real Athens network)"}
     json.dump(meta, open(fcd[:-8] + ".meta.json", "w"), indent=1)
     print(f"extension trace {os.path.basename(fcd)}: active median {med:.0f} p95 {p95:.0f} (target {a.target_active:.0f}), veh/lane-km {med/P['lane_km']:.2f} ({time.time()-t0:.0f}s)")

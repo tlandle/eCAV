@@ -115,18 +115,19 @@ def run(args):
     for arm in args.arms.split(","):
         # per (locale, cycle) op counters: imports, deltas, predict replicas
         imp = defaultdict(int); dlt = defaultdict(int); prd = defaultdict(int); byts = defaultdict(float)
-        consume = []   # (age_s) per consumption
+        consume = []   # (age_s) per consumption (pooled owner-cycle population)
+        consume_pc = []  # ages of consumptions within POSTCROSS_W cycles after a crossing (handoff window)
         # per-track replica state per locale: cycle installed
         for tid, (kk, labs, xs, ys, vxs, vys, dbs, ibs) in seqs.items():
             replicas = {}          # locale -> (cycle installed, has_forecast_cycle or None)
             prepared_dst = None; prepare_cycle = None
-            owner = None; owner_since = None; forecast_ready_at = None
+            owner = None; owner_since = None; forecast_ready_at = None; prev_owner_exists = False
             for j in range(len(kk)):
                 k = int(kk[j]); loc = int(labs[j])
                 if loc < 0: continue
                 # ---- crossing / ownership
                 if owner is None or loc != owner:
-                    prev = owner; owner = loc; owner_since = k
+                    prev = owner; owner = loc; owner_since = k; prev_owner_exists = prev is not None
                     # forecast availability at the new owner
                     if prev is None:
                         forecast_ready_at = k + args.cold_cycles                      # first acquisition
@@ -142,6 +143,7 @@ def run(args):
                 # ---- consumption at the owner
                 age = CYCLE if (forecast_ready_at is not None and k >= forecast_ready_at) else (k - owner_since + 1) * CYCLE + CYCLE
                 consume.append(age)
+                if prev_owner_exists and k - owner_since < args.postcross_w: consume_pc.append(age)
                 # ---- replication policy (destination-side work for non-owners)
                 near = dbs[j] <= nb_m
                 if arm == "warm":
@@ -185,16 +187,18 @@ def run(args):
         for (loc, k), ms in load.items():
             if 0 <= loc < L and 0 <= k < ncyc: pooled[loc * ncyc + k] = ms
         per_loc_max = max((ms for ms in load.values()), default=0.0)
-        ages = np.array(consume)
+        ages = np.array(consume); ages_pc = np.array(consume_pc)
         bytes_per_s = sum(byts.values()) / (ncyc * CYCLE) / max(L, 1)
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
                         "within_limit_frac": float((ages < tau).mean()) if len(ages) else None,
                         "within_limit_frac_400": float((ages < 0.4).mean()) if len(ages) else None,
+                        "within_limit_postcross_frac": float((ages_pc < tau).mean()) if len(ages_pc) else None,
+                        "postcross_consumptions": int(len(ages_pc)), "postcross_w_cycles": args.postcross_w,
                         "consumptions": int(len(ages)), "imports": int(sum(imp.values())), "deltas": int(sum(dlt.values())), "predict_replicas": int(sum(prd.values())),
                         "bytes_per_s_per_locale": bytes_per_s}
         r = results[arm]
-        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}%  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
+        print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
            "cost_source": costs.source, "cost_meta": costs.meta, "cap": args.cap, "arms": results}
@@ -209,6 +213,7 @@ def main():
     ap.add_argument("--tau", type=float, default=0.3); ap.add_argument("--xfer_ms", type=float, default=40.0)
     ap.add_argument("--cold_cycles", type=int, default=4, help="cycles until a cold destination has a forecast (fold-in 3 + prediction 1)")
     ap.add_argument("--replica_ttl_cycles", type=int, default=25); ap.add_argument("--cap", type=int, default=1)
+    ap.add_argument("--postcross_w", type=int, default=10, help="handoff window (cycles after a crossing) for the second freshness population")
     ap.add_argument("--record_bytes", type=float, default=2600.0); ap.add_argument("--delta_bytes", type=float, default=120.0)
     ap.add_argument("--subsample", type=int, default=None); ap.add_argument("--seed", type=int, default=0); ap.add_argument("--max_rows", type=int, default=None)
     run(ap.parse_args())
