@@ -1,0 +1,1518 @@
+description: 'Branching junction k3: Town04 junction 1452, approach road 18, 3 branch locales.'
+scenario_name: openscenario_1_branch_k3
+distributed: false
+define: true
+perception_active: true
+world:
+  sync_mode: true
+  client_host: localhost
+  client_port: 2000
+  fixed_delta_seconds: 0.05
+  seed: 11
+  weather:
+    sun_altitude_angle: 75
+    cloudiness: 0
+    precipitation: 0
+    precipitation_deposits: 0
+    wind_intensity: 0
+    fog_density: 0
+    fog_distance: 0
+    fog_falloff: 0
+    wetness: 0
+carla_traffic_manager:
+  sync_mode: true
+  global_distance: 5.0
+  global_speed_perc: -95
+  set_osm_mode: true
+  auto_lane_change: false
+  random: true
+  ignore_lights_percentage: 0
+  vehicle_list: []
+ego_vehicle_max_speed: 43
+scenario_runner:
+  town: town04
+  scenario: Scenario_1
+  num_actors: 7
+  configFile: ecav/scenario_testing/scenarios/scenario_1_branch_k3.xml
+  additionalScenario: ecav/scenario_testing/scenarios/scenario_1_branch.py
+  host: localhost
+  port: 2000
+  timeout: 360
+  debug: false
+  sync: false
+  repetitions: 1
+  agent: null
+  openscenario: null
+  route: null
+  reloadWorld: false
+  waitForEgo: false
+  trafficManagerPort: '8000'
+  trafficManagerSeed: '0'
+  record: ''
+  agentConfig: ''
+  file: false
+  json: false
+  junit: false
+  list: false
+  openscenarioparams: null
+  output: false
+  outputDir: ''
+  randomize: false
+  vehicle_index: 0
+vehicle_base:
+  sensing:
+    perception:
+      activate: true
+      camera:
+        visualize: 0
+        num: 4
+        image_width: 800
+        image_height: 600
+        fov: 70
+        positions:
+        - - 1.5
+          - 0.0
+          - 1.7
+          - 0
+        - - 0.0
+          - -1.5
+          - 1.7
+          - -90
+        - - 0.0
+          - 1.5
+          - 1.7
+          - 90
+        - - -1.5
+          - 0.0
+          - 1.7
+          - 180
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1300000
+        rotation_frequency: 20
+        upper_fov: 10.0
+        lower_fov: -30.0
+        dropoff_general_rate: 0.1
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.15
+        noise_stddev: 0.02
+    localization:
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.5
+        noise_lat_stddev: 1.5e-06
+        noise_lon_stddev: 1.5e-06
+        heading_direction_stddev: 1.0
+        speed_stddev: 0.5
+      debug_helper:
+        show_animation: false
+        x_scale: 1.0
+        y_scale: 1.0
+  behavior:
+    prediction_mode_top_k: 2
+    max_speed: 43
+    tailgate_speed: 121
+    speed_lim_dist: 3
+    speed_decrease: 15
+    safety_time: 4
+    emergency_param: 0.4
+    ignore_traffic_light: true
+    overtake_allowed: true
+    collision_time_ahead: 2
+    overtake_counter_recover: 35
+    sample_resolution: 4.5
+    local_planner:
+      buffer_size: 12
+      trajectory_update_freq: 15
+      waypoint_update_freq: 9
+      min_dist: 3
+      trajectory_dt: 0.2
+      debug: false
+      debug_trajectory: false
+  controller:
+    type: pid_controller
+    args:
+      lat:
+        k_p: 0.75
+        k_d: 0.02
+        k_i: 0.4
+      lon:
+        k_p: 0.37
+        k_d: 0.024
+        k_i: 0.032
+      dynamic: false
+      dt: ${world.fixed_delta_seconds}
+      max_brake: 1.0
+      max_throttle: 1.0
+      max_steering: 0.3
+  v2x:
+    enabled: true
+    communication_range: 35
+    loc_noise: 0.0
+    yaw_noise: 0.0
+    speed_noise: 0.0
+    lag: 0
+  map_manager:
+    pixels_per_meter: 2
+    raster_size:
+    - 224
+    - 224
+    lane_sample_resolution: 0.1
+    visualize: false
+    activate: true
+  safety_manager:
+    print_message: true
+    collision_sensor:
+      history_size: 30
+      col_thresh: 1
+    stuck_dector:
+      len_thresh: 500
+      speed_thresh: 0.5
+    offroad_dector: []
+    traffic_light_detector:
+      light_dist_thresh: 20
+rsu_base:
+  sensing:
+    perception:
+      activate: true
+      backend: worldfusion
+      camera:
+        visualize: 0
+        num: 0
+      lidar:
+        visualize: false
+        channels: 64
+        range: 120
+        points_per_second: 1300000
+        rotation_frequency: 20
+        upper_fov: 0.0
+        lower_fov: -40.0
+        dropoff_general_rate: 0.1
+        dropoff_intensity_limit: 0.7
+        dropoff_zero_intensity: 0.15
+        noise_stddev: 0.02
+    localization:
+      activate: true
+      dt: ${world.fixed_delta_seconds}
+      gnss:
+        noise_alt_stddev: 0.05
+        noise_lat_stddev: 3e-6
+        noise_lon_stddev: 3e-6
+ecloud:
+  num_servers: 2
+  server_ping_time_s: 0.005
+  client_world_time_factor: 0.9
+  client_ping_spawn_s: 0.05
+  client_ping_tick_s: 0.005
+edge_base:
+  max_capacity: 10
+  inter_gap: 0.6
+  open_gap: 1.2
+  warm_up_speed: 55
+  change_leader_speed: false
+  leader_speeds_profile:
+  - 85
+  stage_duration: 10
+  target_speed: 100
+  edge_dt: 0.2
+  search_dt: 2
+  latency: 0.0
+  jitter_std: 0.0
+  latency_distribution: hybrid
+  edge_sets_destination: false
+  uplink_packet_loss_pct: 0.0
+  downlink_packet_loss_pct: 0.0
+  mode: PREDICTION
+scenario:
+  edge_list:
+  - max_capacity: 10
+    inter_gap: 0.6
+    open_gap: 1.2
+    warm_up_speed: 55
+    change_leader_speed: false
+    leader_speeds_profile:
+    - 85
+    stage_duration: 10
+    target_speed: 100
+    edge_dt: 0.2
+    search_dt: 2
+    latency: 0.0
+    jitter_std: 0.0
+    latency_distribution: hybrid
+    edge_sets_destination: false
+    uplink_packet_loss_pct: 0.0
+    downlink_packet_loss_pct: 0.0
+    mode: PREDICTION
+    manager_type: worldfusion_mamba_adaptive
+    tracker_cfg:
+      motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
+      filter_thresh: 0.05
+      new_track_thresh: 0.2
+      match_thresh: 0.95
+      max_time_lost: 60
+      enable_time_thresh: 1000000
+      max_window: 10
+      lost_match_dist_m: 8.0
+      coast_window: 40
+    worldfusion_model:
+      hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+      score_threshold: 0.2
+    predictor_type: mtr
+    mtr_predictor:
+      cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
+      checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth
+      cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml
+      intention_points_file: ecav/ml_manager/models/mtr_wf_mamba/multiv2x_cluster_64_center_dict.pkl
+      dataset: multiv2x
+      aggregator: None
+      past_frames: 10
+      future_frames: 25
+      time_interval: 0.2
+      history_subsample: 1
+      lane_map: auto
+      lane_range_m: 90.0
+      device: cuda
+      budget_ms: 50.0
+      enable_amortization: true
+      enable_risk_budget: true
+    adaptive_controller:
+      enabled: true
+      deadline_ms: 130.0
+    gt_detection_injection:
+      enabled: false
+      max_range_m: 50.0
+      exclude_managed: true
+      occlusion_check: true
+    world_anchor:
+    - 202.2
+    - -129.2
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    rsus:
+    - sensing:
+        perception:
+          activate: true
+          backend: worldfusion
+          worldfusion_model:
+            hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+          camera:
+            visualize: 0
+            num: 4
+            image_width: 800
+            image_height: 600
+            fov: 70
+            positions:
+            - - 2.5
+              - 0.0
+              - 1.0
+              - 0
+            - - 0.0
+              - 0.3
+              - 1.8
+              - 100
+            - - 0.0
+              - -0.3
+              - 1.8
+              - -100
+            - - -2.0
+              - 0.0
+              - 1.5
+              - 180
+          lidar:
+            visualize: false
+            channels: 64
+            range: 100
+            points_per_second: 1300000
+            rotation_frequency: 20
+            upper_fov: 0.0
+            lower_fov: -40.0
+            dropoff_general_rate: 0.1
+            dropoff_intensity_limit: 0.7
+            dropoff_zero_intensity: 0.15
+            noise_stddev: 0.02
+        localization:
+          activate: true
+          dt: 0.05
+          gnss:
+            noise_alt_stddev: 0.05
+            noise_lat_stddev: 3.0e-06
+            noise_lon_stddev: 3.0e-06
+      name: rsu_locale_approach
+      spawn_position:
+      - 202.2
+      - -129.2
+      - 3.0
+      id: -1
+    vehicles:
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            image_width: 800
+            image_height: 600
+            fov: 70
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+          lidar:
+            visualize: false
+            channels: 64
+            range: 120
+            points_per_second: 1300000
+            rotation_frequency: 20
+            upper_fov: 10.0
+            lower_fov: -30.0
+            dropoff_general_rate: 0.1
+            dropoff_intensity_limit: 0.7
+            dropoff_zero_intensity: 0.15
+            noise_stddev: 0.02
+          backend: worldfusion
+          worldfusion_model:
+            hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+        localization:
+          activate: true
+          dt: ${world.fixed_delta_seconds}
+          gnss:
+            noise_alt_stddev: 0.5
+            noise_lat_stddev: 1.5e-06
+            noise_lon_stddev: 1.5e-06
+            heading_direction_stddev: 1.0
+            speed_stddev: 0.5
+          debug_helper:
+            show_animation: false
+            x_scale: 1.0
+            y_scale: 1.0
+      behavior:
+        prediction_mode_top_k: 2
+        max_speed: 43
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller:
+        type: pid_controller
+        args:
+          lat:
+            k_p: 0.75
+            k_d: 0.02
+            k_i: 0.4
+          lon:
+            k_p: 0.37
+            k_d: 0.024
+            k_i: 0.032
+          dynamic: false
+          dt: ${world.fixed_delta_seconds}
+          max_brake: 1.0
+          max_throttle: 1.0
+          max_steering: 0.3
+      v2x:
+        enabled: true
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager:
+        pixels_per_meter: 2
+        raster_size:
+        - 224
+        - 224
+        lane_sample_resolution: 0.1
+        visualize: false
+        activate: true
+      safety_manager:
+        print_message: true
+        collision_sensor:
+          history_size: 30
+          col_thresh: 1
+        stuck_dector:
+          len_thresh: 500
+          speed_thresh: 0.5
+        offroad_dector: []
+        traffic_light_detector:
+          light_dist_thresh: 20
+      name: cav_9
+      destination:
+      - 234.6
+      - -119.2
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            image_width: 800
+            image_height: 600
+            fov: 70
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+          lidar:
+            visualize: false
+            channels: 64
+            range: 120
+            points_per_second: 1300000
+            rotation_frequency: 20
+            upper_fov: 10.0
+            lower_fov: -30.0
+            dropoff_general_rate: 0.1
+            dropoff_intensity_limit: 0.7
+            dropoff_zero_intensity: 0.15
+            noise_stddev: 0.02
+          backend: worldfusion
+          worldfusion_model:
+            hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+        localization:
+          activate: true
+          dt: ${world.fixed_delta_seconds}
+          gnss:
+            noise_alt_stddev: 0.5
+            noise_lat_stddev: 1.5e-06
+            noise_lon_stddev: 1.5e-06
+            heading_direction_stddev: 1.0
+            speed_stddev: 0.5
+          debug_helper:
+            show_animation: false
+            x_scale: 1.0
+            y_scale: 1.0
+      behavior:
+        prediction_mode_top_k: 2
+        max_speed: 43
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller:
+        type: pid_controller
+        args:
+          lat:
+            k_p: 0.75
+            k_d: 0.02
+            k_i: 0.4
+          lon:
+            k_p: 0.37
+            k_d: 0.024
+            k_i: 0.032
+          dynamic: false
+          dt: ${world.fixed_delta_seconds}
+          max_brake: 1.0
+          max_throttle: 1.0
+          max_steering: 0.3
+      v2x:
+        enabled: true
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager:
+        pixels_per_meter: 2
+        raster_size:
+        - 224
+        - 224
+        lane_sample_resolution: 0.1
+        visualize: false
+        activate: true
+      safety_manager:
+        print_message: true
+        collision_sensor:
+          history_size: 30
+          col_thresh: 1
+        stuck_dector:
+          len_thresh: 500
+          speed_thresh: 0.5
+        offroad_dector: []
+        traffic_light_detector:
+          light_dist_thresh: 20
+      name: cav_10
+      destination:
+      - 234.6
+      - -119.2
+      - 0.5
+    - sensing:
+        perception:
+          activate: true
+          camera:
+            visualize: 0
+            num: 4
+            image_width: 800
+            image_height: 600
+            fov: 70
+            positions:
+            - - 1.5
+              - 0.0
+              - 1.7
+              - 0
+            - - 0.0
+              - -1.5
+              - 1.7
+              - -90
+            - - 0.0
+              - 1.5
+              - 1.7
+              - 90
+            - - -1.5
+              - 0.0
+              - 1.7
+              - 180
+          lidar:
+            visualize: false
+            channels: 64
+            range: 120
+            points_per_second: 1300000
+            rotation_frequency: 20
+            upper_fov: 10.0
+            lower_fov: -30.0
+            dropoff_general_rate: 0.1
+            dropoff_intensity_limit: 0.7
+            dropoff_zero_intensity: 0.15
+            noise_stddev: 0.02
+          backend: worldfusion
+          worldfusion_model:
+            hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+        localization:
+          activate: true
+          dt: ${world.fixed_delta_seconds}
+          gnss:
+            noise_alt_stddev: 0.5
+            noise_lat_stddev: 1.5e-06
+            noise_lon_stddev: 1.5e-06
+            heading_direction_stddev: 1.0
+            speed_stddev: 0.5
+          debug_helper:
+            show_animation: false
+            x_scale: 1.0
+            y_scale: 1.0
+      behavior:
+        prediction_mode_top_k: 2
+        max_speed: 43
+        tailgate_speed: 121
+        speed_lim_dist: 3
+        speed_decrease: 15
+        safety_time: 4
+        emergency_param: 0.4
+        ignore_traffic_light: true
+        overtake_allowed: true
+        collision_time_ahead: 2
+        overtake_counter_recover: 35
+        sample_resolution: 4.5
+        local_planner:
+          buffer_size: 12
+          trajectory_update_freq: 15
+          waypoint_update_freq: 9
+          min_dist: 3
+          trajectory_dt: 0.2
+          debug: false
+          debug_trajectory: false
+      controller:
+        type: pid_controller
+        args:
+          lat:
+            k_p: 0.75
+            k_d: 0.02
+            k_i: 0.4
+          lon:
+            k_p: 0.37
+            k_d: 0.024
+            k_i: 0.032
+          dynamic: false
+          dt: ${world.fixed_delta_seconds}
+          max_brake: 1.0
+          max_throttle: 1.0
+          max_steering: 0.3
+      v2x:
+        enabled: true
+        communication_range: 35
+        loc_noise: 0.0
+        yaw_noise: 0.0
+        speed_noise: 0.0
+        lag: 0
+      map_manager:
+        pixels_per_meter: 2
+        raster_size:
+        - 224
+        - 224
+        lane_sample_resolution: 0.1
+        visualize: false
+        activate: true
+      safety_manager:
+        print_message: true
+        collision_sensor:
+          history_size: 30
+          col_thresh: 1
+        stuck_dector:
+          len_thresh: 500
+          speed_thresh: 0.5
+        offroad_dector: []
+        traffic_light_detector:
+          light_dist_thresh: 20
+      name: cav_17
+      destination:
+      - 234.6
+      - -119.2
+      - 0.5
+    locale:
+      id: locale_approach
+      polygon:
+      - - 187.0
+        - -171.4
+      - - 196.0
+        - -162.2
+      - - 193.9
+        - -162.2
+      - - 193.9
+        - -160.1
+      - - 194.0
+        - -157.8
+      - - 194.2
+        - -155.5
+      - - 194.5
+        - -153.3
+      - - 194.9
+        - -151.1
+      - - 195.4
+        - -148.9
+      - - 196.0
+        - -146.7
+      - - 196.6
+        - -144.5
+      - - 197.4
+        - -142.4
+      - - 198.3
+        - -140.3
+      - - 199.2
+        - -138.2
+      - - 200.2
+        - -136.2
+      - - 201.3
+        - -134.2
+      - - 202.5
+        - -132.3
+      - - 203.8
+        - -130.4
+      - - 205.3
+        - -128.5
+      - - 206.8
+        - -126.7
+      - - 208.5
+        - -125.0
+      - - 210.3
+        - -123.4
+      - - 212.2
+        - -121.9
+      - - 214.2
+        - -120.6
+      - - 216.3
+        - -119.3
+      - - 218.4
+        - -118.2
+      - - 220.6
+        - -117.3
+      - - 222.9
+        - -116.5
+      - - 225.2
+        - -115.8
+      - - 227.5
+        - -115.3
+      - - 229.9
+        - -115.0
+      - - 232.3
+        - -114.8
+      - - 234.5
+        - -114.7
+      - - 238.5
+        - -114.6
+      - - 240.5
+        - -114.6
+      - - 242.5
+        - -114.6
+      - - 244.5
+        - -114.5
+      - - 246.5
+        - -114.5
+      - - 247.5
+        - -114.5
+      - - 247.8
+        - -130.5
+      - - 246.8
+        - -130.5
+      - - 244.8
+        - -130.5
+      - - 242.8
+        - -130.6
+      - - 240.8
+        - -130.6
+      - - 238.8
+        - -130.6
+      - - 234.8
+        - -130.7
+      - - 233.2
+        - -130.7
+      - - 231.8
+        - -130.9
+      - - 230.4
+        - -131.1
+      - - 229.1
+        - -131.4
+      - - 227.8
+        - -131.7
+      - - 226.5
+        - -132.2
+      - - 225.2
+        - -132.7
+      - - 224.0
+        - -133.4
+      - - 222.8
+        - -134.1
+      - - 221.7
+        - -134.8
+      - - 220.6
+        - -135.7
+      - - 219.5
+        - -136.6
+      - - 218.6
+        - -137.6
+      - - 217.7
+        - -138.6
+      - - 216.8
+        - -139.7
+      - - 215.9
+        - -141.0
+      - - 215.1
+        - -142.4
+      - - 214.3
+        - -143.7
+      - - 213.6
+        - -145.2
+      - - 213.0
+        - -146.6
+      - - 212.4
+        - -148.1
+      - - 211.8
+        - -149.6
+      - - 211.4
+        - -151.1
+      - - 211.0
+        - -152.6
+      - - 210.6
+        - -154.2
+      - - 210.3
+        - -155.7
+      - - 210.1
+        - -157.3
+      - - 210.0
+        - -158.9
+      - - 209.9
+        - -160.4
+      - - 209.9
+        - -162.2
+      - - 204.7
+        - -162.2
+      - - 215.1
+        - -171.1
+      - - 200.5
+        - -184.6
+      neighbors:
+      - locale_branch_9
+      - locale_branch_10
+      - locale_branch_17
+    member_vehicles: []
+  - max_capacity: 10
+    inter_gap: 0.6
+    open_gap: 1.2
+    warm_up_speed: 55
+    change_leader_speed: false
+    leader_speeds_profile:
+    - 85
+    stage_duration: 10
+    target_speed: 100
+    edge_dt: 0.2
+    search_dt: 2
+    latency: 0.0
+    jitter_std: 0.0
+    latency_distribution: hybrid
+    edge_sets_destination: false
+    uplink_packet_loss_pct: 0.0
+    downlink_packet_loss_pct: 0.0
+    mode: PREDICTION
+    manager_type: worldfusion_mamba_adaptive
+    tracker_cfg:
+      motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
+      filter_thresh: 0.05
+      new_track_thresh: 0.2
+      match_thresh: 0.95
+      max_time_lost: 60
+      enable_time_thresh: 1000000
+      max_window: 10
+      lost_match_dist_m: 8.0
+      coast_window: 40
+    worldfusion_model:
+      hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+      score_threshold: 0.2
+    predictor_type: mtr
+    mtr_predictor:
+      cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
+      checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth
+      cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml
+      intention_points_file: ecav/ml_manager/models/mtr_wf_mamba/multiv2x_cluster_64_center_dict.pkl
+      dataset: multiv2x
+      aggregator: None
+      past_frames: 10
+      future_frames: 25
+      time_interval: 0.2
+      history_subsample: 1
+      lane_map: auto
+      lane_range_m: 90.0
+      device: cuda
+      budget_ms: 50.0
+      enable_amortization: true
+      enable_risk_budget: true
+    adaptive_controller:
+      enabled: true
+      deadline_ms: 130.0
+    gt_detection_injection:
+      enabled: false
+      max_range_m: 50.0
+      exclude_managed: true
+      occlusion_check: true
+    world_anchor:
+    - 175.4
+    - -183.2
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    rsus:
+    - sensing:
+        perception:
+          activate: true
+          backend: worldfusion
+          worldfusion_model:
+            hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+          camera:
+            visualize: 0
+            num: 4
+            image_width: 800
+            image_height: 600
+            fov: 70
+            positions:
+            - - 2.5
+              - 0.0
+              - 1.0
+              - 0
+            - - 0.0
+              - 0.3
+              - 1.8
+              - 100
+            - - 0.0
+              - -0.3
+              - 1.8
+              - -100
+            - - -2.0
+              - 0.0
+              - 1.5
+              - 180
+          lidar:
+            visualize: false
+            channels: 64
+            range: 100
+            points_per_second: 1300000
+            rotation_frequency: 20
+            upper_fov: 0.0
+            lower_fov: -40.0
+            dropoff_general_rate: 0.1
+            dropoff_intensity_limit: 0.7
+            dropoff_zero_intensity: 0.15
+            noise_stddev: 0.02
+        localization:
+          activate: true
+          dt: 0.05
+          gnss:
+            noise_alt_stddev: 0.05
+            noise_lat_stddev: 3.0e-06
+            noise_lon_stddev: 3.0e-06
+      name: rsu_locale_branch_9
+      spawn_position:
+      - 175.4
+      - -183.2
+      - 3.0
+      id: -2
+    vehicles: []
+    locale:
+      id: locale_branch_9
+      polygon:
+      - - 138.6
+        - -181.4
+      - - 138.0
+        - -182.0
+      - - 127.1
+        - -170.2
+      - - 129.0
+        - -168.5
+      - - 131.8
+        - -166.8
+      - - 134.9
+        - -165.7
+      - - 137.8
+        - -165.4
+      - - 140.3
+        - -165.4
+      - - 142.3
+        - -165.3
+      - - 148.3
+        - -165.3
+      - - 150.3
+        - -165.3
+      - - 160.3
+        - -165.2
+      - - 162.3
+        - -165.2
+      - - 166.3
+        - -165.2
+      - - 168.3
+        - -165.2
+      - - 178.3
+        - -165.1
+      - - 180.3
+        - -165.1
+      - - 190.3
+        - -165.1
+      - - 190.4
+        - -181.1
+      - - 180.4
+        - -181.1
+      - - 178.4
+        - -181.1
+      - - 168.4
+        - -181.2
+      - - 166.4
+        - -181.2
+      - - 162.4
+        - -181.2
+      - - 160.4
+        - -181.2
+      - - 150.4
+        - -181.3
+      - - 148.4
+        - -181.3
+      - - 142.4
+        - -181.3
+      - - 140.4
+        - -181.4
+      - - 138.9
+        - -181.4
+      neighbors:
+      - locale_approach
+      conflict_point:
+      - 175.3
+      - -173.2
+      conflict_type: oncoming
+    member_vehicles:
+    - 0
+  - max_capacity: 10
+    inter_gap: 0.6
+    open_gap: 1.2
+    warm_up_speed: 55
+    change_leader_speed: false
+    leader_speeds_profile:
+    - 85
+    stage_duration: 10
+    target_speed: 100
+    edge_dt: 0.2
+    search_dt: 2
+    latency: 0.0
+    jitter_std: 0.0
+    latency_distribution: hybrid
+    edge_sets_destination: false
+    uplink_packet_loss_pct: 0.0
+    downlink_packet_loss_pct: 0.0
+    mode: PREDICTION
+    manager_type: worldfusion_mamba_adaptive
+    tracker_cfg:
+      motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
+      filter_thresh: 0.05
+      new_track_thresh: 0.2
+      match_thresh: 0.95
+      max_time_lost: 60
+      enable_time_thresh: 1000000
+      max_window: 10
+      lost_match_dist_m: 8.0
+      coast_window: 40
+    worldfusion_model:
+      hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+      score_threshold: 0.2
+    predictor_type: mtr
+    mtr_predictor:
+      cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
+      checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth
+      cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml
+      intention_points_file: ecav/ml_manager/models/mtr_wf_mamba/multiv2x_cluster_64_center_dict.pkl
+      dataset: multiv2x
+      aggregator: None
+      past_frames: 10
+      future_frames: 25
+      time_interval: 0.2
+      history_subsample: 1
+      lane_map: auto
+      lane_range_m: 90.0
+      device: cuda
+      budget_ms: 50.0
+      enable_amortization: true
+      enable_risk_budget: true
+    adaptive_controller:
+      enabled: true
+      deadline_ms: 130.0
+    gt_detection_injection:
+      enabled: false
+      max_range_m: 50.0
+      exclude_managed: true
+      occlusion_check: true
+    world_anchor:
+    - 225.5
+    - -159.4
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    rsus:
+    - sensing:
+        perception:
+          activate: true
+          backend: worldfusion
+          worldfusion_model:
+            hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+          camera:
+            visualize: 0
+            num: 4
+            image_width: 800
+            image_height: 600
+            fov: 70
+            positions:
+            - - 2.5
+              - 0.0
+              - 1.0
+              - 0
+            - - 0.0
+              - 0.3
+              - 1.8
+              - 100
+            - - 0.0
+              - -0.3
+              - 1.8
+              - -100
+            - - -2.0
+              - 0.0
+              - 1.5
+              - 180
+          lidar:
+            visualize: false
+            channels: 64
+            range: 100
+            points_per_second: 1300000
+            rotation_frequency: 20
+            upper_fov: 0.0
+            lower_fov: -40.0
+            dropoff_general_rate: 0.1
+            dropoff_intensity_limit: 0.7
+            dropoff_zero_intensity: 0.15
+            noise_stddev: 0.02
+        localization:
+          activate: true
+          dt: 0.05
+          gnss:
+            noise_alt_stddev: 0.05
+            noise_lat_stddev: 3.0e-06
+            noise_lon_stddev: 3.0e-06
+      name: rsu_locale_branch_10
+      spawn_position:
+      - 225.5
+      - -159.4
+      - 3.0
+      id: -3
+    vehicles: []
+    locale:
+      id: locale_branch_10
+      polygon:
+      - - 216.5
+        - -161.4
+      - - 218.5
+        - -161.4
+      - - 228.5
+        - -161.4
+      - - 230.5
+        - -161.3
+      - - 234.5
+        - -161.3
+      - - 236.5
+        - -161.3
+      - - 250.5
+        - -161.2
+      - - 252.5
+        - -161.2
+      - - 254.5
+        - -161.2
+      - - 256.5
+        - -161.2
+      - - 264.5
+        - -161.2
+      - - 266.5
+        - -161.1
+      - - 270.5
+        - -161.1
+      - - 270.6
+        - -177.1
+      - - 266.6
+        - -177.1
+      - - 264.6
+        - -177.2
+      - - 256.6
+        - -177.2
+      - - 254.6
+        - -177.2
+      - - 252.6
+        - -177.2
+      - - 250.6
+        - -177.2
+      - - 236.6
+        - -177.3
+      - - 234.6
+        - -177.3
+      - - 230.6
+        - -177.3
+      - - 228.6
+        - -177.4
+      - - 218.6
+        - -177.4
+      - - 216.6
+        - -177.4
+      - - 210.6
+        - -177.5
+      - - 210.5
+        - -161.5
+      neighbors:
+      - locale_approach
+      conflict_point:
+      - 225.6
+      - -169.4
+      conflict_type: oncoming
+    member_vehicles:
+    - 1
+  - max_capacity: 10
+    inter_gap: 0.6
+    open_gap: 1.2
+    warm_up_speed: 55
+    change_leader_speed: false
+    leader_speeds_profile:
+    - 85
+    stage_duration: 10
+    target_speed: 100
+    edge_dt: 0.2
+    search_dt: 2
+    latency: 0.0
+    jitter_std: 0.0
+    latency_distribution: hybrid
+    edge_sets_destination: false
+    uplink_packet_loss_pct: 0.0
+    downlink_packet_loss_pct: 0.0
+    mode: PREDICTION
+    manager_type: worldfusion_mamba_adaptive
+    tracker_cfg:
+      motion_model_path: ecav/core/tracking/mamba3dmot/mamba3dmot_weights.pth
+      filter_thresh: 0.05
+      new_track_thresh: 0.2
+      match_thresh: 0.95
+      max_time_lost: 60
+      enable_time_thresh: 1000000
+      max_window: 10
+      lost_match_dist_m: 8.0
+      coast_window: 40
+    worldfusion_model:
+      hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+      score_threshold: 0.2
+    predictor_type: mtr
+    mtr_predictor:
+      cmp_root: ecav/core/application/v2v/baselines/cmp/CMP
+      checkpoint: ecav/ml_manager/models/mtr_wf_mamba/best_model.pth
+      cfg_yaml: ecav/core/prediction/mtr/tools/cfgs/multiv2x/multiv2x_multiego_worldfusion_no_agg_mamba.yaml
+      intention_points_file: ecav/ml_manager/models/mtr_wf_mamba/multiv2x_cluster_64_center_dict.pkl
+      dataset: multiv2x
+      aggregator: None
+      past_frames: 10
+      future_frames: 25
+      time_interval: 0.2
+      history_subsample: 1
+      lane_map: auto
+      lane_range_m: 90.0
+      device: cuda
+      budget_ms: 50.0
+      enable_amortization: true
+      enable_risk_budget: true
+    adaptive_controller:
+      enabled: true
+      deadline_ms: 130.0
+    gt_detection_injection:
+      enabled: false
+      max_range_m: 50.0
+      exclude_managed: true
+      occlusion_check: true
+    world_anchor:
+    - 212.7
+    - -195.3
+    - 0.0
+    - 0.0
+    - 0.0
+    - 0.0
+    rsus:
+    - sensing:
+        perception:
+          activate: true
+          backend: worldfusion
+          worldfusion_model:
+            hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/config.yaml
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_caronly_aug_thresh02/net_epoch39.pth
+          camera:
+            visualize: 0
+            num: 4
+            image_width: 800
+            image_height: 600
+            fov: 70
+            positions:
+            - - 2.5
+              - 0.0
+              - 1.0
+              - 0
+            - - 0.0
+              - 0.3
+              - 1.8
+              - 100
+            - - 0.0
+              - -0.3
+              - 1.8
+              - -100
+            - - -2.0
+              - 0.0
+              - 1.5
+              - 180
+          lidar:
+            visualize: false
+            channels: 64
+            range: 100
+            points_per_second: 1300000
+            rotation_frequency: 20
+            upper_fov: 0.0
+            lower_fov: -40.0
+            dropoff_general_rate: 0.1
+            dropoff_intensity_limit: 0.7
+            dropoff_zero_intensity: 0.15
+            noise_stddev: 0.02
+        localization:
+          activate: true
+          dt: 0.05
+          gnss:
+            noise_alt_stddev: 0.05
+            noise_lat_stddev: 3.0e-06
+            noise_lon_stddev: 3.0e-06
+      name: rsu_locale_branch_17
+      spawn_position:
+      - 212.7
+      - -195.3
+      - 3.0
+      id: -4
+    vehicles: []
+    locale:
+      id: locale_branch_17
+      polygon:
+      - - 210.4
+        - -182.3
+      - - 210.5
+        - -186.3
+      - - 210.5
+        - -188.3
+      - - 210.6
+        - -190.3
+      - - 210.7
+        - -194.3
+      - - 210.7
+        - -196.3
+      - - 210.8
+        - -198.3
+      - - 210.8
+        - -200.3
+      - - 210.8
+        - -202.3
+      - - 210.9
+        - -204.3
+      - - 210.9
+        - -206.3
+      - - 211.0
+        - -208.3
+      - - 211.0
+        - -210.3
+      - - 211.1
+        - -212.3
+      - - 211.1
+        - -214.3
+      - - 211.2
+        - -216.3
+      - - 211.2
+        - -218.3
+      - - 211.3
+        - -220.3
+      - - 211.3
+        - -222.3
+      - - 211.3
+        - -224.3
+      - - 211.4
+        - -226.3
+      - - 211.4
+        - -228.3
+      - - 211.5
+        - -230.3
+      - - 211.5
+        - -232.3
+      - - 211.6
+        - -234.3
+      - - 211.6
+        - -236.3
+      - - 211.7
+        - -240.3
+      - - 195.7
+        - -240.7
+      - - 195.6
+        - -236.7
+      - - 195.6
+        - -234.7
+      - - 195.5
+        - -232.7
+      - - 195.5
+        - -230.7
+      - - 195.4
+        - -228.7
+      - - 195.4
+        - -226.7
+      - - 195.4
+        - -224.7
+      - - 195.3
+        - -222.7
+      - - 195.3
+        - -220.7
+      - - 195.2
+        - -218.7
+      - - 195.2
+        - -216.7
+      - - 195.1
+        - -214.7
+      - - 195.1
+        - -212.7
+      - - 195.0
+        - -210.7
+      - - 195.0
+        - -208.7
+      - - 194.9
+        - -206.7
+      - - 194.9
+        - -204.7
+      - - 194.8
+        - -202.7
+      - - 194.8
+        - -200.7
+      - - 194.8
+        - -198.7
+      - - 194.7
+        - -196.7
+      - - 194.7
+        - -194.7
+      - - 194.6
+        - -190.7
+      - - 194.5
+        - -188.7
+      - - 194.5
+        - -186.7
+      - - 194.4
+        - -182.7
+      - - 194.3
+        - -180.7
+      - - 210.3
+        - -180.3
+      neighbors:
+      - locale_approach
+      conflict_point:
+      - 202.7
+      - -195.5
+      conflict_type: oncoming
+    member_vehicles:
+    - 2

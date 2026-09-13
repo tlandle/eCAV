@@ -1,6 +1,6 @@
 # Branching-Junction Harness Design (freeze-1p follow-on, NSDI experiment 1 of 4)
 
-Status: shape APPROVED by paper side 2026-09-12 with changes a-g applied below. Next: map survey, then scenario build.
+Status: shape APPROVED by paper side 2026-09-12 (changes a-g applied). Survey done, harness BUILT (scripts/branching, scripts/atlas_branch.sh, scripts/khonsu_branch_land.py), NOT yet run: the k3 smoke waits for a free host. See the final sites section at the end; it supersedes the earlier site paragraphs.
 
 ## Purpose
 
@@ -195,3 +195,95 @@ GPU: each edge loads its own WorldFusion model; a 2-edge cell uses ~8.2 GB of
 16 GB. k=3 (4 edges) is expected to fit; k=4 (5 edges) is measured at the k=3
 smoke and, if it does not fit, WorldFusion weights get a shared cache like the
 MTR one.
+
+## Final sites and build (2026-09-12 late, supersedes the site paragraphs above)
+
+Lane survey before building (OpenDRIVE lane sections + junction connection
+tables; the arm count alone was not enough):
+
+- The junction degree that matters is the number of destinations reachable
+  from the actor's own approach lane without a lane change. On a dual
+  carriageway the lane already tells the destination (inner lane: left or
+  straight; outer: right or straight), so Town05 j207 (all arms 2 lanes per
+  direction) is an effective k=2 from any one lane and was REJECTED for k3.
+  Same standard at k4 (paper side): Town03 j861 approached from road 3 (dual)
+  reaches {4,44,62} from the outer lane and {4,61} from the inner, never 4.
+- Sites: k2 Town01 j87 approach road 24 (109 m, single lane), branches 5
+  (70 m) and 6 (224 m). k3 Town04 j1452 approach road 18 (72 m, single lane,
+  curved), branches 9 (50 m), 10 (36 m), 17 (57 m), all single lane, 3
+  reachable from the one lane. k4 Town03 j861 approach road 62 (single lane,
+  37 m straight, reaches 3, 4, 44, 61 from its one lane: a genuine k=4). Road
+  62's run-in is preceded by a 90 degree turn at T-junction 1820; the actor
+  spawns 65 m back on road 20 (south feeder). At 12 m/s the 2 s history window
+  at a trigger 2.5 s before the mouth includes that turn; at 8 m/s (37 m =
+  4.6 s) it is straight. Proposal to the paper side: ONCOMING_SPEED=8 at every
+  site so k is the only thing that changes (8 is inside the T25 envelope).
+- Conflict per branch: blocker 19 m after the mouth in the inward lane,
+  recipient CAV 60 m behind the blocker along the lane (through the upstream
+  junction where the branch is shorter; the route planner brings it in),
+  conflict point 15 m after the mouth in the outward lane, RSU 10 m beside
+  the conflict point. Lane rules: two-way single lane = oncoming overtake
+  (k2, k3, k4 branch 61); two-way dual (k4 branches 3, 4) = oncoming overtake
+  with the outer inward lane also blocked; one-way outward (k4 branch 44) =
+  same-direction overtake (CAV and blocker in the outer lane, actor in the
+  inner). Conflict type only affects the binary collision outcome; readiness,
+  placement count and destination confidence are conflict-independent. k4
+  feeds every figure under the genuine-k=4 outcome of the paper side's check.
+- Polygons from the client-side carla.Map (OpenDRIVE string, no server, no
+  GPU): approach locale = 8 m half-width corridor along the inward lane from
+  the spawn to the mouth, union the padded convex hull of the arm mouths (the
+  exit test fires at the branch mouths after the turn); branch locale = 60 m
+  corridor along the outward lane (long enough for MTR mode endpoints at the
+  trigger tick). Adjacent locales overlap only in the 3 m hull pad.
+
+Files (scripts/branching, the scratchpad copies are the same bytes):
+build_sites.py -> branching_sites.json (polygons, placements, lanes, conflict
+points, route ends, per-site cav_destination); gen_branch_scenario.py ->
+scenario_1_branch_{k}.xml + openscenario_1_branch_{k}.yaml (all CAV configs
+under edge 0 `vehicles`, each edge lists `member_vehicles` by global index,
+`locale.neighbors`, `locale.conflict_point`, RSU ids unique, gt injection
+off); scenario_1_branch.py (actor routed by GlobalRoutePlanner to the taken
+branch's route end, released at start, k egos + blockers from the XML,
+CollisionTest per ego); runner_branch.py (copied per site as
+openscenario_1_branch_{k}.py: candidate set per source, per-arm fire set,
+prepares to every locale in the set, CONFROW per tick, READYROW / PLACEROW /
+HANDOFFROW with hash / FIREROW / ENTERROW / NPCROW / HEROROW); daemon_branch.py
+(cost.payload_hash = sha256 of the serialized bytes that cross the link);
+sim_api_branch.py (member_vehicles binding, behavior-preserving for every
+existing yaml). scripts/atlas_branch.sh runs the grid seed-major on the
+campaign lock with the freeze-1p predictor/tracker overlay (cap=1, perception
+active); scripts/khonsu_branch_land.py parses the rows and runs the checks.
+
+Arms as run (env): khonsu = warm + TRIGGER_MODE=mtr (theta 0.5, computed L);
+oracle = warm + oracle; velocity projection = warm + computed; top-1 = warm +
+mtr + MTR_TOP1=1 (same tick and L as khonsu, enforced in code: one gate, two
+selections); EdgeWarp = edgewarp_full; replicate-to-all = warm + computed +
+REPLICATE_ALL=1 (fire set = all candidates at the computed L gate).
+
+Lander checks (computed): payload byte identity where the tick is shared by
+construction (replicate-to-all's k prepares within a run; khonsu vs top-1
+across runs, plus identical trigger tick); the literal "hash identical across
+all six arms" cannot hold because arms fire at different ticks and the record
+carries the tracker state at the fire tick, so across those arms the check
+is record size plus scene identity (NPC polyline max deviation over common
+ticks, 1 m gate); route (actor entered BRANCH_TAKEN in every arm); oracle
+ready (else the conflict timeline is wrong). Confidence samples: CONFROW at
+the FIREROW tick and at T-2/1/0.5 s before ENTERROW; calibration = fraction
+argmax==taken per p_argmax bin.
+
+Smoke: `SMOKE=1 bash scripts/atlas_branch.sh` = k3, seed 1, arms oracle,
+khonsu, replicate (+ ONCOMING_SPEED=8 once the paper side confirms). Output
+to the paper side before any grid. GPU for 4 edges measured there.
+
+Paper-side decisions after the k4 check (2026-09-12 ~22:15): road 62 k4 is
+genuine and feeds every figure; ONCOMING_SPEED=8 at EVERY site (the degree
+sweep varies k only; mixing 12 and 8 would put T_avail back on the axis); if
+Oracle is not ~100% ready at 8 in the k3 smoke, tune the actor spawn distance
+first and move speed only if that fails, at all three sites together. Hash
+refinement accepted as proposed, plus one field on every prepare emit: the
+record's history depth (memo frame count; daemon `cost.history_depth`,
+`depth=` in [OBSTACLE_HANDOFF], the prepare line and HANDOFFROW). Lander
+rule: depth must equal the configured record depth (10, RECORD_DEPTH env) on
+every prepare or the run is flagged (an early trigger can ship a partial
+record; size equality cannot see it). scripts/atlas_branch.sh defaults to 8.
+

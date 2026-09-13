@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<scenarios>
+    <scenario name="Scenario_1" type="Scenario_1" town="Town03">
+        <ego_vehicle x="-85.11" y="-89.92" z="0.3" yaw="89.8" model="vehicle.nissan.patrol" />  <!-- recipient CAV, locale_branch_3 -->
+        <ego_vehicle x="-77.57" y="107.54" z="0.3" yaw="269.8" model="vehicle.nissan.patrol" />  <!-- recipient CAV, locale_branch_4 -->
+        <ego_vehicle x="-110.10" y="26.01" z="0.3" yaw="134.7" model="vehicle.nissan.patrol" />  <!-- recipient CAV, locale_branch_44 -->
+        <ego_vehicle x="-6.73" y="-37.43" z="0.3" yaw="94.9" model="vehicle.nissan.patrol" />  <!-- recipient CAV, locale_branch_61 -->
+        <other_actor x="-149.00" y="-20.35" z="-500" yaw="90.0" model="vehicle.nissan.seat.leon" />  <!-- NPC (scripted road user), hidden until released -->
+        <other_actor x="-84.95" y="-29.92" z="0.3" yaw="89.8" model="vehicle.carlamotors.carlacola" />  <!-- blocker, locale_branch_3 -->
+        <other_actor x="-88.45" y="-29.91" z="0.3" yaw="89.8" model="vehicle.carlamotors.carlacola" />  <!-- outer-lane blocker, locale_branch_3 -->
+        <other_actor x="-77.74" y="47.54" z="0.3" yaw="269.8" model="vehicle.carlamotors.carlacola" />  <!-- blocker, locale_branch_4 -->
+        <other_actor x="-74.24" y="47.53" z="0.3" yaw="269.8" model="vehicle.carlamotors.carlacola" />  <!-- outer-lane blocker, locale_branch_4 -->
+        <other_actor x="-118.54" y="34.54" z="0.3" yaw="134.7" model="vehicle.carlamotors.carlacola" />  <!-- blocker, locale_branch_44 -->
+        <other_actor x="-45.35" y="-2.85" z="0.3" yaw="-179.7" model="vehicle.carlamotors.carlacola" />  <!-- blocker, locale_branch_61 -->
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
+    </scenario>
+</scenarios>

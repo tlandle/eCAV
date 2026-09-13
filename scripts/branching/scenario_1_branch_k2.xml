@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<scenarios>
+    <scenario name="Scenario_1" type="Scenario_1" town="Town01">
+        <ego_vehicle x="-0.04" y="325.03" z="0.3" yaw="418.9" model="vehicle.nissan.patrol" />  <!-- recipient CAV, locale_branch_5 -->
+        <ego_vehicle x="180.62" y="326.60" z="0.3" yaw="180.0" model="vehicle.nissan.patrol" />  <!-- recipient CAV, locale_branch_6 -->
+        <other_actor x="88.41" y="251.33" z="-500" yaw="90.0" model="vehicle.nissan.seat.leon" />  <!-- NPC (scripted road user), hidden until released -->
+        <other_actor x="60.01" y="330.57" z="0.3" yaw="0.0" model="vehicle.carlamotors.carlacola" />  <!-- blocker, locale_branch_5 -->
+        <other_actor x="120.62" y="326.59" z="0.3" yaw="180.0" model="vehicle.carlamotors.carlacola" />  <!-- blocker, locale_branch_6 -->
+        <weather cloudiness="0" precipitation="0" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" />
+    </scenario>
+</scenarios>
