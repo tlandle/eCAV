@@ -354,3 +354,17 @@ active-track count, 0.2 s FCD, meta JSON labelled calibrated extrapolation);
 dry run on the cropped network in progress to validate the pipeline and the
 replay engine end to end (generator costs, flagged; not a result).
 
+FRESHNESS AXIS DECIDED (paper side, 2026-09-13 ~00:55): the figure's right
+axis is the fraction of consumptions within the age limit in the W = 10
+cycle (2 s) window after a locale crossing. W = 2 s on principle, not by
+fit: it is the window the paper already identifies as where destination
+state quality matters (about 2 s rebuilds the ten-frame predictor input,
+S1/S2.4; the branching conflicts sit about 2 s after entry). Stated in the
+caption. W = 5 and W = 15 cycles are CSV sensitivity columns, not on the
+figure. The pooled owner-cycle number (~0.98 for every arm) stays in the
+text beside the windowed one. The windowed measurement replaces the
+generator's stipulated within values and is not tuned to them. The
+corridor's within-limit numbers are per crossing for the same reason.
+Window widened to 3.0 km so L lands at 97 to 100 after netconvert's
+boundary drop; exact L printed.
+

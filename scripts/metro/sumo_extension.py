@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Step 3 of the metropolitan replay: SUMO traffic on the real Athens network
-cropped to the window that gives ~100 locales at 300 m, with demand scaled to
+cropped to the window that gives 97 to 100 locales at 300 m (3.0 km after netconvert's boundary drop; exact L printed), with demand scaled to
 the pNEUMA-measured density, exported as 0.2 s floating car data for
 metro_replay.py. Labelled calibrated extrapolation everywhere it is reported.
 
@@ -54,7 +54,7 @@ def run_sumo(net, trips_period, sim_s, seed, out_prefix, log, fcd_period=0.2):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--osm", required=True); ap.add_argument("--full_net", required=True)
-    ap.add_argument("--window_km", type=float, default=2.8); ap.add_argument("--target_active", type=float, required=True)
+    ap.add_argument("--window_km", type=float, default=3.0); ap.add_argument("--target_active", type=float, required=True)
     ap.add_argument("--sim_s", type=int, default=900); ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--out", default="ext"); ap.add_argument("--calib_s", type=int, default=300)
     a = ap.parse_args()

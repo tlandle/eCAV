@@ -12,7 +12,11 @@ fraction of consumptions, and bytes/s as a secondary column.
 Arms (paper 5.9): warm (Khonsu computed trigger), replall, delta_state,
 delta_ready, reactive. Definitions fixed by the paper side (design doc):
   age at use = t_c - t_o, within limit iff < tau (0.3 s; 0.4 s secondary);
-  one consumption per track per cycle at the owning locale;
+  FIGURE axis = consumptions within W = 10 cycles (2 s) after a locale crossing
+  (the window where destination state quality matters: ~2 s rebuilds the
+  ten-frame predictor input; branching conflicts sit ~2 s after entry);
+  pooled owner-cycle population kept for the text; W = 5 and 15 as CSV
+  sensitivity columns;
   p95 pooled over (locale, cycle); batching = one call per N records per
   cycle at the batch-N cost; the runtime's prediction call pattern with the
   agent-set cap (cap=1: fastest alone + the rest batched) is charged.
@@ -143,7 +147,7 @@ def run(args):
                 # ---- consumption at the owner
                 age = CYCLE if (forecast_ready_at is not None and k >= forecast_ready_at) else (k - owner_since + 1) * CYCLE + CYCLE
                 consume.append(age)
-                if prev_owner_exists and k - owner_since < args.postcross_w: consume_pc.append(age)
+                if prev_owner_exists and k - owner_since < 15: consume_pc.append((age, k - owner_since))   # (age, cycles since crossing)
                 # ---- replication policy (destination-side work for non-owners)
                 near = dbs[j] <= nb_m
                 if arm == "warm":
@@ -187,14 +191,19 @@ def run(args):
         for (loc, k), ms in load.items():
             if 0 <= loc < L and 0 <= k < ncyc: pooled[loc * ncyc + k] = ms
         per_loc_max = max((ms for ms in load.values()), default=0.0)
-        ages = np.array(consume); ages_pc = np.array(consume_pc)
+        ages = np.array(consume); pc = np.array(consume_pc).reshape(-1, 2)
+        def within_w(w): 
+            sel = pc[pc[:, 1] < w, 0] if len(pc) else pc
+            return (float((sel < tau).mean()) if len(sel) else None, int(len(sel)))
+        w5, w10, w15 = within_w(5), within_w(args.postcross_w), within_w(15)
+        ages_pc = pc[pc[:, 1] < args.postcross_w, 0] if len(pc) else pc
         bytes_per_s = sum(byts.values()) / (ncyc * CYCLE) / max(L, 1)
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
                         "within_limit_frac": float((ages < tau).mean()) if len(ages) else None,
                         "within_limit_frac_400": float((ages < 0.4).mean()) if len(ages) else None,
-                        "within_limit_postcross_frac": float((ages_pc < tau).mean()) if len(ages_pc) else None,
-                        "postcross_consumptions": int(len(ages_pc)), "postcross_w_cycles": args.postcross_w,
+                        "within_limit_postcross_frac": w10[0], "postcross_consumptions": w10[1], "postcross_w_cycles": args.postcross_w,
+                        "within_limit_postcross_w5": w5[0], "within_limit_postcross_w15": w15[0],   # sensitivity columns (CSV only, not the figure)
                         "consumptions": int(len(ages)), "imports": int(sum(imp.values())), "deltas": int(sum(dlt.values())), "predict_replicas": int(sum(prd.values())),
                         "bytes_per_s_per_locale": bytes_per_s}
         r = results[arm]
