@@ -89,22 +89,54 @@ def bench_delta(tracker_dst, N, reps):
         ms.append((_now() - t0) * 1e3)
     return ms, len(pickle.dumps(msg, protocol=pickle.HIGHEST_PROTOCOL))
 
-def bench_predict(N, reps, edge_cfg_yaml):
-    """MTR call on N mature tracks through the overlay predictor (GPU)."""
-    import torch, yaml
+def build_predictor(edge_cfg_yaml, world_dt=0.05):
+    """Construct the overlay MTREdgePredictor exactly as the edge manager does
+    (campaign yaml mtr_predictor block), with the budget/adaptation off so
+    _run_mtr runs exactly the N tracks handed to it."""
     from omegaconf import OmegaConf
     from ecav.core.prediction.mtr_edge_predictor import MTREdgePredictor
     cfg = OmegaConf.load(edge_cfg_yaml)
-    mp = cfg.scenario.edge_list[0].mtr_predictor
-    pred = MTREdgePredictor(OmegaConf.to_container(mp, resolve=True))
-    # the predictor's batched entry point on a synthetic selected set
+    mp = OmegaConf.to_container(cfg.scenario.edge_list[0].mtr_predictor, resolve=True)
+    return MTREdgePredictor(
+        cmp_root=mp.get('cmp_root'), mtr_checkpoint=mp.get('checkpoint'), cfg_yaml=mp.get('cfg_yaml'),
+        intention_points_file=mp.get('intention_points_file'), dataset=mp.get('dataset', 'opv2v'),
+        aggregator=mp.get('aggregator'), past_frames=mp.get('past_frames', 10), future_frames=mp.get('future_frames', 50),
+        time_interval=mp.get('time_interval', 0.1), history_subsample=mp.get('history_subsample', 1),
+        device=mp.get('device', 'cuda'), num_output_steps=mp.get('num_output_steps', 100), output_dt=world_dt,
+        lane_map=(mp.get('lane_map') if mp.get('lane_map') != 'auto' else None),
+        budget_ms=1000.0, enable_amortization=False, enable_risk_budget=False, ego_vehicles=[])
+
+def make_trajectories(pred, N, seed=0, frames=40, dt=0.05, speed=12.0):
+    """N mature ObstacleTrajectory inputs as the edge builds them: a deque of
+    Transforms (newest first), obstacle with kf_speed_mps; 12 m/s along +x with
+    lateral spread, 0.05 s ticks (the runtime cadence)."""
+    from collections import deque
+    from ecav.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+    from ecav.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
+    from ecav.ecav_carla import Location, Rotation, Transform
+    rng = np.random.default_rng(seed); out = {}
+    for i in range(N):
+        x0, y0 = rng.uniform(-100, 100), rng.uniform(-40, 40)
+        obs = ObstacleVehicle(corners=np.zeros((8, 3)), o3d_bbx=None, track_id=100 + i, tick_id=0)
+        obs.kf_speed_mps = speed; obs.kf_vx = speed; obs.kf_vy = 0.0; obs.carla_id = 5000 + i
+        ot = ObstacleTrajectory(obs, deque(maxlen=frames))
+        for k in range(frames):   # oldest first, appendleft -> newest at index 0
+            ot.trajectory.appendleft(Transform(location=Location(x=x0 + speed * dt * k, y=y0, z=0.5), rotation=Rotation(yaw=0.0)))
+        out[100 + i] = ot
+    return out
+
+def bench_predict(N, reps, edge_cfg_yaml, pred=None):
+    """The MTR call on N mature tracks through the overlay predictor's _run_mtr
+    (GPU); one warm-up call excluded."""
+    import torch
+    pred = pred or build_predictor(edge_cfg_yaml)
+    tracks = make_trajectories(pred, N, seed=0)
+    pred._run_mtr(tracks, 100, 100); torch.cuda.synchronize()
     ms = []
     for r in range(reps):
-        selected = pred._synthetic_selected(N, seed=r) if hasattr(pred, "_synthetic_selected") else None
-        if selected is None:
-            raise SystemExit("predictor has no synthetic-selection helper; use the campaign [MTRTIME] rows instead")
+        tracks = make_trajectories(pred, N, seed=r + 1)
         torch.cuda.synchronize(); t0 = _now()
-        pred._run_mtr(selected, 100, 100)
+        pred._run_mtr(tracks, 100 + r, 100 + r)
         torch.cuda.synchronize(); ms.append((_now() - t0) * 1e3)
     return ms
 
@@ -136,9 +168,9 @@ def main():
             fx, pr = fit(batches, [rows[N]["median_ms"] for N in batches])
             res["ops"][op] = {"rows": rows, "fit_fixed_ms": fx, "fit_per_record_ms": pr}
     if "predict" in ops:
-        rows = {}
+        rows = {}; pred = build_predictor(a.edge_yaml)
         for N in batches:
-            ms = bench_predict(N, a.reps, a.edge_yaml)
+            ms = bench_predict(N, a.reps, a.edge_yaml, pred=pred)
             rows[N] = {"median_ms": float(np.median(ms)), "p10_ms": float(np.percentile(ms, 10)), "p90_ms": float(np.percentile(ms, 90)), "per_record_ms": float(np.median(ms) / N)}
             print(f"predict N={N:2d}: median {rows[N]['median_ms']:.2f} ms", flush=True)
         fx, pr = fit(batches, [rows[N]["median_ms"] for N in batches])
