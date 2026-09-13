@@ -275,3 +275,17 @@ KEEP, in order:
    generator's so the calibration is shown.
 4. compare_measured.py against frozengen_metro_rows.csv.
 
+Step 2 detail (2026-09-12 late, paper side agreed): delta-apply = deserialize
+of the keyed update + the tracklet's own observation update on the replica
+(appendix C's "applying a keyed update to one replica"); no separate
+replication path exists in the runner and none is claimed. Device: the
+campaign runtime places the Mamba tracker on cuda:0 (wrapper default when
+available; edge manager passes 'cuda') and the predictor on cuda, so create,
+delta and predict are measured TOGETHER after the campaign, in one process,
+with the tracker and predictor constructed as the edge manager constructs
+them, from mb_wt (freeze base 71c9f37e + the freeze-1p overlay). Harness:
+scripts/metro/microbench_ops.py; runner scripts/metro/run_microbench.sh
+(refuses to run while a simulation or CARLA is alive or load > 4). The
+device and host load are recorded beside the curve. Survey and district
+scripts: scripts/metro/pneuma_survey.py, district_survey.py.
+
