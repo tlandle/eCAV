@@ -29,7 +29,7 @@ for T in 200 400 800 1600 3200 $TOP; do
     F=$(ls "$OUT"/ext_L*_t${T}_s${SEED}.fcd.xml 2>/dev/null | head -1)
   fi
   [ -n "$F" ] || { echo "[ext-sweep] no trace for target $T"; continue; }
-  NET=$(ls "$OUT"/athens_w${WIN}.net.xml)
+  NET=$(ls "$OUT"/athens_w*.net.xml | head -1)
   for rule in "none:0" "single:92" "deployed:92"; do r=${rule%%:*}; b=${rule##*:}
     O="$OUT/replay_$(basename "$F" .fcd.xml)_${r}.json"; [ -f "$O" ] && continue
     python metro_replay.py --trace "$F" --net "$NET" --out "$O" --costs "$COSTS" --charge marginal --admit_budget_ms $b --admit_rule $( [ "$r" = none ] && echo single || echo $r ) 2>&1 | grep -E "^partition|^N_owned|^(warm|replall|delta|reactive)" | cut -c1-200
