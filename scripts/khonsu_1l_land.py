@@ -641,6 +641,19 @@ def _min_top2_fde(modes_at_h, truth):
     return min(errs), top
 
 
+def _check_provenance(rows, logdir):
+    """Hard fail when the in-log eval tag family (freeze-1p, -1n, ...) does not
+    match the output-directory family (frozen_1p_*, frozen_1n_*): pooling by
+    tag must never silently mix configurations."""
+    m = re.search(r"frozen_(1[a-z])", os.path.basename(os.path.abspath(logdir)))
+    if not m:
+        return
+    fam = m.group(1)
+    bad = [r for r in rows if fam not in str(r.get("eval_tag", ""))]
+    if bad:
+        raise SystemExit(f"PROVENANCE MISMATCH: {len(bad)} rows from {logdir} carry an eval_tag without '{fam}' "
+                         f"(e.g. {bad[0].get('tag')} -> {bad[0].get('eval_tag')}); refusing to write")
+
 def run_fde(args):
     """frozen1l_fde_rows.csv: per run, FDE = min of the two highest-scoring
     modes' final displacement at the horizon, mean over the first five
@@ -719,9 +732,10 @@ def run_fde(args):
             "window_anchor": anchor_kind,
             "collision_partner_resolved": kad.resolve_collision_partner(
                 d, kad.identify_ego_cid(d)),
-            "eval_tag": args.tag,
+            "eval_tag": _eval_tag(_read(path), args.tag),   # from the in-log [EVAL] tag; args.tag is only the fallback
             "machine": args.machine,
         })
+    _check_provenance(rows, args.logdir)
     _write(rows, FDE_COLS, args.out)
     if not rows:
         print("no 6-mode ([MODESROW]) logs matched (subset not run yet)",
@@ -776,7 +790,7 @@ def run_topmode(args):
             "tag": stem, "arm": arm, "seed": m.group("rep"),
             "completed": completed, "collided": collided,
             "forecast_blocks": nb, "frozen_blocks": nf,
-            "eval_tag": args.tag,
+            "eval_tag": _eval_tag(_read(path), args.tag),   # from the in-log [EVAL] tag; args.tag is only the fallback
         })
     _write(rows, TOPMODE_COLS, args.out)
     return rows
@@ -1158,7 +1172,7 @@ def run_faults(args):
             # (double_emission_ms); the source-gate's delivery-coast collapse is
             # measured via [PUBGATE_SRC] in the corridor lander.
             "both_emit_window_ms": de,
-            "eval_tag": args.tag,
+            "eval_tag": _eval_tag(text, args.tag),   # from the in-log [EVAL] tag; args.tag is only the fallback
         })
     _write(rows, FAULTS_COLS, args.out)
     return rows
