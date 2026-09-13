@@ -10,6 +10,7 @@ SP=/tmp/claude-1000/-home-atlas-TrafficSimulator-eCloud-ecloudsim-distributed-sa
 OUT=$MAIN/evaluation_outputs/metro/ext; mkdir -p "$OUT"
 COSTS=$MAIN/evaluation_outputs/metro_microbench/microbench_merged_v2.json
 source /home/atlas/anaconda3/etc/profile.d/conda.sh && conda activate metro_env
+export PYTHONHASHSEED=0   # partition iteration is sorted (deterministic); the seed is pinned as well and recorded in the JSON
 export SUMO_HOME=$CONDA_PREFIX/lib/python3.10/site-packages/sumo; export PATH=$SUMO_HOME/bin:$PATH
 cd "$SP/metro" || exit 1
 SEED=${SEED:-1}; WIN=${WIN:-3.0}

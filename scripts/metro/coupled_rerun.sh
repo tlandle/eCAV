@@ -10,6 +10,7 @@ OUT=$MAIN/evaluation_outputs/metro; EXT=$OUT/ext
 COSTS=$MAIN/evaluation_outputs/metro_microbench/microbench_merged_v2.json
 PN=/home/atlas/datasets/pneuma/extract/pNEUMA_dataset/20181024_dX_0900_0930.csv; PNET=$SP/metro/athens_pneuma_pad50.net.xml
 source /home/atlas/anaconda3/etc/profile.d/conda.sh && conda activate metro_env
+export PYTHONHASHSEED=0   # partition iteration is sorted (deterministic); the seed is pinned as well and recorded in the JSON
 export SUMO_HOME=$CONDA_PREFIX/lib/python3.10/site-packages/sumo; export PATH=$SUMO_HOME/bin:$PATH
 cd "$MAIN/scripts/metro" || exit 1
 JOBS=$OUT/coupled_rerun_jobs.txt; : > "$JOBS"

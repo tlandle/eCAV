@@ -387,6 +387,7 @@ def run(args):
            "tile_m": args.tile, "L": L, "boundaries": len(b_pts), "boundaries_observed": len(seen_b), "degree_topological": deg_topo, "degree_used": deg_used, "nbr_mode": args.nbr_mode,
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
            "cost_source": costs.source, "cost_meta": costs.meta, "charging_curve": "monotone envelope (cumulative max) of the measured medians", "cap": args.cap, "pad_isolated": args.pad_isolated,
+           "python_hash_seed": os.environ.get("PYTHONHASHSEED"), "partition_deterministic": True,
            "freshness_coupling": {"rule": "deployed rate fallback (WorldFusionAdaptiveEdge.run_step 168-176, 213-222): per-locale p95 over the last 20 executed passes of pre_pred + owned pass + induced load vs deadline -> rate_k 1/2/4/5/10 (<= 1x/2x/4x/5x/else); one pass per rate_k cycles; coupled age = max(mechanism age, (cycle - last executed pass + 1) x 0.2 s); induced work at skipped cycles not deferred",
                                   "pre_pred_ms": args.pre_pred_ms, "deadline_ms": args.deadline_ms,
                                   "owned_pass_model": ("single batch predict(K_admit) (the K-capacity row's own model)" if (args.admit_rule == "single" and K_ADMIT is not None) else "cap pattern predict(2) + predict(N-1) on the admitted tracks"),

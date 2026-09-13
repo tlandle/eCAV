@@ -97,16 +97,23 @@ def partition(net, step_m=2.0):
         key = frozenset((a, b))
         if key not in seg or e.getLength() > seg[key][2]:
             seg[key] = (a, b, e.getLength(), [tuple(p) for p in e.getShape()])
-    # chain merge: absorb non-anchor nodes with exactly two road segments
+    # chain merge: absorb non-anchor nodes with exactly two road segments.
+    # Every iteration below is SORTED: frozenset keys and sets of frozensets
+    # iterate in string-hash order otherwise, which differs per process under
+    # hash randomisation and changed which chains merged first, the sample-point
+    # order (cKDTree tie-breaking) and the boundary order (measured: two
+    # PYTHONHASHSEED values gave different road orders and label arrays and
+    # replay loads differing by 0.2 points; 2026-09-13).
+    _ks = lambda k: tuple(sorted(k))
     adj = defaultdict(set)
-    for key in seg:
-        a, b = tuple(key); adj[a].add(key); adj[b].add(key)
+    for key in sorted(seg, key=_ks):
+        a, b = sorted(key); adj[a].add(key); adj[b].add(key)
     changed = True
     while changed:
         changed = False
-        for nid in list(adj):
+        for nid in sorted(adj):
             if nid in anchors or len(adj[nid]) != 2: continue
-            k1, k2 = list(adj[nid])
+            k1, k2 = sorted(adj[nid], key=_ks)
             if k1 == k2 or k1 not in seg or k2 not in seg: continue
             a1, b1, l1, s1 = seg[k1]; a2, b2, l2, s2 = seg[k2]
             o1 = a1 if b1 == nid else b1; o2 = a2 if b2 == nid else b2
@@ -120,7 +127,7 @@ def partition(net, step_m=2.0):
                 adj[o].discard(k1); adj[o].discard(k2); adj[o].add(newkey)
             adj[nid].clear(); changed = True
     X, Y, LAB = [], [], []; roads = {}
-    for key, (a, b, L, shape) in seg.items():
+    for key, (a, b, L, shape) in sorted(seg.items(), key=lambda kv: _ks(kv[0])):
         if a not in anchors and b not in anchors: continue
         sh = np.array(shape, dtype=float)
         d = np.r_[0.0, np.cumsum(np.hypot(np.diff(sh[:, 0]), np.diff(sh[:, 1])))]
@@ -220,7 +227,12 @@ def main():
                 labs25 = np.where(d25 <= OFFNET, lab_of_pt[i25], -1); v25 = labs25 >= 0
                 tc25 += int(v25.sum()); cross25 += int(((labs25[1:] != labs25[:-1]) & v25[1:] & v25[:-1]).sum())
             sec5 = tc5 * CYCLE_S; sec25 = tc25 * 0.04
-            stats[cls_name] = {"track_cycles": tc5, "crossings_5hz": cross5, "crossing_rate_per_track_s_5hz": (cross5 / sec5) if sec5 else None,
+            adj_obs = defaultdict(set)
+            for j in b_seen:
+                ga, gb = b_pair[j]; adj_obs[ga].add(gb); adj_obs[gb].add(ga)
+            deg_obs = [len(v) for v in adj_obs.values()]
+            stats[cls_name] = {"neighbour_degree_observed_boundaries": float(np.mean(deg_obs)) if deg_obs else None,
+                               "track_cycles": tc5, "crossings_5hz": cross5, "crossing_rate_per_track_s_5hz": (cross5 / sec5) if sec5 else None,
                                "crossings_25hz": cross25, "crossing_rate_per_track_s_25hz": (cross25 / sec25) if sec25 else None,
                                "near_boundary_frac": {str(r): (nb[r] / tc5 if tc5 else None) for r in nb},
                                "boundaries_observed_frac": (len(b_seen) / len(b_pts)) if b_pts else None,
@@ -229,7 +241,7 @@ def main():
         stats["generator"] = {"crossing_rate_per_track_s": 0.013, "near_boundary_frac": 0.22}
         out["levels"][f"tile{tile}"] = stats
         tr_ = stats["tracked"]
-        print(f"tile={tile} m: L={L_count} boundaries={len(b_pts)} degree={stats['neighbour_degree_mean']:.2f} (gen {stats['generator_degree_at_L']:.2f}) | tracked: crossing/track/s 5Hz {tr_['crossing_rate_per_track_s_5hz']:.4f} 25Hz {tr_['crossing_rate_per_track_s_25hz']:.4f} (gen 0.013) near20/30/50 {tr_['near_boundary_frac']['20']:.3f}/{tr_['near_boundary_frac']['30']:.3f}/{tr_['near_boundary_frac']['50']:.3f} (gen 0.22) observed {tr_['boundaries_observed_frac']:.2f}", flush=True)
+        print(f"tile={tile} m: L={L_count} boundaries={len(b_pts)} degree={stats['neighbour_degree_mean']:.2f} (gen {stats['generator_degree_at_L']:.2f}) | tracked: crossing/track/s 5Hz {tr_['crossing_rate_per_track_s_5hz']:.4f} 25Hz {tr_['crossing_rate_per_track_s_25hz']:.4f} (gen 0.013) near20/30/50 {tr_['near_boundary_frac']['20']:.3f}/{tr_['near_boundary_frac']['30']:.3f}/{tr_['near_boundary_frac']['50']:.3f} (gen 0.22) observed {tr_['boundaries_observed_frac']:.2f} degree(observed boundaries) {tr_['neighbour_degree_observed_boundaries']:.2f}", flush=True)
     json.dump(out, open(a.out, "w"), indent=1)
     print(f"active tracks/cycle median {out['active_tracks_per_cycle']['median']:.0f} p95 {out['active_tracks_per_cycle']['p95']:.0f}; veh/lane-km {out['vehicles_per_lane_km_median']:.2f}; written {a.out} in {time.time()-t0:.0f}s")
 

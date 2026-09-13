@@ -5,6 +5,7 @@
 MAIN=/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox; OUT=$MAIN/evaluation_outputs/metro
 COSTS=$MAIN/evaluation_outputs/metro_microbench/microbench_merged_v2.json
 source /home/atlas/anaconda3/etc/profile.d/conda.sh && conda activate metro_env
+export PYTHONHASHSEED=0   # partition iteration is sorted (deterministic); the seed is pinned as well and recorded in the JSON
 export SUMO_HOME=$CONDA_PREFIX/lib/python3.10/site-packages/sumo; export PATH=$SUMO_HOME/bin:$PATH
 cd "$MAIN/scripts/metro" || exit 1
 JOBS=$OUT/coupled_rerun_single_jobs.txt; awk '$4 != "0" && $5 == "single"' "$OUT/coupled_rerun_jobs.txt" > "$JOBS"
