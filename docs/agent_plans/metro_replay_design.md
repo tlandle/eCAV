@@ -1,6 +1,6 @@
 # Metropolitan Replay Design (NSDI experiment 2 of 4)
 
-Status: DRAFT v2, 2026-09-12. Spec from the paper side (fig:metro, Figure 14
+Status: DRAFT v3, 2026-09-12 (the four definitions below resolved by the paper side; district and the measured batch curves still open). Spec from the paper side (fig:metro, Figure 14
 in 5.9, and appendix C batch-cost microbenchmark). v1's bytes-per-second
 currency was wrong: the paper's claim is that the cost separating Khonsu
 from replication is destination PREDICTION processing, not bandwidth. Open
@@ -122,3 +122,50 @@ the district), cv_destination_by_degree.csv, checks.txt.
   Town03 reproduction check; (2) SUMO demand and FCD export; (3) engine;
   (4) lander; (5) smoke at the smallest sweep point (16 locales, 200
   tracks), all five arms, output to the paper side before the sweep.
+
+## Definitions resolved by the paper side (2026-09-12 late)
+
+The generator STIPULATES two of the four (freshness and p95 are constants
+with noise, not computed), so the replay's choice becomes the paper's; the
+paper side writes that up when the data lands.
+
+1. Freshness. Age at use Delta_use = t_c - t_o (paper 5.1): t_o the timestamp
+   of the newest observation the forecast used, t_c the cycle it is consumed;
+   within limit iff Delta_use < tau. tau = 300 ms (the tighter measured limit,
+   acceleration; 400 ms overtake carried as a secondary column). Population:
+   one consumption per owning-locale-cycle per tracked road user (no CAV
+   consumers are modelled; stated in the output). Per arm: warm, replall and
+   delta_ready produce a forecast every cycle at every locale holding the
+   track (owner or replica), so age = cycle length + import/refresh latency;
+   delta_state produces no forecast at a replica before the crossing and the
+   first destination forecast lands one prediction cycle after it, so the
+   consumptions in that window are late by construction (the generator's
+   0.79 encodes state-ready, not forecast-ready); reactive has nothing at the
+   destination until crossing + transfer + import.
+2. Locale sweep. fig_metro plots both panels at 100 locales only; the
+   {16, 36, 64} rows are CSV-only and mean the SAME district partitioned
+   coarser (one fixed area cut into L locales, track count held), never
+   nested sub-windows. The figure needs the 100-locale partition; coarser
+   partitions are optional CSV rows.
+3. p95. Over all (locale, cycle) pairs POOLED at a given track count (the
+   hot-locale tail the generator's docstring names); per-locale max as a
+   secondary column.
+4. Batch curves. The appendix C numbers are generated placeholders
+   (total_ms = FIXED + PER x batch; FIXED create 0.9, delta 0.25, predict
+   8.0; PER create 3.1, delta 0.15, predict 2.5; batches {1,2,4,8,16,32}).
+   figure_rules pins only the ordering (create per record > predict per
+   record > delta). STEP 1 of experiment 2 is therefore a MEASURED
+   microbenchmark of the three operations at batches 1 to 32 on the real
+   paths: record import (export + serialize + deserialize + import on the
+   tracker), delta apply (newest observation onto an installed replica), and
+   prediction (the MTR call; batch 1 already anchored by the campaign's
+   36 ms per call on atlas). Import and delta are CPU paths; the prediction
+   sweep needs the GPU and waits for the campaign to finish. The replay
+   charges the measured curve and reports the generator's fits beside it;
+   a non-linear predict curve is a finding, not a defect.
+
+Build order update: (0) microbenchmark harness (import/delta now on CPU,
+predict after the campaign); (1) district partition at 100 locales; (2)
+SUMO demand and FCD; (3) engine; (4) lander; (5) smoke at 200 tracks, five
+arms; output to the paper side before the sweep.
+
