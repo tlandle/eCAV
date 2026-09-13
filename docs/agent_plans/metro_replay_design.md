@@ -290,3 +290,21 @@ device and host load are recorded beside the curve. Survey and district
 scripts: scripts/metro/pneuma_survey.py, district_survey.py.
 
 Step 3 RELEASED (Tyler confirmed option (a), 2026-09-12 late): Athens OSM network extended to ~9 km2 so the Q7 partition gives 100 locales at 300 m, SUMO demand scaled from the pNEUMA-measured vehicles per lane-km so active tracks reach 3200, five arms charged with the measured appendix C curves; the extension's own crossing rate, near-boundary fraction and neighbour degree reported beside pNEUMA's and the generator's. Order: step 1 (pNEUMA slot) -> step 2 (microbench after the campaign) -> step 3 -> compare_measured.py vs frozengen_metro_rows.csv.
+
+Partition implementation (2026-09-12 late): ONE function for steps 1 and 3,
+the Q7 rule on a SUMO network built by netconvert from the OSM extract
+(--geometry.remove so way splits are not nodes; --junctions.join 20 m so a
+dual-carriageway crossing is one anchor; roads merged across pass-through
+nodes; boundary at each inter-anchor road midpoint; fixed-size tiling of
+anchors for the 300 m locales). scripts/metro/pneuma_survey.py. Checks run
+before any pNEUMA data: (a) invalidation 4, Town03 through netconvert's
+OpenDRIVE import: 41 inter-anchor roads (Q7 committed 40), median
+separation 21.1 m (Q7 21-25 m), 25 anchors vs Q7's 31 because the 20 m
+junction join merges Town03's paired dual-carriageway junction nodes (see
+the no-join rerun in the KB); (b) pipeline test on the Midtown Atlanta
+extract (no trajectories, not the district): 3 x 3 km, 425 anchors, 669
+roads, separation median 50.7 m; at the 300 m tiling L = 97 locales with
+mean neighbour degree 3.33 against the generator's 2.6 + 0.4 ln(97/16 + 1)
+= 3.38. A 3 x 3 km area at 300 m gives the figure's 100 locales, and the
+generator's degree law is what fixed-size tiling produces on a real grid.
+

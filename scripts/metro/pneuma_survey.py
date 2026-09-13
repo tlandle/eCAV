@@ -1,37 +1,41 @@
 #!/usr/bin/env python3
-"""pNEUMA district survey for the metropolitan replay (experiment 2).
+"""pNEUMA calibration survey for the metropolitan replay (experiment 2, step 1).
 
-Input: one pNEUMA CSV (all drones, one date, one 30 min slot). Steps:
-  1. parse trajectories, subsample to the 0.2 s edge-cycle grid (5 Hz); keep the
-     25 Hz samples for the one-time cadence comparison
-  2. bbox -> Athens OSM extract (surface streets, cached) -> carla.Osm2Odr ->
-     OpenDRIVE (cached) -> client-side carla.Map; georeference from the xodr
-     <geoReference> proj string via pyproj; CARLA frame y = -y_proj
-  3. alignment check: distance of trajectory points to the nearest driving
-     waypoint (median, p90) - the frame is wrong if the median is not metres
-  4. Q7 partition: one locale per junction anchor, boundary at each
-     inter-junction road midpoint; coarser levels by FIXED-SIZE tiling of the
-     anchors (locale size held, count follows the area: the paper's sweep)
-  5. statistics per partition level: active tracks per cycle (median, p95) by
-     class; crossings per track per second at 5 Hz (and 25 Hz once);
-     near-boundary fraction at 20/30/50 m; neighbour degree; per-boundary
-     crossings per minute and observation coverage; vehicles per lane-km
-Usage: pneuma_survey.py <csv> <out_json> [--tiles 0,300,200,400]  (0 = per-junction)
-Env: metro_env (carla, pyproj, scipy, shapely).
+ONE partition implementation for step 1 (pNEUMA) and step 3 (the SUMO
+extension): the Q7 rule on a SUMO network built by netconvert from the Athens
+OSM extract (locales anchored on junction nodes, boundaries at inter-junction
+road midpoints, coarser levels by fixed-size tiling of the anchors so the
+locale SIZE is what is held). The same implementation is run on CARLA's Town03
+(netconvert --opendrive-files) to reproduce the committed Q7 numbers
+(invalidation condition 4).
+
+Steps
+  1. parse one pNEUMA CSV (all drones, one date, one 30 min slot); bbox
+  2. OSM extract of the bbox (surface streets + links, cached) -> netconvert
+     (--geometry.remove --junctions.join) -> athens.net.xml (cached)
+  3. partition on the net; lane-km from edge length x lane count
+  4. lat/lon -> net x/y (net projection); 5 Hz cycle grid BEFORE counting; the
+     25 Hz crossing rate reported once beside it
+  5. statistics: instantaneous active tracks per cycle (median, p95),
+     vehicles per lane-km, crossings per track per second, near-boundary
+     fraction at 20/30/50 m, neighbour degree, per-boundary crossings per
+     minute and observation coverage; cars+taxis+buses+trucks tracked,
+     motorcycles separate
+Usage: pneuma_survey.py <csv> <out_json> [--tile 300] [--work DIR]
+Env: metro_env with SUMO_HOME set (netconvert on PATH, sumolib).
 """
-import argparse, json, math, os, re, sys, time, urllib.request, urllib.parse
+import argparse, json, math, os, subprocess, sys, time, urllib.request, urllib.parse
 from collections import defaultdict
 import numpy as np
-import carla
 from scipy.spatial import cKDTree
-from pyproj import Transformer
+import sumolib
 
 TRACKED = {"Car", "Taxi", "Bus", "Medium Vehicle", "Heavy Vehicle"}
 TWO_WHEEL = {"Motorcycle"}
 CYCLE_S = 0.2
 
+# ----------------------------------------------------------------- pNEUMA
 def parse_pneuma(path, max_rows=None):
-    """Yield (track_id, vtype, t[], lat[], lon[], speed[]) at native 25 Hz."""
     tracks = []
     with open(path, encoding="utf-8", errors="replace") as f:
         header = f.readline()
@@ -48,11 +52,11 @@ def parse_pneuma(path, max_rows=None):
     return header, tracks
 
 def subsample_to_grid(t, cols, dt=CYCLE_S):
-    """Keep the sample nearest to each multiple of dt (one per cycle)."""
     k = np.round(t / dt).astype(np.int64)
     keep = np.r_[True, k[1:] != k[:-1]]
     return k[keep], [c[keep] for c in cols]
 
+# ----------------------------------------------------------------- network
 def fetch_osm(bbox, path):
     if os.path.exists(path): return
     S, W, N, E = bbox
@@ -65,91 +69,90 @@ out body;'''
                                 headers={"User-Agent": "ecav-metro-survey"}), timeout=300) as r:
         open(path, "wb").write(r.read())
 
-def osm_to_xodr(osm_path, xodr_path):
-    if os.path.exists(xodr_path): return open(xodr_path).read()
-    st = carla.Osm2OdrSettings(); st.use_offsets = False; st.center_map = False
-    st.generate_traffic_lights = False; st.default_lane_width = 3.5
-    xodr = carla.Osm2Odr.convert(open(osm_path, encoding="utf-8").read(), st)
-    open(xodr_path, "w").write(xodr); return xodr
+def build_net(osm_path, net_path, log_path):
+    """netconvert with geometry-node removal and junction joining so a
+    dual-carriageway crossing is one junction node and a way split is none."""
+    if os.path.exists(net_path): return
+    cmd = ["netconvert", "--osm-files", osm_path, "-o", net_path, "--geometry.remove", "--junctions.join",
+           "--junctions.join-dist", "20", "--roundabouts.guess", "--ramps.guess", "--remove-edges.isolated",
+           "--keep-edges.by-vclass", "passenger", "--no-turnarounds", "--proj.utm"]
+    with open(log_path, "w") as lg:
+        subprocess.run(cmd, check=True, stdout=lg, stderr=subprocess.STDOUT)
 
-def build_partition(m):
-    """Return dict with waypoint arrays, per-waypoint junction-locale label,
-    anchors, roads (rid -> (jA, jB, midpoint xy)), lane_km."""
-    wps = m.generate_waypoints(2.0)
-    junc_center = {}
-    lane_pts = defaultdict(list)   # (road, lane) -> [wp]
-    for wp in wps:
-        if wp.is_junction:
-            j = wp.get_junction()
-            if j is not None and j.id not in junc_center:
-                bb = j.bounding_box.location; junc_center[j.id] = (bb.x, bb.y)
-        else:
-            lane_pts[(wp.road_id, wp.lane_id)].append(wp)
-    # lane-km over all driving lanes (2 m spacing)
-    lane_km = sum(2.0 * max(0, len(v) - 1) for v in lane_pts.values()) / 1000.0
-    # representative lane per road for the road graph
-    roads = {}
-    for (rid, lid), pts in lane_pts.items():
-        if rid not in roads or abs(lid) < abs(roads[rid][0]): roads[rid] = (lid, pts)
-    def end_junction(wp, forward):
-        nb = wp.next(3.0) if forward else wp.previous(3.0)
-        for w in nb:
-            if w.is_junction:
-                j = w.get_junction()
-                if j is not None: return j.id
-        return None
-    road_info = {}
-    for rid, (lid, pts) in roads.items():
-        # order along s
-        pts = sorted(pts, key=lambda w: w.s)
-        ja, jb = end_junction(pts[0], False), end_junction(pts[-1], True)
-        if lid > 0:   # left lanes travel against s; ends swap
-            ja, jb = jb, ja
-        road_info[rid] = (ja, jb, pts)
-    # label every waypoint (all lanes) by the road-half rule
-    X, Y, LAB = [], [], []
-    for (rid, lid), pts in lane_pts.items():
-        ja, jb, _ = road_info[rid]
-        if ja is None and jb is None: continue
-        pts = sorted(pts, key=lambda w: w.s)
-        s_mid = 0.5 * (pts[0].s + pts[-1].s)
-        for wp in pts:
-            lab = (ja if wp.s <= s_mid else jb) if (ja is not None and jb is not None) else (ja if ja is not None else jb)
-            X.append(wp.transform.location.x); Y.append(wp.transform.location.y); LAB.append(lab)
-    for wp in wps:
-        if wp.is_junction:
-            j = wp.get_junction()
-            if j is None: continue
-            X.append(wp.transform.location.x); Y.append(wp.transform.location.y); LAB.append(j.id)
-    boundaries = {}   # rid -> (ja, jb, (x, y))
-    for rid, (ja, jb, pts) in road_info.items():
-        if ja is None or jb is None or ja == jb: continue
-        mid = pts[len(pts) // 2].transform.location
-        boundaries[rid] = (ja, jb, (mid.x, mid.y))
-    return dict(X=np.array(X), Y=np.array(Y), LAB=np.array(LAB), anchors=junc_center,
-                boundaries=boundaries, lane_km=lane_km, n_wp=len(wps))
+def partition(net, step_m=2.0):
+    """Q7 rule on a SUMO net. Returns points (x, y, anchor label), anchors
+    {node_id: (x, y)}, roads {key: (A, B, mid_xy, length)}, lane_km."""
+    nodes = {n.getID(): n for n in net.getNodes()}
+    def neighbours(n):
+        out = set()
+        for e in n.getIncoming(): out.add(e.getFromNode().getID())
+        for e in n.getOutgoing(): out.add(e.getToNode().getID())
+        out.discard(n.getID()); return out
+    anchors = {nid: n.getCoord() for nid, n in nodes.items() if n.getType() != "dead_end" and len(neighbours(n)) >= 3}
+    lane_km = 0.0; seg = {}
+    for e in net.getEdges(withInternal=False):
+        a, b = e.getFromNode().getID(), e.getToNode().getID()
+        lane_km += e.getLength() * e.getLaneNumber() / 1000.0
+        key = frozenset((a, b))
+        if key not in seg or e.getLength() > seg[key][2]:
+            seg[key] = (a, b, e.getLength(), [tuple(p) for p in e.getShape()])
+    # chain merge: absorb non-anchor nodes with exactly two road segments
+    adj = defaultdict(set)
+    for key in seg:
+        a, b = tuple(key); adj[a].add(key); adj[b].add(key)
+    changed = True
+    while changed:
+        changed = False
+        for nid in list(adj):
+            if nid in anchors or len(adj[nid]) != 2: continue
+            k1, k2 = list(adj[nid])
+            if k1 == k2 or k1 not in seg or k2 not in seg: continue
+            a1, b1, l1, s1 = seg[k1]; a2, b2, l2, s2 = seg[k2]
+            o1 = a1 if b1 == nid else b1; o2 = a2 if b2 == nid else b2
+            if o1 == o2 or o1 == nid or o2 == nid: continue
+            s1 = s1 if b1 == nid else s1[::-1]; s2 = s2 if a2 == nid else s2[::-1]
+            newkey = frozenset((o1, o2))
+            if newkey in seg: continue
+            seg[newkey] = (o1, o2, l1 + l2, s1 + s2[1:])
+            del seg[k1]; del seg[k2]
+            for o in (o1, o2):
+                adj[o].discard(k1); adj[o].discard(k2); adj[o].add(newkey)
+            adj[nid].clear(); changed = True
+    X, Y, LAB = [], [], []; roads = {}
+    for key, (a, b, L, shape) in seg.items():
+        if a not in anchors and b not in anchors: continue
+        sh = np.array(shape, dtype=float)
+        d = np.r_[0.0, np.cumsum(np.hypot(np.diff(sh[:, 0]), np.diff(sh[:, 1])))]
+        total = d[-1] if d[-1] > 0 else L
+        ss = np.arange(0.0, total + 1e-6, step_m)
+        xs = np.interp(ss, d, sh[:, 0]); ys = np.interp(ss, d, sh[:, 1])
+        for s_, x_, y_ in zip(ss, xs, ys):
+            near_a = s_ <= total / 2.0
+            lab = (a if near_a else b) if (a in anchors and b in anchors) else (a if a in anchors else b)
+            X.append(x_); Y.append(y_); LAB.append(lab)
+        if a in anchors and b in anchors and a != b:
+            mx, my = np.interp(total / 2.0, d, sh[:, 0]), np.interp(total / 2.0, d, sh[:, 1])
+            roads[key] = (a, b, (float(mx), float(my)), float(total))
+    return dict(X=np.array(X), Y=np.array(Y), LAB=np.array(LAB), anchors=anchors, roads=roads, lane_km=lane_km,
+                n_nodes=len(nodes), n_edges=len(net.getEdges(withInternal=False)))
 
-def group_anchors(anchors, tile_m):
-    """Fixed-size tiling: every junction anchor belongs to the tile_m x tile_m
-    square containing it; a locale is the union of the junction locales whose
-    anchors share a tile, so boundaries stay at inter-junction road midpoints
-    (Q7 rule) and the locale SIZE is what is held, not the count."""
+def tile_anchors(anchors, tile_m):
     ids = sorted(anchors)
     if tile_m <= 0: return {i: k for k, i in enumerate(ids)}
     x0 = min(anchors[i][0] for i in ids); y0 = min(anchors[i][1] for i in ids)
     tiles = {}
     for i in ids:
-        key = (int((anchors[i][0] - x0) // tile_m), int((anchors[i][1] - y0) // tile_m))
-        tiles.setdefault(key, len(tiles))
+        key = (int((anchors[i][0] - x0) // tile_m), int((anchors[i][1] - y0) // tile_m)); tiles.setdefault(key, len(tiles))
     return {i: tiles[(int((anchors[i][0] - x0) // tile_m), int((anchors[i][1] - y0) // tile_m))] for i in ids}
 
+# ----------------------------------------------------------------- main
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("csv"); ap.add_argument("out")
-    ap.add_argument("--tiles", default="300", help="fixed tile size in m (the paper's locale size); 0 = per-junction, not used")
+    ap.add_argument("--tile", type=int, default=300, help="locale size in m (fixed-size tiling of anchors)")
     ap.add_argument("--work", default=os.path.dirname(os.path.abspath(__file__)))
-    ap.add_argument("--max_rows", type=int, default=None)
-    ap.add_argument("--pad_deg", type=float, default=0.002)
+    ap.add_argument("--max_rows", type=int, default=None); ap.add_argument("--pad_deg", type=float, default=0.002)
+    ap.add_argument("--osm", default=None, help="existing OSM extract (default: fetch for the data bbox)")
     a = ap.parse_args()
     t0 = time.time()
     header, tracks = parse_pneuma(a.csv, a.max_rows)
@@ -158,72 +161,62 @@ def main():
     lats = np.concatenate([tr[3] for tr in tracks]); lons = np.concatenate([tr[4] for tr in tracks])
     bbox = (float(lats.min()) - a.pad_deg, float(lons.min()) - a.pad_deg, float(lats.max()) + a.pad_deg, float(lons.max()) + a.pad_deg)
     print(f"parsed {len(tracks)} tracks in {time.time()-t0:.0f}s; types {dict(types)}; bbox {bbox}", flush=True)
-    osm_path = f"{a.work}/athens.osm"; xodr_path = f"{a.work}/athens.xodr"
-    fetch_osm(bbox, osm_path); xodr = osm_to_xodr(osm_path, xodr_path)
-    m = carla.Map("athens", xodr)
-    proj = re.search(r"<geoReference><!\[CDATA\[(.*?)\]\]></geoReference>", xodr, re.S)
-    proj_str = proj.group(1).strip() if proj else "+proj=tmerc +lat_0=%f +lon_0=%f +k=1 +x_0=0 +y_0=0 +datum=WGS84 +units=m +no_defs" % ((bbox[0]+bbox[2])/2, (bbox[1]+bbox[3])/2)
-    tf = Transformer.from_crs("EPSG:4326", proj_str, always_xy=True)
-    print(f"map ready in {time.time()-t0:.0f}s; proj: {proj_str[:80]}", flush=True)
-    P = build_partition(m)
-    tree = cKDTree(np.c_[P["X"], P["Y"]])
-    print(f"partition: {len(P['anchors'])} junction anchors, {len(P['boundaries'])} boundaries, lane_km {P['lane_km']:.1f}, labelled wps {len(P['LAB'])}", flush=True)
-    # trajectories -> CARLA frame at 5 Hz (and 25 Hz for the cadence check)
-    T5, T25 = [], []
-    d_all = []
+    osm_path = a.osm or f"{a.work}/athens_pneuma.osm"; net_path = osm_path[:-4] + ".net.xml"
+    fetch_osm(bbox, osm_path); build_net(osm_path, net_path, net_path + ".netconvert.log")
+    net = sumolib.net.readNet(net_path, withInternal=False)
+    P = partition(net); tree = cKDTree(np.c_[P["X"], P["Y"]])
+    print(f"net: {P['n_nodes']} nodes, {P['n_edges']} edges, {len(P['anchors'])} junction anchors, {len(P['roads'])} inter-anchor roads, lane_km {P['lane_km']:.1f}, points {len(P['LAB'])} ({time.time()-t0:.0f}s)", flush=True)
+    seps = np.array([r[3] / 2.0 for r in P["roads"].values()])
+    T5, T25, d_all = [], [], []
     for tid, vt, t, lat, lon, spd in tracks:
-        x, y = tf.transform(lon, lat); y = -np.asarray(y); x = np.asarray(x)
-        d, idx = tree.query(np.c_[x, y]); d_all.append(d)
+        xy = np.array([net.convertLonLat2XY(lo, la) for lo, la in zip(lon, lat)], dtype=float)
+        d, idx = tree.query(xy); d_all.append(d)
         k25 = np.round(t / 0.04).astype(np.int64)
-        k5, (x5, y5, d5, i5) = subsample_to_grid(t, [x, y, d, idx])
+        k5, (x5, y5, d5, i5) = subsample_to_grid(t, [xy[:, 0], xy[:, 1], d, idx])
         T5.append((tid, vt, k5, x5, y5, d5, i5)); T25.append((tid, vt, k25, d, idx))
     d_all = np.concatenate(d_all)
     align = {"median_m": float(np.median(d_all)), "p90_m": float(np.percentile(d_all, 90)), "frac_within_10m": float((d_all <= 10).mean())}
-    print(f"alignment to nearest waypoint: {align}", flush=True)
+    print(f"alignment to the nearest road point: {align}", flush=True)
     OFFNET = 15.0
-    tiles = [int(v) for v in a.tiles.split(",")]
-    nJ = len(P["anchors"])
     out = {"csv": os.path.basename(a.csv), "n_tracks": len(tracks), "types": dict(types), "bbox": bbox, "alignment": align,
-           "junction_anchors": nJ, "boundaries_junction_level": len(P["boundaries"]), "lane_km": P["lane_km"], "levels": {}}
-    # active tracks per cycle (tracked classes), independent of the level
+           "net": {"nodes": P["n_nodes"], "edges": P["n_edges"], "junction_anchors": len(P["anchors"]), "inter_anchor_roads": len(P["roads"]),
+                   "separation_median_m": float(np.median(seps)) if len(seps) else None, "lane_km": P["lane_km"]},
+           "cadence": {"cycle_s": CYCLE_S, "native_s": 0.04}, "levels": {}}
     act = defaultdict(int)
     for tid, vt, k5, x5, y5, d5, i5 in T5:
         if vt not in TRACKED: continue
         for k, d in zip(k5, d5):
             if d <= OFFNET: act[int(k)] += 1
     actv = np.array(sorted(act.values()))
-    out["active_tracks_per_cycle"] = {"median": float(np.median(actv)), "p95": float(np.percentile(actv, 95)), "max": int(actv.max()), "cycles": len(actv)}
+    out["active_tracks_per_cycle"] = {"median": float(np.median(actv)), "p95": float(np.percentile(actv, 95)), "max": int(actv.max()), "cycles": len(actv), "session_s": len(actv) * CYCLE_S}
     out["vehicles_per_lane_km_median"] = float(np.median(actv) / P["lane_km"]) if P["lane_km"] > 0 else None
-    for tile in tiles:
-        grp = group_anchors(P["anchors"], tile)
-        lab_of_wp = np.array([grp.get(l, -1) for l in P["LAB"]])
-        # boundaries at this level: road midpoints whose end anchors fall in different groups
+    for tile in (a.tile,):
+        grp = tile_anchors(P["anchors"], tile)
+        lab_of_pt = np.array([grp.get(l, -1) for l in P["LAB"]])
         b_pts, b_pair = [], []
-        for rid, (ja, jb, xy) in P["boundaries"].items():
+        for key, (ja, jb, xy, L) in P["roads"].items():
             if grp.get(ja) != grp.get(jb): b_pts.append(xy); b_pair.append((grp.get(ja), grp.get(jb)))
         b_tree = cKDTree(np.array(b_pts)) if b_pts else None
         adj = defaultdict(set)
         for ga, gb in b_pair: adj[ga].add(gb); adj[gb].add(ga)
         deg = [len(v) for v in adj.values()]
-        stats = {"tile_m": tile, "L": int(len(set(grp.values()))), "boundaries": len(b_pts), "neighbour_degree_mean": float(np.mean(deg)) if deg else 0.0,
-                 "locale_area_km2_mean": None}
+        L_count = len(set(grp.values()))
+        stats = {"tile_m": tile, "L": L_count, "boundaries": len(b_pts), "neighbour_degree_mean": float(np.mean(deg)) if deg else 0.0,
+                 "generator_degree_at_L": 2.6 + 0.4 * math.log(L_count / 16.0 + 1.0)}
         for cls_name, cls in (("tracked", TRACKED), ("two_wheel", TWO_WHEEL)):
-            cross5 = 0; tc5 = 0; nb = {20: 0, 30: 0, 50: 0}; cross25 = 0; tc25 = 0
+            cross5 = tc5 = cross25 = tc25 = 0; nb = {20: 0, 30: 0, 50: 0}
             b_cross = defaultdict(int); b_seen = set()
             for (tid, vt, k5, x5, y5, d5, i5), (_, _, k25, d25, i25) in zip(T5, T25):
                 if vt not in cls: continue
-                on = d5 <= OFFNET
-                labs = np.where(on, lab_of_wp[i5], -1)
-                valid = labs >= 0
+                labs = np.where(d5 <= OFFNET, lab_of_pt[i5], -1); valid = labs >= 0
                 tc5 += int(valid.sum())
-                ch = (labs[1:] != labs[:-1]) & valid[1:] & valid[:-1]
-                cross5 += int(ch.sum())
+                ch = (labs[1:] != labs[:-1]) & valid[1:] & valid[:-1]; cross5 += int(ch.sum())
                 if b_tree is not None and valid.any():
                     db, ib = b_tree.query(np.c_[x5[valid], y5[valid]])
                     for r in nb: nb[r] += int((db <= r).sum())
-                    for j in set(ib[db <= 30].tolist()): b_seen.add(j)
+                    b_seen.update(set(ib[db <= 30].tolist()))
                     for j in ib[np.r_[False, ch][valid]].tolist(): b_cross[j] += 1
-                labs25 = np.where(d25 <= OFFNET, lab_of_wp[i25], -1); v25 = labs25 >= 0
+                labs25 = np.where(d25 <= OFFNET, lab_of_pt[i25], -1); v25 = labs25 >= 0
                 tc25 += int(v25.sum()); cross25 += int(((labs25[1:] != labs25[:-1]) & v25[1:] & v25[:-1]).sum())
             sec5 = tc5 * CYCLE_S; sec25 = tc25 * 0.04
             stats[cls_name] = {"track_cycles": tc5, "crossings_5hz": cross5, "crossing_rate_per_track_s_5hz": (cross5 / sec5) if sec5 else None,
@@ -232,10 +225,12 @@ def main():
                                "boundaries_observed_frac": (len(b_seen) / len(b_pts)) if b_pts else None,
                                "boundaries_with_crossings_frac": (len(b_cross) / len(b_pts)) if b_pts else None,
                                "crossings_per_boundary_per_min_median": float(np.median([c / (len(actv) * CYCLE_S / 60.0) for c in b_cross.values()])) if b_cross else 0.0}
+        stats["generator"] = {"crossing_rate_per_track_s": 0.013, "near_boundary_frac": 0.22}
         out["levels"][f"tile{tile}"] = stats
-        print(f"tile={tile} L={stats['L']}: boundaries {stats['boundaries']} degree {stats['neighbour_degree_mean']:.2f} | tracked crossing/track/s 5Hz {stats['tracked']['crossing_rate_per_track_s_5hz']:.4f} 25Hz {stats['tracked']['crossing_rate_per_track_s_25hz']:.4f} near30 {stats['tracked']['near_boundary_frac']['30']:.3f} observed {stats['tracked']['boundaries_observed_frac']:.2f}", flush=True)
+        tr_ = stats["tracked"]
+        print(f"tile={tile} m: L={L_count} boundaries={len(b_pts)} degree={stats['neighbour_degree_mean']:.2f} (gen {stats['generator_degree_at_L']:.2f}) | tracked: crossing/track/s 5Hz {tr_['crossing_rate_per_track_s_5hz']:.4f} 25Hz {tr_['crossing_rate_per_track_s_25hz']:.4f} (gen 0.013) near20/30/50 {tr_['near_boundary_frac']['20']:.3f}/{tr_['near_boundary_frac']['30']:.3f}/{tr_['near_boundary_frac']['50']:.3f} (gen 0.22) observed {tr_['boundaries_observed_frac']:.2f}", flush=True)
     json.dump(out, open(a.out, "w"), indent=1)
-    print(f"written {a.out} in {time.time()-t0:.0f}s")
+    print(f"active tracks/cycle median {out['active_tracks_per_cycle']['median']:.0f} p95 {out['active_tracks_per_cycle']['p95']:.0f}; veh/lane-km {out['vehicles_per_lane_km_median']:.2f}; written {a.out} in {time.time()-t0:.0f}s")
 
 if __name__ == "__main__":
     main()
