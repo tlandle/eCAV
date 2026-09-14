@@ -43,12 +43,12 @@ BOUNDS=${BOUNDS:-"220 235 250 262 275 277 280 282"}   # + sub-second points (Fig
 MOTIONS=${MOTIONS:-"constant maneuvering"}
 # maneuvering motion = the accel panel's operating point; ONCOMING_ACCEL_ONSET must be
 # given (the probed onset), the run refuses a maneuvering motion without it.
-# Default onset 245 = the accel panel's measured cell (4 of the 5 landed maneuvering
-# logs; 235 in one). The KB records that at the landed conflict position the onset
-# knob alone could not reach the decision window; here the BOUNDARY sets T_avail, so
-# the onset only shapes the road user's motion. Confirm the operating point with the
-# paper side before the maneuvering pass.
-MANEUVER_ENV=${MANEUVER_ENV:-"ONCOMING_CRUISE=5 ONCOMING_ACCEL=2 ONCOMING_VCAP=16 ONCOMING_ACCEL_ONSET=245"}
+# MANEUVER_ENV has NO default (paper side ruling 2026-09-13): the maneuvering pass
+# must use exactly the operating point the t25 maneuvering rerun uses under 1q (the
+# figure collapses both sweeps onto one curve); pass it explicitly, e.g.
+# MANEUVER_ENV="ONCOMING_CRUISE=5 ONCOMING_ACCEL=2 ONCOMING_VCAP=16 ONCOMING_ACCEL_ONSET=<x>"
+# and record it in docs/agent_plans/t25_boundary_extension_design.md.
+MANEUVER_ENV=${MANEUVER_ENV:-}
 [ -n "$PRED_OVERLAY" ] || { echo "ABORT: PRED_OVERLAY unset (the block runs only under the verified 1q predictor)"; exit 1; }
 ONC=${ONCOMING_SPEED:-12}
 # WIDTHS="w1,w0" holds both locale widths fixed and translates the partition, so
@@ -140,7 +140,7 @@ for s in $SEEDS; do for b in $BOUNDS; do
   CURB=$b; set_boundary "$b"
   for motion in $MOTIONS; do
     if [ "$motion" = maneuvering ]; then
-      echo "$MANEUVER_ENV" | grep -q "ONCOMING_ACCEL_ONSET=" || { echo "ABORT: maneuvering motion needs ONCOMING_ACCEL_ONSET in MANEUVER_ENV (the probed onset)"; exit 1; }
+      [ -n "$MANEUVER_ENV" ] && echo "$MANEUVER_ENV" | grep -q "ONCOMING_ACCEL=" || { echo "ABORT: maneuvering motion needs MANEUVER_ENV = the t25 maneuvering rerun's operating point (no default by ruling)"; exit 1; }
       SCEN=openscenario_1_accel_gt; PFX=bndm; MENV="$MANEUVER_ENV"
     else SCEN=openscenario_1_flow_gt; PFX=bnd; MENV=""; fi
     for md in $ARMS; do

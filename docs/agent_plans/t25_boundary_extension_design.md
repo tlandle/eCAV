@@ -71,3 +71,26 @@ hysteresis, confirmed by the smoke.
 
 Fix-shape ruling (1q) -> smoke (warm, b = 250 and b = 282, one seed, both
 motions) sent to the paper side -> grid with the t25 rerun.
+
+## Maneuvering operating point (ruling 2026-09-13, late)
+
+The maneuvering pass uses exactly the operating point the t25 maneuvering
+rerun uses under 1q, because the figure's rule collapses both sweeps onto one
+curve (a boundary-moved point must sit inside the Wilson interval of the
+nearest speed-sweep point for the same motion and arm). The harness therefore
+carries no default MANEUVER_ENV and refuses a maneuvering pass without one.
+Record of what the host holds: the Sep 10 maneuvering probes
+(frozen_1m_{maneuver_smoke,accremap,accelrecheck,lowaccel,accelmag}) used spawn
+shifts (ONCOMING_SHIFT_X -10 to -70) with ONCOMING_ACCEL 1.5 to 6 and cap 16
+and no explicit onset; the explicit-onset launch lines (245 in four logs, 235
+in one) belong to the onset probe, which the KB declares void. Whichever point
+the t25 rerun adopts (the panel point cruise 5 / accel 2 / cap 16 / onset 245,
+or the endogenous-onset branch with the onset placed about 0.5 s before the
+crossing) is written here when ruled, so the 5.2.2 caption can name it.
+Arithmetic the ruling should see: at cruise 5 m/s the road user reaches the
+conflict from the crossing edge in (288 - b) / 5 s, so the maneuvering motion's
+T_avail at b = 282 is about 1.2 s, not 0.5; sub-second maneuvering points need
+b >= 284 under the 286 guard (crossing edge 4 m before the conflict), or an
+onset that has the road user already accelerating at the crossing. The
+constant pass needs nothing further.
+
