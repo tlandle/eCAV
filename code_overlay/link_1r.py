@@ -1,0 +1,155 @@
+# -*- coding: utf-8 -*-
+# License: TDG-Attribution-NonCommercial-NoDistrib
+
+"""InterLocaleLink: simulated cost model for edge-to-edge state transfer.
+
+Returns a TransferCost record that models the time to serialize, transmit,
+and deserialize a MigrationPayload between two edges.
+
+Decoupling invariant: this module is pure measurement. It never delays,
+blocks, or gates the instant mechanism (store-pull + import). The daemon
+records the TransferCost independently of the actual handoff.
+
+Serialization cost is modeled from payload byte size and a configured
+throughput rate — never from perf_counter around the real pickle call,
+which would conflate simulator-host performance with the simulated
+measurement.
+
+Network cost is sampled from a LatencyModel. For Phase 1 the caller
+typically passes the source edge's existing latency_model. Phase 2 will
+substitute a per-link model derived from simulated edge geometry (e.g.
+ns3_lut_sampler).
+"""
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+from ecav.core.application.edge.latency.latency_model import LatencyModel, create_latency_model
+from ecav.core.application.edge.migration.payload import MigrationPayload
+
+if TYPE_CHECKING:
+    from ecav.core.application.edge.edge_manager.edge_manager_base import _BaseEdgeManager
+
+logger = logging.getLogger(__name__)
+
+# Default: ~100 MB/s effective throughput (serialize overhead per byte)
+_DEFAULT_SERIALIZE_RATE_MS_PER_BYTE: float = 1e-5
+
+
+@dataclass
+class TransferCost:
+    """Simulated cost record for one edge-to-edge vehicle-state transfer.
+
+    Recorded by the daemon after each handoff; never fed back into the
+    mechanism path.
+    """
+    vehicle_id: int
+    src_edge_id: str
+    dst_edge_id: str
+    tick: int
+    payload_bytes: int
+    sim_serialize_ms: float   # cost to serialize at source (and symmetric deserialize at dst)
+    sim_network_ms: float     # one-way simulated network latency
+    total_ms: float           # sim_serialize_ms + sim_network_ms + sim_serialize_ms
+
+
+class InterLocaleLink:
+    """Models the simulated transfer cost between two locales.
+
+    Parameters
+    ----------
+    latency_model:
+        Drives the simulated network hop. For Phase 1 pass the source
+        edge's ``latency_model`` directly. Phase 2 will substitute a
+        geometry-parameterized per-link model.
+    serialize_rate_ms_per_byte:
+        Simulated serialization throughput in ms/byte. Default 1e-5
+        (≈100 MB/s). Tune via scenario config to explore sensitivity.
+    """
+
+    def __init__(
+        self,
+        latency_model: LatencyModel,
+        serialize_rate_ms_per_byte: float = _DEFAULT_SERIALIZE_RATE_MS_PER_BYTE,
+    ):
+        self._latency_model = latency_model
+        self._rate = serialize_rate_ms_per_byte
+        # Inter-locale transfer is WIRED backhaul between edge servers, NOT
+        # the C-V2X radio. Sampling latency_model here was the wrong medium
+        # (accounting + computed-EMA only; mechanism never delayed). Wired
+        # model: base + payload/bandwidth + queueing (0.5 x service).
+        import os as _osw
+        self._wired = _osw.environ.get('TRANSFER_MEDIUM', 'wired') == 'wired'
+        # 5G-MOBIX D5.2 v3.0 Table 30 (CS_14 inter-MEC, fibre 100km):
+        # one-way network latency ~3 ms, stdev ~0.5 ms, zero loss (TCP).
+        self._backhaul_base_ms = float(_osw.environ.get('BACKHAUL_BASE_MS', 3.0))
+        self._backhaul_jitter_ms = float(
+            _osw.environ.get('BACKHAUL_JITTER_MS', 0.5))
+        self._backhaul_bw_mbps = float(
+            _osw.environ.get('BACKHAUL_BW_MBPS', 1000.0))
+
+    @classmethod
+    def from_cfg(
+        cls,
+        cfg: dict,
+        dt: float,
+        serialize_rate_ms_per_byte: float = _DEFAULT_SERIALIZE_RATE_MS_PER_BYTE,
+    ) -> "InterLocaleLink":
+        """Convenience factory: build from an edge YAML config block."""
+        return cls(create_latency_model(cfg, dt), serialize_rate_ms_per_byte)
+
+    def model_transfer(
+        self,
+        payload: MigrationPayload,
+        src_edge: "_BaseEdgeManager",
+        dst_edge: "_BaseEdgeManager",
+        tick: int,
+    ) -> TransferCost:
+        """Return a TransferCost for moving payload from src_edge to dst_edge.
+
+        Pure model — no I/O, no state mutation, does not gate the handoff.
+        """
+        n_bytes = payload.payload_bytes()
+        # freeze-1r state-depth block: charge every arm the SAME modelled transfer
+        # delay (XFER_CHARGE_BYTES = the full record's declared bytes) so a smaller
+        # record earns no timing advantage; the recorded payload_bytes stays the
+        # real size (the lander's kb column). Unset -> the real size (unchanged).
+        import os as _os_l
+        _charge = int(_os_l.environ.get('XFER_CHARGE_BYTES', '0') or 0)
+        n_real = n_bytes
+        if _charge > 0:
+            n_bytes = _charge
+        sim_serialize_ms = n_bytes * self._rate
+        if self._wired:
+            _service_ms = (n_bytes * 8.0 / (self._backhaul_bw_mbps * 1e6)) \
+                * 1000.0
+            import random as _rnd
+            _jit = _rnd.gauss(0.0, self._backhaul_jitter_ms) \
+                if self._backhaul_jitter_ms > 0 else 0.0
+            sim_network_ms = max(0.5, self._backhaul_base_ms + _jit) \
+                + _service_ms + 0.5 * _service_ms  # 5G-MOBIX + tx + queue
+        else:
+            sim_network_ms = self._latency_model.sample_ms()
+        total_ms = sim_serialize_ms + sim_network_ms + sim_serialize_ms
+
+        vid = payload.tracks[0].persistent_vehicle_id if payload.tracks else -1
+
+        cost = TransferCost(
+            vehicle_id=vid,
+            src_edge_id=src_edge.edgeid,
+            dst_edge_id=dst_edge.edgeid,
+            tick=tick,
+            payload_bytes=n_real,
+            sim_serialize_ms=sim_serialize_ms,
+            sim_network_ms=sim_network_ms,
+            total_ms=total_ms,
+        )
+        logger.debug(
+            "model_transfer: vid=%d %s->%s tick=%d bytes=%d "
+            "serialize=%.4fms network=%.4fms total=%.4fms",
+            vid, src_edge.edgeid, dst_edge.edgeid, tick, n_bytes,
+            sim_serialize_ms, sim_network_ms, total_ms,
+        )
+        return cost
