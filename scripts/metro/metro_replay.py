@@ -128,6 +128,17 @@ def run(args):
         crop_meta = {"tile_window": [kx0, ky0, kx1, ky1], "tiles_in_window": (kx1 - kx0 + 1) * (ky1 - ky0 + 1), "locales_kept": len(keep)}
     lab_of_pt = np.array([grp.get(l, -1) for l in P["LAB"]])
     L = len(set(v for v in grp.values() if v >= 0))
+    # tile coordinates per locale (for window selection and interior reporting)
+    _ids = sorted(P["anchors"]); _x0 = min(P["anchors"][i][0] for i in _ids); _y0 = min(P["anchors"][i][1] for i in _ids)
+    locale_tile = {}
+    for i in _ids:
+        g = grp.get(i, -1)
+        if g >= 0 and g not in locale_tile: locale_tile[g] = (int((P["anchors"][i][0] - _x0) // args.tile), int((P["anchors"][i][1] - _y0) // args.tile))
+    interior = None
+    if crop_meta is not None:
+        kx0, ky0, kx1, ky1 = crop_meta["tile_window"]
+        interior = sorted(g for g, (tx, ty) in locale_tile.items() if kx0 < tx < kx1 and ky0 < ty < ky1)
+        crop_meta["interior_locales"] = len(interior)
     # boundaries + neighbours per locale
     b_pts, b_loc = [], []; nbrs = defaultdict(set)
     for key, (ja, jb, xy, ln) in P["roads"].items():
@@ -187,10 +198,14 @@ def run(args):
     trace_stats = {"crossing_rate_per_track_s_5hz": (_cross / (_tc * CYCLE)) if _tc else None,
                    "near_boundary_frac": {str(r): (_nb[r] / _tc if _tc else None) for r in _nb},
                    "active_tracks_p50": float(np.median(_actv)), "active_tracks_p95": float(np.percentile(_actv, 95)),
-                   "vehicles_per_lane_km": float(np.median(_actv) / P["lane_km"]) if P["lane_km"] > 0 else None, "lane_km": P["lane_km"],
+                   "vehicles_per_lane_km": (float(np.median(_actv) / P["lane_km"]) if (P["lane_km"] > 0 and crop_meta is None) else None), "lane_km": (P["lane_km"] if crop_meta is None else None),
                    "generator": {"crossing_rate_per_track_s": 0.013, "near_boundary_frac": 0.22, "degree_at_L": 2.6 + math.log(L / 16.0 + 1.0) * 0.4}}
     print(f"trace stats: crossings/track/s {trace_stats['crossing_rate_per_track_s_5hz']:.4f} (gen 0.013) near20 {trace_stats['near_boundary_frac']['20']:.3f} (gen 0.22) active p50 {trace_stats['active_tracks_p50']:.0f} p95 {trace_stats['active_tracks_p95']:.0f} veh/lane-km {trace_stats['vehicles_per_lane_km']:.2f} degree used {deg_used:.2f} (gen {trace_stats['generator']['degree_at_L']:.2f})", flush=True)
     _ov = np.array(list(owned.values())) if owned else np.zeros(1)
+    _pl = np.zeros(L)
+    for (loc, k), v in owned.items():
+        if 0 <= loc < L: _pl[loc] += v
+    per_locale_tracks_mean = (_pl / max(ncyc, 1)).tolist()
     owned_stats = {"p50": float(np.median(_ov)), "p95": float(np.percentile(_ov, 95)), "max": int(_ov.max()), "locale_cycles_with_tracks": int(len(owned))}
     # ADMISSION CONTROL (paper 5.1; the runtime's budgeted predictor): the destination
     # admits K_admit tracks to full prediction per cycle, the largest N whose call
@@ -233,7 +248,7 @@ def run(args):
     owned_stats.update({"K_admit": K_ADMIT, "K_admit_cap_pattern": K_PATTERN, "K_deployed_cycle": K_DEPLOYED_CYCLE if args.admit_budget_ms > 0 else None, "admit_rule": args.admit_rule, "admit_budget_ms": args.admit_budget_ms,
                         "admission_ratio_p50": float(np.median(_ratio)), "admission_ratio_p95_low": float(np.percentile(_ratio, 5)), "admission_ratio_mean": float(_ratio.mean())})
     print(f"N_owned per locale-cycle: p50 {owned_stats['p50']:.0f} p95 {owned_stats['p95']:.0f} max {owned_stats['max']} | K_admit={K_ADMIT} ({args.admit_rule} rule, budget {args.admit_budget_ms} ms; cap-pattern K {K_PATTERN}; deployed-rule cycle {owned_stats.get('K_deployed_cycle')}) admission ratio p50 {owned_stats['admission_ratio_p50']:.2f} 5th pct {owned_stats['admission_ratio_p95_low']:.2f}", flush=True)
-    results = {}
+    results = {}; _dump_pooled = {}
     for arm in args.arms.split(","):
         # per (locale, cycle) op counters: imports, deltas, predict replicas
         imp = defaultdict(int); dlt = defaultdict(int); prd = defaultdict(int); byts = defaultdict(float)
@@ -328,6 +343,26 @@ def run(args):
         for (loc, k), ms in load.items():
             if 0 <= loc < L and 0 <= k < ncyc: pooled[loc * ncyc + k] = ms
         per_loc_max = max((ms for ms in load.values()), default=0.0)
+        if args.dump_pooled: _dump_pooled.setdefault("arms", {})[arm] = pooled.astype(np.float32)
+        # locality reporting: (a) interior locales of a crop (all neighbours inside the window);
+        # (b) --report_windows: pooled p95 over centred k x k windows of THIS run (no cropping;
+        # the reference in which only sampling changes with L)
+        p95_interior = None
+        if interior:
+            _sel = np.concatenate([pooled[l * ncyc:(l + 1) * ncyc] for l in interior]); p95_interior = float(np.percentile(_sel, 95) / SLACK_MS)
+        window_p95 = {}
+        if args.report_windows:
+            _txs = [t[0] for t in locale_tile.values()]; _tys = [t[1] for t in locale_tile.values()]
+            _cx = (min(_txs) + max(_txs)) // 2; _cy = (min(_tys) + max(_tys)) // 2
+            for kk in [int(v) for v in args.report_windows.split(",") if v]:
+                x0_, y0_ = _cx - kk // 2, _cy - kk // 2; x1_, y1_ = x0_ + kk - 1, y0_ + kk - 1
+                locs = sorted(g for g, (tx, ty) in locale_tile.items() if x0_ <= tx <= x1_ and y0_ <= ty <= y1_)
+                inner = sorted(g for g, (tx, ty) in locale_tile.items() if x0_ < tx < x1_ and y0_ < ty < y1_)
+                if locs:
+                    _selw = np.concatenate([pooled[l * ncyc:(l + 1) * ncyc] for l in locs])
+                    _seli = np.concatenate([pooled[l * ncyc:(l + 1) * ncyc] for l in inner]) if inner else None
+                    window_p95[str(kk)] = {"L": len(locs), "p95_load_frac": float(np.percentile(_selw, 95) / SLACK_MS), "tracks_per_locale": float(np.mean([per_locale_tracks_mean[l] for l in locs])),
+                                           "L_interior": len(inner), "p95_load_frac_interior": (float(np.percentile(_seli, 95) / SLACK_MS) if _seli is not None else None)}
         pooled_sa = np.zeros(L * ncyc)
         for (loc, k), ms in load_sa.items():
             if 0 <= loc < L and 0 <= k < ncyc: pooled_sa[loc * ncyc + k] = ms
@@ -418,7 +453,8 @@ def run(args):
                         "pass_ms_p95_executed": float(np.percentile(pass_ms_exec, 95)) if pass_ms_exec else None,
                         "pass_ms_p95_owned_only": float(np.percentile((args.pre_pred_ms + owned_pass_ms)[_own_mask], 95)) if _own_mask.any() else None,
                         "consumptions": int(len(ages)), "imports": int(sum(imp.values())), "deltas": int(sum(dlt.values())), "predict_replicas": int(sum(prd.values())),
-                        "bytes_per_s_per_locale": bytes_per_s, "instrumentation": instr}
+                        "bytes_per_s_per_locale": bytes_per_s, "instrumentation": instr,
+                        "p95_load_frac_interior": p95_interior, "window_p95": window_p95}
         r = results[arm]
         print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack ({args.charge}; standalone {r['p95_load_frac_standalone']*100:6.1f}%; batch admitted+added p50/p95 {r['batch_owned_plus_added_p50']}/{r['batch_owned_plus_added_p95']}; displaced owned frac mean/p95 {r['displaced_owned_frac_mean']}/{r['displaced_owned_frac_p95']})  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%; COUPLED {(r['within_limit_postcross_coupled'] or 0)*100:5.1f}%, rate_k>1 at {(r['rate_k_frac_gt1_at_consumption'] or 0)*100:4.1f}% of consumptions, pass p95 {r['pass_ms_p95_executed'] or 0:.0f} ms vs owned-only {r['pass_ms_p95_owned_only'] or 0:.0f} ms)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
@@ -427,12 +463,18 @@ def run(args):
            "cost_source": costs.source, "cost_meta": costs.meta, "charging_curve": "monotone envelope (cumulative max) of the measured medians", "cap": args.cap, "pad_isolated": args.pad_isolated,
            "python_hash_seed": os.environ.get("PYTHONHASHSEED"), "partition_deterministic": True,
            "crop": crop_meta, "tracks_per_locale": (trace_stats["active_tracks_p50"] / L) if L else None,
+           "per_locale_tracks_mean": per_locale_tracks_mean, "locale_tile": {str(g): list(t) for g, t in locale_tile.items()},
            "freshness_coupling": {"rule": "deployed rate fallback (WorldFusionAdaptiveEdge.run_step 168-176, 213-222): per-locale p95 over the last 20 executed passes of pre_pred + owned pass + induced load vs deadline -> rate_k 1/2/4/5/10 (<= 1x/2x/4x/5x/else); one pass per rate_k cycles; coupled age = max(mechanism age, (cycle - last executed pass + 1) x 0.2 s); induced work at skipped cycles not deferred",
                                   "pre_pred_ms": args.pre_pred_ms, "deadline_ms": args.deadline_ms,
                                   "owned_pass_model": ("single batch predict(K_admit) (the K-capacity row's own model)" if (args.admit_rule == "single" and K_ADMIT is not None) else "cap pattern predict(2) + predict(N-1) on the admitted tracks"),
                                   "skipped_cycle_induced_work": "not deferred (the lighter case for replication)"},
            "n_owned_per_locale_cycle": owned_stats, "trace_stats": trace_stats, "arms": results}
     json.dump(out, open(args.out, "w"), indent=1); print("written", args.out, f"({time.time()-t0:.0f}s)")
+    if args.dump_pooled:
+        # per-(locale, cycle) charged load (ms) per arm, for offline window selection (weak scaling)
+        np.savez_compressed(args.dump_pooled, L=L, ncyc=ncyc, per_locale_tracks_mean=np.array(per_locale_tracks_mean), locale_tile=np.array([locale_tile[g] for g in range(L)]),
+                            degree_per_locale=np.array([len(nbrs.get(g, ())) for g in range(L)]), **{f"pooled_{a}": v for a, v in _dump_pooled.get("arms", {}).items()})
+        print("dumped", args.dump_pooled)
 
 def main():
     ap = argparse.ArgumentParser()
@@ -453,6 +495,8 @@ def main():
     ap.add_argument("--postcross_w", type=int, default=10, help="handoff window (cycles after a crossing) for the second freshness population")
     ap.add_argument("--tile_square", type=int, default=0, help="weak-scaling crop: keep a k x k window of tiles centred on the tiling (0 = full network)")
     ap.add_argument("--tile_window", default="", help="weak-scaling crop: explicit tile window kx0,ky0,kx1,ky1 (tile coordinates)")
+    ap.add_argument("--report_windows", default="", help="comma-separated k: pooled p95 over centred k x k windows of this run (locality reference, no cropping)")
+    ap.add_argument("--dump_pooled", default="", help="npz path: per-(locale, cycle) charged load per arm + per-locale density/tiles/degree (offline window selection)")
     ap.add_argument("--record_bytes", type=float, default=2600.0); ap.add_argument("--delta_bytes", type=float, default=120.0)
     ap.add_argument("--subsample", type=int, default=None); ap.add_argument("--seed", type=int, default=0); ap.add_argument("--max_rows", type=int, default=None)
     run(ap.parse_args())
