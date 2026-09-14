@@ -107,13 +107,32 @@ def run(args):
     t0 = time.time()
     net = sumolib.net.readNet(args.net, withInternal=False)
     P = ps.partition(net); tree = cKDTree(np.c_[P["X"], P["Y"]])
-    grp = ps.tile_anchors(P["anchors"], args.tile); lab_of_pt = np.array([grp.get(l, -1) for l in P["LAB"]])
-    L = len(set(grp.values()))
+    grp = ps.tile_anchors(P["anchors"], args.tile)
+    # WEAK-SCALING CROP (2026-09-14): keep only the tiles inside a window of the
+    # tiling (tile coordinates); other anchors become unlabelled (-1) = off-network
+    # for the replay; boundaries to unlabelled tiles are dropped below. The trace
+    # is unchanged, so density inside the window is the full network's.
+    crop_meta = None
+    if args.tile_square or args.tile_window:
+        ids = sorted(P["anchors"]); x0 = min(P["anchors"][i][0] for i in ids); y0 = min(P["anchors"][i][1] for i in ids)
+        tc = {i: (int((P["anchors"][i][0] - x0) // args.tile), int((P["anchors"][i][1] - y0) // args.tile)) for i in ids}
+        if args.tile_window:
+            kx0, ky0, kx1, ky1 = [int(v) for v in args.tile_window.split(",")]
+        else:
+            k = int(args.tile_square); xs_ = [c[0] for c in tc.values()]; ys_ = [c[1] for c in tc.values()]
+            cx = (min(xs_) + max(xs_)) // 2; cy = (min(ys_) + max(ys_)) // 2
+            kx0, ky0 = cx - k // 2, cy - k // 2; kx1, ky1 = kx0 + k - 1, ky0 + k - 1
+        keep = sorted({grp[i] for i in ids if kx0 <= tc[i][0] <= kx1 and ky0 <= tc[i][1] <= ky1})
+        remap = {g: n for n, g in enumerate(keep)}
+        grp = {i: remap.get(grp[i], -1) for i in ids}
+        crop_meta = {"tile_window": [kx0, ky0, kx1, ky1], "tiles_in_window": (kx1 - kx0 + 1) * (ky1 - ky0 + 1), "locales_kept": len(keep)}
+    lab_of_pt = np.array([grp.get(l, -1) for l in P["LAB"]])
+    L = len(set(v for v in grp.values() if v >= 0))
     # boundaries + neighbours per locale
     b_pts, b_loc = [], []; nbrs = defaultdict(set)
     for key, (ja, jb, xy, ln) in P["roads"].items():
-        ga, gb = grp.get(ja), grp.get(jb)
-        if ga != gb: b_pts.append(xy); b_loc.append((ga, gb)); nbrs[ga].add(gb); nbrs[gb].add(ga)
+        ga, gb = grp.get(ja, -1), grp.get(jb, -1)
+        if ga != gb and ga >= 0 and gb >= 0: b_pts.append(xy); b_loc.append((ga, gb)); nbrs[ga].add(gb); nbrs[gb].add(ga)
     b_tree = cKDTree(np.array(b_pts))
     nbrs_topo = {k: set(v) for k, v in nbrs.items()}
     costs = Costs(args.costs)
@@ -218,6 +237,9 @@ def run(args):
     for arm in args.arms.split(","):
         # per (locale, cycle) op counters: imports, deltas, predict replicas
         imp = defaultdict(int); dlt = defaultdict(int); prd = defaultdict(int); byts = defaultdict(float)
+        cross_in = defaultdict(int)          # actual crossings INTO a locale per (locale, cycle)
+        prepared_into = defaultdict(set)     # locale -> set of tracks prepared into it (warm: predicted to cross)
+        prepared_crossed = defaultdict(set)  # locale -> prepared tracks that did cross into it
         # per consumption: mechanism age, owner locale, cycle, cycles since a crossing (-1 = no prior owner or past 15)
         c_age = array("f"); c_own = array("i"); c_k = array("i"); c_since = array("i")
         # per-track replica state per locale: cycle installed
@@ -231,6 +253,9 @@ def run(args):
                 # ---- crossing / ownership
                 if owner is None or loc != owner:
                     prev = owner; owner = loc; owner_since = k; prev_owner_exists = prev is not None
+                    if prev is not None:
+                        cross_in[(loc, k)] += 1
+                        if tid in prepared_into.get(loc, ()): prepared_crossed[loc].add(tid)
                     # forecast availability at the new owner
                     if prev is None:
                         forecast_ready_at = k + args.cold_cycles                      # first acquisition
@@ -259,6 +284,7 @@ def run(args):
                         if exit_loc is not None:
                             prepared_dst = exit_loc; prepare_cycle = k; replicas[exit_loc] = (k, k)
                             imp[(exit_loc, k)] += 1; byts[(exit_loc, k)] += args.record_bytes
+                            prepared_into[exit_loc].add(tid)
                     for rl in list(replicas):
                         prd[(rl, k)] += 1                                   # destination predicts on its replica each cycle
                         if k - replicas[rl][0] > args.replica_ttl_cycles: del replicas[rl]
@@ -267,6 +293,7 @@ def run(args):
                         for nl in nbrs.get(owner, ()):
                             if nl not in replicas:
                                 replicas[nl] = (k, k); imp[(nl, k)] += 1; byts[(nl, k)] += args.record_bytes
+                                prepared_into[nl].add(tid)
                             elif arm == "replall":
                                 imp[(nl, k)] += 1; byts[(nl, k)] += args.record_bytes
                             else:
@@ -362,6 +389,17 @@ def run(args):
         w5, w10, w15 = within_w(5), within_w(args.postcross_w), within_w(15)
         w5c, w10c, w15c = within_w(5, ages_c), within_w(args.postcross_w, ages_c), within_w(15, ages_c)
         bytes_per_s = sum(byts.values()) / (ncyc * CYCLE) / max(L, 1)
+        # INSTRUMENTATION (2026-09-14): counts per (locale, cycle) behind the charged load
+        def _mp(vals):
+            a = np.array(list(vals), dtype=float) if len(vals) else np.zeros(0)
+            return {"mean": float(a.mean()) if a.size else None, "p95": float(np.percentile(a, 95)) if a.size else None, "max": float(a.max()) if a.size else None, "n": int(a.size)}
+        _ptc = [len(prepared_into[l]) for l in range(L)]
+        _pc = sum(len(prepared_crossed[l]) for l in range(L)); _pi = sum(_ptc)
+        instr = {"prepares_per_dest_cycle": _mp(imp.values()), "refreshes_per_dest_cycle": _mp(prd.values()),
+                 "crossing_burst_per_locale_cycle": _mp(cross_in.values()),
+                 "predicted_to_cross_per_locale": _mp(_ptc), "false_prep_frac": (1.0 - _pc / _pi) if _pi else None,
+                 "prepared_tracks_total": _pi, "prepared_tracks_crossed": _pc,
+                 "locale_cycles_with_imports": int(len(imp)), "locale_cycles_with_refreshes": int(len(prd)), "locale_cycles_total": int(L * ncyc)}
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
                         "p95_load_frac_standalone": float(np.percentile(pooled_sa, 95) / SLACK_MS), "charge": args.charge,
@@ -380,7 +418,7 @@ def run(args):
                         "pass_ms_p95_executed": float(np.percentile(pass_ms_exec, 95)) if pass_ms_exec else None,
                         "pass_ms_p95_owned_only": float(np.percentile((args.pre_pred_ms + owned_pass_ms)[_own_mask], 95)) if _own_mask.any() else None,
                         "consumptions": int(len(ages)), "imports": int(sum(imp.values())), "deltas": int(sum(dlt.values())), "predict_replicas": int(sum(prd.values())),
-                        "bytes_per_s_per_locale": bytes_per_s}
+                        "bytes_per_s_per_locale": bytes_per_s, "instrumentation": instr}
         r = results[arm]
         print(f"{arm:12s} p95 load {r['p95_load_frac']*100:6.1f}% of slack ({args.charge}; standalone {r['p95_load_frac_standalone']*100:6.1f}%; batch admitted+added p50/p95 {r['batch_owned_plus_added_p50']}/{r['batch_owned_plus_added_p95']}; displaced owned frac mean/p95 {r['displaced_owned_frac_mean']}/{r['displaced_owned_frac_p95']})  max {r['max_locale_cycle_frac']*100:6.1f}%  within {r['within_limit_frac']*100:5.1f}% (post-crossing window {(r['within_limit_postcross_frac'] or 0)*100:5.1f}%; COUPLED {(r['within_limit_postcross_coupled'] or 0)*100:5.1f}%, rate_k>1 at {(r['rate_k_frac_gt1_at_consumption'] or 0)*100:4.1f}% of consumptions, pass p95 {r['pass_ms_p95_executed'] or 0:.0f} ms vs owned-only {r['pass_ms_p95_owned_only'] or 0:.0f} ms)  imports {r['imports']} deltas {r['deltas']} predict-replicas {r['predict_replicas']}  bytes/s/locale {bytes_per_s:.0f}", flush=True)
     out = {"trace": os.path.basename(args.trace), "trace_sha": hashlib.sha256(open(args.trace, "rb").read(1 << 26)).hexdigest()[:16], "net": os.path.basename(args.net),
@@ -388,6 +426,7 @@ def run(args):
            "tracks": len(traces), "cycles": ncyc, "lead_s": lead, "nb_m": nb_m, "tau_s": tau,
            "cost_source": costs.source, "cost_meta": costs.meta, "charging_curve": "monotone envelope (cumulative max) of the measured medians", "cap": args.cap, "pad_isolated": args.pad_isolated,
            "python_hash_seed": os.environ.get("PYTHONHASHSEED"), "partition_deterministic": True,
+           "crop": crop_meta, "tracks_per_locale": (trace_stats["active_tracks_p50"] / L) if L else None,
            "freshness_coupling": {"rule": "deployed rate fallback (WorldFusionAdaptiveEdge.run_step 168-176, 213-222): per-locale p95 over the last 20 executed passes of pre_pred + owned pass + induced load vs deadline -> rate_k 1/2/4/5/10 (<= 1x/2x/4x/5x/else); one pass per rate_k cycles; coupled age = max(mechanism age, (cycle - last executed pass + 1) x 0.2 s); induced work at skipped cycles not deferred",
                                   "pre_pred_ms": args.pre_pred_ms, "deadline_ms": args.deadline_ms,
                                   "owned_pass_model": ("single batch predict(K_admit) (the K-capacity row's own model)" if (args.admit_rule == "single" and K_ADMIT is not None) else "cap pattern predict(2) + predict(N-1) on the admitted tracks"),
@@ -412,6 +451,8 @@ def main():
     ap.add_argument("--deadline_ms", type=float, default=130.0); ap.add_argument("--pre_pred_ms", type=float, default=38.0)
     ap.add_argument("--k_admit", type=int, default=0, help="explicit K_admit override (0 = derive)")
     ap.add_argument("--postcross_w", type=int, default=10, help="handoff window (cycles after a crossing) for the second freshness population")
+    ap.add_argument("--tile_square", type=int, default=0, help="weak-scaling crop: keep a k x k window of tiles centred on the tiling (0 = full network)")
+    ap.add_argument("--tile_window", default="", help="weak-scaling crop: explicit tile window kx0,ky0,kx1,ky1 (tile coordinates)")
     ap.add_argument("--record_bytes", type=float, default=2600.0); ap.add_argument("--delta_bytes", type=float, default=120.0)
     ap.add_argument("--subsample", type=int, default=None); ap.add_argument("--seed", type=int, default=0); ap.add_argument("--max_rows", type=int, default=None)
     run(ap.parse_args())
