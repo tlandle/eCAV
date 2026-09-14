@@ -18,8 +18,10 @@ from ecav.core.application.edge.migration.harness import TRAJECTORIES, _tracker_
 from ecav.core.application.edge.migration.factories import inject_latent_into_tracker, latent_from_tracklet
 from ecav.core.application.edge.migration.payload import KFState, MigrationPayload
 from ecav.core.tracking.mamba3dmot.tracker import Mamba3DTracker
-sys.path.insert(0, os.path.join(ROOT, "ecav/core/application/v2v/baselines/cmp/CMP/AB3Dmot"))
-from AB3DMOT_libs.kalman_filter import KF as AB3DMOT_KF
+import importlib.util
+_KF_PATH = os.path.join(ROOT, "ecav/core/application/v2v/baselines/cmp/CMP/AB3Dmot/AB3DMOT_libs/kalman_filter.py")
+_spec = importlib.util.spec_from_file_location("cmp_ab3dmot_kalman_filter", _KF_PATH); _kfmod = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_kfmod)
+AB3DMOT_KF = _kfmod.KF   # loaded by path: another AB3DMOT_libs package is cached in sys.modules by the harness import chain
 
 DT = 0.05; HANDOFF = 10; WINDOW = 5; H5 = 100; H3 = 60
 MANEUVERS = ("straight", "brake", "turn", "lane_change")
@@ -49,9 +51,7 @@ def source_velocity(src):
 
 def kf_over(pre):
     """AB3DMOT constant-velocity KF over the pre-handoff detections (tracker box layout)."""
-    box0 = np.asarray(pre[0], dtype=np.float64)
-    try: kf = AB3DMOT_KF(box0, None, 0, 0)          # CMP copy: (bbox3D, info, ID, cav_id)
-    except TypeError: kf = AB3DMOT_KF(box0, None, 0)  # upstream AB3DMOT: (bbox3D, info, ID)
+    kf = AB3DMOT_KF(np.asarray(pre[0], dtype=np.float64), None, 0, 0)   # (bbox3D, info, ID, cav_id)
     for det in pre[1:]:
         kf.kf.predict(); kf.kf.update(np.asarray(det, dtype=np.float64).reshape(7, 1)); kf.hits += 1
     return kf
@@ -125,7 +125,7 @@ def main():
     with open(path, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); [w.writerow(r) for r in rows]
     json.dump({"head": a.head, "onset_frame": a.onset, "noise_sigma": a.noise_sigma, "reps": a.reps, "window": WINDOW, "handoff": HANDOFF, "dt": DT,
-               "enable_time_thresh": cfg["enable_time_thresh"], "weights": os.path.relpath(WEIGHTS, ROOT), "device": device, "kf_module": sys.modules[AB3DMOT_KF.__module__].__file__, "rows": len(rows), "seconds": round(time.time() - t0, 1)},
+               "enable_time_thresh": cfg["enable_time_thresh"], "weights": os.path.relpath(WEIGHTS, ROOT), "device": device, "kf_module": os.path.relpath(_KF_PATH, ROOT), "rows": len(rows), "seconds": round(time.time() - t0, 1)},
               open(os.path.join(a.out, "settings.json"), "w"), indent=1)
     print(f"head={a.head} onset={a.onset} sigma={a.noise_sigma} reps={a.reps} ({time.time()-t0:.0f}s)")
     print(f"{'maneuver':12s} {'arm':13s} {'kb':>6s} {'fde5':>8s} {'fde3':>8s} {'1step':>7s} {'first':>5s} {'cov':>4s}")
