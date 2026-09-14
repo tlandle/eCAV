@@ -200,7 +200,8 @@ def run(args):
                    "active_tracks_p50": float(np.median(_actv)), "active_tracks_p95": float(np.percentile(_actv, 95)),
                    "vehicles_per_lane_km": (float(np.median(_actv) / P["lane_km"]) if (P["lane_km"] > 0 and crop_meta is None) else None), "lane_km": (P["lane_km"] if crop_meta is None else None),
                    "generator": {"crossing_rate_per_track_s": 0.013, "near_boundary_frac": 0.22, "degree_at_L": 2.6 + math.log(L / 16.0 + 1.0) * 0.4}}
-    print(f"trace stats: crossings/track/s {trace_stats['crossing_rate_per_track_s_5hz']:.4f} (gen 0.013) near20 {trace_stats['near_boundary_frac']['20']:.3f} (gen 0.22) active p50 {trace_stats['active_tracks_p50']:.0f} p95 {trace_stats['active_tracks_p95']:.0f} veh/lane-km {(f"{trace_stats['vehicles_per_lane_km']:.2f}" if trace_stats['vehicles_per_lane_km'] is not None else 'n/a (crop)')} degree used {deg_used:.2f} (gen {trace_stats['generator']['degree_at_L']:.2f})", flush=True)
+    _vlk = (f"{trace_stats['vehicles_per_lane_km']:.2f}" if trace_stats['vehicles_per_lane_km'] is not None else "n/a (crop)")
+    print(f"trace stats: crossings/track/s {trace_stats['crossing_rate_per_track_s_5hz']:.4f} (gen 0.013) near20 {trace_stats['near_boundary_frac']['20']:.3f} (gen 0.22) active p50 {trace_stats['active_tracks_p50']:.0f} p95 {trace_stats['active_tracks_p95']:.0f} veh/lane-km {_vlk} degree used {deg_used:.2f} (gen {trace_stats['generator']['degree_at_L']:.2f})", flush=True)
     _ov = np.array(list(owned.values())) if owned else np.zeros(1)
     _pl = np.zeros(L)
     for (loc, k), v in owned.items():
