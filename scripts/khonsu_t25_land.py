@@ -72,9 +72,15 @@ HEADER = [
     "eval_tag", "final_update", "seed", "contact_actor", "crossing_tick",
     "do_ov_tick", "conflict_tick", "t_avail_s", "time_to_observe_s",
     "frames_at_commit", "motion",
+    "shift_x_m", "boundary_x", "t_avail_decision_s",   # boundary sweep: b - 250, b, crossing -> CAV decision arrival
 ]
 
 _TAG = re.compile(r"^t25_(?P<mode>[a-z]+)_v(?P<spd>\d+)_s(?P<seed>\d+)$")
+# boundary-moved sweep (atlas_t25_boundary.sh): bnd_<mode>_b<b>_s<seed> (constant motion),
+# bndm_<mode>_b<b>_s<seed> (maneuvering). The crossing edge per run is b - 10 (the
+# 10 m hysteresis band), read from the [LAUNCHENV] boundary= field.
+_BND = re.compile(r"^bndm?_(?P<mode>[a-z]+)_b(?P<b>\d+)_s(?P<seed>\d+)$")
+_XSHIFT = re.compile(r"_x(?P<x>-?\d+)_s\d+$")   # landed spawn-shift tags (t25b_<mode>_x<shift>_s<seed>)
 _GT = re.compile(
     r"\[GT INJECT DBG\] frame=(\d+) aid=(\d+) type=\S+ "
     r"world=\(([\-0-9.]+),([\-0-9.]+)\)")
@@ -158,6 +164,7 @@ def build_row(path, machine):
         return std  # None -> no RUNROW; "INVALID" -> degenerate; both skipped
     stem = os.path.splitext(os.path.basename(path))[0]
     tm = _TAG.match(stem)
+    tb = _BND.match(stem)
 
     text = open(path, encoding="utf-8", errors="ignore").read()
     d = kad.parse_log(path)
@@ -168,7 +175,7 @@ def build_row(path, machine):
     row["motion"] = "constant"
     row["oncoming_speed"] = tm.group("spd") if tm else \
         d["launchenv"].get("ONCOMING_SPEED", "")
-    row["seed"] = tm.group("seed") if tm else ""
+    row["seed"] = tm.group("seed") if tm else (tb.group("seed") if tb else "")
     row["rep"] = row["seed"]
     row["trigger_dist"] = d["launchenv"].get("TRIGGER_DIST", "300")
     row["eval_tag"] = d.get("eval_tag", "")
@@ -194,7 +201,7 @@ def build_row(path, machine):
     # (fig_regions iterates oracle, warm, reactive, kf, cold). final_update is
     # already resolved from the underlying warm above; it migrates the full
     # latent so it reads crossing_tick from HANDOFFROW like warm.
-    if tm and tm.group("mode") == "oracle":
+    if (tm and tm.group("mode") == "oracle") or (tb and tb.group("mode") == "oracle"):
         row["mode"] = "oracle"
         mode = "oracle"
 
@@ -226,8 +233,10 @@ def build_row(path, machine):
             crossing = int(hf["crossing_tick"])
         except (TypeError, ValueError):
             crossing = ""
+    _bnd = d["launchenv"].get("boundary")
+    dest_x = (float(_bnd) - 10.0) if _bnd else DEST_X   # destination edge per run (boundary sweep) else the landed 240
     if crossing == "" and pair_id != "":
-        crossing = gt_first_frame_ge_x(text, pair_id, DEST_X)
+        crossing = gt_first_frame_ge_x(text, pair_id, dest_x)
     row["crossing_tick"] = crossing
 
     # conflict_tick: first GT frame with the CONTACT actor's x >= 278 (same actor
@@ -237,6 +246,18 @@ def build_row(path, machine):
 
     row["t_avail_s"] = (round((conflict - crossing) * SIM_DT, 2)
                         if crossing != "" and conflict != "" else "")
+    # boundary sweep columns (paper side, 2026-09-13): the figure's axis is
+    # t_avail_s (oncoming crossing -> conflict, moves only with the boundary);
+    # t_avail_decision_s (crossing -> the focal CAV's decision arrival) is emitted
+    # beside it and not plotted. shift_x_m = b - 250 for boundary runs; for the
+    # landed spawn-shift tags it stays the spawn shift.
+    row["boundary_x"] = float(_bnd) if _bnd else 250.0
+    _xs = _XSHIFT.search(stem)
+    row["shift_x_m"] = (int(_xs.group("x")) if _xs else round(row["boundary_x"] - 250.0, 1))
+    row["t_avail_decision_s"] = (round((lt - crossing) * SIM_DT, 2)
+                                 if crossing != "" and lt is not None else "")
+    _acc = d["launchenv"].get("ONCOMING_ACCEL", "0")
+    row["motion"] = "maneuvering" if (_acc not in ("", "0", "0.0")) else "constant"
 
     # own first-forecast tick of the gating oncoming at the destination.
     dest_fc = kad.dest_forecasts(d, gid) if gid != "" else []
