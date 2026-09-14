@@ -64,3 +64,7 @@ replace them.
 One GPU job at a time. Order: frontier smoke (running) -> Block A + A2 ->
 Block B. Worktree: idfix_wt with the freeze-1p overlay for Block B (the
 compiled MTR ops live there); Blocks A and A2 run from the main checkout.
+
+## Results (2026-09-13)
+
+Block A: update per tick flat over the window (0.105-0.115 ms single, 0.058-0.067 ms/track at 8); learned head 1.1 ms/track, flat, not deployed. Block A2: import 0.165-0.173 ms flat with depth. Block B: past_frames 20/40 rejected by the checkpoint's fixed 23-wide agent input (one-hot time embedding of past_frames+1 baked into the first MLP); P=10 only: 24.4 / 25.9 / 35.1 ms at n = 1 / 2 / 8. Rows in evaluation_outputs/frontier/.
