@@ -97,3 +97,48 @@ tracks), which is a second marker, not a re-definition.
   atlas can run it at ~27 min per route class).
 - Paper side changes (theirs): plot_figures.py overlap gate at 1104-1105 and the
   dup aggregation at 1021; figure_rules.py 362-368.
+
+## Additions (2026-09-14, Alex's comments via the paper side)
+
+### Added destination compute per crossing, all arms (dest_added_ms, dest_added_frac_slack)
+
+Table 3's cost column becomes "added destination compute per crossing" as a
+fraction of the 70 ms available cycle time, from the destination edge's own
+timing, per arm:
+- Khonsu (warm): import_ms of the PREPARE record + import_ms of the final
+  update at the crossing + the replica share of the prediction block over the
+  cycles the track is held as a replica before the crossing (the added
+  record's prediction step, summed per crossing).
+- history at crossing (reactive): import_ms at the crossing + the replica
+  share of the prediction block in the cycle of the crossing.
+- EdgeWarp-style trigger (edgewarp, edgewarp_full): both records' import_ms +
+  the replica share of prediction over the pre-copy's life.
+- full-record replication (repl_final): every import_ms (each resend) + the
+  replica share of the prediction block over every cycle the track is held in
+  the boundary band, summed per crossing.
+- overlap arms (band20/40/80): the dual fuse and predict already measured.
+Per-arm sums come from the same additive markers already designed: [REPLCOST]
+(n_tracks, n_replicas, fuse_ms, track_ms, predict_ms per tick per edge, with
+the imported-id set so a replica stays attributed after its first fresh
+observation) and import_ms on [OBSTACLE_HANDOFF]. The lander column
+dest_added_ms = that sum divided by completed crossings (a per-preparation
+variant beside it), and dest_added_frac_slack = dest_added_ms / 70. The
+tracking share (track_ms x n_replicas / n_tracks) is reported in its own
+column and included in dest_added_ms, since the paper counts tracking as
+destination work. No new run set: a column on the 1q corridor landing.
+
+### Wire bytes per crossing (wire_bytes_per_crossing)
+
+The landed bytes_per_crossing (938 for Khonsu in frozen1m) is the declared
+payload model (TransferCost.payload_bytes = payload.payload_bytes()), not the
+wire size. A completed Khonsu crossing is two complete records (the PREPARE
+and the final update at the crossing, COMMIT_REFRESH full) plus the commit
+token; on the gRPC path the token is a TransferChunk with an empty payload,
+on the parametric path the commit carries no bytes. Marker (v):
+wire_bytes=len(payload.serialize()) appended to the [OBSTACLE_HANDOFF] line on
+the parametric path (the blob is already produced on the gRPC path and logged
+as [XFERROW] bytes=). Lander: wire_bytes_per_completed_crossing and
+wire_bytes_per_preparation beside the existing bytes_per_crossing, with the
+token counted at its TransferChunk size when the gRPC path is on and zero
+otherwise, stated in the notes. The 1247 versus 1462 B question is Tyler's.
+
