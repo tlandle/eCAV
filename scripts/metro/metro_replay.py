@@ -434,7 +434,13 @@ def run(args):
                  "crossing_burst_per_locale_cycle": _mp(cross_in.values()),
                  "predicted_to_cross_per_locale": _mp(_ptc), "false_prep_frac": (1.0 - _pc / _pi) if _pi else None,
                  "prepared_tracks_total": _pi, "prepared_tracks_crossed": _pc,
-                 "locale_cycles_with_imports": int(len(imp)), "locale_cycles_with_refreshes": int(len(prd)), "locale_cycles_total": int(L * ncyc)}
+                 "locale_cycles_with_imports": int(len(imp)), "locale_cycles_with_refreshes": int(len(prd)), "locale_cycles_total": int(L * ncyc),
+                 # paper-side registry names (2026-09-14): unconditional means over ALL locale-cycles,
+                 # the fraction of locale-cycles with any prepare/import, p95 given any, never-crossed share
+                 "registry": {"prepares_per_dest_cycle": sum(imp.values()) / max(L * ncyc, 1), "prepare_cycle_frac": len(imp) / max(L * ncyc, 1),
+                              "prepares_p95_given_any": _mp(imp.values())["p95"], "predicted_crossers_per_locale": float(np.mean(_ptc)) if _ptc else None,
+                              "refreshes_per_dest_cycle": sum(prd.values()) / max(L * ncyc, 1), "refreshes_p95_given_any": _mp(prd.values())["p95"],
+                              "crossing_burst_p95": _mp(cross_in.values())["p95"], "never_crossed_frac": (1.0 - _pc / _pi) if _pi else None}}
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
                         "p95_load_frac_standalone": float(np.percentile(pooled_sa, 95) / SLACK_MS), "charge": args.charge,

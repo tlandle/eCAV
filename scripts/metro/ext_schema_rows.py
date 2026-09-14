@@ -3,6 +3,9 @@
 variant (demand / admit92 / deployed), plus a by-point table against the
 generated L=100 rows at the same tracks. Usage: ext_schema_rows.py <ext_dir> <generated.csv>"""
 import csv, glob, json, re, sys
+def _rg(r, key, nd):
+    v = ((r.get("instrumentation") or {}).get("registry") or {}).get(key)
+    return round(v, nd) if v is not None else ""
 def _im(r, key, stat):
     v = (r.get("instrumentation") or {}).get(key) or {}
     return round(v[stat], 3) if v.get(stat) is not None else ""
@@ -27,11 +30,9 @@ for f in sorted(glob.glob(f"{E}/replay_ext_L*_t*_s1_*.json")):
                          "crossing_rate_per_track_s": ts.get("crossing_rate_per_track_s_5hz"), "near_boundary_frac_20m": (ts.get("near_boundary_frac") or {}).get("20"),
                          "vehicles_per_lane_km": ts.get("vehicles_per_lane_km"), "degree_used": j.get("degree_used"), "label": "calibrated extrapolation (SUMO on the real Athens network)",
                          "tracks_per_locale": (round(j["tracks_per_locale"], 2) if j.get("tracks_per_locale") is not None else ""),
-                         "prepares_per_dest_cycle_mean": _im(r, "prepares_per_dest_cycle", "mean"), "prepares_per_dest_cycle_p95": _im(r, "prepares_per_dest_cycle", "p95"),
-                         "refreshes_per_dest_cycle_mean": _im(r, "refreshes_per_dest_cycle", "mean"), "refreshes_per_dest_cycle_p95": _im(r, "refreshes_per_dest_cycle", "p95"),
-                         "crossing_burst_mean": _im(r, "crossing_burst_per_locale_cycle", "mean"), "crossing_burst_p95": _im(r, "crossing_burst_per_locale_cycle", "p95"), "crossing_burst_max": _im(r, "crossing_burst_per_locale_cycle", "max"),
-                         "predicted_to_cross_per_locale_mean": _im(r, "predicted_to_cross_per_locale", "mean"), "predicted_to_cross_per_locale_p95": _im(r, "predicted_to_cross_per_locale", "p95"),
-                         "false_prep_frac": (round(r["instrumentation"]["false_prep_frac"], 4) if r.get("instrumentation", {}).get("false_prep_frac") is not None else ""),
+                         "prepares_per_dest_cycle": _rg(r, "prepares_per_dest_cycle", 5), "prepare_cycle_frac": _rg(r, "prepare_cycle_frac", 5), "prepares_p95_given_any": _rg(r, "prepares_p95_given_any", 2),
+                         "predicted_crossers_per_locale": _rg(r, "predicted_crossers_per_locale", 2), "refreshes_per_dest_cycle": _rg(r, "refreshes_per_dest_cycle", 5), "refreshes_p95_given_any": _rg(r, "refreshes_p95_given_any", 2),
+                         "crossing_burst_p95": _rg(r, "crossing_burst_p95", 2), "never_crossed_frac": _rg(r, "never_crossed_frac", 4),
                          "notes": ("coupled freshness = deployed rate fallback replayed per locale, induced work at skipped cycles not deferred (the lighter case for replication)" + ("; low-density floor: one padded call plus one remainder call on a locale with no owned tracks" if (arm in ("replall", "delta_ready") and (ts.get("active_tracks_p50") or 0) <= 450) else "")),})
     pts[(t, rule)] = j
 for tag, rows in out.items():
