@@ -43,7 +43,12 @@ BOUNDS=${BOUNDS:-"220 235 250 262 275 277 280 282"}   # + sub-second points (Fig
 MOTIONS=${MOTIONS:-"constant maneuvering"}
 # maneuvering motion = the accel panel's operating point; ONCOMING_ACCEL_ONSET must be
 # given (the probed onset), the run refuses a maneuvering motion without it.
-MANEUVER_ENV=${MANEUVER_ENV:-"ONCOMING_CRUISE=5 ONCOMING_ACCEL=2 ONCOMING_VCAP=16"}
+# Default onset 245 = the accel panel's measured cell (4 of the 5 landed maneuvering
+# logs; 235 in one). The KB records that at the landed conflict position the onset
+# knob alone could not reach the decision window; here the BOUNDARY sets T_avail, so
+# the onset only shapes the road user's motion. Confirm the operating point with the
+# paper side before the maneuvering pass.
+MANEUVER_ENV=${MANEUVER_ENV:-"ONCOMING_CRUISE=5 ONCOMING_ACCEL=2 ONCOMING_VCAP=16 ONCOMING_ACCEL_ONSET=245"}
 [ -n "$PRED_OVERLAY" ] || { echo "ABORT: PRED_OVERLAY unset (the block runs only under the verified 1q predictor)"; exit 1; }
 ONC=${ONCOMING_SPEED:-12}
 # WIDTHS="w1,w0" holds both locale widths fixed and translates the partition, so
