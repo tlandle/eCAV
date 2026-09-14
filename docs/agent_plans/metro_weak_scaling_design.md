@@ -79,3 +79,34 @@ prepared track per destination-cycle at p95, said as such.
 Engine patch -> identity check on ext t3200 deployed -> smoke (t3623, deployed
 row, 2x2 and 10x10 windows) to the paper side -> grid (2 densities x 5 windows
 x 3 rows = 30 replays) -> rerun of the landed 22 for the columns -> landers.
+
+## Smoke findings (2026-09-14 02:10) and the revised block
+
+- Identity holds: every landed point is unchanged to 1e-9 under the new engine.
+- Sanity check answered: Khonsu's p95 locale-cycle carries 1 to 2 prepares at
+  every density (mean 1.05, p95 2, max 4 on ext 3200), and the envelope is a
+  plateau from 2 to 4 records (43.0 ms), so the charge is 9.3 ms = 0.133 of
+  the slack at every density: the count saturates at two at p95 on a flat
+  envelope step. replall: 19.8 / 54 / 103 imports per destination-cycle
+  (mean / p95 / max), 71 percent of replicated tracks never cross.
+- Locality reference (centred windows of the full run, no crop): warm 0.135 at
+  L = 4 to 106 at both densities; replication's window p95 follows the
+  window's own density (the centre of Athens is denser: 49 to 26 tracks per
+  locale from k = 2 to full), not L. A centred-window sweep confounds L with
+  density.
+- Crop rim artefact: a 2 x 2 crop loses its boundaries to the outside (degree
+  2.5 vs 4.17, crossing rate a third), and replall falls to 1.04 against 4.1
+  despite higher density inside; the design's invalidation condition for
+  small crops is met.
+
+Revised block: for each L in {4, 16, 36, 64, 100} and both densities, windows
+are chosen offline (scripts/metro/weak_scaling_windows.py on the per-run
+dump) so the window's mean tracks per locale matches the network's within 15
+percent, not centred; the reference series reports the pooled p95 over the
+window's locales and over its interior locales from the same full-network run
+(only sampling changes with L); the crop series runs the engine with the same
+windows and the rim stated (degree per window beside the network's). All five
+arms, three admission rows. The landed 22 replays rerun for the
+instrumentation columns. Runner scripts/metro/weak_reference_run.sh (dumps,
+then the landed rerun); crops follow the chooser's windows.
+
