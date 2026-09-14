@@ -95,3 +95,8 @@ gating oncoming is skipped and counted; mode-diversity gate as in 1q.
 Tyler's fix-shape ruling (1q overlay + verify_1q_cell.sh passing every gate);
 the maneuver feasibility report accepted; one-cell smoke per maneuver sent to
 the paper side before the grid.
+
+## Maneuver feasibility (2026-09-13 22:30)
+
+None of ltap_od, scp, lane_change exists as scripted road-user behaviour on a handoff site. Cheapest builds: lane change on the Town06 right-merge worldfusion site (triggered srunner LaneChange, ~30 lines); SCP on a Town01 T-junction with re-cut polygons and a selective light freeze (~1 day); LTAP/OD by re-pointing a branching-harness NPC route at Town03 j861 (~1 day, couples to scripts/branching). Design constraint for every site: the maneuver onset must lie within the last 2 s before the crossing inside the source's view. Awaiting the paper side's choice; constant is ready.
+
