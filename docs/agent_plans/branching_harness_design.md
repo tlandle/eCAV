@@ -297,3 +297,23 @@ until the predictor fix (Tyler's choice, see current_state.md) passes a
 one-cell verify on both gates. The certainty axis of Figure 8 depends on
 which fix is chosen; under option (2) it does not exist for this model.
 
+## Certainty axis and the never-confident track (paper side, 2026-09-14)
+
+Figure 6's x is the per-branch probability on the taken branch, summed by
+destination locale from the source predictor's modes, sampled at the tick the
+lead window first opens (the L gate of the mtr trigger), binned 0.1 from 0.3
+to 1.0; y is readiness before first use. Khonsu and top-1 share the trigger and
+differ only in reading the modes by locale or by the top mode; neither can
+fire below theta at that sample. The T-minus 2/1/0.5 s CONFROW samples stay in
+the lander for the calibration figure. The generator now applies theta as
+runner_branch.py does.
+
+Stated behaviour, no fallback: under TRIGGER_MODE=mtr a track whose candidates
+never reach theta before it leaves the source locale is never transferred
+(the per-track loop `continue`s each tick; only the reactive and
+handover_snapshot arms fire at the crossing itself); the entered locale starts
+a cold local track and the run logs "no obstacle handoff fired" (or the track
+is absent from the [HANDOFFROW] lines). Measurable in the crossings file as
+rows with no prepare for the taken branch. Whether the paper adds a fallback
+is Tyler's.
+
