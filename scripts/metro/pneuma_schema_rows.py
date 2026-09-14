@@ -5,6 +5,9 @@ LOAD-COUPLED fraction (the figure's right axis); within_limit_mechanism is the
 mechanism-only fraction (excludes load-induced rate fallback).
 Usage: pneuma_schema_rows.py <metro_dir>   (reads pneuma_0900_replay_<row>.json)"""
 import csv, json, os, sys
+def _im(r, key, stat):
+    v = (r.get("instrumentation") or {}).get(key) or {}
+    return round(v[stat], 3) if v.get(stat) is not None else ""
 D = sys.argv[1]
 for row in ("demand", "admit92", "admit50", "deployed"):
     f = os.path.join(D, f"pneuma_0900_replay_{row}.json")
@@ -22,6 +25,12 @@ for row in ("demand", "admit92", "admit50", "deployed"):
                      "K_admit": o.get("K_admit"), "admit_rule": o.get("admit_rule"), "bytes_per_s_per_locale": round(r["bytes_per_s_per_locale"]),
                      "crossing_rate_per_track_s": ts.get("crossing_rate_per_track_s_5hz"), "near_boundary_frac_20m": (ts.get("near_boundary_frac") or {}).get("20"),
                      "vehicles_per_lane_km": ts.get("vehicles_per_lane_km"), "degree_used": j.get("degree_used"), "charging_curve": j.get("charging_curve"), "trace": j.get("trace"), "trace_sha": j.get("trace_sha"),
+                     "tracks_per_locale": (round(j["tracks_per_locale"], 2) if j.get("tracks_per_locale") is not None else ""),
+                         "prepares_per_dest_cycle_mean": _im(r, "prepares_per_dest_cycle", "mean"), "prepares_per_dest_cycle_p95": _im(r, "prepares_per_dest_cycle", "p95"),
+                         "refreshes_per_dest_cycle_mean": _im(r, "refreshes_per_dest_cycle", "mean"), "refreshes_per_dest_cycle_p95": _im(r, "refreshes_per_dest_cycle", "p95"),
+                         "crossing_burst_mean": _im(r, "crossing_burst_per_locale_cycle", "mean"), "crossing_burst_p95": _im(r, "crossing_burst_per_locale_cycle", "p95"), "crossing_burst_max": _im(r, "crossing_burst_per_locale_cycle", "max"),
+                         "predicted_to_cross_per_locale_mean": _im(r, "predicted_to_cross_per_locale", "mean"), "predicted_to_cross_per_locale_p95": _im(r, "predicted_to_cross_per_locale", "p95"),
+                         "false_prep_frac": (round(r["instrumentation"]["false_prep_frac"], 4) if r.get("instrumentation", {}).get("false_prep_frac") is not None else ""),
                      "notes": ("coupled freshness = deployed rate fallback replayed per locale, induced work at skipped cycles not deferred (the lighter case for replication)" + ("; low-density floor: one padded call plus one remainder call on a locale with no owned tracks" if (arm in ("replall", "delta_ready") and (ts.get("active_tracks_p50") or 0) <= 450) else "")),})
     out = os.path.join(D, f"pneuma_0900_metro_rows_{row}.csv")
     with open(out, "w", newline="") as fh:

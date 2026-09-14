@@ -3,6 +3,9 @@
 variant (demand / admit92 / deployed), plus a by-point table against the
 generated L=100 rows at the same tracks. Usage: ext_schema_rows.py <ext_dir> <generated.csv>"""
 import csv, glob, json, re, sys
+def _im(r, key, stat):
+    v = (r.get("instrumentation") or {}).get(key) or {}
+    return round(v[stat], 3) if v.get(stat) is not None else ""
 E, GEN = sys.argv[1], sys.argv[2]
 gen = [r for r in csv.DictReader(open(GEN)) if r["locales"] == "100"]
 by = {"none": "demand", "single": "admit92", "deployed": "deployed"}
@@ -23,6 +26,12 @@ for f in sorted(glob.glob(f"{E}/replay_ext_L*_t*_s1_*.json")):
                          "displacement_mean": r.get("displaced_owned_frac_mean"), "displacement_p95": r.get("displaced_owned_frac_p95"), "K_admit": o.get("K_admit"), "admit_rule": rule,
                          "crossing_rate_per_track_s": ts.get("crossing_rate_per_track_s_5hz"), "near_boundary_frac_20m": (ts.get("near_boundary_frac") or {}).get("20"),
                          "vehicles_per_lane_km": ts.get("vehicles_per_lane_km"), "degree_used": j.get("degree_used"), "label": "calibrated extrapolation (SUMO on the real Athens network)",
+                         "tracks_per_locale": (round(j["tracks_per_locale"], 2) if j.get("tracks_per_locale") is not None else ""),
+                         "prepares_per_dest_cycle_mean": _im(r, "prepares_per_dest_cycle", "mean"), "prepares_per_dest_cycle_p95": _im(r, "prepares_per_dest_cycle", "p95"),
+                         "refreshes_per_dest_cycle_mean": _im(r, "refreshes_per_dest_cycle", "mean"), "refreshes_per_dest_cycle_p95": _im(r, "refreshes_per_dest_cycle", "p95"),
+                         "crossing_burst_mean": _im(r, "crossing_burst_per_locale_cycle", "mean"), "crossing_burst_p95": _im(r, "crossing_burst_per_locale_cycle", "p95"), "crossing_burst_max": _im(r, "crossing_burst_per_locale_cycle", "max"),
+                         "predicted_to_cross_per_locale_mean": _im(r, "predicted_to_cross_per_locale", "mean"), "predicted_to_cross_per_locale_p95": _im(r, "predicted_to_cross_per_locale", "p95"),
+                         "false_prep_frac": (round(r["instrumentation"]["false_prep_frac"], 4) if r.get("instrumentation", {}).get("false_prep_frac") is not None else ""),
                          "notes": ("coupled freshness = deployed rate fallback replayed per locale, induced work at skipped cycles not deferred (the lighter case for replication)" + ("; low-density floor: one padded call plus one remainder call on a locale with no owned tracks" if (arm in ("replall", "delta_ready") and (ts.get("active_tracks_p50") or 0) <= 450) else "")),})
     pts[(t, rule)] = j
 for tag, rows in out.items():
