@@ -110,3 +110,7 @@ arms, three admission rows. The landed 22 replays rerun for the
 instrumentation columns. Runner scripts/metro/weak_reference_run.sh (dumps,
 then the landed rerun); crops follow the chooser's windows.
 
+## Results (2026-09-14 13:35)
+
+Lander evaluation_outputs/metro/weak/frozen1r_weak_scaling_rows.csv. Reference series: Khonsu 0.134 to 0.135 at every L and both densities; replication flat in L within about 15 percent (density and sampling). Crop series: Khonsu flat; replication's whole-window load rises with L until the rim is a small share (degree 2.0 at L = 4 to 4.1 at L >= 61). Crop interior equals reference interior (ratio 1.00) once the interior holds more than about fifteen locales; 0.76 to 0.86 below that. All invalidation conditions on the reference series pass; the crop rim condition is documented per point, not hidden.
+
