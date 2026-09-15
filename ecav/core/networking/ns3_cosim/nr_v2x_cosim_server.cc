@@ -1,3 +1,4 @@
+#define USE_NS3_FULL 1
 /* -*- Mode:C++; c-file-style:"gnu"; indent-tabs-mode:nil; -*- */
 /*
  * NR V2X Co-Simulation Server
