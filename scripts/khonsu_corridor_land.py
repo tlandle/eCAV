@@ -50,6 +50,7 @@ import sys
 # khonsu_design_extract (STD [RUNROW] parser) lives beside this script.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import khonsu_design_extract as kde  # noqa: E402
+import khonsu_dup_uploader as _dup  # noqa: E402
 try:
     import khonsu_ablation_diag as kad    # resolve_collision_partner
 except Exception:  # noqa: BLE001 - degrade to blank if the module is absent
@@ -79,6 +80,7 @@ SUMMARY_COLS = [
     "route_success", "stale_owner_consumed", "both_emit_window_ticks",
     "epoch_fence", "source_bound_reads", "conflicting_ticks",
     "collision_partner_resolved",
+    "feature_dup_ticks", "radio_dup_ticks", "cosim_live_ticks",
 ]
 
 DUAL_RE = re.compile(r"DUALROW\] .*?fuse_ms=(?P<fuse>[\d.]+) predict_ms=(?P<pred>[\d.]+)")
@@ -428,6 +430,7 @@ def run(args):
             "source_bound_reads": source_bound if _migrates else "",
             "conflicting_ticks": conflicting if _migrates else "",
             "collision_partner_resolved": collision_partner,
+            **_dup.counts(text),   # duplicate-uploader recurrence guard
         })
 
     os.makedirs(args.outdir, exist_ok=True)
