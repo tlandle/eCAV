@@ -54,7 +54,15 @@ def main():
     ap.add_argument("--replica_ttl_cycles", type=int, default=25)
     ap.add_argument("--max_rows", type=int, default=None)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--rows_csv", default="", help="schema CSV to upsert one row into (paper side: frozen1r_metro_candidates.csv)")
+    ap.add_argument("--row_name", default="", help="row id in the schema CSV (the replay row, e.g. pneuma_0900_deployed)")
+    ap.add_argument("--from_json", default="", help="skip the analysis: load this summary JSON and only write the CSV row")
     a = ap.parse_args()
+    if a.from_json:
+        summary = json.load(open(a.from_json))
+        if a.rows_csv:
+            write_row(summary, a.rows_csv, a.row_name or os.path.basename(a.from_json))
+        return
 
     net = sumolib.net.readNet(a.net, withInternal=False)
     P = ps.partition(net)
@@ -273,6 +281,55 @@ def main():
     with open(a.out, "w") as fh:
         json.dump(summary, fh, indent=1)
     print(json.dumps(summary, indent=1))
+    if a.rows_csv:
+        write_row(summary, a.rows_csv, a.row_name or os.path.basename(a.out))
+
+
+ROW_COLS = ["row", "trace", "crossings", "prepares_on_boundary_road_frac", "one_candidate_frac", "two_candidate_frac",
+            "three_plus_candidate_frac", "never_crossed_frac", "never_crossed_trace_end_frac", "never_crossed_stopped_frac",
+            "never_crossed_other_locale_frac", "prepare_lead_cycles_p50", "prepare_lead_cycles_p90",
+            "destination_unreachable_frac", "prepares", "never_crossed_prepares"]
+
+
+def write_row(summary, rows_csv, row_name):
+    """Upsert one schema row (paper side's frozen1r_metro_candidates.csv). Candidate
+    fractions are over all crossings with the directed count (one-way roads
+    honoured); destination_unreachable_frac is their complement. never_crossed_frac
+    is the engine's set metric (prepared tracks never entering the prepared locale);
+    the reason shares are per prepare within the replica TTL."""
+    import csv
+    nc = summary["n_cand_dir"] or {}
+    reasons = summary.get("never_crossed_reasons", {}) or {}
+    tot = sum(reasons.values())
+    lead = summary.get("prep_lead_cycles") or {}
+    row = {
+        "row": row_name, "trace": summary["trace"], "crossings": summary["crossings"],
+        "prepares_on_boundary_road_frac": _r(summary.get("prepare_committed_frac")),
+        "one_candidate_frac": _r(nc.get("frac_1")), "two_candidate_frac": _r(nc.get("frac_2")),
+        "three_plus_candidate_frac": _r(nc.get("frac_3plus")),
+        "never_crossed_frac": _r(summary["engine_metric"].get("never_crossed_frac"), 5),
+        "never_crossed_trace_end_frac": _r(reasons.get("trace_ended", 0) / tot if tot else None),
+        "never_crossed_stopped_frac": _r(reasons.get("stayed_in_owner", 0) / tot if tot else None),
+        "never_crossed_other_locale_frac": _r(reasons.get("other_destination", 0) / tot if tot else None),
+        "prepare_lead_cycles_p50": lead.get("p50"), "prepare_lead_cycles_p90": lead.get("p90"),
+        "destination_unreachable_frac": _r(nc.get("frac_0")),
+        "prepares": summary.get("prepares"), "never_crossed_prepares": tot,
+    }
+    rows = []
+    if os.path.exists(rows_csv):
+        with open(rows_csv) as fh:
+            rows = [r for r in csv.DictReader(fh) if r.get("row") != row_name]
+    rows.append(row)
+    with open(rows_csv, "w", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=ROW_COLS, extrasaction="ignore")
+        w.writeheader()
+        for r in rows:
+            w.writerow({c: r.get(c, "") for c in ROW_COLS})
+    print("row", row_name, "->", rows_csv)
+
+
+def _r(v, nd=4):
+    return None if v is None else round(float(v), nd)
 
 
 if __name__ == "__main__":
