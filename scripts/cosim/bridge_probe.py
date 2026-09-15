@@ -24,6 +24,7 @@ def main():
     ap.add_argument('--payload', type=int, default=16896)
     ap.add_argument('--max-vehicles', type=int, default=8)
     ap.add_argument('--tag', default='probe')
+    ap.add_argument('--schedule', default='', help='comma list of active UE counts per tick (prefix of --ue), e.g. 8,1,3,1,2')
     a = ap.parse_args()
     pts = []
     for s in a.ue:
@@ -38,14 +39,17 @@ def main():
     print('start_ms=%.0f shm=%s pid=%s' % ((time.perf_counter() - t0) * 1000, b._shm_name, b._process.pid))
     rc = 0
     try:
-        for t in range(1, a.ticks + 1):
+        sched = [int(v) for v in a.schedule.split(',') if v.strip()] if a.schedule else []
+        nt = len(sched) if sched else a.ticks
+        for t in range(1, nt + 1):
+            cur = pts[:sched[t - 1]] if sched else pts
             t1 = time.perf_counter()
-            res = b.compute_tick(pts, [], t, payload_bytes=a.payload)
+            res = b.compute_tick(cur, [], t, payload_bytes=a.payload)
             wall = (time.perf_counter() - t1) * 1000
             ul = [r.delay_ms for r in res if r.rx_id == 0xFFFF]
             dl = [r.delay_ms for r in res if r.tx_id == 0xFFFE]
             print('tick=%d n_ue=%d n_results=%d wall_ms=%.0f ul=%s dl=%s delivered=%d/%d' % (
-                t, len(pts), len(res), wall, ['%.1f' % v for v in ul], ['%.1f' % v for v in dl],
+                t, len(cur), len(res), wall, ['%.1f' % v for v in ul], ['%.1f' % v for v in dl],
                 sum(1 for r in res if r.delivered), len(res)))
             if b._process.poll() is not None:
                 rc = b._process.returncode

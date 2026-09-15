@@ -253,6 +253,15 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._ns3_cosim = (_os_c.environ.get('NS3_COSIM', '0') == '1') and self._use_ns3_lut
         self._ns3_bridge = None
         self._ns3_last = {}
+        if self._ns3_cosim:
+            # Bring-up (server spawn + one pre-warm tick with every UE active)
+            # happens here, before the loop's first tick: paid inside the loop
+            # it stalled tick 1 for 18 s and the decision cadence stayed
+            # degraded for ~8 s of simulated time afterwards.
+            try:
+                self._ns3_bringup()
+            except Exception as _e:  # noqa: BLE001
+                logger.warning("[RADIOERR] edge=%s ns-3 bring-up failed: %r (table path this run)", self.edgeid, _e)
         self._sim_dt_ms = float(self.dt) * 1000.0
         # Outbound delivery queue: list of (deliver_tick, predictions).
         # Latest-wins: _drain_outbound_latest returns the freshest prediction
@@ -1745,6 +1754,40 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         except Exception:  # noqa: BLE001
             return None
 
+    def _ns3_bringup(self):
+        """Spawn this edge's ns-3 server and run one pre-warm tick with every
+        UE active on a 20 m ring: 5G-LENA attaches a UE the first time it is
+        active, which costs seconds per UE; after the pre-warm every change
+        in the active count costs tens of milliseconds (probe 2026-09-14)."""
+        import math as _m
+        import os as _os_b
+        import time as _t
+        from ecav.core.networking.ns3_cosim.ns3_bridge import NS3Bridge
+        _t0 = _t.perf_counter()
+        # One server per edge; several edges share this process, so the
+        # shared-memory name carries the edge id (the bridge default is
+        # per-pid and two edges would attach to one segment).
+        _tag = ''.join(ch for ch in str(self.edgeid) if ch.isalnum())[:16]
+        _max_ue = int(_os_b.environ.get('NS3_COSIM_MAX_UE', '4'))
+        self._ns3_bridge = NS3Bridge(max_vehicles=_max_ue, mode="uu_uplink",
+                                     bandwidth_mhz=40.0, tx_power_dbm=23.0,
+                                     numerology=0, tick_duration_s=float(self.dt),
+                                     shm_tag=_tag)
+        self._ns3_bridge.start()
+        import atexit as _ax
+        _ax.register(self._ns3_bridge.shutdown)
+        self._ns3_ticks = 0
+        self._ns3_last['bringup_ms'] = (_t.perf_counter() - _t0) * 1000.0
+        logger.info("[RADIOINIT] edge=%s start_ms=%.0f shm=%s max_ue=%d", self.edgeid,
+                    self._ns3_last['bringup_ms'], getattr(self._ns3_bridge, '_shm_name', '?'), _max_ue)
+        ring = [[20.0 * _m.cos(2 * _m.pi * i / _max_ue), 20.0 * _m.sin(2 * _m.pi * i / _max_ue), 1.5]
+                for i in range(_max_ue)]
+        _t1 = _t.perf_counter()
+        res = self._ns3_bridge.compute_tick(ring, [], 0, payload_bytes=16896)
+        self._ns3_last['prewarm_ms'] = (_t.perf_counter() - _t1) * 1000.0
+        logger.info("[RADIOINIT] edge=%s prewarm_ms=%.0f n_ue=%d n_results=%d", self.edgeid,
+                    self._ns3_last['prewarm_ms'], _max_ue, len(res))
+
     def _ns3_uplink_tick(self, poses, frame_idx, ul_bytes):
         """One uplink-mode ns-3 tick for this edge's uploaders; returns the max
         per-agent UL delay in ms (the same order statistic as the LUT path) or
@@ -1754,23 +1797,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         import time as _t
         try:
             if self._ns3_bridge is None:
-                from ecav.core.networking.ns3_cosim.ns3_bridge import NS3Bridge
-                _t0 = _t.perf_counter()
-                # One server per edge; several edges share this process, so the
-                # shared-memory name carries the edge id (the bridge default is
-                # per-pid and two edges would attach to one segment).
-                _tag = ''.join(ch for ch in str(self.edgeid) if ch.isalnum())[:16]
-                self._ns3_bridge = NS3Bridge(max_vehicles=8, mode="uu_uplink",
-                                             bandwidth_mhz=40.0, tx_power_dbm=23.0,
-                                             numerology=0, tick_duration_s=float(self.dt),
-                                             shm_tag=_tag)
-                self._ns3_bridge.start()
-                import atexit as _ax
-                _ax.register(self._ns3_bridge.shutdown)
-                self._ns3_ticks = 0
-                self._ns3_last['bringup_ms'] = (_t.perf_counter() - _t0) * 1000.0
-                logger.info("[RADIOINIT] edge=%s start_ms=%.0f shm=%s", self.edgeid,
-                            self._ns3_last['bringup_ms'], getattr(self._ns3_bridge, '_shm_name', '?'))
+                self._ns3_bringup()
             rsu_x, rsu_y = float(self.world_anchor[0]), float(self.world_anchor[1])
             pts = []
             _n_rsu = len(getattr(self, 'rsu_manager_list', []) or [])
