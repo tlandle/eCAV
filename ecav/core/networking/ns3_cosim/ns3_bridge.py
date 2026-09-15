@@ -91,6 +91,7 @@ class NS3Bridge:
         numerology: int = 0,
         mode: str = "sidelink",  # "sidelink" or "uu_uplink"
         tick_duration_s: float = 0.05,
+        shm_tag: str = None,  # appended to the per-pid segment name; several bridges in one process
     ):
         self.max_vehicles = max_vehicles
         self.carrier_ghz = carrier_ghz
@@ -105,7 +106,8 @@ class NS3Bridge:
         self._ns3_binary = self._resolve_binary(ns3_binary, ns3_build_dir)
 
         self._shm_size = compute_shm_size(max_vehicles)
-        self._shm_name = f"/ecav_ns3_cosim_{os.getpid()}"
+        _tag = ''.join(ch for ch in str(shm_tag) if ch.isalnum() or ch == '_') if shm_tag else ''
+        self._shm_name = f"/ecav_ns3_cosim_{os.getpid()}" + (f"_{_tag}" if _tag else "")
         self._shm_fd = None
         self._shm_buf = None
         self._process: Optional[subprocess.Popen] = None
