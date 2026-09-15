@@ -414,16 +414,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 poses.append(pos)
                 print(f"[WorldFusion Edge] RSU CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
 
-        # Vehicles collected after RSUs (agents 1..N)
-        for vm in self.vehicle_manager_list:
-            pm = vm.perception_manager
-            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
-                feature_dicts.append(pm.feature_dict)
-                pos = vm.localizer.get_ego_pos()
-                poses.append(pos)
-                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
-
-        # Then collect from vehicles
+        # Vehicles collected after RSUs (agents 1..N). One entry per vehicle:
+        # the base file carried this loop twice (a merge duplicate), so every
+        # CAV feature and pose entered the fusion batch and the uplink
+        # charge twice (record_len 3 for RSU + one CAV; n_cav 2).
         for vm in self.vehicle_manager_list:
             pm = vm.perception_manager
             if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
@@ -481,9 +475,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     if _live is not None:
                         ul_ms = _live
                     logger.info(
-                        "[RADIOROW] tick=%d edge=%s n_ul=%d ul_live_ms=%.2f ul_lut_ms=%.2f "
+                        "[RADIOROW] tick=%d edge=%s n_ul=%d n_ue=%d n_dup=%d ul_live_ms=%.2f ul_lut_ms=%.2f "
                         "delivered_frac=%.3f ns3_wall_ms=%.1f n_results=%d",
-                        frame_idx, self.edgeid, n_cav, ul_ms, _ul_lut,
+                        frame_idx, self.edgeid, n_cav, self._ns3_last.get('n_ue', 0),
+                        self._ns3_last.get('n_dup', 0), ul_ms, _ul_lut,
                         self._ns3_last.get('delivered_frac', -1.0),
                         self._ns3_last.get('wall_ms', -1.0), self._ns3_last.get('n_results', 0))
                 self._last_ul_ms = ul_ms  # for network_age_ms (T12)
@@ -1779,10 +1774,22 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             rsu_x, rsu_y = float(self.world_anchor[0]), float(self.world_anchor[1])
             pts = []
             _n_rsu = len(getattr(self, 'rsu_manager_list', []) or [])
+            _seen = set()
+            _dup = 0
             for p in list(poses)[_n_rsu:]:     # RSU poses lead the list (the gNB side)
                 xy = self._pose_xy(p)
-                if xy is not None:
-                    pts.append([xy[0] - rsu_x, xy[1] - rsu_y, 1.5])
+                if xy is None:
+                    continue
+                # ns-3's 3GPP loss model aborts the server on two devices at
+                # one position; a duplicated uploader entry never reaches it.
+                _key = (round(xy[0], 2), round(xy[1], 2))
+                if _key in _seen:
+                    _dup += 1
+                    continue
+                _seen.add(_key)
+                pts.append([xy[0] - rsu_x, xy[1] - rsu_y, 1.5])
+            self._ns3_last['n_ue'] = len(pts)
+            self._ns3_last['n_dup'] = _dup
             if not pts:
                 return None
             _t1 = _t.perf_counter()
@@ -1798,6 +1805,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             self._ns3_last = {'wall_ms': wall, 'n_results': len(res),
                               'delivered_frac': (sum(dlv) / len(dlv)) if dlv else -1.0,
                               'dl_ms': (max(dl) if dl else None),
+                              'n_ue': len(pts), 'n_dup': _dup,
                               'bringup_ms': self._ns3_last.get('bringup_ms')}
             return float(max(ul)) if ul else None
         except Exception as _e:  # noqa: BLE001

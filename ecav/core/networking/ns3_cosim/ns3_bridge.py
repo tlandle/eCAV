@@ -234,6 +234,10 @@ class NS3Bridge:
         """
         if not self._started:
             raise RuntimeError("NS3Bridge.start() must be called first")
+        if self._process is not None and self._process.poll() is not None:
+            # A dead server never signals; do not wait the tick timeout out.
+            self._log_dead_once(tick)
+            return []
 
         N = len(positions)
         if N > self.max_vehicles:
@@ -289,8 +293,7 @@ class NS3Bridge:
             logger.warning("ns-3 tick %d timed out after %.0fms", tick, elapsed)
             # Check if process is still alive
             if self._process and self._process.poll() is not None:
-                logger.error("ns-3 process died (exit code %d)",
-                           self._process.returncode)
+                self._log_dead_once(tick)
             return []
 
         # Read result header
@@ -337,6 +340,21 @@ class NS3Bridge:
             "channel_ms": self._last_channel_ms,
             "prr": self._last_prr,
         }
+
+    def _log_dead_once(self, tick):
+        """Log the server's exit code and the tail of its stderr once."""
+        if getattr(self, '_dead_logged', False):
+            return
+        self._dead_logged = True
+        tail = ''
+        try:
+            if self._process.stderr is not None:
+                err = self._process.stderr.read().decode(errors='replace')
+                tail = ' | '.join(err.splitlines()[-4:])
+        except Exception as e:  # noqa: BLE001
+            tail = 'stderr unavailable: %r' % (e,)
+        logger.error("ns-3 process died at tick %d (exit code %s); stderr tail: %s",
+                     tick, self._process.returncode, tail)
 
     def reset(self):
         if self._shm_buf:

@@ -43,7 +43,7 @@ def _stats(xs):
 
 def parse(path):
     per = defaultdict(lambda: {'ul_live': [], 'ul_lut': [], 'ul_lut_all': [], 'dl_live': [], 'dl_lut': [],
-                               'wall': [], 'delivered': [], 'n_ul': [], 'empty_ticks': 0, 'ul_ticks': 0,
+                               'wall': [], 'delivered': [], 'n_ul': [], 'n_ue': [], 'n_dup': 0, 'empty_ticks': 0, 'ul_ticks': 0,
                                'start_ms': None, 'first_tick_ms': None, 'first_n_ue': None, 'shm': None,
                                'realized_age': [], 'network_age': [], 'first_tick': None, 'last_tick': None,
                                'radioerr': 0})
@@ -57,6 +57,9 @@ def parse(path):
                 e['first_tick'] = t if e['first_tick'] is None else e['first_tick']
                 e['last_tick'] = t
                 e['ul_lut_all'].append(float(d['ul_lut_ms']))
+                if 'n_ue' in d:
+                    e['n_ue'].append(int(d['n_ue']))
+                e['n_dup'] += int(d.get('n_dup', 0))
                 if int(d.get('n_results', 0)) <= 0:
                     e['empty_ticks'] += 1
                     continue
@@ -101,7 +104,7 @@ def summarize(per):
             'ticks': [e['first_tick'], e['last_tick']],
             'start_ms': e['start_ms'], 'first_tick_ms': e['first_tick_ms'], 'first_n_ue': e['first_n_ue'],
             'shm': e['shm'],
-            'n_ul': _stats(e['n_ul']),
+            'n_ul': _stats(e['n_ul']), 'n_ue': _stats(e['n_ue']), 'n_dup': e['n_dup'],
             'ul_live_ms': _stats(e['ul_live']), 'ul_lut_ms_same_ticks': _stats(e['ul_lut']),
             'ul_lut_ms_all_ticks': _stats(e['ul_lut_all']),
             'dl_live_ms': _stats(e['dl_live']), 'dl_lut_ms': _stats(e['dl_lut']),
@@ -147,6 +150,7 @@ def main():
             edge, st['ticks'], st['ul_ticks'], st['empty_ticks'], st['radioerr'], st['start_ms'],
             st['first_tick_ms'], st['first_n_ue'], st['shm']))
         print('  n_ul       %s' % _fmt(st['n_ul']))
+        print('  n_ue       %s   dup_dropped=%d' % (_fmt(st['n_ue']), st['n_dup']))
         print('  UL live    %s' % _fmt(st['ul_live_ms']))
         print('  UL table   %s   (same ticks)' % _fmt(st['ul_lut_ms_same_ticks']))
         print('  DL live    %s' % _fmt(st['dl_live_ms']))
