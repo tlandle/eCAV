@@ -38,6 +38,7 @@ import sys
 # so a bare `python scripts/khonsu_1l_land.py ...` invocation can import them.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import khonsu_design_extract as kde  # noqa: E402
+import khonsu_dup_uploader as _dup
 import khonsu_ablation_diag as kad  # noqa: E402
 
 # STD column order shared with khonsu_design_extract (schema `STD`).
@@ -213,6 +214,7 @@ def std_row(path, name, machine, oncoming_speed, trigger_dist, tag_default):
         "eps_raw": eps_raw,
         "contact_raw": contact_raw,
     })
+    row.update(_dup.counts(text))   # duplicate-uploader recurrence guard
     return row
 
 

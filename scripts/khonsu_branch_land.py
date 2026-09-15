@@ -9,6 +9,9 @@ Reads evaluation_outputs/branch_1p_*/br_<site>_<arm>_s<seed>.log and writes
 Checks are computed, never eyeballed: a failed check is printed with the run tags.
 """
 import csv, glob, math, os, re, sys
+import os as _os, sys as _sys
+_sys.path.insert(0, _os.path.dirname(_os.path.abspath(__file__)))
+import khonsu_dup_uploader as _dup
 from collections import defaultdict
 ROOT = sys.argv[1] if len(sys.argv) > 1 else "evaluation_outputs"
 OUT = sys.argv[2] if len(sys.argv) > 2 else ROOT
@@ -29,7 +32,7 @@ for log in sorted(glob.glob(f"{ROOT}/branch_1p_*/br_*.log")):
            "wrong_destination": "", "right_destination_too_late": "", "lead_s": "", "t_avail_s": "", "taken": "", "entered": "",
            "route_ok": "", "k": "", "trigger_tick": "", "crossing_tick": "", "conflict_tick": "", "first_dst_track_tick": "",
            "first_use_tick": "", "prepare_tick": "", "cv_pick": "", "run_bytes": "", "collided": "", "hashes": "", "fire_rule": "",
-           "spawn_offset_m": "", "hardfail": ""}
+           "spawn_offset_m": "", "hardfail": "", "feature_dup_ticks": "", "radio_dup_ticks": "", "cosim_live_ticks": ""}
     hashes = {}; depths = {}; confrows = []; npc = []; fire_tick = None; enter_tick = None; collided = None
     for line in open(log, errors="replace"):
         if "[READYROW]" in line:
@@ -50,6 +53,7 @@ for log in sorted(glob.glob(f"{ROOT}/branch_1p_*/br_*.log")):
         elif "collision" in line.lower() and ("CollisionTest" in line or "Collision" in line and "FAILURE" in line): collided = 1
     # binary collision from the scenario-runner criteria block if present
     txt = open(log, errors="replace").read()
+    row.update(_dup.counts(txt))   # duplicate-uploader recurrence guard
     if re.search(r"CollisionTest.*FAILURE", txt): collided = 1
     elif re.search(r"CollisionTest.*SUCCESS", txt): collided = collided or 0
     row["collided"] = "" if collided is None else collided
