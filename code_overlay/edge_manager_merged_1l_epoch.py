@@ -242,6 +242,17 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # to fall back to the legacy HybridModel UL stamping (no DL delay).
         self._use_ns3_lut = bool(cfg.get("use_ns3_lut", True))
         self._lut_sampler = _get_lut_sampler() if self._use_ns3_lut else None
+        # ns-3 5G-LENA CO-SIMULATION on the edge path (validation block,
+        # 2026-09-14; docs/agent_plans/cosim_validation_design.md). NS3_COSIM=1
+        # starts one uplink-mode bridge per edge (the cell's gNB at this
+        # locale's RSU) lazily at the first fusion tick and stamps UL and DL
+        # from its per-tick results, logging the LUT draw beside the live value
+        # on every tick ([RADIOROW], [RADIOROW-DL]). Default off: the LUT path
+        # is byte-identical when unset.
+        import os as _os_c
+        self._ns3_cosim = (_os_c.environ.get('NS3_COSIM', '0') == '1') and self._use_ns3_lut
+        self._ns3_bridge = None
+        self._ns3_last = {}
         self._sim_dt_ms = float(self.dt) * 1000.0
         # Outbound delivery queue: list of (deliver_tick, predictions).
         # Latest-wins: _drain_outbound_latest returns the freshest prediction
@@ -464,6 +475,17 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     for _ in range(n_cav)
                 ]
                 ul_ms = max(ul_samples_ms) if ul_samples_ms else 0.0
+                if self._ns3_cosim:
+                    _ul_lut = ul_ms
+                    _live = self._ns3_uplink_tick(poses, frame_idx, ul_bytes)
+                    if _live is not None:
+                        ul_ms = _live
+                    logger.info(
+                        "[RADIOROW] tick=%d edge=%s n_ul=%d ul_live_ms=%.2f ul_lut_ms=%.2f "
+                        "delivered_frac=%.3f ns3_wall_ms=%.1f n_results=%d",
+                        frame_idx, self.edgeid, n_cav, ul_ms, _ul_lut,
+                        self._ns3_last.get('delivered_frac', -1.0),
+                        self._ns3_last.get('wall_ms', -1.0), self._ns3_last.get('n_results', 0))
                 self._last_ul_ms = ul_ms  # for network_age_ms (T12)
                 ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
                 arrival = frame_idx + ul_ticks
@@ -918,6 +940,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     dl_bytes = 1000
                 dl_ms = self._lut_sampler.sample_ms(
                     n_cell_dl, dl_bytes, 'dl')
+                if self._ns3_cosim and self._ns3_last.get('dl_ms') is not None:
+                    _dl_lut = dl_ms
+                    dl_ms = float(self._ns3_last['dl_ms'])
+                    logger.info("[RADIOROW-DL] tick=%d edge=%s dl_live_ms=%.2f dl_lut_ms=%.2f",
+                                tick, self.edgeid, dl_ms, _dl_lut)
             else:
                 dl_ms = 0.0
             deliver_tick = tick + int(math.ceil(
@@ -1706,6 +1733,60 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         except Exception as e:
             return current_yaw_rad
+
+    # ---- ns-3 co-simulation (validation block) -------------------------------
+    @staticmethod
+    def _pose_xy(p):
+        try:
+            if hasattr(p, 'x') and hasattr(p, 'y'):
+                return float(p.x), float(p.y)
+            if isinstance(p, dict):
+                return float(p['x']), float(p['y'])
+            return float(p[0]), float(p[1])
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _ns3_uplink_tick(self, poses, frame_idx, ul_bytes):
+        """One uplink-mode ns-3 tick for this edge's uploaders; returns the max
+        per-agent UL delay in ms (the same order statistic as the LUT path) or
+        None if the bridge is unavailable. Positions are relative to this
+        locale's RSU (the cell's gNB, at the server's origin, 4.5 m mast);
+        UEs at 1.5 m. DL delays of the same tick are kept for the publish site."""
+        import time as _t
+        try:
+            if self._ns3_bridge is None:
+                from ecav.core.networking.ns3_cosim.ns3_bridge import NS3Bridge
+                _t0 = _t.perf_counter()
+                self._ns3_bridge = NS3Bridge(max_vehicles=8, mode="uu_uplink",
+                                             bandwidth_mhz=40.0, tx_power_dbm=23.0,
+                                             numerology=0, tick_duration_s=float(self.dt))
+                self._ns3_bridge.start()
+                import atexit as _ax
+                _ax.register(self._ns3_bridge.shutdown)
+                self._ns3_last['bringup_ms'] = (_t.perf_counter() - _t0) * 1000.0
+                logger.info("[RADIOINIT] edge=%s bringup_ms=%.0f", self.edgeid, self._ns3_last['bringup_ms'])
+            rsu_x, rsu_y = float(self.world_anchor[0]), float(self.world_anchor[1])
+            pts = []
+            for p in list(poses)[1:]:          # index 0 is the RSU (the gNB side)
+                xy = self._pose_xy(p)
+                if xy is not None:
+                    pts.append([xy[0] - rsu_x, xy[1] - rsu_y, 1.5])
+            if not pts:
+                return None
+            _t1 = _t.perf_counter()
+            res = self._ns3_bridge.compute_tick(pts, [], int(frame_idx), payload_bytes=int(ul_bytes))
+            wall = (_t.perf_counter() - _t1) * 1000.0
+            ul = [r.delay_ms for r in res if r.rx_id == 0xFFFF] or [r.delay_ms for r in res if r.tx_id != 0xFFFE]
+            dl = [r.delay_ms for r in res if r.tx_id == 0xFFFE]
+            dlv = [1.0 if r.delivered else 0.0 for r in res]
+            self._ns3_last = {'wall_ms': wall, 'n_results': len(res),
+                              'delivered_frac': (sum(dlv) / len(dlv)) if dlv else -1.0,
+                              'dl_ms': (max(dl) if dl else None),
+                              'bringup_ms': self._ns3_last.get('bringup_ms')}
+            return float(max(ul)) if ul else None
+        except Exception as _e:  # noqa: BLE001
+            logger.warning("[RADIOERR] edge=%s ns-3 tick failed: %r (LUT value kept this tick)", self.edgeid, _e)
+            return None
 
     def _ab3d_history_to_trajs(self, hist: Deque[np.ndarray], horizon: int = 10):
         """
