@@ -178,6 +178,7 @@ def run(args):
     print(f"partition L={L}, boundaries {len(b_pts)} (observed {len(seen_b)}), degree topological {deg_topo:.2f} used({args.nbr_mode}) {deg_used:.2f}, tracks {len(traces)}, cycles {ncyc} ({time.time()-t0:.0f}s)", flush=True)
     xfer_s = args.xfer_ms / 1000.0; fold = 3 * CYCLE; lead = min(2.5, max(fold + 0.35, xfer_s + fold + 0.35))
     lead_cycles = int(round(lead / CYCLE)); nb_m = args.nb_m; tau = args.tau
+    late_cycles = int(math.ceil(xfer_s / CYCLE)) + 3   # transfer + fold-in: a prepare closer than this to its crossing is late
     # owned tracks per (locale, cycle): the destination's own prediction batch that
     # imported replicas JOIN; the marginal charge is pattern(owned + replicas) -
     # pattern(owned). Standalone (replicas as their own batch) kept as a column.
@@ -254,6 +255,7 @@ def run(args):
         # per (locale, cycle) op counters: imports, deltas, predict replicas
         imp = defaultdict(int); dlt = defaultdict(int); prd = defaultdict(int); byts = defaultdict(float)
         cross_in = defaultdict(int)          # actual crossings INTO a locale per (locale, cycle)
+        cross_n = 0; cross_prep_ok = 0; cross_prep_late = 0; cross_unprep = 0   # warm: prepare timing per crossing
         prepared_into = defaultdict(set)     # locale -> set of tracks prepared into it (warm: predicted to cross)
         prepared_crossed = defaultdict(set)  # locale -> prepared tracks that did cross into it
         # per consumption: mechanism age, owner locale, cycle, cycles since a crossing (-1 = no prior owner or past 15)
@@ -272,6 +274,13 @@ def run(args):
                     if prev is not None:
                         cross_in[(loc, k)] += 1
                         if tid in prepared_into.get(loc, ()): prepared_crossed[loc].add(tid)
+                        cross_n += 1
+                        if arm == "warm":
+                            if prepared_dst == loc and prepare_cycle is not None:
+                                if k - prepare_cycle >= late_cycles: cross_prep_ok += 1
+                                else: cross_prep_late += 1
+                            else:
+                                cross_unprep += 1
                     # forecast availability at the new owner
                     if prev is None:
                         forecast_ready_at = k + args.cold_cycles                      # first acquisition
@@ -441,7 +450,12 @@ def run(args):
                  "registry": {"prepares_per_dest_cycle": sum(imp.values()) / max(L * ncyc, 1), "prepare_cycle_frac": len(imp) / max(L * ncyc, 1),
                               "prepares_p95_given_any": _mp(imp.values())["p95"], "predicted_crossers_per_locale": float(np.mean(_ptc)) if _ptc else None,
                               "refreshes_per_dest_cycle": sum(prd.values()) / max(L * ncyc, 1), "refreshes_p95_given_any": _mp(prd.values())["p95"],
-                              "crossing_burst_p95": _mp(cross_in.values())["p95"], "never_crossed_frac": (1.0 - _pc / _pi) if _pi else None}}
+                              "crossing_burst_p95": _mp(cross_in.values())["p95"], "never_crossed_frac": (1.0 - _pc / _pi) if _pi else None,
+                              # prepare timing per crossing (warm only): late = the prepare landed fewer than
+                              # late_cycles (transfer + fold-in) before the crossing, or no prepare at all
+                              "crossings": cross_n, "late_cycles": late_cycles,
+                              "late_prepare_frac": ((cross_prep_late + cross_unprep) / cross_n) if (arm == "warm" and cross_n) else None,
+                              "unprepared_crossing_frac": (cross_unprep / cross_n) if (arm == "warm" and cross_n) else None}}
         results[arm] = {"p95_load_frac": float(np.percentile(pooled, 95) / SLACK_MS), "p99_load_frac": float(np.percentile(pooled, 99) / SLACK_MS),
                         "mean_load_frac": float(pooled.mean() / SLACK_MS), "max_locale_cycle_frac": per_loc_max / SLACK_MS,
                         "p95_load_frac_standalone": float(np.percentile(pooled_sa, 95) / SLACK_MS), "charge": args.charge,
