@@ -43,7 +43,7 @@ def _stats(xs):
 
 def parse(path):
     per = defaultdict(lambda: {'ul_live': [], 'ul_lut': [], 'ul_lut_all': [], 'dl_live': [], 'dl_lut': [],
-                               'wall': [], 'delivered': [], 'n_ul': [], 'n_ue': [], 'n_dup': 0, 'empty_ticks': 0, 'ul_ticks': 0,
+                               'wall': [], 'delivered': [], 'n_ul': [], 'n_ue': [], 'n_dup': 0, 'empty_ticks': 0, 'no_ue_ticks': 0, 'ul_ticks': 0,
                                'start_ms': None, 'first_tick_ms': None, 'first_n_ue': None, 'shm': None,
                                'realized_age': [], 'network_age': [], 'first_tick': None, 'last_tick': None,
                                'radioerr': 0})
@@ -61,7 +61,11 @@ def parse(path):
                     e['n_ue'].append(int(d['n_ue']))
                 e['n_dup'] += int(d.get('n_dup', 0))
                 if int(d.get('n_results', 0)) <= 0:
-                    e['empty_ticks'] += 1
+                    # no uploader this tick (bridge not called) vs the bridge returning nothing
+                    if int(d.get('n_ue', -1)) == 0:
+                        e['no_ue_ticks'] += 1
+                    else:
+                        e['empty_ticks'] += 1
                     continue
                 e['ul_live'].append(float(d['ul_live_ms']))
                 e['ul_lut'].append(float(d['ul_lut_ms']))
@@ -100,7 +104,7 @@ def summarize(per):
     pooled = defaultdict(list)
     for edge, e in per.items():
         s = {
-            'ul_ticks': e['ul_ticks'], 'empty_ticks': e['empty_ticks'], 'radioerr': e['radioerr'],
+            'ul_ticks': e['ul_ticks'], 'empty_ticks': e['empty_ticks'], 'no_ue_ticks': e['no_ue_ticks'], 'radioerr': e['radioerr'],
             'ticks': [e['first_tick'], e['last_tick']],
             'start_ms': e['start_ms'], 'first_tick_ms': e['first_tick_ms'], 'first_n_ue': e['first_n_ue'],
             'shm': e['shm'],
@@ -121,6 +125,7 @@ def summarize(per):
         'ns3_wall_ms': _stats(pooled['wall']),
         'realized_age_ms': _stats(pooled['realized_age']), 'network_age_ms': _stats(pooled['network_age']),
         'empty_ticks': sum(e['empty_ticks'] for e in per.values()),
+        'no_ue_ticks': sum(e['no_ue_ticks'] for e in per.values()),
         'ul_ticks': sum(e['ul_ticks'] for e in per.values()),
         'radioerr': sum(e['radioerr'] for e in per.values()),
     }
@@ -146,8 +151,8 @@ def main():
     for edge, st in s.items():
         if edge == '_pooled':
             continue
-        print('edge %s ticks %s ul_ticks=%d empty=%d radioerr=%d start_ms=%s first_tick_ms=%s (n_ue=%s) shm=%s' % (
-            edge, st['ticks'], st['ul_ticks'], st['empty_ticks'], st['radioerr'], st['start_ms'],
+        print('edge %s ticks %s ul_ticks=%d no_uploader=%d bridge_empty=%d radioerr=%d start_ms=%s first_tick_ms=%s (n_ue=%s) shm=%s' % (
+            edge, st['ticks'], st['ul_ticks'], st['no_ue_ticks'], st['empty_ticks'], st['radioerr'], st['start_ms'],
             st['first_tick_ms'], st['first_n_ue'], st['shm']))
         print('  n_ul       %s' % _fmt(st['n_ul']))
         print('  n_ue       %s   dup_dropped=%d' % (_fmt(st['n_ue']), st['n_dup']))
@@ -160,7 +165,7 @@ def main():
         print('  age real.  %s' % _fmt(st['realized_age_ms']))
         print('  age net.   %s' % _fmt(st['network_age_ms']))
     p = s['_pooled']
-    print('pooled ul_ticks=%d empty=%d radioerr=%d' % (p['ul_ticks'], p['empty_ticks'], p['radioerr']))
+    print('pooled ul_ticks=%d no_uploader=%d bridge_empty=%d radioerr=%d' % (p['ul_ticks'], p['no_ue_ticks'], p['empty_ticks'], p['radioerr']))
     for k in ('ul_live_ms', 'ul_lut_ms_same_ticks', 'dl_live_ms', 'dl_lut_ms', 'ns3_wall_ms', 'realized_age_ms', 'network_age_ms'):
         print('  %-22s %s' % (k, _fmt(p[k])))
     if a.json:
