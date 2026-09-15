@@ -101,10 +101,22 @@ before any validation run): the UL site's pose list holds carla.Transform
 objects and the coordinate helper never reached the bridge (every row was
 the table's value with n_results=0 and no error), and the bridge named its
 segment by pid alone so the two edges of one process shared a segment
-(`shm_tag`, develop f64bd056). Markers: `[RADIOINIT] edge start_ms shm`
-at server spawn and `[RADIOINIT] edge first_tick_ms n_ue n_results` on the
-first completed tick; `[RADIOROW]` per fusion tick; `[RADIOROW-DL]` at the
-publish site; `[RADIOERR]` on an exception (table value kept).
+(`shm_tag`, develop f64bd056). A third, found by the second smoke, was in
+the base edge manager rather than the wiring: the vehicle collection loop
+ran twice (since befaa080, 2026-04-30), so one CAV entered the uploader
+list twice and 5G-LENA's 3GPP loss model aborted the server on two devices
+at one position (NS_ASSERT, three-gpp-spectrum-propagation-loss-model.cc
+line 336, reproduced with scripts/cosim/bridge_probe.py). The same
+duplicate fused each CAV feature twice and charged the uplink for two
+uploaders per CAV in every closed-loop run of that window; fixed in the
+overlay set and on develop (8a2a24e2, 2ee053c3), with a coincident-position
+guard in the tick (n_ue, n_dup on the row) and a bridge liveness check (a
+dead server returns no rows at once and logs its exit code and stderr
+tail once). Markers: `[RADIOINIT] edge start_ms shm` at server spawn and
+`[RADIOINIT] edge first_tick_ms n_ue n_results` on the first completed
+tick; `[RADIOROW]` per fusion tick (n_ul is the table's uploader count,
+n_ue the bridge's); `[RADIOROW-DL]` at the publish site; `[RADIOERR]` on
+an exception (table value kept). Extractor: scripts/cosim/radio_tails.py.
 
 ## Order
 
