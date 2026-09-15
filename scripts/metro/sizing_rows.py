@@ -59,10 +59,14 @@ def main():
             "notes": ("fusion beyond the measured sweep (563 m); infeasible by its last point" if not measured else ""),
         })
     rows.sort(key=lambda r: r["tile_side_m"])
-    # duplicate partitions (same locale count and boundaries as the previous side)
+    # sides that repeat the previous side's locale count: identical partition
+    # (same boundaries and load) or a different grouping with the same count
     for i in range(1, len(rows)):
-        if rows[i]["locales"] == rows[i - 1]["locales"] and rows[i]["boundaries"] == rows[i - 1]["boundaries"] and rows[i]["dest_load_p95"] == rows[i - 1]["dest_load_p95"]:
-            rows[i]["notes"] = (rows[i]["notes"] + "; " if rows[i]["notes"] else "") + f"same partition as {rows[i-1]['tile_side_m']} m"
+        if rows[i]["locales"] == rows[i - 1]["locales"]:
+            ident = rows[i]["boundaries"] == rows[i - 1]["boundaries"] and rows[i]["dest_load_p95"] == rows[i - 1]["dest_load_p95"]
+            tag = (f"same partition as {rows[i-1]['tile_side_m']} m" if ident
+                   else f"same locale count as {rows[i-1]['tile_side_m']} m, grouping differs")
+            rows[i]["notes"] = (rows[i]["notes"] + "; " if rows[i]["notes"] else "") + tag
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     with open(a.out, "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=COLS); w.writeheader(); [w.writerow(r) for r in rows]
