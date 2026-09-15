@@ -59,11 +59,16 @@ byte-identical when off)
   latency distributions (p50 / p95 / p99 and PRR from delivered) live vs LUT
   on the same ticks; the forecast age at use (the [AGEROW] population) live vs
   LUT; the arms' outcome columns for the record.
-- Agreement rule: live and LUT UL p50 within the LUT cell's own sigma at the
-  run's agent count, DL likewise; age-at-use distributions overlapping at the
-  p50 within one edge cycle. Outside that, the LUT does not stand in for the
-  co-simulation and the paper's radio sentence must follow whichever path the
-  reruns use.
+- Agreement rule (paper side, 2026-09-14: the network sentence promises that
+  radio load sets the TAIL of the sensing-to-planner age): compare p50, p95
+  and p99 of the per-message UL and DL latencies and of the forecast age at
+  use, live against LUT on the same cells. The LUT draw is a Gaussian around
+  a cell's mean and p95; the live bridge produces the true per-tick
+  distribution, so a tail disagreement is the expected finding, not a defect.
+  Rule: p50 within the LUT cell's sigma; p95 and p99 reported with their
+  ratio live/LUT; if the age-at-use tail disagrees beyond one edge cycle at
+  p95, the paper's sentence changes to what the co-simulation shows, not the
+  rule.
 
 ## Invalidation conditions
 
