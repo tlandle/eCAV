@@ -74,8 +74,11 @@ the reruns land.
   the existing fire loop (rule 'fallback') when the actor is inside a
   candidate's polygon (the mouth's overlap band) with no handoff done, so
   [FIREROW], prepare ticks and hashes apply uniformly; [FALLBACKROW] as above
-  with taken=; a locale change that skipped the band logs [FALLBACK-MISS]
-  (invalidation: any such line means the band is too thin at the run speed).
+  with taken=; a locale change that skipped the band is the BACKSTOP: the runner
+  transfers inline from the previous locale's edge into the entered one with
+  the fire loop's bookkeeping (rule fallback_backstop, [FALLBACKROW] with
+  backstop=1), and logs [FALLBACK-MISS] as the diagnostic that the band was
+  too thin at the run speed; the miss is never the outcome.
   The mtr branch records (tick, p_max, argmax, lead_ok) per track;
   DEADLINE_GUESS fires the argmax with rule 'guess' and [GUESSROW].
 - Both runners append dist_to_boundary_m to the "[SCENB] NPC ... resolved"

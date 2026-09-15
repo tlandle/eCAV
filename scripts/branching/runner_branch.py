@@ -726,10 +726,58 @@ def run_scenario(opt, scenario_params):
                 elif (FALLBACK_AT_CROSSING and MIGRATION_MODE == 'warm'
                         and nid not in npc_handoff_done
                         and _prev_l is not None and _prev_l != src_lid):
-                    # the actor changed locale without passing the overlap band
-                    # (band skipped between ticks): the fallback could not fire
-                    logger.warning("[FALLBACK-MISS] tick=%d npc=%d from=%s to=%s",
+                    # BACKSTOP (paper side, 2026-09-14): the actor changed locale
+                    # without passing the overlap band (band skipped between
+                    # ticks). The locale change itself is the fallback trigger:
+                    # transfer from the PREVIOUS locale's edge into the entered
+                    # one now, with the fire loop's bookkeeping, so Khonsu is
+                    # never worse than history at crossing regardless of band
+                    # geometry. [FALLBACK-MISS] stays as the diagnostic that the
+                    # band was too thin at the run speed; it is not the outcome.
+                    logger.warning("[FALLBACK-MISS] tick=%d npc=%d from=%s to=%s (backstop fires)",
                                    step, nid, _prev_l, src_lid)
+                    _bse = edge_by_locale.get(_prev_l)
+                    _bde = edge_by_locale.get(src_lid)
+                    if _bse is not None and _bde is not None and _bse is not _bde:
+                        _lm = getattr(run_scenario, '_last_mtr_eval', {}).get(nid)
+                        if TRIGGER_MODE == 'mtr':
+                            _reason = ('no_forecast' if _lm is None else
+                                       ('no_candidate_at_theta' if _lm[1] < MTR_THETA
+                                        else 'lead_never_opened'))
+                        else:
+                            _reason = 'trigger_never_fired'
+                        _bc = daemon.transfer_obstacle_state(
+                            nid, _bse, _bde, link, step, position=nxy)
+                        if _bc is not None:
+                            scenario_manager.record_handoff_cost(_bc)
+                            _prev = getattr(run_scenario, '_xfer_ema_s', None)
+                            _cur_s = _bc.total_ms / 1000.0
+                            run_scenario._xfer_ema_s = _cur_s if _prev is None \
+                                else 0.3 * _cur_s + 0.7 * _prev
+                            npc_trigger_tick.setdefault(nid, step)
+                            npc_prepare_ticks.setdefault((nid, src_lid), step)
+                            npc_prepare_hash.setdefault((nid, src_lid), getattr(_bc, 'payload_hash', ''))
+                            npc_prepare_depth.setdefault((nid, src_lid), int(getattr(_bc, 'history_depth', -1)))
+                            npc_handoff_done[nid] = (step, _prev_l, [src_lid])
+                            logger.info(
+                                "[FALLBACKROW] tick=%d npc=%d entered=%s from=%s reason=%s "
+                                "trigger=%s argmax=%s p_argmax=%.3f last_eval_tick=%d "
+                                "spawn_dist_m=%.1f taken=%s backstop=1",
+                                step, nid, src_lid, _prev_l, _reason, TRIGGER_MODE,
+                                (_lm[2] if _lm else ''), (_lm[1] if _lm else -1.0),
+                                (_lm[0] if _lm else -1),
+                                getattr(run_scenario, '_npc_resolve_dist', {}).get(nid, -1.0),
+                                BRANCH_TAKEN)
+                            logger.info(
+                                "[SCENB] PREDICTIVE OBSTACLE HANDOFF tick=%d "
+                                "carla_id=%d npc=(%.1f,%.1f) %s->%s bytes=%d "
+                                "total_ms=%.3f rule=%s hash=%s depth=%d",
+                                step, nid, nxy[0], nxy[1], _prev_l, src_lid,
+                                _bc.payload_bytes, _bc.total_ms, 'fallback_backstop',
+                                getattr(_bc, 'payload_hash', ''),
+                                int(getattr(_bc, 'history_depth', -1)))
+                            logger.info("[FIREROW] tick=%d npc=%d src=%s rule=%s fire=%s prepared=%s taken=%s",
+                                        step, nid, _prev_l, 'fallback_backstop', src_lid, src_lid, BRANCH_TAKEN)
                     continue
                 elif TRIGGER_MODE == 'band' and MIGRATION_MODE not in (
                         "reactive", "handover_snapshot"):
