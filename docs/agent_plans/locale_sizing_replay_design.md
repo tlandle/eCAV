@@ -49,7 +49,7 @@ time, which late_prepare_frac and never_crossed_frac per side show.
 
 ## Grid (from the partition alone, no trace; 2026-09-15)
 
-| side m | locales | boundaries | degree | fusion_util |
+| side m | locales | neighbour pairs | degree | fusion_util |
 |---|---|---|---|---|
 | 100 | 233 | 456 | 3.91 | 0.083 |
 | 125 | 170 | 350 | 4.12 | 0.125 |
@@ -73,7 +73,7 @@ time, which late_prepare_frac and never_crossed_frac per side show.
 | 575 | 12 | 21 | 3.50 | beyond the sweep |
 | 600 | 12 | 19 | 3.17 | beyond the sweep |
 
-Facts of the tiling: the anchors span 1581 x 1988 m, so from 550 m the grid is
+(Neighbour pairs = adjacent locale pairs; the engine's `boundaries` column counts boundary roads, 566 at 100 m to 99 at 600 m, 214 at 300 m.) Facts of the tiling: the anchors span 1581 x 1988 m, so from 550 m the grid is
 3 x 4 tiles and 575 and 600 m give the same twelve locales (reported as
 duplicates of 550); 400 and 425 m both give 20 locales with different
 groupings. Fusion utilization crosses 1 between 325 and 350 m on the measured
