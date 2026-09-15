@@ -44,7 +44,7 @@ def _stats(xs):
 def parse(path):
     per = defaultdict(lambda: {'ul_live': [], 'ul_lut': [], 'ul_lut_all': [], 'dl_live': [], 'dl_lut': [],
                                'wall': [], 'delivered': [], 'n_ul': [], 'n_ue': [], 'n_dup': 0, 'empty_ticks': 0, 'no_ue_ticks': 0, 'ul_ticks': 0,
-                               'start_ms': None, 'first_tick_ms': None, 'first_n_ue': None, 'shm': None,
+                               'start_ms': None, 'prewarm_ms': None, 'first_tick_ms': None, 'first_n_ue': None, 'shm': None,
                                'realized_age': [], 'network_age': [], 'first_tick': None, 'last_tick': None,
                                'radioerr': 0})
     with open(path, errors='replace') as fh:
@@ -85,6 +85,8 @@ def parse(path):
                     e['shm'] = d.get('shm')
                 if 'bringup_ms' in d:      # pre-fix marker name
                     e['start_ms'] = float(d['bringup_ms'])
+                if 'prewarm_ms' in d:
+                    e['prewarm_ms'] = float(d['prewarm_ms'])
                 if 'first_tick_ms' in d:
                     e['first_tick_ms'] = float(d['first_tick_ms'])
                     e['first_n_ue'] = int(d.get('n_ue', -1))
@@ -106,7 +108,7 @@ def summarize(per):
         s = {
             'ul_ticks': e['ul_ticks'], 'empty_ticks': e['empty_ticks'], 'no_ue_ticks': e['no_ue_ticks'], 'radioerr': e['radioerr'],
             'ticks': [e['first_tick'], e['last_tick']],
-            'start_ms': e['start_ms'], 'first_tick_ms': e['first_tick_ms'], 'first_n_ue': e['first_n_ue'],
+            'start_ms': e['start_ms'], 'prewarm_ms': e['prewarm_ms'], 'first_tick_ms': e['first_tick_ms'], 'first_n_ue': e['first_n_ue'],
             'shm': e['shm'],
             'n_ul': _stats(e['n_ul']), 'n_ue': _stats(e['n_ue']), 'n_dup': e['n_dup'],
             'ul_live_ms': _stats(e['ul_live']), 'ul_lut_ms_same_ticks': _stats(e['ul_lut']),
@@ -151,8 +153,8 @@ def main():
     for edge, st in s.items():
         if edge == '_pooled':
             continue
-        print('edge %s ticks %s ul_ticks=%d no_uploader=%d bridge_empty=%d radioerr=%d start_ms=%s first_tick_ms=%s (n_ue=%s) shm=%s' % (
-            edge, st['ticks'], st['ul_ticks'], st['no_ue_ticks'], st['empty_ticks'], st['radioerr'], st['start_ms'],
+        print('edge %s ticks %s ul_ticks=%d no_uploader=%d bridge_empty=%d radioerr=%d start_ms=%s prewarm_ms=%s first_tick_ms=%s (n_ue=%s) shm=%s' % (
+            edge, st['ticks'], st['ul_ticks'], st['no_ue_ticks'], st['empty_ticks'], st['radioerr'], st['start_ms'], st['prewarm_ms'],
             st['first_tick_ms'], st['first_n_ue'], st['shm']))
         print('  n_ul       %s' % _fmt(st['n_ul']))
         print('  n_ue       %s   dup_dropped=%d' % (_fmt(st['n_ue']), st['n_dup']))
