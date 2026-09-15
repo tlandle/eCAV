@@ -99,6 +99,16 @@ sweep. 25 m steps are the paper's original grid; cost decides between 25 and
 7. PYTHONHASHSEED=0 and the deterministic partition; the engine md5 is
    recorded in every JSON's log.
 
+## Smoke (300 m, 2026-09-15 18:05 to 18:10)
+
+Warm-only deployed run, engine md5 9539c570: 314 s wall, 2.5 GB. Condition 1
+holds: dest_load_p95 0.135, within_limit 0.995, prepares per locale-cycle
+0.0944, never_crossed 0.00758, all equal to the landed deployed row. New
+registry fields at 300 m: late_prepare_frac 0.0336 (late_cycles 4),
+unprepared_crossing_frac 0.0012, crossings 14,892, crossings per track per
+minute 0.740. Grid cost at this rate: 21 sides x 5.3 min = 110 CPU-min; six in
+parallel about 20 min wall and 15 GB.
+
 ## Cost and order
 
 One warm-only deployed run at 300 m is the smoke: it gives the reproduction
