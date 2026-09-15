@@ -298,10 +298,13 @@ class NS3Bridge:
         self._last_channel_ms = channel_ms
         self._last_prr = prr
 
-        # Read link results. For Uu (mode=1) n_results = N (one packet per UE
-        # to the edge). For sidelink n_results = N*(N-1) (all pairs).
+        # Read link results. For Uu (mode=1) the server writes TWO rows per
+        # active UE (UL: tx=UE, rx=0xFFFF; DL: tx=0xFFFE, rx=UE;
+        # nr_v2x_cosim_server.cc WriteUuResults), so n_results = 2N. The cap
+        # was N here, which dropped the second half of the rows (measured
+        # 2026-09-14: 3 UEs -> UL0, DL0, UL1 only). Sidelink: N*(N-1) pairs.
         lr_offset = link_results_offset(self.max_vehicles)
-        max_entries = N if self.mode == 1 else (N * (N - 1))
+        max_entries = (2 * N) if self.mode == 1 else (N * (N - 1))
         results = []
         for i in range(min(n_results, max_entries)):
             off = lr_offset + i * LINK_RESULT_SIZE
