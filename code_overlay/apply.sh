@@ -17,6 +17,7 @@ ROOT="${2:-$(git -C "$OVL" rev-parse --show-toplevel)}"
 BASE=71c9f37e   # frozen base (freeze-1h); restore checks out from here explicitly
 MAP=(
   "edge_manager_merged_1l_epoch.py|ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py"
+  "ns3_bridge_wired.py|ecav/core/networking/ns3_cosim/ns3_bridge.py"
   "factories_1l.py|ecav/core/application/edge/migration/factories.py"
   "mtr_edge_predictor_1m.py|ecav/core/prediction/mtr_edge_predictor.py"
   "behavior_agent_1m.py|ecav/core/plan/behavior_agent.py"

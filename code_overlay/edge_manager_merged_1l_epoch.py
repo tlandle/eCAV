@@ -1737,7 +1737,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     # ---- ns-3 co-simulation (validation block) -------------------------------
     @staticmethod
     def _pose_xy(p):
+        # poses are carla.Transform (x, y under .location); tuples/dicts tolerated.
         try:
+            loc = getattr(p, 'location', None)
+            if loc is not None:
+                return float(loc.x), float(loc.y)
             if hasattr(p, 'x') and hasattr(p, 'y'):
                 return float(p.x), float(p.y)
             if isinstance(p, dict):
@@ -1757,17 +1761,25 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             if self._ns3_bridge is None:
                 from ecav.core.networking.ns3_cosim.ns3_bridge import NS3Bridge
                 _t0 = _t.perf_counter()
+                # One server per edge; several edges share this process, so the
+                # shared-memory name carries the edge id (the bridge default is
+                # per-pid and two edges would attach to one segment).
+                _tag = ''.join(ch for ch in str(self.edgeid) if ch.isalnum())[:16]
                 self._ns3_bridge = NS3Bridge(max_vehicles=8, mode="uu_uplink",
                                              bandwidth_mhz=40.0, tx_power_dbm=23.0,
-                                             numerology=0, tick_duration_s=float(self.dt))
+                                             numerology=0, tick_duration_s=float(self.dt),
+                                             shm_tag=_tag)
                 self._ns3_bridge.start()
                 import atexit as _ax
                 _ax.register(self._ns3_bridge.shutdown)
+                self._ns3_ticks = 0
                 self._ns3_last['bringup_ms'] = (_t.perf_counter() - _t0) * 1000.0
-                logger.info("[RADIOINIT] edge=%s bringup_ms=%.0f", self.edgeid, self._ns3_last['bringup_ms'])
+                logger.info("[RADIOINIT] edge=%s start_ms=%.0f shm=%s", self.edgeid,
+                            self._ns3_last['bringup_ms'], getattr(self._ns3_bridge, '_shm_name', '?'))
             rsu_x, rsu_y = float(self.world_anchor[0]), float(self.world_anchor[1])
             pts = []
-            for p in list(poses)[1:]:          # index 0 is the RSU (the gNB side)
+            _n_rsu = len(getattr(self, 'rsu_manager_list', []) or [])
+            for p in list(poses)[_n_rsu:]:     # RSU poses lead the list (the gNB side)
                 xy = self._pose_xy(p)
                 if xy is not None:
                     pts.append([xy[0] - rsu_x, xy[1] - rsu_y, 1.5])
@@ -1776,6 +1788,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             _t1 = _t.perf_counter()
             res = self._ns3_bridge.compute_tick(pts, [], int(frame_idx), payload_bytes=int(ul_bytes))
             wall = (_t.perf_counter() - _t1) * 1000.0
+            self._ns3_ticks = getattr(self, '_ns3_ticks', 0) + 1
+            if self._ns3_ticks == 1:
+                logger.info("[RADIOINIT] edge=%s first_tick_ms=%.0f n_ue=%d n_results=%d",
+                            self.edgeid, wall, len(pts), len(res))
             ul = [r.delay_ms for r in res if r.rx_id == 0xFFFF] or [r.delay_ms for r in res if r.tx_id != 0xFFFE]
             dl = [r.delay_ms for r in res if r.tx_id == 0xFFFE]
             dlv = [1.0 if r.delivered else 0.0 for r in res]

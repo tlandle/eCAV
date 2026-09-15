@@ -85,11 +85,26 @@ byte-identical when off)
 
 ## Cost and hosts
 
-Three bridges per run (one per edge) each with a ~75 s bring-up, and a
-blocking call per fusion tick per edge: the per-run wall time is the number
-this block measures; the KB's prior estimate is 2 to 5x the LUT's 3.4 to 5
-minutes. Atlas only until an ns-3 build exists on cetus (no build there;
-scripts/setup_ns3_cv2x.sh is the recipe, about half a day).
+One bridge per edge (two in the flow cell, three on the corridor), each
+with a bring-up paid on its first tick, and a blocking call per fusion tick
+per edge: the per-run wall time is the number this block measures. Measured
+standalone (three UEs, 16896 B, uplink mode): atlas bring-up 53 s then 23 to
+32 ms per tick (median 26); cetus bring-up 105 s then 49 to 53 ms per tick.
+The first tick after the uploader count changes can stall up to the 30 s
+tick timeout once; a tick that returns no rows keeps the table's value and
+is logged with n_results=0. Both hosts have the build (cetus since
+2026-09-14, atlas's scratch tree reproduced; the canonical server source is
+the scratch copy with `USE_NS3_FULL` defined, now also the package copy).
+
+Wiring defects found by the first closed-loop smoke on atlas (both fixed
+before any validation run): the UL site's pose list holds carla.Transform
+objects and the coordinate helper never reached the bridge (every row was
+the table's value with n_results=0 and no error), and the bridge named its
+segment by pid alone so the two edges of one process shared a segment
+(`shm_tag`, develop f64bd056). Markers: `[RADIOINIT] edge start_ms shm`
+at server spawn and `[RADIOINIT] edge first_tick_ms n_ue n_results` on the
+first completed tick; `[RADIOROW]` per fusion tick; `[RADIOROW-DL]` at the
+publish site; `[RADIOERR]` on an exception (table value kept).
 
 ## Order
 

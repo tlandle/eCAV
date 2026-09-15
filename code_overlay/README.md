@@ -51,6 +51,7 @@ line whenever the overlay contents change to a new tag.
 | overlay file | base path |
 |---|---|
 | `edge_manager_merged_1l_epoch.py` | `ecav/core/application/edge/edge_manager/edge_manager_worldfusion_ab3dmot_linear_predictor.py` |
+| `ns3_bridge_wired.py` | `ecav/core/networking/ns3_cosim/ns3_bridge.py` (co-simulation bridge: reads both Uu rows per UE, `shm_tag` for several bridges in one process; used only with `NS3_COSIM=1`) |
 | `factories_1l.py` | `ecav/core/application/edge/migration/factories.py` |
 | `mtr_edge_predictor_1m.py` | `ecav/core/prediction/mtr_edge_predictor.py` |
 | `behavior_agent_1m.py` | `ecav/core/plan/behavior_agent.py` |
