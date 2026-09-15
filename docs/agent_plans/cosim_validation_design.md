@@ -125,3 +125,10 @@ unchanged) -> wiring smoke under 1p on atlas (one flow cell live, markers
 present, bring-up and per-tick times logged) -> the four validation runs under
 1q -> report -> Tyler decides whether the reruns move to the co-simulated
 path.
+
+Status 2026-09-14 23:12: design, wiring and the wiring smoke are done
+(smoke 4: CAV edge live on every fusion tick, per-tick cost 18 ms after the
+pre-warm, age at use identical to the table run's distribution). The four
+validation runs wait for the 1q ruling; cetus carries the overlays for the
+corridor side. Run them with NS3_COSIM_MAX_UE=2 (one CAV per edge at every
+site).
