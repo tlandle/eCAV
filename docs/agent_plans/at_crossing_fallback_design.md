@@ -54,3 +54,40 @@ fallback of 1 stays underneath it.
 Behind the state block and the Figure 5 sweep unless the count says the
 corridor numbers move, in which case first. Paper text claims nothing until
 the reruns land.
+
+## Built (2026-09-14, unsmoked; gated on 1q)
+
+- Flow family, code_overlay/runner_wired.py (and the scratchpad copy the
+  runners copy from): FALLBACK_AT_CROSSING (default on for warm) fires the
+  normal transfer from the previous locale's edge into the entered locale when
+  the actor's locale changes with no handoff done; bookkeeping
+  npc_handoff_done = (tick, entered), so [HANDOFFROW] carries prepare_tick =
+  crossing tick and the final update follows at commit as for every warm
+  handoff; [FALLBACKROW] tick, npc, entered, from, reason
+  (no_forecast | no_candidate_at_theta | lead_never_opened under mtr;
+  trigger_never_fired otherwise), trigger, argmax, p_argmax, last_eval_tick,
+  spawn_dist_m, bytes; the [SCENB] PREDICTIVE OBSTACLE HANDOFF line is emitted
+  with fallback=1 appended so every lander keeps working. The mtr branch records
+  the last (tick, p_dst, dst) per track; DEADLINE_GUESS (default off) fires when
+  the lead window is closing below theta and logs [GUESSROW].
+- Branching harness, scripts/branching/runner_branch.py: the fallback rides
+  the existing fire loop (rule 'fallback') when the actor is inside a
+  candidate's polygon (the mouth's overlap band) with no handoff done, so
+  [FIREROW], prepare ticks and hashes apply uniformly; [FALLBACKROW] as above
+  with taken=; a locale change that skipped the band logs [FALLBACK-MISS]
+  (invalidation: any such line means the band is too thin at the run speed).
+  The mtr branch records (tick, p_max, argmax, lead_ok) per track;
+  DEADLINE_GUESS fires the argmax with rule 'guess' and [GUESSROW].
+- Both runners append dist_to_boundary_m to the "[SCENB] NPC ... resolved"
+  line (distance at resolution to the nearest other locale), the paper side's
+  spawn-near-boundary field; is_gating comes from the landers' gating rule.
+- Counter scripts/khonsu_unprepared_crossings.py gains is_gating and the
+  resolve-to-crossing interval; spawn distance from the marker once runs
+  carry it.
+
+Smoke (when 1q lets the mtr arm fire): one flow cell per trigger mode
+(predictive, mtr) with the fallback forced by a late release, and one k3 cell;
+pass = a [FALLBACKROW] per unprepared crossing, its [HANDOFFROW] with
+prepare_tick = crossing tick, no [FALLBACK-MISS], no fallback while a PREPARE
+for the same track and locale exists.
+

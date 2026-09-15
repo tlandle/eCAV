@@ -94,6 +94,16 @@ os.environ.setdefault('ONCOMING_SPEED', '12')
 os.environ.setdefault('TRIGGER_DIST', '300')
 TRIGGER_MODE = os.environ.get('TRIGGER_MODE', 'predictive').lower()
 MTR_THETA = float(os.environ.get('MTR_THETA', 0.5))
+# At-crossing FALLBACK for the warm arm (Tyler, 2026-09-14): when the road user
+# enters a candidate locale (the mouth's overlap band) with no PREPARE fired for
+# it, fire the reactive rule into the entered locale through the same fire loop
+# (rule 'fallback'), so Khonsu is never worse than history at crossing.
+# [FALLBACKROW] logs the reason and what a guess would have done. Default on for
+# warm; FALLBACK_AT_CROSSING=0 restores the untransferred case.
+FALLBACK_AT_CROSSING = os.environ.get('FALLBACK_AT_CROSSING', '1') != '0'
+# DEADLINE_GUESS=1 (rule 3, default off): lead window closing with no candidate
+# at theta -> fire the argmax candidate alone ([GUESSROW]).
+DEADLINE_GUESS = os.environ.get('DEADLINE_GUESS', '0') == '1'
 BAND_W_M = float(os.environ.get('BAND_W_M', 20.0))
 # COMMIT_REFRESH='full' re-sends the full state once at the actual crossing
 # (the "phase 2" question: does a refresh at commit buy anything at this
@@ -502,8 +512,15 @@ def run_scenario(opt, scenario_params):
                     vel = v.get_velocity()
                     if (vel.x ** 2 + vel.y ** 2) ** 0.5 > NPC_MIN_SPEED_MPS:
                         npc_ids.add(v.id)
-                        logger.info("[SCENB] NPC carla_id=%d resolved at tick=%d",
-                                    v.id, step)
+                        _vl = v.get_transform().location
+                        _sds = [locale_by_id[_l].signed_distance((_vl.x, _vl.y)) for _l in locale_by_id]
+                        _nd = min([_x for _x in _sds if _x > 0.0], default=-1.0)
+                        _rd = getattr(run_scenario, '_npc_resolve_dist', None)
+                        if _rd is None:
+                            _rd = run_scenario._npc_resolve_dist = {}
+                        _rd[v.id] = _nd
+                        logger.info("[SCENB] NPC carla_id=%d resolved at tick=%d dist_to_boundary_m=%.1f",
+                                    v.id, step, _nd)
 
             # Per-NPC predictive transfer: when the projected trajectory
             # exits the current locale within the lookahead, ship the
@@ -677,7 +694,44 @@ def run_scenario(opt, scenario_params):
 
                 # ── Trigger tick + fire set per arm. Only the DECISION varies. ──
                 fire, _rule = None, ''
-                if TRIGGER_MODE == 'band' and MIGRATION_MODE not in (
+                # ---- at-crossing fallback (warm arm): the actor is inside a
+                # candidate's polygon (the mouth's overlap band, src still the
+                # approach) with no PREPARE fired for it -> fire into it now
+                # through the same loop; bookkeeping = a handoff at lead zero.
+                _pl = getattr(run_scenario, '_npc_prev_locale', None)
+                if _pl is None:
+                    _pl = run_scenario._npc_prev_locale = {}
+                _prev_l = _pl.get(nid)
+                _pl[nid] = src_lid
+                _ent_fb = [_c for _c in cands if locale_by_id[_c].contains(nxy)]
+                if (FALLBACK_AT_CROSSING and MIGRATION_MODE == 'warm'
+                        and nid not in npc_handoff_done and _ent_fb):
+                    fire, _rule = [_ent_fb[0]], 'fallback'
+                    _lm = getattr(run_scenario, '_last_mtr_eval', {}).get(nid)
+                    if TRIGGER_MODE == 'mtr':
+                        _reason = ('no_forecast' if _lm is None else
+                                   ('no_candidate_at_theta' if _lm[1] < MTR_THETA
+                                    else 'lead_never_opened'))
+                    else:
+                        _reason = 'trigger_never_fired'
+                    logger.info(
+                        "[FALLBACKROW] tick=%d npc=%d entered=%s from=%s reason=%s "
+                        "trigger=%s argmax=%s p_argmax=%.3f last_eval_tick=%d "
+                        "spawn_dist_m=%.1f taken=%s",
+                        step, nid, _ent_fb[0], src_lid, _reason, TRIGGER_MODE,
+                        (_lm[2] if _lm else ''), (_lm[1] if _lm else -1.0),
+                        (_lm[0] if _lm else -1),
+                        getattr(run_scenario, '_npc_resolve_dist', {}).get(nid, -1.0),
+                        BRANCH_TAKEN)
+                elif (FALLBACK_AT_CROSSING and MIGRATION_MODE == 'warm'
+                        and nid not in npc_handoff_done
+                        and _prev_l is not None and _prev_l != src_lid):
+                    # the actor changed locale without passing the overlap band
+                    # (band skipped between ticks): the fallback could not fire
+                    logger.warning("[FALLBACK-MISS] tick=%d npc=%d from=%s to=%s",
+                                   step, nid, _prev_l, src_lid)
+                    continue
+                elif TRIGGER_MODE == 'band' and MIGRATION_MODE not in (
                         "reactive", "handover_snapshot"):
                     _cvb, _ = _cv_branch()
                     if locale_by_id[_cvb].signed_distance(nxy) > BAND_W_M:
@@ -689,17 +743,31 @@ def run_scenario(opt, scenario_params):
                     # shares the SAME tick and L and fires only the top mode's
                     # branch (destination selection differs, timing never).
                     _pc, _topc, _nm = _mtr_probs()
+                    _lead_ok = locale_by_id[src_lid].predicted_to_exit_within(
+                        _cv_traj(_lead_c), _lead_c, world_dt)
+                    _lme = getattr(run_scenario, '_last_mtr_eval', None)
+                    if _lme is None:
+                        _lme = run_scenario._last_mtr_eval = {}
+                    if _pc:
+                        _am = max(_pc, key=_pc.get)
+                        _lme[nid] = (step, _pc[_am], _am, bool(_lead_ok))   # what a guess would use
                     if _pc is None or max(_pc.values()) < MTR_THETA:
-                        continue
-                    if not locale_by_id[src_lid].predicted_to_exit_within(
-                            _cv_traj(_lead_c), _lead_c, world_dt):
-                        continue
-                    if MTR_TOP1:
-                        fire = [_topc] if _topc is not None else [max(_pc, key=_pc.get)]
-                        _rule = 'top1'
+                        # DEADLINE GUESS (rule 3, default off): lead window closing
+                        # with no candidate at theta -> the argmax candidate alone
+                        if not (DEADLINE_GUESS and _pc and _lead_ok):
+                            continue
+                        fire, _rule = [max(_pc, key=_pc.get)], 'guess'
+                        logger.info("[GUESSROW] tick=%d npc=%d dst=%s p=%.3f theta=%.2f taken=%s",
+                                    step, nid, fire[0], _pc[fire[0]], MTR_THETA, BRANCH_TAKEN)
                     else:
-                        fire = [_c for _c in cands if _pc[_c] >= MTR_THETA]
-                        _rule = 'theta'
+                        if not _lead_ok:
+                            continue
+                        if MTR_TOP1:
+                            fire = [_topc] if _topc is not None else [max(_pc, key=_pc.get)]
+                            _rule = 'top1'
+                        else:
+                            fire = [_c for _c in cands if _pc[_c] >= MTR_THETA]
+                            _rule = 'theta'
                 elif TRIGGER_MODE == 'oracle':
                     # Knows the taken branch; timing = L before the GT-velocity
                     # projected exit, as the two-locale oracle.

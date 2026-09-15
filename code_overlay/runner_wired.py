@@ -94,6 +94,16 @@ os.environ.setdefault('ONCOMING_SPEED', '12')
 os.environ.setdefault('TRIGGER_DIST', '300')
 TRIGGER_MODE = os.environ.get('TRIGGER_MODE', 'predictive').lower()
 MTR_THETA = float(os.environ.get('MTR_THETA', 0.5))
+# At-crossing FALLBACK for the warm arm (Tyler, 2026-09-14): when the road user
+# enters a locale and no PREPARE fired for it, fire the reactive rule (the full
+# record to the entered locale, imported on arrival; the final update follows
+# at commit as for every warm handoff), so Khonsu is never worse than history
+# at crossing. [FALLBACKROW] logs the reason and what a guess would have done.
+# Default on for warm; FALLBACK_AT_CROSSING=0 restores the untransferred case.
+FALLBACK_AT_CROSSING = os.environ.get('FALLBACK_AT_CROSSING', '1') != '0'
+# DEADLINE_GUESS=1 (rule 3, default off): at the tick the lead window closes
+# with no candidate at theta, fire the argmax candidate alone ([GUESSROW]).
+DEADLINE_GUESS = os.environ.get('DEADLINE_GUESS', '0') == '1'
 BAND_W_M = float(os.environ.get('BAND_W_M', 20.0))
 # COMMIT_REFRESH='full' re-sends the full state once at the actual crossing
 # (the "phase 2" question: does a refresh at commit buy anything at this
@@ -209,7 +219,6 @@ def run_scenario(opt, scenario_params):
     npc_ids = set()            # moving non-hero, non-managed vehicles (Leons)
     npc_locale = {}            # carla_id -> sticky source locale id
     npc_handoff_done = {}
-    npc_handoff_bytes = {}      # nid -> prepare payload bytes (HANDOFFROW, logging only)
     # T19 per-handoff timing: first destination track, first ego use,
     # crossing tick — emitted as [HANDOFFROW] lines at scenario end.
     t19_first_dst = {}     # nid -> tick dst edge first maps a track to nid
@@ -441,8 +450,17 @@ def run_scenario(opt, scenario_params):
                     vel = v.get_velocity()
                     if (vel.x ** 2 + vel.y ** 2) ** 0.5 > NPC_MIN_SPEED_MPS:
                         npc_ids.add(v.id)
-                        logger.info("[SCENB] NPC carla_id=%d resolved at tick=%d",
-                                    v.id, step)
+                        # distance from the resolve position to the nearest OTHER
+                        # locale (spawn-near-boundary population for the fallback rate)
+                        _vl = v.get_transform().location
+                        _sds = [locale_by_id[_l].signed_distance((_vl.x, _vl.y)) for _l in locale_by_id]
+                        _nd = min([_x for _x in _sds if _x > 0.0], default=-1.0)
+                        _rd = getattr(run_scenario, '_npc_resolve_dist', None)
+                        if _rd is None:
+                            _rd = run_scenario._npc_resolve_dist = {}
+                        _rd[v.id] = _nd
+                        logger.info("[SCENB] NPC carla_id=%d resolved at tick=%d dist_to_boundary_m=%.1f",
+                                    v.id, step, _nd)
 
             # Per-NPC predictive transfer: when the projected trajectory
             # exits the current locale within the lookahead, ship the
@@ -542,6 +560,48 @@ def run_scenario(opt, scenario_params):
                 if dst_lid is None:
                     continue
                 nvel = actor.get_velocity()
+                # ---- at-crossing fallback (warm arm): the actor's locale changed
+                # and no PREPARE fired for it -> fire the reactive rule now, with
+                # the [HANDOFFROW] bookkeeping of a handoff prepared at lead zero.
+                _pl = getattr(run_scenario, '_npc_prev_locale', None)
+                if _pl is None:
+                    _pl = run_scenario._npc_prev_locale = {}
+                _prev_l = _pl.get(nid)
+                _pl[nid] = src_lid
+                if (FALLBACK_AT_CROSSING and MIGRATION_MODE == 'warm'
+                        and _prev_l is not None and _prev_l != src_lid
+                        and nid not in npc_handoff_done):
+                    _fse = edge_by_locale.get(_prev_l)
+                    _fde = edge_by_locale.get(src_lid)
+                    if _fse is not None and _fde is not None and _fse is not _fde:
+                        _lm = getattr(run_scenario, '_last_mtr_eval', {}).get(nid)
+                        if TRIGGER_MODE == 'mtr':
+                            _reason = ('no_forecast' if _lm is None else
+                                       ('no_candidate_at_theta' if _lm[1] < MTR_THETA
+                                        else 'lead_never_opened'))
+                        else:
+                            _reason = 'trigger_never_fired'
+                        _fc = daemon.transfer_obstacle_state(
+                            nid, _fse, _fde, link, step, position=nxy)
+                        if _fc is not None:
+                            scenario_manager.record_handoff_cost(_fc)
+                            npc_handoff_done[nid] = (step, src_lid)
+                            logger.info(
+                                "[FALLBACKROW] tick=%d npc=%d entered=%s from=%s reason=%s "
+                                "trigger=%s argmax=%s p_argmax=%.3f last_eval_tick=%d "
+                                "spawn_dist_m=%.1f bytes=%d",
+                                step, nid, src_lid, _prev_l, _reason, TRIGGER_MODE,
+                                (_lm[2] if _lm else ''), (_lm[1] if _lm else -1.0),
+                                (_lm[0] if _lm else -1),
+                                getattr(run_scenario, '_npc_resolve_dist', {}).get(nid, -1.0),
+                                _fc.payload_bytes)
+                            logger.info(
+                                "[SCENB] PREDICTIVE OBSTACLE HANDOFF tick=%d "
+                                "carla_id=%d npc=(%.1f,%.1f) %s->%s bytes=%d "
+                                "total_ms=%.3f fallback=1",
+                                step, nid, nxy[0], nxy[1], _prev_l, src_lid,
+                                _fc.payload_bytes, _fc.total_ms)
+                    continue
                 # Trigger lead: OURS fires LOOKAHEAD_S before the actor is
                 # projected to cross (predictive, on the OBSTACLE trajectory).
                 # REACTIVE (EdgeWarp-degenerate) fires only AT the crossing:
@@ -584,8 +644,25 @@ def run_scenario(opt, scenario_params):
                     _p_dst = sum(
                         p for (wx, wy, p) in _modes
                         if locale_by_id[dst_lid].contains((wx, wy)))
+                    _lme = getattr(run_scenario, '_last_mtr_eval', None)
+                    if _lme is None:
+                        _lme = run_scenario._last_mtr_eval = {}
+                    _lme[nid] = (step, _p_dst, dst_lid)   # last sample: what a guess would use
                     if _p_dst < MTR_THETA:
-                        continue
+                        # DEADLINE GUESS (rule 3, default off): the lead window is
+                        # closing with no candidate at theta -> fire the argmax
+                        # candidate (the only candidate on this two-locale site).
+                        if not DEADLINE_GUESS:
+                            continue
+                        _xg = getattr(run_scenario, '_xfer_ema_s', 0.003)
+                        _lg = min(2.5, max(0.6 + 0.35, _xg + 0.6 + 0.35))
+                        _ng = int(_lg / world_dt) + 1
+                        _tg = np.arange(_ng, dtype=np.float64) * world_dt
+                        _trg = np.column_stack([nloc.x + nvel.x * _tg, nloc.y + nvel.y * _tg])
+                        if not locale_by_id[src_lid].predicted_to_exit_within(_trg, _lg, world_dt):
+                            continue
+                        logger.info("[GUESSROW] tick=%d npc=%d dst=%s p_dst=%.3f theta=%.2f",
+                                    step, nid, dst_lid, _p_dst, MTR_THETA)
                     # LEAD GATE (paper 3.2): theta alone is not enough - also
                     # require the predicted time-to-crossing to fall below L,
                     # with L computed exactly as the computed branch (transfer
@@ -674,7 +751,6 @@ def run_scenario(opt, scenario_params):
                     run_scenario._xfer_ema_s = _cur_s if _prev is None \
                         else 0.3 * _cur_s + 0.7 * _prev
                     npc_handoff_done[nid] = (step, dst_lid)
-                    npc_handoff_bytes[nid] = int(cost.payload_bytes)
                     logger.info(
                         "[SCENB] PREDICTIVE OBSTACLE HANDOFF tick=%d "
                         "carla_id=%d npc=(%.1f,%.1f) %s->%s bytes=%d "
@@ -860,10 +936,9 @@ def run_scenario(opt, scenario_params):
                 logger.info(
                     "[HANDOFFROW] npc=%d prepare_tick=%d crossing_tick=%d "
                     "first_dst_track_tick=%d first_use_tick=%d "
-                    "warm_before_first_use=%s dst=%s bytes=%d",
+                    "warm_before_first_use=%s dst=%s",
                     _nid4, _ht4, _cx, _fd, _fu,
-                    "YES" if _warm else "no", _dl4,
-                    npc_handoff_bytes.get(_nid4, 0))
+                    "YES" if _warm else "no", _dl4)
             import os as _os2
             _dblsum = sum(getattr(run_scenario, '_dbl_publish_ticks',
                                   {}).values())
