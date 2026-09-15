@@ -401,16 +401,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 poses.append(pos)
                 print(f"[WorldFusion Edge] RSU CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
 
-        # Vehicles collected after RSUs (agents 1..N)
-        for vm in self.vehicle_manager_list:
-            pm = vm.perception_manager
-            if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
-                feature_dicts.append(pm.feature_dict)
-                pos = vm.localizer.get_ego_pos()
-                poses.append(pos)
-                print(f"[WorldFusion Edge] Vehicle CARLA pos: x={pos.location.x:.2f}, y={pos.location.y:.2f}, yaw={pos.rotation.yaw:.2f}deg")
-
-        # Then collect from vehicles
+        # Vehicles collected after RSUs (agents 1..N). One entry per vehicle:
+        # this loop was carried twice (a merge duplicate, 2026-04-30 to
+        # 2026-09-14), so every CAV feature and pose entered the fusion batch
+        # and the uplink charge twice (record_len 3 for RSU + one CAV).
         for vm in self.vehicle_manager_list:
             pm = vm.perception_manager
             if hasattr(pm, "feature_dict") and pm.feature_dict is not None:
