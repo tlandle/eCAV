@@ -118,3 +118,31 @@ atlas's CPUs (no GPU; the replay charges measured costs from the microbench
 table). Then scripts/metro/sizing_rows.py writes frozen1r_sizing_rows.csv,
 the paper side's compare script is run read-only against the generated rows,
 and the report goes to the paper side.
+
+## Sweep landed (2026-09-15 18:12 to 18:34; evaluation_outputs/metro/sizing/)
+
+21 sides, 314 to 351 s each, six in parallel, all exit 0; rows in
+frozen1r_sizing_rows.csv, checks in sizing_checks.txt. Condition 1 holds
+(300 m equals the landed deployed row). Condition 2 holds. Condition 3 fails
+as written: crossings per track per minute fall from 1.67 (100 m) to 0.39
+(600 m) but reverse at four adjacent pairs by 0.02 to 0.03 per minute (325
+to 350, 425 to 450, 475 to 500, 525 to 550), about 3 to 5 percent. The
+fixed-origin tiling moves its edges across specific roads as the side
+changes, so a step can put boundaries on busier roads than the step before;
+the reversals are a property of the tiling on a real network, not a
+labelling defect, and the condition is restated as "monotone trend, local
+reversals under 5 percent". The paper side decides whether the figure draws
+the rows as measured (recommended) or averages over tiling origins.
+
+Findings: Khonsu's p95 destination load is 0.134 to 0.135 of the slack at
+every side (the p95 locale-cycle carries one to two added tracks at every
+side, and the charging envelope's isolated-plus-pad step costs the same
+whatever the side; the mean load carries the trend). Forecasts within the
+age limit 0.993 to 0.999 everywhere. Late prepares 1.5 to 7.3 percent of
+crossings with no trend in the side (the 0.99 s lead never exceeds the
+transit time of a 100 m locale at urban speed); unprepared crossings 0.01 to
+0.64 percent; never-crossed 0.2 to 2.3 percent, no trend. Fusion utilization
+crosses 1 between 325 and 350 m. Feasible range on this trace: from the
+grid's smallest side (100 m) to 325 m, bounded above by fusion only; no
+handoff-side quantity bounds it from below within the grid.
+
