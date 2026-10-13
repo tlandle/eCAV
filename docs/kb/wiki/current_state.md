@@ -4992,3 +4992,10 @@ LOCALE SIZING SWEEP LANDED (2026-09-15 18:34; evaluation_outputs/metro/sizing/fr
 
 SIZING BLOCK CLOSED BY THE PAPER SIDE (2026-09-15 ~18:45): Figure 11 and its macros read frozen1r_sizing_rows.csv (rules pass); the paper says fusion bounds the locale above (0.98 at 325 m, 1.15 at 350) and neither handoff load nor freshness bounds it below on this trace; check 3's local reversals noted as harmless. Nothing further on sizing. Open on the eval side: everything gated on Tyler's freeze-1q ruling (co-sim validation runs, FDE/T25 reruns, state block, fallback smokes, corridor rerun on cetus, k3, Figure 5 pass).
 
+
+## 2026-10-13 SenSys resubmission: analysis scripts and data provenance (main session)
+
+- New `scripts/sensys_analysis/threshold_table_real.py` (Wilson 95% intervals on every P(S_op) cell and tau_max at 0.8/0.9/0.95/0.99, focal-vehicle S_op via `scripts/recompute_metrics.compute_run_metrics`) and `scripts/sensys_analysis/landing_ci.py` (bootstrap intervals on landing p99(Delta_use) from `paper2/paper2_figures/aoi_composed.csv`, over ticks and over locales). Outputs under `safety_envelope_paper/analysis/` (gitignored data dir). Commits eaf1aa20, 75af6d40.
+- Verified: `safety_envelope_paper/experiment_results/arch_measured_20260604` is produced by `scripts/arch_envelope_pipeline.py::gen_dataset` (drawn outcomes), not by runs. `20260419_120000` is measured; its `openscenario_scp` label is scenario_3 at 70 km/h (`ltap_od` is 50 km/h; identical focal distance in all 2,400 twin pairs). No SCP or blind-overtake scenario exists under `ecav/scenario_testing`; Conductor's closed-loop generator is `paper2/closed_loop_scenarios_generator.py`.
+- Per-run wall time from live runner dirs: median 51 to 65 s, p90 about 170 s (about 1,300 runs/day, one CARLA).
+- Four worktree branches in flight for the resubmission: `sensys/etsi-self-announcement`, `sensys/gating-validbeacon-faults`, `sensys/per-tick-age-logging`, `sensys/scenarios-mixed-speedadapt`; merge to develop with pathspec commits when each reports.
