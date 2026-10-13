@@ -404,4 +404,7 @@ scenario:
       rho_s: 0.1
       a_brake: 6.0
       d_buf: 1.0
+    per_tick_age_log:
+      enabled: false
+      match_radius_m: 5.0
     anchoring: false
