@@ -62,4 +62,4 @@ for arch in ['oracle', 'object_i2v', 'coop_pred', 'coop_planning', 'intermediate
             ci_l = (np.percentile(bl, 2.5), np.percentile(bl, 97.5))
         out.append(f"| {arch} | {n} | {len(v)} | {nloc} | {p99:.0f} | [{ci_t[0]:.0f}, {ci_t[1]:.0f}] | " + (f"[{ci_l[0]:.0f}, {ci_l[1]:.0f}]" if locale_col else "n/a") + " |")
 text = "\n".join(out); print(text)
-open(os.path.join(ROOT, 'safety_envelope_paper', 'analysis', 'landing_ci.md'), 'w').write("# Bootstrap intervals on landing p99(Delta_use)\n\n" + text + "\n")
+open(os.path.join(ROOT, "safety_envelope_paper", "analysis", "landing_ci.md"), "w").write("# Bootstrap intervals on landing p99(Delta_use)\n\n" + text + "\n")
