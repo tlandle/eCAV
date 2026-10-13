@@ -590,7 +590,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 f"ego_{vid}", vid, src_objects, beacons, frame_idx))
 
         for rsu in self.rsu_manager_list:
-            rsu_id = getattr(rsu, 'id', 'rsu')
+            rsu_id = getattr(rsu, 'rid', getattr(rsu, 'id', 'rsu'))
             src_objects = rsu.objects
             for obj in src_objects.get('vehicles', []):
                 obj._det_source = f"rsu_{rsu_id}"

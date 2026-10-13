@@ -73,16 +73,26 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
             deque(maxlen=hist_len)
         self._etsi_hist_tick = -1
 
-        # Counters. Per sender: omitted, omitted_true_self, omitted_wrong,
-        # missed_self_no_beacon, missed_self_gate, kept. Plus per-tick rows.
+        # Counters per sender, judged against the per-tick GT snapshot:
+        #   omitted_true_self    the omitted detection sits on the beaconing
+        #                        vehicle it was matched to (the rule worked)
+        #   omitted_other_actor  it sits on a different vehicle: the ETSI
+        #                        wrong-match failure, a real object dropped
+        #   omitted_no_gt        no vehicle within the GT radius: a false
+        #                        positive or a self detection localised
+        #                        beyond the radius; nothing real is lost
+        #   missed_self_*        a detection of another CAV went out anyway,
+        #                        because the sender held no usable beacon
+        #                        for it or the gate rejected the match
         self._etsi_per_sender: Dict[str, Dict[str, int]] = {}
         self._etsi_tick_rows: List[Dict[str, int]] = []
 
     # ------------------------------------------------------------------
     @staticmethod
     def _new_counter() -> Dict[str, int]:
-        return {"omitted": 0, "omitted_true_self": 0, "omitted_wrong": 0,
-                "missed_self_no_beacon": 0, "missed_self_gate": 0, "kept": 0}
+        return {"omitted": 0, "omitted_true_self": 0, "omitted_other_actor": 0,
+                "omitted_no_gt": 0, "missed_self_no_beacon": 0,
+                "missed_self_gate": 0, "kept": 0}
 
     def _record_broadcast(self, beacons, frame_idx: int) -> None:
         """Store this tick's beacons with velocity, once per tick."""
@@ -170,7 +180,12 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
                                        float(det.location.y), frame_idx)
             if di in matched_det:
                 vid = matched_det[di]
-                key = "omitted_true_self" if nearest == vid else "omitted_wrong"
+                if nearest == vid:
+                    key = "omitted_true_self"
+                elif nearest is None:
+                    key = "omitted_no_gt"
+                else:
+                    key = "omitted_other_actor"
                 counter["omitted"] += 1; tick_row["omitted"] += 1
                 counter[key] += 1; tick_row[key] += 1
                 continue
@@ -184,12 +199,13 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
                 counter[key] += 1; tick_row[key] += 1
 
         if tick_row["omitted"] or tick_row["missed_self_no_beacon"] or tick_row["missed_self_gate"]:
-            logger.info("[ETSI] tick=%d sender=%s omitted=%d true_self=%d wrong=%d "
-                        "missed_self(no_beacon=%d gate=%d) kept=%d visible_beacons=%d",
+            logger.info("[ETSI] tick=%d sender=%s omitted=%d true_self=%d "
+                        "other_actor=%d no_gt=%d missed_self(no_beacon=%d gate=%d) "
+                        "kept=%d visible_beacons=%d",
                         frame_idx, sender_tag, tick_row["omitted"],
-                        tick_row["omitted_true_self"], tick_row["omitted_wrong"],
-                        tick_row["missed_self_no_beacon"], tick_row["missed_self_gate"],
-                        tick_row["kept"], len(visible))
+                        tick_row["omitted_true_self"], tick_row["omitted_other_actor"],
+                        tick_row["omitted_no_gt"], tick_row["missed_self_no_beacon"],
+                        tick_row["missed_self_gate"], tick_row["kept"], len(visible))
         if len(self._etsi_tick_rows) < _MAX_TICK_ROWS:
             tick_row["tick"] = int(frame_idx)
             tick_row["sender"] = sender_tag
@@ -219,7 +235,10 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
                 "gt_match_radius_m": self.etsi_gt_match_radius_m,
             },
             "totals": total,
-            "omitted_wrong_fraction": (total["omitted_wrong"] / omitted) if omitted else 0.0,
+            # ETSI wrong-match failure: a real object dropped from the uplink.
+            "omitted_wrong_fraction": (total["omitted_other_actor"] / omitted) if omitted else 0.0,
+            "omitted_no_gt_fraction": (total["omitted_no_gt"] / omitted) if omitted else 0.0,
+            # ETSI missed-message failure: a self-announced object forwarded anyway.
             "self_announced_forwarded_fraction": (missed / self_announced) if self_announced else 0.0,
             "per_sender": self._etsi_per_sender,
             "ticks_logged": len(self._etsi_tick_rows),
