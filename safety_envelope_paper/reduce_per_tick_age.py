@@ -138,9 +138,20 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
     else:
         missed_frac = float("nan")
 
+    # edge silence: longest run of consecutive planner ticks with no
+    # edge-sourced object at all (edge did not publish, or nothing arrived)
+    silence_max, cur = 0, 0
+    for t in ticks:
+        if any(r["source"] == "edge" for r in by_tick[t]):
+            cur = 0
+        else:
+            cur += 1
+            silence_max = max(silence_max, cur)
+
     return {
         "n_rows": len(rows),
         "n_ticks": len(ticks),
+        "edge_silence_max_ticks": float(silence_max),
         "p50_age_ms": _p(ages, 50),
         "p95_age_ms": _p(ages, 95),
         "global_p99_age_ms": _p(ages, 99),
@@ -154,7 +165,8 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
 
 # ----------------------------------------------------------------- groups
 METRICS = ["global_p99_age_ms", "critical_object_p99_ms", "conflict_time_age_ms",
-           "burst_loss_max", "missed_publish_frac", "p95_age_ms", "p50_age_ms"]
+           "burst_loss_max", "missed_publish_frac", "edge_silence_max_ticks",
+           "p95_age_ms", "p50_age_ms"]
 
 
 def bootstrap_ci(vals: List[float], n_boot: int, ci: float, seed: int = 0):
