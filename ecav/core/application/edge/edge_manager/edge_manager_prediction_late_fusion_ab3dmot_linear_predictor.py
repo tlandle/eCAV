@@ -571,22 +571,31 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         vehicle_ids = [vm.vehicle.id for vm in self.vehicle_manager_list]
         mac_delivery = self.mac_model.attempt_tick(frame_idx, vehicle_ids)
 
-        for vm in self.vehicle_manager_list:
+        # Beacons first, so a sender-side policy (_sender_payload) can see
+        # every beacon broadcast this tick before any object list is built.
+        # Per-vehicle MAC loss drops the beacon and the objects together.
+        delivered_vms = [vm for vm in self.vehicle_manager_list
+                         if mac_delivery.get(vm.vehicle.id, True)]
+        for vm in delivered_vms:
+            beacons[vm.vehicle.id] = (vm.vehicle.get_location(),
+                                      vm.vehicle.bounding_box.extent)
+
+        for vm in delivered_vms:
             vid = vm.vehicle.id
-            if not mac_delivery.get(vid, True):
-                continue  # uplink loss — per-vehicle
+            src_objects = vm.agent.objects
             # Tag each detection with its source for diagnostics
-            for obj in vm.agent.objects.get('vehicles', []):
+            for obj in src_objects.get('vehicles', []):
                 obj._det_source = f"ego_{vid}"
-            self._dict_extend(objects, vm.agent.objects)
-            beacons[vid] = (vm.vehicle.get_location(),
-                            vm.vehicle.bounding_box.extent)
+            self._dict_extend(objects, self._sender_payload(
+                f"ego_{vid}", vid, src_objects, beacons, frame_idx))
 
         for rsu in self.rsu_manager_list:
             rsu_id = getattr(rsu, 'id', 'rsu')
-            for obj in rsu.objects.get('vehicles', []):
+            src_objects = rsu.objects
+            for obj in src_objects.get('vehicles', []):
                 obj._det_source = f"rsu_{rsu_id}"
-            self._dict_extend(objects, rsu.objects)
+            self._dict_extend(objects, self._sender_payload(
+                f"rsu_{rsu_id}", None, src_objects, beacons, frame_idx))
 
         # Stamp with per-packet arrival time and push to jitter buffer
         if self._lut_sampler is not None:
@@ -607,6 +616,17 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         else:
             arrival = self.latency_model.stamp(frame_idx)
         self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+
+    # ------------------------------------------------------------------
+    def _sender_payload(self, sender_tag, sender_vid, src_objects, beacons,
+                        frame_idx):
+        """What one source (a CAV or an RSU) puts on the uplink this tick.
+
+        Default: the source's object dict unchanged. A sender-side policy
+        (the ETSI self-announcement arm) overrides this to omit detections
+        before they leave the sender. Beacons are never filtered here.
+        """
+        return src_objects
 
     # ------------------------------------------------------------------
     def _collect_detections_for_frame(self, objects, beacons, source_tick):

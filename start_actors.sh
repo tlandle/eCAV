@@ -57,7 +57,7 @@ num_ego = sum(len((e or {}).get("vehicles", []) or []) for e in edge_list) + len
 mgr_types = {(e or {}).get("manager_type", "") for e in edge_list}
 if "worldfusion" in mgr_types:
     fusion = "worldfusion"
-elif "late_fusion" in mgr_types:
+elif any("late_fusion" in m for m in mgr_types):
     fusion = "late_fusion"
 else:
     fusion = "none"

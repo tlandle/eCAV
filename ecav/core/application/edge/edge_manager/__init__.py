@@ -36,6 +36,9 @@ from .edge_manager_worldfusion_ab3dmot_mtr import WorldFusionMTREdge
 from .edge_manager_worldfusion_mamba_mtr import WorldFusionMambaAdaptiveEdge
 from .edge_manager_infra_only_ab3dmot_linear_predictor import InfraOnlyEdge
 from .edge_manager_cip_ab3dmot_linear_predictor import CIPEdge
+from .edge_manager_late_fusion_etsi_self_announcement_ab3dmot_linear_predictor import (
+    LateFusionEtsiSelfAnnouncementEdge,
+)
 
 __all__ = [
     "BaseEdgeManager",
@@ -74,6 +77,8 @@ _EDGE_REGISTRY = {
     "WORLDFUSION_MAMBA_MTR": WorldFusionMambaAdaptiveEdge,  # alias
     "INFRA_ONLY": InfraOnlyEdge,
     "CIP": CIPEdge,
+    "LATE_FUSION_ETSI_SELF_ANNOUNCEMENT": LateFusionEtsiSelfAnnouncementEdge,
+    "ETSI_SELF_ANNOUNCEMENT": LateFusionEtsiSelfAnnouncementEdge,  # alias
 }
 
 
