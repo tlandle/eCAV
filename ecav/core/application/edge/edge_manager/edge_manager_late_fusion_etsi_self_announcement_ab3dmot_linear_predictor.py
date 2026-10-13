@@ -176,8 +176,8 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
 
         kept = []
         for di, det in enumerate(dets):
-            nearest = self._nearest_gt(float(det.location.x),
-                                       float(det.location.y), frame_idx)
+            dx, dy = float(det.location.x), float(det.location.y)
+            nearest = self._nearest_gt(dx, dy, frame_idx)
             if di in matched_det:
                 vid = matched_det[di]
                 if nearest == vid:
@@ -186,6 +186,15 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
                     key = "omitted_no_gt"
                 else:
                     key = "omitted_other_actor"
+                    px, py, _speed, age_s = visible[vid]
+                    gt = (self._gt_snapshots.get(frame_idx) or {}).get(nearest) or {}
+                    logger.info(
+                        "[ETSI-WRONG] tick=%d sender=%s det=(%.1f,%.1f) beacon_vid=%d "
+                        "beacon_disp=%.2f age_s=%.2f gt_actor=%s gt_disp=%.2f gt_type=%s",
+                        frame_idx, sender_tag, dx, dy, vid,
+                        math.hypot(dx - px, dy - py), age_s, nearest,
+                        math.hypot(dx - gt.get("x", dx), dy - gt.get("y", dy)),
+                        gt.get("type", "?"))
                 counter["omitted"] += 1; tick_row["omitted"] += 1
                 counter[key] += 1; tick_row[key] += 1
                 continue
