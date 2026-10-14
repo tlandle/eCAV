@@ -5590,3 +5590,68 @@ turn lane.
   returned the tool shell itself. Rule: list PIDs in one command with `[.]`
   patterns and nothing else in that command mentioning the target, then kill by
   explicit PID in the next command.
+
+### 2026-10-14: gate run_4 off-road veer is a zero-lookahead restart in the local planner, fixed offline
+
+Run: experiment_results/openscenario_3_edge_late_fusion/sensys_nov27_gate1/
+.../lat_0_..._ego_1_sidr_1.0/run_4 (hero only, 0 ms, SBA on, 70 km/h).
+Sequence from the [LOC] GT trace, the per-tick age CSV and the planner
+warnings (LOC tick = CSV tick - 48): left turn completed on the arc with
+the path 1.7 to 2.0 m to the left of the vehicle (corner cut outside);
+tick 159 `[RSS] Enter proper response TTC=1.16s threat_cid=-1` (an
+unanchored edge track) while leaving the junction at 46 km/h; decision
+brake, brake 1.0, from CSV tick 204 to 224; full stop at (-62.5, 136.4) at
+tick 177, 1.0 m right of the eastbound lane centre (135.4), `[RSS] Exit:
+ego stopped`; go with throttle 1.0 from tick 178; the hero crept for 14
+ticks turning left, then accelerated to 45 km/h while its heading went
+-32 (tick 200), -63 (212), -90 (222), -135 deg (228), crossed the westbound
+and parking lanes and hit a building at (-54.9, 120.9); Lane Invasion
+warnings at ticks 174 and 200; no brake attribution, no planner exception.
+
+What it was following (offline replay of the real LocalPlanner on the
+Town03 OpenDRIVE along the GT trace, scratchpad emulate_lp_run4.py): the
+global route is 24 waypoints on lane -1 throughout, road 4 -> 291 -> 263
+(the turn) -> road 24, no lane-change option; the overtake cannot run
+there (the obstacle waypoint's left marking is SolidSolid with lane_change
+NONE, the right lane is Parking); get_push_destination from the
+junction-exit waypoint returns a point 10 to 13 m ahead on the same lane,
+so even a push keeps the lane; the heading-wrap localizer defect does not
+apply (headings 90 and 0 deg; filter yaw error 8.7 deg). The defect is the
+lateral target itself: `LocalPlanner.run_step` took trajectory point 1,
+and `generate_trajectory` spaces points by the motion predicted per
+trajectory_dt (0.2 s), so at standstill point 1 is 0.17 m from the path
+start. With the vehicle 1 m off centre the heading-error controller saw
+an 81 deg error (0.75 * 1.41 rad = 1.06, clipped to the 0.3 steering
+limit): full left lock from the first tick of the restart. On tick 177 the
+turn's history waypoints were still in the spline (potential_curved_road),
+whose start is anchored to the first history node by straight-line
+distance, so the path began 1.9 m behind the vehicle and the target angle
+was 153 deg. Once the hero swung past the centre line the target stayed
+abeam or behind it (path start up to 14 m behind by tick 227), the
+acos-based error stayed saturated, and at the normal 47 km/h target speed
+it spiralled off the road. Why 1 in 60: a scan of all 129 gate1 runs finds
+exactly one standstill restart on the eastbound segment after the turn
+(run_4); every other stop was on the approach, where a restart aims
+straight down the lane with a near-zero offset.
+
+Fix (commit 1e11f96a): the lateral target is the first trajectory point
+at least max(2.5 m, 0.4 s * v) ahead of the vehicle along its heading; if
+the whole sampled trajectory is abeam or behind, the first route waypoint
+ahead; else the last trajectory point. At 47 km/h this is the same second
+sample as before (replay: 5.3 m ahead). tests/test_local_planner_lookahead.py
+replays the run_4 stop on the real planner: target 2.67 m ahead at -22 deg
+(was 0.17 m at -81 deg; -153 deg with the history-anchored start), stops at
+x -60/-55/-50 give 2.6 m at -21 to -26 deg, moving 47 km/h unchanged.
+Not touched: the straight-line `diff_s` start of the spline (the fallback
+covers it) and the RSS trigger (the unanchored threat is the paper's
+phenomenon).
+
+Closed-loop verification when the GPU is free (not launched): the gate cell
+that produced it, `python test_runner.py -t openscenario_3_edge_late_fusion
+--manager-types late_fusion --anchoring on --latencies 0 --speeds 70
+--ego-counts 1 --repetitions 10 --self-id-radius 1.0 --carla-port 2200
+--stamp lookahead_check`, then the LTAP 4-ego and SCP 8-ego defects_fix
+runs again: no off-road or static collision, the hero reaches its
+destination or MAX_STEP, and in the GT trace no heading change above 30 deg
+within 2 s of any standstill restart (restart_scan.py in the scratchpad
+does this check on a results tree).
