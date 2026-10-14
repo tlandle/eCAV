@@ -5568,3 +5568,25 @@ completing its left turn instead of waiting behind the east CAV, (4) one
 (was 112). overtake_allowed false for the east CAVs (53ce165b) stays: it
 was not the cause, but it keeps them from passing the Tesla on the hero's
 turn lane.
+
+## 2026-10-14 15:30: three fixes, gate restarted on 9e2982da on both hosts
+- Planner (`behavior_agent.py`): a delivered edge frame now replaces the cached
+  identities; the 24-tick hold-over only bridges ticks with no delivery.
+  `edge_pred_hold_absent: true` restores the previous behaviour (added in
+  September for the migration hand-off, where an identity absent from fresh
+  frames had to survive). Evidence: in gate run lat_0/run_10 track 87 was last
+  published at tick 111 and consumed until tick 145 at ages up to 1.6 s; the
+  hero braked 16 times for it after the Tesla had left.
+- Localizer (merged from the scenario branch): heading innovation and yaw
+  state wrapped; westbound CAVs no longer drift (east-approach CAVs in the 4-ego
+  layouts, blind-overtake focal).
+- Step cap 600 on every scenario_3 and SCP late-fusion scenario file, so a
+  slow but safe run completes and S_prog measures stalls only.
+- Both gates stopped and restarted on 9e2982da (atlas 15:32, cetus 15:38). The
+  first gate's data is kept as `sensys_nov27_gate1` on both hosts (255 and 170
+  runs) as the record of the pre-fix behaviour; it is not campaign data.
+- Self-kill, second time this session (exit 144): the restart command text
+  contained the literal driver name that the pgrep pattern matched, so pgrep
+  returned the tool shell itself. Rule: list PIDs in one command with `[.]`
+  patterns and nothing else in that command mentioning the target, then kill by
+  explicit PID in the next command.
