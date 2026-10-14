@@ -25,7 +25,7 @@ Example:
         --speeds 70 --repetitions 3
 """
 
-import argparse, copy, itertools, json, shutil, subprocess, sys, time, yaml, socket
+import argparse, copy, itertools, json, os, shutil, subprocess, sys, time, yaml, socket
 from pathlib import Path
 from datetime import datetime
 
