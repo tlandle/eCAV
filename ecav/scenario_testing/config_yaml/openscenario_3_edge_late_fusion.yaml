@@ -57,7 +57,7 @@ scenario_runner:
   # E.g., for the Overtake scenario
   scenario: Scenario_3
   num_actors: 2
-  configFile: ecav/scenario_testing/scenarios/scenario_3.xml
+  configFile: ecav/scenario_testing/scenarios/scenario_3_occluded.xml
   additionalScenario: ecav/scenario_testing/scenarios/scenario_3.py
 
   host: *host

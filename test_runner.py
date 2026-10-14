@@ -97,6 +97,9 @@ ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.g
 ap.add_argument("--edge-kv", nargs="*", type=str, default=[],
                 help="key=value pairs set on every edge block (beacon fault, ValidBeacon and gating knobs); "
                      "value parsed as int, float, true/false, or str; one value per campaign invocation")
+ap.add_argument("--cross-trigger-dist", type=float, default=None,
+                help="scenario_3 / SCP: the crossing car starts when the hero is this far from the trigger point "
+                     "(CROSS_TRIGGER_DIST for the scenario process; smaller = later start = tighter conflict)")
 ap.add_argument("--see-v2x-replay", type=str, default=None, choices=["sequential"],
                 help="Replay the SEE-V2X trace in arrival order with gap-derived losses (edge.see_v2x_replay)")
 ap.add_argument("--behavior-kv", nargs="*", type=str, default=[],
@@ -569,6 +572,9 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if ego_count is not None and ego_count > 1:
         scenario_name = f"{scenario_name}_{ego_count}ego"
     cmd = [sys.executable, "ecav.py", "-t", scenario_name, "--apply_ml", "--output_dir", str(eval_dir)]
+    _env = dict(os.environ)
+    if args.cross_trigger_dist is not None:
+        _env["CROSS_TRIGGER_DIST"] = str(args.cross_trigger_dist)
     if os.environ.get("ECAV_PROFILE"):
         # ECAV_PROFILE=1: cProfile the main process; profile.pstats lands in the run dir
         cmd = [sys.executable, "-m", "cProfile", "-o", str(run_dir / "profile.pstats")] + cmd[1:]
@@ -583,7 +589,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
             live_f.write(header)
             live_f.flush()
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                    text=True, encoding="utf-8", errors="replace")
+                                    text=True, encoding="utf-8", errors="replace", env=_env)
             for line in proc.stdout:
                 log_f.write(line)
                 live_f.write(line)
@@ -615,6 +621,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if EDGE_KV: metrics["config_edge_kv"] = dict(EDGE_KV)
     if BEHAVIOR_KV: metrics["config_behavior_kv"] = dict(BEHAVIOR_KV)
     if args.see_v2x_replay: metrics["config_see_v2x_replay"] = args.see_v2x_replay
+    if args.cross_trigger_dist is not None: metrics["config_cross_trigger_dist"] = args.cross_trigger_dist
     try:  # the scenario file's step cap, so the reduction knows what "completed" means
         import re as _re
         _m = _re.search(r"^MAX_STEP\s*=\s*(\d+)", (Path("ecav/scenario_testing") / f"{scenario_name}.py").read_text(), _re.M)
