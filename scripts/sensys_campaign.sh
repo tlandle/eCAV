@@ -10,10 +10,10 @@
 #   gate      scenario_3, N=1, 70 km/h, 6 latencies, oracle / naive / SBA / ETSI, 10 seeds (240 runs,
 #             about 4 h on one host). Then: python scripts/sensys_analysis/campaign_check.py $STAMP
 #             FAIL stops here (a failing gate means the code or the scenario is wrong, not the seeds).
-#   envelope  every arm, 3 geometries, 12 latencies, 2 speeds, REPS seeds at N=1; gate again, then add
+#   envelope  every arm, 3 geometries, 8 latencies, 70 km/h, REPS seeds at N=1; gate again, then add
 #             seeds only to the cells campaign_check lists (interval straddles 0.8).
 #   scaling   3 latencies over the ego counts each geometry has, SCALE_REPS seeds.
-#   situation oracle at 0.75x and 1.25x of 50 and 70 km/h (cetus).
+#   situation oracle at 50 km/h and at 0.75x / 1.25x of 50 and 70 km/h (cetus).
 #   mixed     V2X2V Naive / ETSI / SBA on the mixed-traffic variants (cetus).
 #   faults    beacon faults and ValidBeacon, V2X2V Naive / ETSI / SBA, N=4 (atlas).
 #
@@ -32,15 +32,15 @@ ROLE="${1:?atlas|cetus}"; STAGE="${2:-all}"; DRY="${3:-}"
 want() { [[ "$STAGE" == "all" || "$STAGE" == "$1" ]]; }
 STAMP="${STAMP:-sensys_nov27}"
 PORT="${CARLA_PORT:-2000}"
-REPS="${REPS:-20}"              # envelope sweep (N=1)
+REPS="${REPS:-10}"              # envelope sweep (N=1); campaign_check lists the cells that get 10 more
 MIX_REPS="${MIX_REPS:-10}"      # mixed traffic (N=4 / N=2)
 SCALE_REPS="${SCALE_REPS:-5}"   # scaling and faults (N=4 and above)
 SIT_REPS="${SIT_REPS:-10}"      # situation study (N=1)
 PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
 export PYTHONPATH="$HOME/carla-0.9.15/PythonAPI/carla:${PYTHONPATH:-}"   # CARLA agents package (needed on cetus)
-LATS="0 50 100 150 200 250 300 350 400 450 500 550"
+LATS="0 50 100 150 200 300 400 500"   # 50 ms steps across the logic cliff, 100 ms past it
 SCALE_LATS="100 200 400"
-SPEEDS="50 70"
+SPEEDS="70"                           # 50 km/h and the 0.75x / 1.25x multipliers live in the situation study
 ETSI="late_fusion_etsi_self_announcement"
 COMMON="--latency-distribution hybrid --self-id-radius 1.0 --stamp $STAMP --carla-port $PORT --per-tick-age-log"
 
@@ -52,8 +52,8 @@ scaling_n()  { case "$1" in openscenario_3*) echo "2 4 8 16" ;; scp*) echo "4" ;
 # GATE: V2X2V with the Mahalanobis association gate (Wolf 2025 / Sensors 2026), chi-square 95% on the 7-D form
 GATE_KV="assoc_metric=m_dis assoc_threshold=3.75"
 case "$ROLE" in
-  atlas) ARMS=("late_fusion both" "$ETSI off" "oracle on" "cip on") ;;
-  cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV") ;;
+  atlas) ARMS=("late_fusion both" "$ETSI off" "oracle on" "cip on"); SCALE_ARMS=("late_fusion both" "$ETSI off" "oracle on") ;;
+  cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV") ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
 GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_late_fusion"
@@ -72,7 +72,7 @@ if want gate; then
   fi
 fi
 
-# 1. Envelope sweep: 12 latencies x 2 speeds x REPS seeds at N=1
+# 1. Envelope sweep: 8 latencies x REPS seeds at N=1, 70 km/h; stage 2 adds seeds where campaign_check says so
 want envelope && for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
@@ -82,7 +82,7 @@ done
 
 # 2. Scaling: 3 latencies x SCALE_REPS seeds at 70 km/h over the ego counts each geometry has
 want scaling && for geom in $GEOMS; do
-  for arm in "${ARMS[@]}"; do
+  for arm in "${SCALE_ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
     run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds 70 --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS "${kvflag[@]}" $COMMON
   done
@@ -91,7 +91,7 @@ done
 # 3. Situation study: oracle only, 0.75x and 1.25x of 50 and 70 km/h (cetus)
 if want situation && [[ "$ROLE" == "cetus" ]]; then
   for geom in $GEOMS; do
-    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 --ego-counts 1 --repetitions $SIT_REPS $COMMON
+    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 50 63 53 88 --ego-counts 1 --repetitions $SIT_REPS $COMMON
   done
 fi
 
