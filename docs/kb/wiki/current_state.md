@@ -5662,3 +5662,48 @@ does this check on a results tree).
   15:45, cetus 15:46); the 20 and 14 runs of the second start are kept as
   `sensys_nov27_gate2_partial`. Every figure stage runs on d24b53d8 or later
   only after the gate passes on it.
+
+### 2026-10-14 17:00 to 17:30: the post-turn veer is the turn speed; curvature limit fixed and verified live
+
+Cell reproduced on port 2200 with the running code (develop 58200557):
+`test_runner.py -t openscenario_3_edge_late_fusion --manager-types
+late_fusion --anchoring off --latencies 0 --speeds 70 --repetitions 10
+--stamp veer_check --carla-port 2200 --per-tick-age-log`. Baseline: 3 of 10
+runs left the road after the turn (run_5 and run_7 against the building at
+(-55.7, 120.6) and (-60.0, 120.6), run_6 against the parked Audi at
+(-80.1, 121.5)); gate3_partial had 2 of 10 (anchoring off) and 2 of 10
+(anchoring on). Mechanism, from the GT trace, the [TRAJ] lines and the
+per-tick age CSV: the hero enters the 13 m-radius junction arc at 35 to 44
+km/h under full throttle (the generate_trajectory curvature limit was
+sqrt(8 / mean|k| over the whole path): 35 to 37 km/h inside the arc, which
+is 10 m/s^2 of lateral acceleration, and released to 90 to 120 km/h the
+moment the straight joined the path, with 30 deg of turning left); it
+slides wide at the apex (+0.4 to +0.8 m) and exits with a residual yaw
+rate: on the eastbound straight the heading keeps rotating left at 44 to 50
+km/h (-5, -14, -28, -45 deg over 10 m) into the westbound lane; an RSS
+proper response then fires on an anonymous track at TTC 1.0 to 1.1 s
+(`threat_cid -1`, the predicted path now sweeps the oncoming lane) and
+brakes the sliding vehicle to a stop at a 30 to 90 deg angle in the
+westbound or parking lane; the restart drives along that heading into the
+building. The route (lane -1 throughout), the overtake (solid centre line,
+parking right lane), the push destination and the heading wrap were ruled
+out offline (replay of the real LocalPlanner on the GT trace); the earlier
+lookahead fix only changes what happens after the stop. Good runs cut the
+same apex but happened to stay under 20 deg of heading excursion.
+
+Fix (commit 4c5f46e3): the curvature speed limit uses the sharpest bend
+within 20 m of path ahead of the vehicle (CURV_LOOKAHEAD_M, points ahead
+only) at A_LAT_MAX = 5 m/s^2 (the old 8 m/s^2 mean exceeded CARLA's grip
+with the 0.3 steering limit). Offline (test_turn_speed_limited_by_curvature_ahead):
+67 km/h until 20 m before the arc, 24 km/h on the last 15 m of approach and
+through the arc, 44 km/h at the exit, 67 km/h on the straight. Live, same
+cell, `--stamp veer_fix`: 10 of 10 completed by destination, no collision,
+no off-road; apex speed 25.6 to 29.8 km/h (limit 21.6 to 23.6), exit 25 to
+46 km/h, 48 to 66 km/h on the straight; heading excursion after the turn
+-5 to -15 deg (baseline good runs -8 to -25, veering runs -80 to -162);
+end positions x -34.0 to -37.9, y 133.2 to 134.7 (the destination gate).
+Runs are longer (232 to 340 LOC ticks against 180 to 215; the loop step
+count of the slowest run is close to the single-hero runner's MAX_STEP
+300, see the figure in the session note), so the cell's wall time grows
+by about a third. The RSS proper responses on the approach (the Tesla
+crossing) are unchanged.
