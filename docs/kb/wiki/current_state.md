@@ -5702,8 +5702,7 @@ no off-road; apex speed 25.6 to 29.8 km/h (limit 21.6 to 23.6), exit 25 to
 46 km/h, 48 to 66 km/h on the straight; heading excursion after the turn
 -5 to -15 deg (baseline good runs -8 to -25, veering runs -80 to -162);
 end positions x -34.0 to -37.9, y 133.2 to 134.7 (the destination gate).
-Runs are longer (232 to 340 LOC ticks against 180 to 215; the loop step
-count of the slowest run is close to the single-hero runner's MAX_STEP
-300, see the figure in the session note), so the cell's wall time grows
-by about a third. The RSS proper responses on the approach (the Tesla
+Runs are longer (232 to 340 localization ticks against 180 to 215; loop
+steps 342 to 426 against the single-hero runner's MAX_STEP 600), so the
+cell's wall time grows by about a third. The RSS proper responses on the approach (the Tesla
 crossing) are unchanged.
