@@ -486,8 +486,8 @@ scenario:
         # ── Ego 2: West approach (eastbound), straight, inner lane ──
         - <<: *vehicle_base
           name: cav2
-          spawn_position: [-100.0, 136.2, 1.0, 0, 0, 0]  # Road 23 lane -1 EB inner (Driving)
-          destination: [-20.0, 134.4, 0.5]
+          spawn_position: [-88.1, 100.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), ahead of the hero
+          destination: [-88.6, 155.0, 0.5]  # Road 69 lane 3, straight north
           sensing:
             <<: *base_sensing
             perception:
@@ -521,8 +521,8 @@ scenario:
         # ── Ego 10: West approach (eastbound), convoy behind cav2 ──
         - <<: *vehicle_base
           name: cav10
-          spawn_position: [-106.0, 136.2, 1.0, 0, 0, 0]  # Road 23 lane -1 EB, 6m behind cav2
-          destination: [-20.0, 134.4, 0.5]
+          spawn_position: [-88.1, 108.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), ahead of the hero
+          destination: [-88.6, 155.0, 0.5]  # Road 69 lane 3, straight north
           sensing:
             <<: *base_sensing
             perception:
@@ -556,8 +556,8 @@ scenario:
         # ── Ego 14: West approach (eastbound), trailing 12m behind cav2 ──
         - <<: *vehicle_base
           name: cav14
-          spawn_position: [-112.0, 136.2, 1.0, 0, 0, 0]  # Road 23 lane -1 EB, 12m behind cav2
-          destination: [-20.0, 134.4, 0.5]
+          spawn_position: [-88.1, 116.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), ahead of the hero
+          destination: [-88.6, 155.0, 0.5]  # Road 69 lane 3, straight north
           sensing:
             <<: *base_sensing
             perception:

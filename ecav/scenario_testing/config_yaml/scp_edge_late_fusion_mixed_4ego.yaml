@@ -428,15 +428,15 @@ scenario:
       safety_manager: *id008
       name: cav2
       spawn_position:
-      - -130.0
-      - 135.5
+      - -88.1
+      - 100.0
       - 1.0
       - 0
-      - 0
+      - 90
       - 0
       destination:
-      - -20.0
-      - 134.4
+      - -88.6
+      - 155.0
       - 0.5
     - sensing:
         perception:
@@ -580,11 +580,11 @@ scenario:
       safety_manager: *id008
       name: cav4
       spawn_position:
-      - -77.5
-      - 200.0
+      - -74.7
+      - 174.0
       - 1.0
       - 0
-      - 270
+      - 247
       - 0
       destination:
       - -77.5

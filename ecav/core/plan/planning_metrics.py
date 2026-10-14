@@ -78,7 +78,7 @@ class PlanningMetrics(object):
         self.brake_attributions = []
 
         # Per-tick edge prediction acceptance counters (Confound A diagnostic)
-        self.edge_ticks_total = 0          # total ticks through collision_manager Pass 2
+        self.edge_ticks_total = 0          # ticks the planner merged the edge downlink (update_information)
         self.edge_ticks_with_preds = 0     # ticks with >= 1 prediction
         self.edge_ticks_with_collision = 0 # ticks where collision was detected
         self.edge_preds_received_total = 0 # sum of predictions received
