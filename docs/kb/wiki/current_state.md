@@ -5403,3 +5403,56 @@ patch (manager cip, latency 0.2, anchoring false, 50 km/h); test_runner
 overrides all of it per run. Worktree run-time symlinks (sort,
 ecav/worldfusion, data, scenario_runner entries) and generated stubs are
 in place and untracked.
+
+### 2026-10-14: the east-approach CAV's 2.5 m lateral drift is a localizer defect (heading wrap), fixed offline
+
+Diagnosis from the defects_fix runs (no CARLA): the global route for the lead
+east CAV is on road 24 lane 1 all the way (offline GRP trace, both the old
+and the new destination); the local planner's path is that lane centre
+(`[TRAJ] mean_k=0.000000`, regenerated every tick because sample_num 10 <
+trajectory_update_freq 15, same for every vehicle); the lateral PID is a
+heading-to-target controller on trajectory point 1 (about 0.4 s ahead).
+What differs is the pose the planner and controller receive: the localizer
+hands them the Kalman-filtered (x, y) with the true yaw. The per-vehicle
+localization block of simulation_metrics.json shows
+filter_yaw_error_mean_deg 264 / 205 / 155 for the drifting east CAV (LTAP
+attempt 3 / attempt 2 / SCP 8-ego), 33 for the slower east follower, 112 for
+the westbound blind-overtake focal, 195 for the mixed smoke's east CAV, and
+0.3 to 3.8 for every vehicle heading north or south; the filtered position
+error of the drifting CAV is 0.5 to 1.0 m (x) and 0.7 to 1.3 m (y) against
+0.04 to 0.4 m for the others, with the raw GNSS error 0.13 m for all. Cause:
+`kalman_filter.run_step` takes the GNSS heading (CARLA yaw in (-180, 180]
+plus 1 deg noise) and computes the innovation `z - zPred` without wrapping,
+so a westbound vehicle alternates +pi and -pi measurements, the yaw state
+settles at a wrong angle (replay: -30, -134, +50 deg for three seeds), and
+the motion model (`dt * v * cos/sin(yaw)`) then carries a speed-proportional
+position bias that the GNSS update only partly removes (replay at 13.9 m/s:
+up to 2.8 m lateral and 7 m longitudinal; at 7.8 m/s: 1.0 m lateral). The
+controller steers the biased estimate onto the lane centre, so the true
+vehicle runs parallel to the lane, offset by minus the bias: 2.5 m left
+at 47 km/h for the lead CAV, 0.3 m for the follower at 28 km/h, nothing for
+north/south headings, and the offset appears as the vehicle gains speed
+(x = -33). The `[LOC]` line prints raw GNSS error only and hid this.
+
+Fix (commit on the branch): wrap the heading innovation to [-pi, pi) and
+normalise the yaw state after the update in
+`ecav/core/sensing/localization/kalman_filter.py`; wrap the yaw differences
+in `localization_metrics.get_metrics` (the 264 deg figures were themselves
+unwrapped). `tests/test_kalman_heading_wrap.py` replays the filter on
+synthetic westbound motion: yaw error 0.8 to 1.1 deg and position error
+0.05 to 0.08 m for seeds 1 to 3 at 13.9 and 7.8 m/s, equal to northbound
+(before: wrong yaw and up to 2.8 m bias). No pytest in opencda310; the file
+runs standalone.
+
+Closed-loop verification, to run when the GPU is free (not launched): the
+two defects_fix campaigns again with `--stamp kf_wrap` (same flags, port
+2200, Town03 preloaded), then check (1) every vehicle's
+`localization.filter_yaw_error_mean_deg` under 3 and
+`filter_y_error_mean_m` under 0.2, (2) the lead east CAV's GT lateral
+offset from the road 24 lane 1 centre within 0.5 m from x = -33 to x = -80
+(scratchpad lane-offset script, was +2.5 m), (3) the LTAP 4-ego hero
+completing its left turn instead of waiting behind the east CAV, (4) one
+`blind_overtake_edge_late_fusion` run with the focal's yaw error under 3
+(was 112). overtake_allowed false for the east CAVs (53ce165b) stays: it
+was not the cause, but it keeps them from passing the Tesla on the hero's
+turn lane.
