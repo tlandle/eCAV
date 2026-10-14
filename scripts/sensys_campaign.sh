@@ -3,7 +3,7 @@
 # One campaign per host and per CARLA port; every invocation reuses STAMP so an
 # interrupted campaign resumes in place (completed runs are skipped).
 #
-#   scripts/sensys_campaign.sh atlas|cetus [gate|physics|landing|scaling|mixed|faults|all] [--dry-run]
+#   scripts/sensys_campaign.sh atlas|cetus [gate|physics|landing|trace|scaling|mixed|faults|all] [--dry-run]
 #   STAMP=sensys_nov27 CARLA_PORT=2000 REPS=20 scripts/sensys_campaign.sh atlas gate
 #
 # Stages run in this order and the gate script decides whether to go on:
@@ -87,6 +87,15 @@ want landing && for geom in $GEOMS; do
     run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") --repetitions $REPS "${kvflag[@]}" $COMMON
   done
 done
+
+# 2b. Trace replay: the SEE-V2X field trace as the only delay (no synthetic offset), per intersection
+#     regime L / M / H, oracle / naive / contract, scenario_3 at 70 km/h, SIT_REPS seeds (90 runs, 1.6 h)
+if want trace && [[ "$ROLE" == "atlas" ]]; then
+  for arm in "late_fusion both" "oracle on"; do
+    set -- $arm; mgr=$1; anch=$2
+    run -t openscenario_3_edge_late_fusion --manager-types "$mgr" --anchoring "$anch" --latencies 0 --speeds 70 --ego-counts 1 --see-v2x-filter regime=L regime=M regime=H --repetitions $SIT_REPS $COMMON
+  done
+fi
 
 # 3. Scaling: 3 latencies x SCALE_REPS seeds at 70 km/h over the ego counts each geometry has
 want scaling && for geom in $GEOMS; do
