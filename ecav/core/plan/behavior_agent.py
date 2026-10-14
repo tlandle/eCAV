@@ -271,6 +271,8 @@ class BehaviorAgent(object):
         self.local_predictions   = []   # produced on-board each tick
         self.edge_predictions    = []   # filled when the edge sends predictions
         self._edge_pred_cache    = {}   # identity -> (tick, pred) for hold-over
+        self._edge_pred_hold_absent = bool(
+            (config_yaml or {}).get('edge_pred_hold_absent', False))
 
 
     def _maintain_tracks_and_predict(self, dt: float):
@@ -390,15 +392,25 @@ class BehaviorAgent(object):
             1 for _p in _edge_in
             if getattr(_p.obstacle_trajectory.obstacle, 'carla_id', None) == self.vehicle.id)
         _cache = self._edge_pred_cache
+        _fresh_keys = set()
         for _p in (self.edge_predictions or []):
             _obs = _p.obstacle_trajectory.obstacle
             _cid = getattr(_obs, 'carla_id', None)
             _key = ('c', int(_cid)) if (_cid is not None and _cid >= 0) \
                 else ('t', getattr(_obs, 'track_id', id(_p)))
             _cache[_key] = (_tick, _p)
+            _fresh_keys.add(_key)
         _HOLD = 24  # ego ticks (~1.2 s): must cover the edge's worst-case
         # broadcast gap for a risk-budgeted track, else a momentary absence
         # reads as a clear road at the commit gate
+        # A delivered frame is the edge's current world: an identity the
+        # edge no longer publishes (its track aged out after the actor left)
+        # is dropped with it. The hold only bridges ticks with no delivery.
+        # edge_pred_hold_absent: true keeps identities absent from fresh
+        # frames for the hold window (the migration hand-off case).
+        if _fresh_keys and not self._edge_pred_hold_absent:
+            for _k in [k for k in _cache if k not in _fresh_keys]:
+                _cache.pop(_k, None)
         for _k in [k for k, (tk, _) in _cache.items() if _tick - tk > _HOLD]:
             _cache.pop(_k, None)
         merged = [pr for (tk, pr) in _cache.values()]
