@@ -35,6 +35,10 @@ class RoadOption(Enum):
     CHANGELANERIGHT = 6
 
 
+CURV_LOOKAHEAD_M = 20.0   # path length over which the sharpest bend limits the speed
+A_LAT_MAX = 5.0           # m/s^2, lateral acceleration allowed in that bend
+
+
 class LocalPlanner(object):
     """
     LocalPlanner implements the basic behavior of following a trajectory of
@@ -433,11 +437,27 @@ class LocalPlanner(object):
         current_speed = current_speed / 3.6
         sample_resolution = 0
 
-        # use mean curvature to constrain the speed
+        # Curvature speed limit from the sharpest bend within the next
+        # CURV_LOOKAHEAD_M of path (ds = 0.1 m per point). The mean over the
+        # whole path let a 13 m-radius junction turn be taken at 37 to 44
+        # km/h and released the limit to 67 km/h while 30 deg of turning
+        # remained (gate run 2026-10-14: the vehicle slid wide, exited the arc
+        # with a residual yaw rate, and drifted into the oncoming lane at
+        # 45 to 50 km/h). 5 m/s^2 lateral is within CARLA's tyre grip with the
+        # 0.3 steering limit; the old 8 m/s^2 was not.
+        # Only points ahead of the vehicle count: with a history-anchored
+        # spline the path can start a few metres behind, on the bend just
+        # left, which would hold the limit after the turn.
+        _n_ahead = int(CURV_LOOKAHEAD_M / ds)
+        _ego = self._ego_pos.location
+        _yaw = math.radians(self._ego_pos.rotation.yaw)
+        _hx, _hy = math.cos(_yaw), math.sin(_yaw)
+        _ks = [abs(k) for x, y, k in zip(rx[:_n_ahead], ry[:_n_ahead], rk[:_n_ahead])
+               if (x - _ego.x) * _hx + (y - _ego.y) * _hy > 0.0]
+        mean_k = max(_ks) if _ks else 0.0001
 
-        mean_k = 0.0001 if len(rk) < 2 else abs(statistics.mean(rk))
         # v^2 <= a_lat_max / curvature
-        curv_limit_kmh = np.sqrt(8.0 / (mean_k + 10e-6)) * 3.6
+        curv_limit_kmh = np.sqrt(A_LAT_MAX / (mean_k + 10e-6)) * 3.6
         old_target = target_speed
         target_speed = min(target_speed, curv_limit_kmh)
         logger.info(f"[TRAJ] mean_k={mean_k:.6f}  curv_limit={curv_limit_kmh:.1f} km/h  "

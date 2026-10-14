@@ -114,6 +114,38 @@ def test_moving_target_is_unchanged():
     assert 4.0 <= fwd <= 7.0, (fwd, lat, ang)
 
 
+def _target_speed_along(lp, agent, points, yaw_deg, speed_kmh):
+    out = []
+    for (x, y) in _dense(points):
+        agent.vehicle.loc = carla.Location(x=x, y=y, z=0.0)
+        lp.update_information(carla.Transform(carla.Location(x=x, y=y, z=0.0), carla.Rotation(yaw=yaw_deg)), speed_kmh)
+        rx, ry, rk, _ = lp.generate_path()
+        ts, _ = lp.run_step(rx, ry, rk, target_speed=67.0)
+        out.append((x, y, ts))
+    return out
+
+
+def test_turn_speed_limited_by_curvature_ahead():
+    """The 13 m-radius junction arc (y 124 to 135) limits the target speed to
+    about 30 km/h, and the limit binds before the arc (within 20 m), not only
+    inside it; the straight after the arc releases it (gate3 run_6 took the
+    arc at 37 to 44 km/h and was released to 67 km/h with 30 deg left)."""
+    lp, agent = _planner_on_hero_route()
+    approach = [(-84.6, 80.0), (-84.6, 99.5), (-84.5, 107.2), (-84.4, 116.9), (-84.5, 123.6)]
+    arc = [(-83.5, 129.5), (-78.9, 134.9), (-74.2, 136.8)]
+    straight = [(-66.8, 136.9), (-62.5, 136.4), (-50.0, 135.1), (-40.0, 134.8)]
+    pts = (_target_speed_along(lp, agent, approach, 90.0, 40.0)
+           + _target_speed_along(lp, agent, arc, 45.0, 30.0)
+           + _target_speed_along(lp, agent, straight, 0.0, 40.0))
+    before = [ts for x, y, ts in pts if 95 < y < 104]
+    in_arc = [ts for x, y, ts in pts if 124 <= y <= 134 and x < -75]
+    after = [ts for x, y, ts in pts if x > -50]
+    assert max(before) > 60.0, before          # not yet limited 20 m+ before the arc
+    assert min(ts for x, y, ts in pts if 108 < y < 124) < 35.0   # limited on the last 15 m of approach
+    assert max(in_arc) < 33.0, in_arc
+    assert min(after) > 60.0, after
+
+
 if __name__ == '__main__':
     lp, agent = _planner_on_hero_route()
     _drive(lp, agent, TURN[:-1], 20.0, 40.0)
@@ -125,3 +157,8 @@ if __name__ == '__main__':
     lp, agent = _planner_on_hero_route()
     _drive(lp, agent, TURN + [(-55.0, 135.3)], 10.0, 30.0)
     print('moving 47 km/h: fwd=%.2f lat=%.2f ang=%.0f' % _drive(lp, agent, [(-55.0, 135.3)], 0.0, 47.0))
+    lp, agent = _planner_on_hero_route()
+    for x, y, ts in (_target_speed_along(lp, agent, [(-84.6, 80.0), (-84.6, 99.5), (-84.5, 107.2), (-84.4, 116.9), (-84.5, 123.6)], 90.0, 40.0)
+                     + _target_speed_along(lp, agent, [(-83.5, 129.5), (-78.9, 134.9), (-74.2, 136.8)], 45.0, 30.0)
+                     + _target_speed_along(lp, agent, [(-66.8, 136.9), (-62.5, 136.4), (-50.0, 135.1), (-40.0, 134.8)], 0.0, 40.0))[::6]:
+        print('target speed at (%.1f,%.1f): %.1f km/h' % (x, y, ts))
