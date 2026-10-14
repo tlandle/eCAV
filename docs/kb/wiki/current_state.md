@@ -5150,3 +5150,57 @@ REDUCTION (`safety_envelope_paper/reduce_per_tick_age.py`; the directory is giti
 SMOKE (openscenario_3_edge_late_fusion_smoke through test_runner, opencda310, YOLO gRPC on 18001). Worktree assets missing as empty submodule dirs, symlinked from the main checkout and not committed: scenario_runner, sort, ecav/worldfusion, data; protobuf stubs regenerated with grpc_tools. Three completed runs under experiment_results/openscenario_3_edge_late_fusion_smoke/: verbatim 20261013_195358 (knob off: no per_tick_age.csv, RET -6 = the pre-existing interpreter abort at exit from the 2026-09-14 entry, metrics written; edge 300 frames in 485 s at 1365 ms/frame under GPU contention, focal vehicle 642 stuck from the start on anonymous tracks 4 m from ego: 2 ghost brakes by proximity, 1 collision, 1.2 m travelled); knob on before the fix 20261013_200437 (RET 0, 300 frames in 125 s, focal 1102 no ghost brake, no collision, 33.6 m; publish_seq blank); knob on with the fix 20261013_201850 on a fresh CARLA (RET 0, 300 frames in 60 s at 185 ms/frame, focal 109 no ghost brake, no collision, 28.9 m). Final CSV: 4327 rows over 239 ticks, all edge rows anonymous (anchoring is off in this smoke), age at use p50 50 ms / p95 1350 / p99 1550 / max 1750 ms (the 24-tick edge cache hold plus source lag; publish age p50 is 0 ms, so a fresh publish is consumed on arrival and the tail is held entries), critical-object p99 334 ms over 133 proximity-matched conflict rows, conflict_time_age NaN (first brake at tick 26 had no conflict-actor row), conflict_brake_age 50 ms at tick 35, burst loss 0 and missed 0 (no loss configured), edge silence max 2 ticks. The verbatim and knob-on outcomes differ because the smoke is not deterministic under contention (edge frame time 1365 vs 399 vs 185 ms; the KB already records unseeded decision-arrival jitter); the logger only reads planner state and the predictor wrapper is transparent. Two further launches collided with a peer's ETSI smoke attached to the same CARLA on port 2000 (two clients in one world reset each other's scenario; "parent actor not found"); those attempts were discarded and the launches serialised by message with the peer.
 
 NS-3 PAYLOAD AND TABLE 2 (reviewer C7; full write-up with file:line evidence in the paper repo, `reviews/ns3_payload_and_table2.md`, commit ba5515f, not pushed). Table 2's KB/s column was computed as p95 x 20 Hz / 1024 (KiB) from a 413 B average and 472 B p95 object list (beacon 96 x 20 / 1024 = 1.875 -> 1.88; list 413 x 20 / 1024 = 8.066 -> 8.06; total 9.94 exact), so the printed 4,130 / 4,720 B carry an extra digit; the wire layout caps the list at 4 + 4 + 10 x 48 + 4 = 492 B and the late-fusion manager's constants say "~430 B". Corrected row: 413 / 472 B, 8.07 KiB/s (p95 9.22), total 9.94 KiB/s (p95 11.1); in decimal kB/s 1.92 / 8.26 / 10.2. The ns-3 LUT (`data/ns3_uplink_lut.csv`, `ns3_downlink_lut.csv`) has cells N in {4, 8, 16, 24, 31} x payload in {1000, 16896} B; `_bracket` clamps below 1000 B, so object sharing (96 + 48 n, about 430 B) is served by the 1000 B cell; late fusion samples the LUT only on the uplink and only when `use_ns3_lut` is set, which no yaml does (default False), and the envelope matrix ran on the hybrid model (SEE-V2X trace RTT plus lognormal backhaul). No SenSys landing run sampled an object-list-sized ns-3 payload; the paper's "ns-3 cosimulation of the C-V2X link" sentence describes the LUT-and-trace model and should say so.
+
+## 2026-10-13: SenSys resubmission, four tracks merged on develop; campaign driver; cetus worktree
+- Merged into develop (merge commits 10b1424d ETSI, b2344741 gating, 486ab60f per-tick,
+  0a68aeb0 scenarios, e36b1807 and 745da36c the agents' KB commits). Conflict
+  resolutions: the late-fusion manager keeps both the ETSI `_sender_payload` hook
+  and the gating `_emit_beacon` fault injector (beacons are emitted first through
+  `_emit_beacon`, then each sender's object list goes through `_sender_payload`);
+  `test_runner.py` keeps `--stamp`, `--carla-port`, `--per-tick-age-log`; KB files
+  keep both sides. Import check passes with the root protobuf stubs first on the
+  path (the `ecav/protos/ecloud_pb2.py` copy fails to parse under the opencda310
+  protobuf runtime; `ecav.py` puts the repo root first, so the root stubs win).
+- `scripts/recompute_metrics.py` (6271e467): S_op now includes S_prog, the 60
+  percent of target speed clause the paper states (fields `target_speed_kmh` and
+  the focal `avg_speed_mps`). On the April campaign it flips 51 of 2,012 successes
+  (oracle at 350 to 450 ms loses 23, late fusion and VIPS at 300 ms and above the
+  rest). `safety_envelope_paper/analysis/threshold_table_20260419_120000.md`
+  regenerated with it.
+- `test_runner.py`: `--stamp` resume redoes runs whose metrics file came from the
+  error path (f1219b2f; the runner writes `{"success_rate": 0, "error": ...}` on
+  any exception, which the first resume rule counted as done); headless by default,
+  every `camera.visualize` set to 0 and `lidar.visualize` to false in the patched
+  YAML unless `--keep-visualize` (1067d3da; the 4ego YAMLs carry `visualize: 4`,
+  which aborts on a host whose OpenCV has no GUI).
+- `scripts/sensys_campaign.sh <atlas|cetus> [--dry-run]`: plan matrix. Envelope
+  sweep 12 latencies x 2 speeds x 20 seeds at N=4 (blind overtake N=2); scaling
+  3 latencies x 10 seeds over the ego counts each geometry has (scenario_3
+  2/4/8/16, SCP 4, blind overtake 2); situation study oracle at 38 63 53 88 km/h
+  x 10 seeds (cetus); mixed traffic Naive/ETSI/SBA at the mixed variants (atlas).
+  Arms split: atlas late_fusion both, ETSI, oracle, cip; cetus vips both,
+  infra_only both. Dry-run count 10,080 (atlas) + 8,640 (cetus) = 18,720 runs,
+  7.8 and 6.6 days at 1,300 runs/day. Beacon-fault sweeps are not in the driver
+  yet (the knobs are YAML keys; no runner flag).
+- cetus (tlandle@143.215.184.49, RTX 3080 Ti 12 GB, idle): worktree `~/sensys_wt`
+  on branch `sensys_develop` fetched from a git bundle of develop (origin is 210
+  commits behind and was not pushed). Provisioned: submodule dirs symlinked to the
+  main clone, YOLO weights copied from `~/cetus_1m_wt`, SEE-V2X trace at
+  `data/see_v2x/merged_latency.csv` (213,768 rows), stubs built (ecloud via
+  `ecav.py --build` with the conda interpreter first on PATH, perception via
+  grpc_tools into `ecav/protos` and the root), YOLO gRPC server on 18001.
+  Runs there need `PYTHONPATH=$HOME/carla-0.9.15/PythonAPI/carla` (the `agents`
+  package; `ecav.py` only inserts `/opt/carla-simulator/PythonAPI/carla`).
+  `/tmp/torch_compat_1m/sitecustomize.py` there defaults `torch.load` to
+  `weights_only=False`; not needed so far. `git status` in the worktree fails on
+  the symlinked submodules; `rev-parse` works.
+- Paper repo: Table 2 corrected (413 / 472 B, 8.07 KiB/s, total 9.94 KiB/s,
+  unit written KiB/s), latency models named per study (deterministic base term
+  plus SEE-V2X trace and 5G-MOBIX log-normal backhaul for the envelope sweep and
+  the ablation; ns-3 5G-LENA table for the landing study, cells N in {4,8,16,24,31}
+  x payload {1 KB, 16.9 KB}, object list served by the 1 KB cell), intro,
+  conclusion, discussion and the loss table caption say trace-driven where the
+  runs were trace-driven. Commits 0eff948, 95eae92, pushed.
+- Orphan CARLA on port 2000 (pid 31255, from the per-tick agent's last smoke)
+  still holds 4.3 GB on atlas; stopping it was denied in this session. The
+  scenario track's smokes run on 2200 next to it.
