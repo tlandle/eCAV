@@ -261,9 +261,19 @@ class PerTickAgeLogger:
                 age_ms = ((tick - int(gen_tick)) * dt * 1000.0) if gen_tick is not None else None
                 frame_age_ms = ((tick - int(frame_tick)) * dt * 1000.0) if frame_tick is not None else None
                 pub_age_ms = ((tick - int(pub_tick)) * dt * 1000.0) if pub_tick is not None else None
-                # lineage: obs <= frame <= publish <= consume
-                chain = [int(x) for x in (obs_tick, frame_tick, pub_tick) if x is not None] + [int(tick)]
-                lineage_ok = 1 if all(a <= b for a, b in zip(chain, chain[1:])) else 0
+                # lineage: observation and tracker frame both precede the
+                # publish, which precedes consumption. (When the edge drains
+                # two frames in one tick the prediction carries the first
+                # frame's tick while the track holds the second's observation,
+                # so obs and frame are not ordered against each other.)
+                try:
+                    lineage_ok = 1 if (
+                        (obs_tick is None or pub_tick is None or int(obs_tick) <= int(pub_tick))
+                        and (frame_tick is None or pub_tick is None or int(frame_tick) <= int(pub_tick))
+                        and (pub_tick is None or int(pub_tick) <= int(tick))
+                        and (obs_tick is None or int(obs_tick) <= int(tick))) else 0
+                except (TypeError, ValueError):
+                    lineage_ok = 0
                 if not lineage_ok:
                     self._lineage_violations += 1
                 seq = self._publish_seq.get(int(pub_tick)) if pub_tick is not None else None

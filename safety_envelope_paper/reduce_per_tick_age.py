@@ -107,11 +107,22 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
 
     edge = [r for r in rows if r["source"] == "edge"]
     ages = [_f(r["age_at_use_ms"]) for r in edge]
-    crit = [_f(r["age_at_use_ms"]) for r in edge if r["is_conflict_actor"] == "1"]
+    crit = None  # set below once the first conflict actor is known
     # coverage of the conflict actor: between its first and last consumed
     # tick, the share of ticks with a consumed track and the longest gap.
     # A missing actor is reported here, never folded into the age statistics.
-    crit_ticks = sorted({int(r["tick"]) for r in edge if r["is_conflict_actor"] == "1"})
+    # The logger re-picks the conflict actor when the first one has left
+    # (the nearest cross-traffic-type actor to the conflict point), so the
+    # coverage is computed for the first conflict actor only.
+    # the actor with the most flagged rows is the crossing vehicle; before it
+    # approaches, the nearest cross-traffic-type actor can be a parked one
+    _cnt = defaultdict(int)
+    for r in edge:
+        if r["is_conflict_actor"] == "1" and r.get("conflict_actor_id"):
+            _cnt[r["conflict_actor_id"]] += 1
+    first_cid = max(_cnt, key=_cnt.get) if _cnt else None
+    crit_ticks = sorted({int(r["tick"]) for r in edge if r["is_conflict_actor"] == "1"
+                         and (first_cid is None or r.get("conflict_actor_id") == first_cid)})
     if len(crit_ticks) >= 2:
         span = crit_ticks[-1] - crit_ticks[0] + 1
         conflict_coverage = len(crit_ticks) / span
@@ -119,6 +130,8 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
     else:
         conflict_coverage = float("nan") if not crit_ticks else 1.0
         conflict_max_gap = float("nan") if not crit_ticks else 0
+    crit = [_f(r["age_at_use_ms"]) for r in edge if r["is_conflict_actor"] == "1"
+            and (first_cid is None or r.get("conflict_actor_id") == first_cid)]
     lineage_bad = sum(1 for r in rows if r.get("lineage_ok") == "0")
     frame_ages = [_f(r["frame_age_ms"]) for r in edge if r.get("frame_age_ms") not in (None, "")]
 
