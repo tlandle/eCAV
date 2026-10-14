@@ -170,6 +170,12 @@ class KalmanFilter(object):
         # sensor measurement prediction
         zPred = self.observation_model(xPred)
         y = z - zPred
+        # The heading measurement is an angle in (-pi, pi]: a vehicle heading
+        # west reports +pi one tick and -pi the next, so the raw innovation
+        # jumps by 2*pi and the yaw state wanders off (measured: westbound
+        # CAVs with 150 to 260 deg mean yaw error and a speed-proportional
+        # position bias of up to 2.8 m, 2026-10-13). Wrap it to [-pi, pi).
+        y[2, 0] = (y[2, 0] + math.pi) % (2 * math.pi) - math.pi
 
         # projection matrix
         H = np.array([
@@ -189,6 +195,7 @@ class KalmanFilter(object):
         K = PPred @ H.T @ S
 
         self.xEst = xPred + K @ y
+        self.xEst[2, 0] = (self.xEst[2, 0] + math.pi) % (2 * math.pi) - math.pi
         self.PEst = K @ H @ PPred
 
         return self.xEst[0][0], \
