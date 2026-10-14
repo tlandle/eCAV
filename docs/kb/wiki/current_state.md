@@ -4992,3 +4992,102 @@ LOCALE SIZING SWEEP LANDED (2026-09-15 18:34; evaluation_outputs/metro/sizing/fr
 
 SIZING BLOCK CLOSED BY THE PAPER SIDE (2026-09-15 ~18:45): Figure 11 and its macros read frozen1r_sizing_rows.csv (rules pass); the paper says fusion bounds the locale above (0.98 at 325 m, 1.15 at 350) and neither handoff load nor freshness bounds it below on this trace; check 3's local reversals noted as harmless. Nothing further on sizing. Open on the eval side: everything gated on Tyler's freeze-1q ruling (co-sim validation runs, FDE/T25 reruns, state block, fallback smokes, corridor rerun on cetus, k3, Figure 5 pass).
 
+
+## 2026-10-13: SenSys resubmission, scenario track (branch sensys/scenarios-mixed-speedadapt, from develop 3fe4e0da)
+
+Worker fork for reviewers A3 and C6. Three deliverables, all on the branch;
+closed-loop smoke not run (see the last paragraph).
+
+GEOMETRY VS SPEED (coordinator finding, confirmed here). The April campaign's
+"scp" rows were the scenario_3 left turn at 70 km/h: `scp_edge.yaml` in this
+tree and in every sandbox worktree (fix_wt, idfix_wt, t13_wt, mb_wt, prov_wt)
+is a late-fusion config on `scenario_3.xml` with the focal destination moved
+to [-85.1, 155.0] (straight north through the Town03 intersection), but it
+has no runner `.py`, so `-t scp_edge` never ran; `paper2/closed_loop_scenarios_generator.py`
+only names `openscenario_scp_edge_worldfusion` and
+`openscenario_blind_overtake_edge_worldfusion` for synthetic cells (visibility
+occ/deocc, load low = 4 CAVs / high = 12 CAVs) and defines no scenario. The
+blind overtake geometry exists only as `scenario_1.xml` (Town01, ego
+nissan.patrol at x=317.4 heading west, stopped carlacola at x=278, three
+oncoming seat.leon) with worldfusion/oracle configs (`openscenario_1_*`).
+`scripts/generate_multi_ego_scenario.py --scenario-type scp` fails with a
+pre-existing f-string SyntaxError at line 606 (nested triple quotes); it was
+not used and not fixed.
+
+NEW GEOMETRY CONFIGS (speed stays the `--speeds` knob; test_runner already
+writes it as the `speed_<kmh>/` run-dir component and the scenario name
+carries the geometry; every scenario_3 config is untouched):
+- `scp_edge_late_fusion` (+ `_4ego`, + `_mixed_4ego`): copy of
+  `openscenario_3_edge_late_fusion` with the focal destination [-85.1, 155.0, 0.5];
+  cav2..cav4 of the 4ego variant as in `openscenario_3_edge_late_fusion_4ego`.
+- `blind_overtake_edge_late_fusion` (+ `_2ego`, + `_mixed_2ego`): the
+  scenario_3 late-fusion stack on Scenario_1/Town01 (num_actors 4, runner
+  timeout 360, MAX_STEP 600 as in `openscenario_1_e6a_oracle`), one RSU at
+  [295, 200, 3], focal destination [-28.8, 134.7, 0.5] as in every
+  `openscenario_1_*` config; cav2 self-spawned at [337.4, 195.4] (20 m behind).
+- The three 4ego-derived files carry the single-ego baseline (max_speed 43,
+  `ego_vehicle_max_speed=43`, no edge-level anchoring key); the committed
+  `openscenario_3_edge_late_fusion_4ego.yaml` itself still holds the last
+  sweep's patch (50 km/h, oncoming 13.4 m/s, anchoring false), which
+  test_runner overwrites per run anyway.
+- Campaign speeds: 50 and 70 km/h and their 0.75x/1.0x/1.25x: 38 50 63 and
+  53 70 88 (`--speeds`, integers). Commands in `scripts/sweep_commands.sh`
+  section 7 to 9 (not launched).
+
+MIXED TRAFFIC. Knob `scenario.edge_list[i].non_connected_fraction` (0 to 1,
+default 0 = today), or `connected: false` on a vehicle entry. The last
+round(fraction * N) vehicles of the edge's list are non-connected; vehicle 0
+(the ScenarioRunner hero) stays connected. `sim_api._edge_vehicle_connected`
+decides at both attach paths; a non-connected VehicleManager gets
+`connected = False`, `agent._anchoring = False`, and goes to
+`EdgeManagerBase.add_non_member` instead of `add_member`, so it sends no
+beacon and no object list and gets no downlink (all three derive from
+`vehicle_manager_list`). The edge still drives it: `_step_non_members(tick)`
+(clears `agent.edge_predictions`, `update_info`, `run_step`, `apply_control`)
+is called after each of the seven member stepping loops (oracle 2, vips 1,
+late_fusion 2, worldfusion 2). Duplicate tracks: `_check_duplicate_tracks`
+runs inside `_check_ego_gate_violations` every tick; each published
+prediction within `duplicate_track_radius` (default 2.5 m) of a live CARLA
+vehicle is attributed to it, every one beyond the first is a duplicate,
+counted per class (connected = member id, non_connected = every other
+vehicle, so scenario actors count as non-connected). Output:
+`edges[id].duplicate_tracks` = {ticks, radius_m, connected{actors,
+duplicates, actor_ticks_with_dup, duplicate_rate}, non_connected{...}}, and
+`vehicles[id].connected` per vehicle. `scripts/recompute_metrics.py` adds
+`<cls>_n/_collided/_stuck/_ghost/_fp` and `dup_rate_<cls>` per run. Variants:
+`openscenario_3_edge_late_fusion_mixed_4ego`, `scp_edge_late_fusion_mixed_4ego`
+(2 of 4 non-connected), `blind_overtake_edge_late_fusion_mixed_2ego` (1 of 2);
+they exist only at that ego count, so `--ego-counts 4` (or 2) is required.
+
+SPEED ADAPTATION. `behavior.hazard_response: speed_adapt` (default `stop`)
+and `behavior.speed_adapt_target_kmh` (default 15). While the RSS proper
+response is active the planner no longer forces `distance = 0`; it sets
+`_speed_adapt_hold` and caps the car-following target at the adapt speed
+(step 10), returns the adapt speed on the hazard-without-obstacle tick
+instead of 0, and caps the normal-behaviour fallthrough; the hard stop below
+max(break_distance, 3 m) and the left-turn 3 m stop are unchanged; the hold
+clears when the RSS exit fires. Success criterion: unchanged. The code's
+S_op = S_coll & S_ghost & S_fp & S_clear has no speed term (S_clear = not stuck
+and no collision, `recompute_metrics.py` header), so the paper's "at least
+60% of target speed" clause is paper text only; nothing had to be adapted and
+the discrepancy stands for the paper side.
+
+VALIDATION. All seven new YAMLs parse (manager late_fusion, latency 0, RSU and
+vehicle lists as intended); all new and edited Python compiles; CARLA-free
+checks (scratchpad `unit_mixed_dup.py`): knob 0.5 at N=4 -> [T,T,F,F], N=2 ->
+[T,F], N=1 -> [T], absent -> all T, per-vehicle override works; duplicate
+accounting on a 3-actor snapshot over 2 ticks gives connected rate 0.5 and
+non-connected 0.25 as constructed; non-member stepping calls update_info and
+apply_control, clears edge_predictions, and leaves the member list alone.
+Closed-loop smoke NOT run: the GPU (16 GB) held two CARLA servers of sibling
+sessions (pid 9905 on port 2000, pid 16257 on port 2100, 3 to 4.7 GB each)
+plus their YOLO/ecav processes, 13 to 15 GB used, and test_runner attaches
+to port 2000 and pkills CarlaUE4 every five runs, so a smoke here would have
+hit the peer's server. Protobuf stubs: the worktree needs `python ecav.py
+--build` (writes ignored `ecloud_pb2*.py` at the root); the main checkout's
+`ecav/protos/ecloud_pb2.py` fails to load under protobuf 6.31.1.
+Commands to run when the GPU is free, in this order:
+`python test_runner.py -t openscenario_3_edge_late_fusion_smoke --manager-types late_fusion --anchoring on --latencies 0 --repetitions 1`,
+then the same with `-t openscenario_3_edge_late_fusion_mixed --ego-counts 4`,
+`-t scp_edge_late_fusion`, `-t blind_overtake_edge_late_fusion`, and a copy
+of the smoke YAML with `hazard_response: speed_adapt` under `behavior`.
