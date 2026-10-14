@@ -94,6 +94,9 @@ ap.add_argument("--stamp", type=str, default=None,
                 help="Reuse this experiment stamp (resume): runs whose simulation_metrics.json already exists are skipped")
 ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.get("CARLA_PORT", 2000)),
                 help="CARLA RPC port for this campaign; one campaign per port and per host (default 2000 or $CARLA_PORT)")
+ap.add_argument("--edge-kv", nargs="*", type=str, default=[],
+                help="key=value pairs set on every edge block (beacon fault, ValidBeacon and gating knobs); "
+                     "value parsed as int, float, true/false, or str; one value per campaign invocation")
 ap.add_argument("--keep-visualize", action="store_true", default=False,
                 help="Keep the YAML camera/lidar windows; by default every run is headless (visualize 0/false)")
 ap.add_argument("--per-tick-age-log", action="store_true", default=False,
@@ -154,6 +157,25 @@ TOTAL_RUNS = (len(BASE_LIST) * len(MGR_TYPE_LIST) * len(ANCHOR_LIST) * len(LAT_L
 ROOT        = Path(__file__).resolve().parent
 CFG_DIR     = ROOT / "ecav/scenario_testing/config_yaml"
 
+def _parse_kv(items):
+    out = {}
+    for it in items:
+        k, _, v = it.partition("=")
+        if not k or not _:
+            raise SystemExit(f"--edge-kv expects key=value, got {it!r}")
+        vl = v.lower()
+        if vl in ("true", "false"):
+            out[k] = (vl == "true")
+        else:
+            try:
+                out[k] = int(v)
+            except ValueError:
+                try:
+                    out[k] = float(v)
+                except ValueError:
+                    out[k] = v
+    return out
+EDGE_KV = _parse_kv(args.edge_kv)
 STAMP = args.stamp if args.stamp else (datetime.now().strftime("%Y%m%d_%H%M%S"))
 EXP_ROOT    = ROOT / "experiment_results" / args.scenario / STAMP
 OUT_BASE    = ROOT / "ecav/scenario_testing/evaluation_outputs"
@@ -349,6 +371,10 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 print(f"    setting timestamp_noise_ms to {timestamp_noise_ms}")
                 edge["timestamp_noise_ms"] = timestamp_noise_ms
 
+            for _k, _v in EDGE_KV.items():
+                print(f"    setting edge {_k} to {_v!r}")
+                edge[_k] = _v
+
             # Set self-ID radius
             if self_id_radius is not None:
                 print(f"    setting self_id_radius to {self_id_radius}")
@@ -491,11 +517,12 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     mac_str = f"mac_{mac_type}" if mac_type is not None else ""
     macM_str = f"macM_{mac_M}" if mac_M is not None else ""
     macpk_str = f"macpk_{mac_p_keep}" if mac_p_keep is not None else ""
+    kv_str = "_".join(f"{k}-{v}" for k, v in sorted(EDGE_KV.items())) if EDGE_KV else ""
 
     # Build config component string (filter out empty)
     config_parts = [lat_str, loss_str, gnoise_str, gdrop_str, budget_str, jitter_str]
     for extra in [nms_str, ego_str, tsnoise_str, sidr_str, v2x_str,
-                  mac_str, macM_str, macpk_str]:
+                  mac_str, macM_str, macpk_str, kv_str]:
         if extra:
             config_parts.append(extra)
     config_dir = "_".join(config_parts)
@@ -554,6 +581,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if LAT_DIST is not None: metrics["config_latency_distribution"] = LAT_DIST
     if nms_threshold is not None: metrics["config_nms_threshold"] = nms_threshold
     if ego_count is not None: metrics["config_ego_count"] = ego_count
+    if EDGE_KV: metrics["config_edge_kv"] = dict(EDGE_KV)
     if timestamp_noise is not None: metrics["config_timestamp_noise_ms"] = timestamp_noise
     if self_id_radius is not None: metrics["config_self_id_radius"] = self_id_radius
     if see_v2x_filter is not None: metrics["config_see_v2x_filter"] = see_v2x_filter

@@ -163,6 +163,11 @@ def main():
         # Inject scenario_name so distributed actors fetched-from-server can
         # populate opt.test_scenario without an explicit -t flag.
         scene_dict['scenario_name'] = opt.test_scenario
+        # Every run's own output dir, read by the edge manager for its per-run
+        # traces (conflict kinematics, per-tick age); set here once so every
+        # scenario file, including the generated multi-ego ones, carries it.
+        if getattr(opt, 'output_dir', None):
+            scene_dict['run_output_dir'] = opt.output_dir
 
     assert scene_dict is not None, "scene_dict is not initialized!"
     scene_dict.scenario_runner.distributed = opt.distributed
