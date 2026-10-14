@@ -35,6 +35,56 @@ SET_DESTINATION_WAYPOINT_LIMIT = 16 # TODO: move to config
 
 PATH_RESOLUTION = 0.1  # meters per path point (ds=0.1 in local_planner)
 
+# a lane whose direction is within this angle of the vehicle heading is
+# one the vehicle can be driving on
+ROUTE_START_ALIGN_DEG = 60.0
+
+
+def route_start_waypoint(carla_map, location, ego_yaw, route_waypoints):
+    """
+    Waypoint a new route is traced from.
+
+    map.get_waypoint snaps to the nearest lane centre. Inside a junction the
+    lanes of several roads overlap: at the Town03 road 24 exit, lanes 316/1,
+    350/1 and 255/1 (running the other way) and 282/-1 and 271/-1 (crossing)
+    pass within a metre of the hero's lane 263/-1. A route traced from one of
+    those leads around the block; the planner then bends the path onto it and
+    the vehicle leaves the road at low speed (policy_smoke 2026-10-14). The
+    nearest lane is kept only when it points the way the vehicle is heading;
+    otherwise the route starts from the first waypoint of the current route
+    that is still ahead and aligned, and failing that from the nearest lane.
+
+    Parameters
+    ----------
+    carla_map : carla.Map
+    location : carla.Location
+        Where the route starts (the vehicle position).
+    ego_yaw : float or None
+        Vehicle heading in degrees; None skips the alignment check.
+    route_waypoints : list
+        (waypoint, road_option) pairs of the current route, in order.
+    """
+    nearest = carla_map.get_waypoint(location)
+    if ego_yaw is None:
+        return nearest
+
+    def aligned(wpt):
+        diff = (wpt.transform.rotation.yaw - ego_yaw + 180.0) % 360.0 - 180.0
+        return abs(diff) <= ROUTE_START_ALIGN_DEG
+
+    if aligned(nearest):
+        return nearest
+    fx, fy = math.cos(math.radians(ego_yaw)), math.sin(math.radians(ego_yaw))
+    for wpt, _ in route_waypoints:
+        dx = wpt.transform.location.x - location.x
+        dy = wpt.transform.location.y - location.y
+        if dx * fx + dy * fy > 0.0 and aligned(wpt):
+            logger.debug("route start: nearest lane %d/%d is not aligned with the heading, "
+                         "starting from route waypoint %d/%d", nearest.road_id,
+                         nearest.lane_id, wpt.road_id, wpt.lane_id)
+            return wpt
+    return nearest
+
 def will_prediction_collide_with_ego(
     prediction,
     ego_path_x,
@@ -241,6 +291,8 @@ class BehaviorAgent(object):
         self.car_following_flag = False
         # lane change allowed flag
         self.lane_change_allowed = True
+        # a planned lane change refused by the adjacent-lane check
+        self.lane_change_blocked = False
         # destination temp push flag
         self.destination_push_flag = 0
 
@@ -546,6 +598,13 @@ class BehaviorAgent(object):
         clean_history : boolean
             Flag to clean the waypoint history.
         """
+        # the route lane must be chosen before the buffers are cleared
+        self.start_waypoint = route_start_waypoint(
+            self._map, start_location,
+            self._ego_pos.rotation.yaw if self._ego_pos else None,
+            list(self.get_local_planner().get_waypoint_buffer()) +
+            list(self.get_local_planner().get_waypoints_queue()))
+
         if clean:
             self.get_local_planner().get_waypoints_queue().clear()
             self.get_local_planner().get_trajectory().clear()
@@ -553,7 +612,6 @@ class BehaviorAgent(object):
         if clean_history:
             self.get_local_planner().get_history_buffer().clear()
 
-        self.start_waypoint = self._map.get_waypoint(start_location)
         logger.debug("Start Location: (%s, %s, %s)" %(start_location.x, start_location.y, start_location.z))
         logger.debug("Start Location Waypoint: (%s, %s, %s) (%s)" %(self.start_waypoint.transform.location.x, self.start_waypoint.transform.location.y, self.start_waypoint.transform.location.z, self.start_waypoint.transform.rotation.yaw))
         """
@@ -1749,8 +1807,17 @@ class BehaviorAgent(object):
                self.get_local_planner().lane_lateral_change and \
                self.overtake_counter <= 0 and \
                not self.destination_push_flag
+        # Only a lane change refused by the adjacent-lane check is "blocked";
+        # the curvature refusal above is not. The push case keys on this flag,
+        # not on lane_change_allowed: with the latter, every sharp turn pushed
+        # the destination along the nearest lane, which inside Town03's
+        # junction is a different road (291 straight on instead of 263, or
+        # 316/350/255 the other way), and the hero overshot the turn entry or
+        # was routed around the block (oracle_diag / policy_smoke 2026-10-14).
+        self.lane_change_blocked = False
         if lane_change_enabled_flag:
-            lane_change_allowed = lane_change_allowed and self.lane_change_management()
+            self.lane_change_blocked = not self.lane_change_management()
+            lane_change_allowed = lane_change_allowed and not self.lane_change_blocked
             if not lane_change_allowed:
                 logger.debug("lane change not allowed")
 
@@ -2155,7 +2222,7 @@ class BehaviorAgent(object):
         logger.debug("Hazard: %s" %(is_hazard))
         # if is_hazard:
         #     input("Hazard: %s" %(is_hazard))
-        if not self.lane_change_allowed and \
+        if self.lane_change_blocked and \
                 self.get_local_planner().potential_curved_road \
                 and not self.destination_push_flag and \
                 self.overtake_counter <= 0 and \

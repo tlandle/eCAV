@@ -11,10 +11,13 @@ PID Control Class
 
 from collections import deque
 
+import logging
 import math
 import numpy as np
 
 import carla
+
+logger = logging.getLogger(__name__)
 
 
 class Controller:
@@ -170,6 +173,7 @@ class Controller:
         if _cross[2] < 0:
             _dot *= -1.0
 
+        self._lat_err = _dot
         self._lon_ebuffer.append(_dot)
         if len(self._lon_ebuffer) >= 2:
             _de = (self._lon_ebuffer[-1] - self._lon_ebuffer[-2]) / self.dt
@@ -237,4 +241,7 @@ class Controller:
         control.hand_brake = False
         control.manual_gear_shift = False
         self.past_steering = steering
+        logger.info(f"[CTL] err_deg={math.degrees(self._lat_err):+.1f} raw={current_steering:+.3f} "
+                    f"steer={steering:+.3f} thr={control.throttle:.2f} brk={control.brake:.2f} "
+                    f"v={self.current_speed:.1f} tgt_v={target_speed:.1f}")
         return control
