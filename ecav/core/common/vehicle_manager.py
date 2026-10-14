@@ -853,7 +853,7 @@ class VehicleManager(object):
             self.map_manager.run_step()
 
         except Exception as e:
-            logger.warning("can't successfully complete agent.run_step; setting to done. Error: %s" %(e))
+            logger.warning("can't successfully complete agent.run_step; setting to done. Error: %s" %(e), exc_info=True)
             target_speed = 0
             ego_pos = self.localizer.get_ego_pos()
             target_pos = ego_pos.location

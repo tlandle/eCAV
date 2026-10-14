@@ -262,6 +262,7 @@ class BehaviorAgent(object):
         self.other_car_trajectories = {}
         self.other_car_speeds = {}
         self.generated_predictions = [] # ObstaclePrediction list
+        self._edge_pred_ids = set()     # id() of the edge-origin entries in generated_predictions
 
         # Local+Edge prediction pipelines
         self.tracked_obstacles   = {}   # {track_id: ObstacleTrajectory}
@@ -378,6 +379,16 @@ class BehaviorAgent(object):
                 len(self._aoi_buf), _fresh_n,
                 len(self.edge_predictions or []),
                 len(getattr(self, 'local_predictions', []) or []))
+        # Edge prediction acceptance counters (planning_metrics): what the
+        # downlink delivered this tick, before the hold cache and the merge
+        _edge_in = list(self.edge_predictions or [])
+        self.planning_metrics.edge_ticks_total += 1
+        self.planning_metrics.edge_preds_received_total += len(_edge_in)
+        if _edge_in:
+            self.planning_metrics.edge_ticks_with_preds += 1
+        self.planning_metrics.edge_preds_ego_filtered += sum(
+            1 for _p in _edge_in
+            if getattr(_p.obstacle_trajectory.obstacle, 'carla_id', None) == self.vehicle.id)
         _cache = self._edge_pred_cache
         for _p in (self.edge_predictions or []):
             _obs = _p.obstacle_trajectory.obstacle
@@ -391,6 +402,7 @@ class BehaviorAgent(object):
         for _k in [k for k, (tk, _) in _cache.items() if _tick - tk > _HOLD]:
             _cache.pop(_k, None)
         merged = [pr for (tk, pr) in _cache.values()]
+        self._edge_pred_ids = {id(pr) for pr in merged}
         if getattr(self, 'local_predictions', None):
             def _anchor(p):
                 t = p.predicted_trajectory
@@ -785,6 +797,7 @@ class BehaviorAgent(object):
                     target_vehicle = vehicle
 
         # Pass 2: Edge/local prediction collision check
+        _edge_coll_this_tick = False
         ego_speed_mps = self._ego_speed / 3.6
         ego_loc = self.vehicle.get_location()
         time_step = 0.05
@@ -918,6 +931,11 @@ class BehaviorAgent(object):
                 self.ttc = ttc
                 self.planning_metrics.update(ego_speed_mps, ttc)
                 vehicle_state = True
+                if id(pred) in self._edge_pred_ids:
+                    self.planning_metrics.edge_collisions_total += 1
+                    if not _edge_coll_this_tick:
+                        self.planning_metrics.edge_ticks_with_collision += 1
+                        _edge_coll_this_tick = True
 
                 # TTC-derived distance for downstream car-following logic
                 ttc_distance = max(ego_speed_mps * ttc, 0.5)
@@ -1224,6 +1242,9 @@ class BehaviorAgent(object):
                                       obstacle_vehicle_loc.y)
         logger.debug("obstacle vehicle loc: %.1f, %.1f", obstacle_vehicle_loc.x, obstacle_vehicle_loc.y)
         obstacle_vehicle_wpt = self._map.get_waypoint(obstacle_vehicle_loc)
+        if obstacle_vehicle_wpt is None:
+            # subject off the road network: keep the current lane
+            return False
 
         # whether a lane change is allowed
         left_turn = obstacle_vehicle_wpt.left_lane_marking.lane_change
@@ -1253,10 +1274,13 @@ class BehaviorAgent(object):
         #        left_wpt and \
                 #obstacle_vehicle_wpt.lane_id * left_wpt.lane_id > 0 and \
         #        left_wpt.lane_type == carla.LaneType.Driving or left_wpt.lane_type == carla.LaneType.Bidirectional:qq
+        # get_left_lane() returns None when the subject is in the leftmost
+        # lane (or in a junction); the lane_type test must stay inside the
+        # guarded conjunction, so a None left lane means no lane change.
         if (left_turn == carla.LaneChange.Left or left_turn ==
             carla.LaneChange.Both or obstacle_vehicle_wpt.left_lane_marking.type == carla.LaneMarkingType.Broken) and \
-                left_wpt and \
-                left_wpt.lane_type == carla.LaneType.Driving or left_wpt.lane_type == carla.LaneType.Bidirectional:
+                left_wpt is not None and \
+                (left_wpt.lane_type == carla.LaneType.Driving or left_wpt.lane_type == carla.LaneType.Bidirectional):
 
             self.vehicle.get_world().debug.draw_point(left_wpt.transform.location, size=.1, life_time=2.0)
 
@@ -1718,13 +1742,16 @@ class BehaviorAgent(object):
 
         # when it comes to the intersection, we need to use the future
         # waypoint to make sure the next waypoint is at the same lane
-        if is_intersection:
-            reset_target = waypoint_buffer[reset_index][0].next(
-                max(self._ego_speed / 3.6, 10.0))[0]
+        # next() returns an empty list at the end of a road segment (a hero
+        # held at a junction stop line hit this); fall back to the waypoint
+        # itself rather than raising out of the planner step.
+        if is_intersection and len(waypoint_buffer) > 0:
+            base_wp = waypoint_buffer[reset_index][0]
+            nxt = base_wp.next(max(self._ego_speed / 3.6, 10.0))
         else:
-            reset_target = \
-                ego_vehicle_wp.next(max(self._ego_speed / 3.6 * 3,
-                                        10.0))[0]
+            base_wp = ego_vehicle_wp
+            nxt = ego_vehicle_wp.next(max(self._ego_speed / 3.6 * 3, 10.0))
+        reset_target = nxt[0] if nxt else base_wp
         logger.debug(
             'Vehicle id: %d :destination pushed forward because of '
             'potential collision, reset destination :%f. %f, %f' %
