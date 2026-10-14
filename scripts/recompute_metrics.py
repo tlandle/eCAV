@@ -185,6 +185,27 @@ def compute_run_metrics(d):
         result["prediction_fde"] = edata.get("prediction_fde_m", 0)
         break  # Only one edge
 
+    # --- Mixed traffic: outcomes per actor class and duplicate-track rate ---
+    # connected = CAVs that are members of the edge; non_connected = CAVs the
+    # mixed-traffic knob left out (no beacon, no uplink, no downlink).
+    for cls in ("connected", "non_connected"):
+        for k in ("n", "collided", "stuck", "ghost", "fp"):
+            result[f"{cls}_{k}"] = 0
+    for v in d.get("vehicles", {}).values():
+        cls = "connected" if v.get("connected", True) else "non_connected"
+        vs = v.get("safety", {})
+        g, fp, _ = _count_episodes(v.get("brake_attributions", []))
+        result[f"{cls}_n"] += 1
+        result[f"{cls}_collided"] += 1 if vs.get("collision_count", 0) > 0 else 0
+        result[f"{cls}_stuck"] += 1 if vs.get("stuck", False) else 0
+        result[f"{cls}_ghost"] += 1 if g > 0 else 0
+        result[f"{cls}_fp"] += 1 if fp > 0 else 0
+    for edata in d.get("edges", {}).values():
+        dup = edata.get("duplicate_tracks", {})
+        for cls in ("connected", "non_connected"):
+            result[f"dup_rate_{cls}"] = dup.get(cls, {}).get("duplicate_rate", 0.0)
+        break
+
     # AoI from brake attributions (focal ego)
     aoi_list = []
     for a in fv.get("brake_attributions", []):

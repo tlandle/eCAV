@@ -68,6 +68,10 @@ class _BaseEdgeManager:
         # lists of VehicleManagers / RSUManagers
         self.vehicle_manager_list: List[Any] = []
         self.rsu_manager_list:     List[Any] = []
+        # Non-connected road users under this edge's scene: driven by the
+        # edge loop on their own perception, but they send no beacon and no
+        # object list and receive no downlink (mixed-traffic knob).
+        self.non_member_vehicle_managers: List[Any] = []
 
         if not is_proxy:
             # latency model (pluggable: fixed, normal, lognormal, hybrid)
@@ -115,6 +119,14 @@ class _BaseEdgeManager:
         # Ego-consistency gate violation tracking (publish-boundary invariant)
         self._ego_gate_violations_total = 0
         self._ego_gate_violation_ticks = []  # (tick, per_ego_counts_dict)
+
+        # Duplicate-track accounting per actor class (connected = a member
+        # of this edge, non_connected = every other vehicle in the scene)
+        self._dup_radius = float(cfg.get("duplicate_track_radius", 2.5))
+        self._dup_track_ticks = 0
+        self._dup_track_counts = {
+            cls: {'actors': 0, 'duplicates': 0, 'actor_ticks_with_dup': 0}
+            for cls in ('connected', 'non_connected')}
 
         # Competing-risk time-to-event tracking
         # Records the first tick each failure class occurs per ego vehicle
@@ -177,6 +189,20 @@ class _BaseEdgeManager:
         """Register a new VehicleManager under this edge."""
         self.vehicle_manager_list.append(vm)
 
+    def add_non_member(self, vm: Any) -> None:
+        """Register a non-connected vehicle. It is present in the scene and
+        driven by the edge loop, but it never sends a beacon or an object
+        list and never receives the downlink; the edge sees it only through
+        other sources' detections."""
+        self.non_member_vehicle_managers.append(vm)
+
+    def _step_non_members(self, tick) -> None:
+        """Drive the non-connected vehicles on their own perception."""
+        for vm in self.non_member_vehicle_managers:
+            vm.agent.edge_predictions = []
+            vm.update_info(tick)
+            vm.vehicle.apply_control(vm.run_step())
+
     def add_rsu(self, rsu: Any) -> None:
         """Register a new RSUManager under this edge."""
         self.rsu_manager_list.append(rsu)
@@ -234,8 +260,48 @@ class _BaseEdgeManager:
             per_ego[ego_id] = violations
             self._ego_gate_violations_total += violations
 
+        self._check_duplicate_tracks(tick, preds)
         self._ego_gate_violation_ticks.append((tick, per_ego))
         return per_ego
+
+    def _check_duplicate_tracks(self, tick, preds):
+        """Count published tracks that duplicate one physical vehicle.
+
+        Every published prediction within ``duplicate_track_radius`` of a
+        live CARLA vehicle is attributed to that vehicle; each one beyond the
+        first is a duplicate. Counts are kept per actor class so mixed
+        traffic reports connected and non-connected road users separately.
+        """
+        if not preds:
+            return
+        snap = self._live_gt_snapshot()
+        if not snap:
+            return
+        managed = {vm.vehicle.id for vm in self.vehicle_manager_list}
+        pts = []
+        for pred in preds:
+            loc = pred.obstacle_trajectory.obstacle.location
+            pts.append((loc.x, loc.y))
+        r2 = self._dup_radius ** 2
+        for aid, a in snap.items():
+            n = sum(1 for (x, y) in pts
+                    if (x - a['x']) ** 2 + (y - a['y']) ** 2 < r2)
+            cls = 'connected' if aid in managed else 'non_connected'
+            c = self._dup_track_counts[cls]
+            c['actors'] += 1
+            if n > 1:
+                c['duplicates'] += n - 1
+                c['actor_ticks_with_dup'] += 1
+        self._dup_track_ticks += 1
+
+    def get_duplicate_track_metrics(self):
+        """Duplicate-track summary per actor class for the run JSON."""
+        out = {'ticks': self._dup_track_ticks, 'radius_m': self._dup_radius}
+        for cls, c in self._dup_track_counts.items():
+            out[cls] = dict(c)
+            out[cls]['duplicate_rate'] = (
+                c['actor_ticks_with_dup'] / c['actors'] if c['actors'] else 0.0)
+        return out
 
     def get_ego_gate_metrics(self):
         """Return summary metrics for ego-gate violations across the run."""

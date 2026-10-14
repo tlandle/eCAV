@@ -161,6 +161,8 @@ class EvaluationManager(object):
             veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(str(vm.vehicle.id), {})
 
             veh_dict.update(metrics)
+            # mixed traffic: whether this vehicle was connected to an edge
+            veh_dict['connected'] = bool(getattr(vm, 'connected', True))
 
             # Save per-brake attribution details for debugging
             if planning_metrics.brake_attributions:
@@ -379,6 +381,10 @@ class EvaluationManager(object):
             # Ego-consistency gate violation metrics
             if hasattr(pm, 'get_ego_gate_metrics'):
                 self.global_metrics["edges"][pmid]['ego_gate'] = pm.get_ego_gate_metrics()
+
+            # Duplicate tracks per actor class (connected / non-connected)
+            if hasattr(pm, 'get_duplicate_track_metrics'):
+                self.global_metrics["edges"][pmid]['duplicate_tracks'] = pm.get_duplicate_track_metrics()
 
             # Competing-risk time-to-event metrics
             if hasattr(pm, 'get_competing_risk_metrics'):
