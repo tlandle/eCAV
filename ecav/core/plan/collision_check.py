@@ -566,6 +566,13 @@ class CollisionChecker:
         is_collision = False
         ttc = 1000
 
+        # An ego with no path (stopped behind a blocker with an empty
+        # trajectory buffer) or an empty obstacle trajectory has nothing to
+        # intersect: the stationary branch would argmin an empty array and
+        # linear_interp_trajectory would interp1d mismatched lengths.
+        if len(ego_path_x) < 2 or len(ego_path_y) < 2 or len(obstacle_trajectory) == 0:
+            return is_collision, ttc
+
         # get interpolation of obstacle trajectory
         obs_points = []
         for i, pred_transform in enumerate(obstacle_trajectory):
