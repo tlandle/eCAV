@@ -5285,3 +5285,37 @@ brake attributions exist); `distance_traveled_m` disagrees with GT motion
 (0.4 m for cav4 which moved 20 m); `left_wpt.lane_type` at
 behavior_agent.py:1259 is evaluated when `left_wpt` is None because of
 and/or precedence.
+
+## 2026-10-13 (late): merged-tree smokes, run-time facts, campaign resized (not launched)
+- Merged-tree smoke on cetus (`~/sensys_wt` at 6ef6d9bf, ETSI arm, scenario_3
+  4ego, 100 ms, 70 km/h, `--per-tick-age-log`): 300 frames, 4 vehicles, no
+  collision, beacons accepted 1,188, ETSI omission lines logged, per-tick CSV in
+  `run_1/evaluation_output/per_tick_age.csv` after `ecav.py` started setting
+  `run_output_dir` for every scenario (85d962ac; before that the multi-ego
+  scenario files never set it and the CSV fell to `/tmp/per_tick_age.csv`).
+  Wall time 233 s. Earlier attempts failed in turn on missing perception stubs,
+  missing `agents` (CARLA PythonAPI path), and `cv2.imshow` from
+  `camera.visualize: 4` in the 4ego YAML (runner now headless by default).
+- Scenario track smokes on atlas (port 2200): SCP exits at destination at tick
+  212 (75 s); blind overtake 600 ticks (125 s); scenario_3 mixed 4ego 300 ticks
+  (200 s). Known layout defects in the 4ego file: cav4 spawns into a pole, cav2
+  and cav3 hit a missing-left-lane planner exception, hero turns into cav2's
+  lane in the mixed run; `edge_preds_received_total` is zero on this path.
+- Run time by ego count (wall, this code): N=1 60 to 75 s; N=4 200 to 233 s.
+  The plan's 1,300 runs/day holds for N=1 only.
+- Run length: every current run ends at MAX_STEP = 300 (15 s) or when the hero
+  reaches its destination (`_exit_on_destination`); the conflict is crossed at
+  ticks 113 to 178, so 300 steps cover the maneuver. The April dataset's runs
+  are a median 1,256 edge frames with 600 to 730 m focal distance (max 15,372
+  frames), on a 55 m route, with the same MAX_STEP = 300 in the April commit;
+  the April scenario files (`openscenario_ltap_od`, `openscenario_scp` labels)
+  are not in the tree. The campaign re-measures every arm on today's
+  geometries; April numbers are not comparable run for run.
+- `scripts/sensys_campaign.sh` resized to measured run times: envelope sweep
+  and situation study at N=1 (20 and 10 seeds), scaling and beacon faults at 5
+  seeds and 70 km/h, mixed traffic at 10 seeds; atlas 8,290 runs (about 8.4
+  days), cetus 8,100 runs (about 7.7 days). `--edge-kv key=value` sets gating
+  and fault knobs on every edge and lands in the run-dir name and metrics.
+- cetus state: CARLA on 2000 and the YOLO gRPC server on 18001 are up from the
+  smoke (both started by this session's runner and will be reused). Atlas: the
+  orphan CARLA on 2000 (pid 31255, per-tick agent's last smoke) is still up.
