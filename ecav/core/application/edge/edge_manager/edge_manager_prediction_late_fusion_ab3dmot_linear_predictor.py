@@ -101,6 +101,7 @@ def _collect_ab3d_detections(edge,
     ``matching.py`` work with pseudonymous identities.
     """
     det_rows, info_rows = [], []
+    beacon_meta = getattr(edge, '_beacon_meta', {}).get(frame_idx, {})
 
     # a) beacons (one per managed vehicle) ----------------------------
     #    KITTI camera convention: x=right, y=down(height), z=front
@@ -116,14 +117,33 @@ def _collect_ab3d_detections(edge,
         # Heading-align the exclusion zone: yaw=0 hardcoded puts the 2m
         # lateral gate on the longitudinal axis, letting depth-error ghosts
         # through.  CARLA yaw (°, CW from +x) maps directly to KITTI theta.
-        beacon_theta = math.radians(vm.vehicle.get_transform().rotation.yaw)
-        det_rows.append([h,w,l, loc.x,loc.z,loc.y, beacon_theta, 1.0])
-        # Use temp_id instead of raw carla_id when manager is present
+        live_theta = math.radians(vm.vehicle.get_transform().rotation.yaw)
+        # Heading, velocity, and timestamp the beacon carried (None when the
+        # emitter recorded none, e.g. infra-only arms).
+        stamped_yaw, stamped_vel, stamp_tick = beacon_meta.get(
+            vm.vehicle.id, (None, None, None))
+        use_stamped = stamped_yaw is not None and (
+            getattr(edge, 'beacon_stamped_yaw', False)
+            or getattr(edge, 'beacon_fault_yaw_noise_rad', 0.0) > 0.0)
+        beacon_theta = stamped_yaw if use_stamped else live_theta
+        check_yaw = stamped_yaw if stamped_yaw is not None else live_theta
+        # Use temp_id instead of raw carla_id when manager is present.
+        # ValidBeacon: a beacon failing any residual check is dropped, so
+        # the vehicle keeps an anonymous sensor track until a valid beacon
+        # arrives (the same path as a failed rotation reconcile).
         if beacon_id_mgr is not None:
+            ok, _why = beacon_id_mgr.validate_beacon(
+                vm.vehicle.id, loc, frame_idx, yaw=check_yaw,
+                velocity=stamped_vel, stamp_tick=stamp_tick)
+            if not ok:
+                logger.debug("[BEACON] tick=%d cid=%d rejected (%s)",
+                             frame_idx, vm.vehicle.id, _why)
+                continue
             identity = beacon_id_mgr.get_temp_id(
-                vm.vehicle.id, loc, frame_idx)
+                vm.vehicle.id, loc, frame_idx, yaw=check_yaw, velocity=stamped_vel)
         else:
             identity = vm.vehicle.id
+        det_rows.append([h,w,l, loc.x,loc.z,loc.y, beacon_theta, 1.0])
         info_rows.append([frame_idx, _next_edge_guid(), identity])
 
     # b) sensor detections -- shared library, see ab3dmot_format.py
@@ -327,6 +347,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             'output_dir':None,'min_hits':3,'max_age':6,'ego_com':None,
             'affi_pro':False,'dataset':'KITTI','det_name':'pvrcnn',
             'anchoring': self.anchoring})
+        # Association gate (SenSys A6 sweep). Passed through to AB3DMOT; an
+        # unset key keeps the library default (hungar, dist_2d, 4 m). Env
+        # override for sweeps that cannot edit the YAML: ASSOC_METRIC,
+        # ASSOC_THRESHOLD.
+        _assoc_metric = os.environ.get('ASSOC_METRIC') or cfg.get('assoc_metric', None)
+        _assoc_thres = os.environ.get('ASSOC_THRESHOLD') or cfg.get('assoc_threshold', None)
+        self.mot_cfg.assoc_metric = _assoc_metric or None
+        self.mot_cfg.assoc_threshold = None if _assoc_thres is None else float(_assoc_thres)
+        self.mot_cfg.assoc_algorithm = cfg.get('assoc_algorithm', None) or None
         self.mot_category = 'Car'
         self.tracker = AB3DMOT(self.mot_cfg, self.mot_category)
 
@@ -407,7 +436,39 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             rotation_distance_m=cfg.get(
                 "beacon_id_rotation_distance", 100.0),
             world_dt=world_dt,
+            # ValidBeacon residual bounds (paper Sec. 4.3); off = today's
+            # behaviour. See BeaconIdManager for the physical rationale.
+            validity_checks=bool(cfg.get('beacon_validity_checks', False)),
+            max_accel_mps2=cfg.get('beacon_valid_max_accel_mps2', 8.0),
+            max_yaw_rate_rps=cfg.get('beacon_valid_max_yaw_rate_rps', 1.0),
+            max_speed_mps=cfg.get('beacon_valid_max_speed_mps', 40.0),
+            max_beacon_age_ticks=cfg.get('beacon_valid_max_age_ticks', None),
         )
+        # Beacon fault injection on the CAV-to-edge beacon path (SenSys
+        # A2/C2); every fault is off by default. Private RNG so the global
+        # random stream is untouched when the faults are off.
+        self.beacon_fault_loss_rate = float(cfg.get('beacon_fault_loss_rate', 0.0))
+        self.beacon_fault_delay_ticks = int(cfg.get('beacon_fault_delay_ticks', 0))
+        self.beacon_fault_clock_offset_ms = float(cfg.get('beacon_fault_clock_offset_ms', 0.0))
+        self.beacon_fault_pos_noise_m = float(cfg.get('beacon_fault_pos_noise_m', 0.0))
+        self.beacon_fault_yaw_noise_rad = float(cfg.get('beacon_fault_yaw_noise_rad', 0.0))
+        # Use the heading stamped at emission for the beacon row instead of
+        # the live heading at drain time (forced on when heading noise is
+        # injected, since the live heading would hide the corruption).
+        self.beacon_stamped_yaw = bool(cfg.get('beacon_stamped_yaw', False))
+        self._beacon_fault_rng = random.Random(int(cfg.get('beacon_fault_seed', 0)))
+        self._beacon_delay_q = {}      # vid -> deque of delayed beacon entries
+        self._beacon_meta = {}         # packet tick -> {vid: (yaw, vel, stamp_tick)}
+        self._beacon_fault_tick = {'lost': 0, 'delayed': 0, 'corrupted': 0}
+        self.beacon_fault_totals = {'lost': 0, 'delayed': 0, 'corrupted': 0}
+        if (self.beacon_fault_loss_rate or self.beacon_fault_delay_ticks
+                or self.beacon_fault_clock_offset_ms or self.beacon_fault_pos_noise_m
+                or self.beacon_fault_yaw_noise_rad):
+            logger.info("[BEACON-FAULT] loss=%.3f delay_ticks=%d clock_offset_ms=%.1f "
+                        "pos_noise_m=%.2f yaw_noise_rad=%.3f",
+                        self.beacon_fault_loss_rate, self.beacon_fault_delay_ticks,
+                        self.beacon_fault_clock_offset_ms, self.beacon_fault_pos_noise_m,
+                        self.beacon_fault_yaw_noise_rad)
 
     # ------------------------------------------------------------------
     def start_edge(self):
@@ -565,6 +626,8 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         for old in [k for k in self._gt_snapshots if frame_idx - k > 100]:
             del self._gt_snapshots[old]
             self._excluded_snapshots.pop(old, None)
+        for old in [k for k in self._beacon_meta if frame_idx - k > 100]:
+            del self._beacon_meta[old]
 
         # Collect detections + beacons together as one packet
         beacons = {}
@@ -579,8 +642,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             for obj in vm.agent.objects.get('vehicles', []):
                 obj._det_source = f"ego_{vid}"
             self._dict_extend(objects, vm.agent.objects)
-            beacons[vid] = (vm.vehicle.get_location(),
-                            vm.vehicle.bounding_box.extent)
+            self._emit_beacon(beacons, vm, frame_idx)
 
         for rsu in self.rsu_manager_list:
             rsu_id = getattr(rsu, 'id', 'rsu')
@@ -607,6 +669,49 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         else:
             arrival = self.latency_model.stamp(frame_idx)
         self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+
+    # ------------------------------------------------------------------
+    def _emit_beacon(self, beacons, vm, frame_idx):
+        """Put *vm*'s beacon for this tick into *beacons* (carla_id ->
+        (loc, extent)) after the configured fault injection on the
+        CAV-to-edge beacon path. The heading, velocity, and the beacon's own
+        timestamp (in ticks, after the clock offset) go to
+        self._beacon_meta[frame_idx][vid] for the ValidBeacon checks; the
+        (loc, extent) tuple keeps its shape so every consumer is unchanged.
+        """
+        vid = vm.vehicle.id
+        loc = vm.vehicle.get_location()
+        ext = vm.vehicle.bounding_box.extent
+        yaw = math.radians(vm.vehicle.get_transform().rotation.yaw)
+        v = vm.vehicle.get_velocity()
+        vel = np.asarray([v.x, v.y, v.z], dtype=np.float32)
+        if (self.beacon_fault_loss_rate > 0.0
+                and self._beacon_fault_rng.random() < self.beacon_fault_loss_rate):
+            self._beacon_fault_tick['lost'] += 1
+            return
+        if self.beacon_fault_pos_noise_m > 0.0 or self.beacon_fault_yaw_noise_rad > 0.0:
+            loc = carla.Location(
+                x=loc.x + self._beacon_fault_rng.gauss(0.0, self.beacon_fault_pos_noise_m),
+                y=loc.y + self._beacon_fault_rng.gauss(0.0, self.beacon_fault_pos_noise_m),
+                z=loc.z)
+            yaw += self._beacon_fault_rng.gauss(0.0, self.beacon_fault_yaw_noise_rad)
+            self._beacon_fault_tick['corrupted'] += 1
+        stamp = int(round((frame_idx * self._sim_dt_ms + self.beacon_fault_clock_offset_ms)
+                          / self._sim_dt_ms))
+        entry = (frame_idx, loc, ext, yaw, vel, stamp)
+        if self.beacon_fault_delay_ticks > 0:
+            q = self._beacon_delay_q.setdefault(vid, deque())
+            q.append(entry)
+            due = None
+            while q and q[0][0] + self.beacon_fault_delay_ticks <= frame_idx:
+                due = q.popleft()
+            if due is None:
+                return
+            entry = due
+            self._beacon_fault_tick['delayed'] += 1
+        _emit_tick, loc, ext, yaw, vel, stamp = entry
+        beacons[vid] = (loc, ext)
+        self._beacon_meta.setdefault(frame_idx, {})[vid] = (yaw, vel, stamp)
 
     # ------------------------------------------------------------------
     def _collect_detections_for_frame(self, objects, beacons, source_tick):
@@ -688,6 +793,23 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         self._track_history.append(tracks[0])
                     latest_dets = dets_all
                     latest_source_tick = source_tick
+
+                # Per-tick ValidBeacon, beacon-fault, and anonymous-hold counts
+                _bv = self.beacon_id_mgr.pop_validity_counts()
+                _bf, self._beacon_fault_tick = (self._beacon_fault_tick,
+                                                {'lost': 0, 'delayed': 0, 'corrupted': 0})
+                for _k, _v in _bf.items():
+                    self.beacon_fault_totals[_k] += _v
+                _holds = getattr(self.tracker, 'anon_hold_ticks', None) or []
+                if _holds:
+                    self.tracker.anon_hold_ticks = []
+                    logger.debug("[BEACON] tick=%d anonymous tracks bound to a beacon: "
+                                 "%d, hold ticks %s", tick, len(_holds), _holds)
+                frame.set_beacon_metrics(
+                    beacon_fault_lost=_bf['lost'], beacon_fault_delayed=_bf['delayed'],
+                    beacon_fault_corrupted=_bf['corrupted'],
+                    anon_merged=len(_holds), anon_hold_ticks_sum=int(sum(_holds)),
+                    anon_hold_ticks_max=int(max(_holds)) if _holds else 0, **_bv)
 
                 # BSM rotation reconciliation (persistent tracker)
                 for evt in self.beacon_id_mgr.pop_pending_rotations():

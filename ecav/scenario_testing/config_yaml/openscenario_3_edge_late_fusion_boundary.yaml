@@ -405,3 +405,28 @@ scenario:
       a_brake: 6.0
       d_buf: 1.0
     anchoring: true
+    # AB3DMOT association gate (SenSys A6 sweep). assoc_metric: dist_2d
+    # (default, ground-plane distance in m), dist_3d, m_dis (Mahalanobis on
+    # the KF innovation covariance, 7-D box residual), iou_3d, giou_3d.
+    # assoc_threshold is in the metric's units (m for dist_*, Mahalanobis
+    # units for m_dis). assoc_algorithm: hungar or greedy.
+    assoc_metric: dist_2d
+    assoc_threshold: 4.0
+    assoc_algorithm: hungar
+    # ValidBeacon residual checks (paper Sec. 4.3): displacement,
+    # acceleration, yaw rate, speed, and optional recency. false = today's
+    # behaviour (displacement gate at rotation reconcile only).
+    beacon_validity_checks: false
+    beacon_valid_max_accel_mps2: 8.0     # about 0.8 g, hard braking or launch
+    beacon_valid_max_yaw_rate_rps: 1.0   # tight low-speed urban turn
+    beacon_valid_max_speed_mps: 40.0     # 144 km/h, above any urban scenario
+    beacon_valid_max_age_ticks: null     # recency check off unless set
+    # Beacon fault injection on the CAV-to-edge beacon path (SenSys A2/C2).
+    # All off by default.
+    beacon_fault_loss_rate: 0.0          # Bernoulli loss per beacon
+    beacon_fault_delay_ticks: 0          # extra delivery delay, ticks
+    beacon_fault_clock_offset_ms: 0.0    # added to the beacon timestamp
+    beacon_fault_pos_noise_m: 0.0        # Gaussian xy noise, metres
+    beacon_fault_yaw_noise_rad: 0.0      # Gaussian heading noise, rad
+    beacon_fault_seed: 0
+    beacon_stamped_yaw: false            # beacon row uses the heading stamped at emission

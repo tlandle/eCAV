@@ -168,7 +168,14 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 
 		if (trk_speed is not None and trk_hits >= _KINEMATIC_MIN_HITS
 				and metric in ('dist_3d', 'dist_2d', 'm_dis', 'euler')):
-			d = -aff_matrix[m[0], m[1]]       # positive distance
+			if metric in ('m_dis', 'euler') and aff_matrix[m[0], m[1]] < -0.01:
+				# Mahalanobis affinity is dimensionless; gate on the
+				# ground-plane distance in metres like the dist_* metrics.
+				# A beacon-forced identity match keeps its -0.01 affinity
+				# under every metric and so passes the gate, as for dist_*.
+				d = dist_ground(dets[m[0]], trks[m[1]])
+			else:
+				d = -aff_matrix[m[0], m[1]]       # positive distance
 			max_innov = max(trk_speed * _DT + _D_BASE, _D_MIN)
 
 			if d > max_innov:
