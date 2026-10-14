@@ -334,7 +334,7 @@ def get_2d_bb(vehicle, sensor, senosr_transform):
     return p2d_bb
 
 
-def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
+def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image, draw=True):
     """
     Project lidar to camera space.
 
@@ -350,7 +350,12 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
         Cloud points, shape: (n, 4).
 
     rgb_image : np.ndarray
-        RGB image from camera.
+        RGB image from camera. May be None when draw is False.
+
+    draw : bool
+        Paint the projected points onto rgb_image (visualization only).
+        The per-point Python loop costs about 6 ms per camera, so callers
+        that do not display the image pass False.
 
     Returns
     -------
@@ -434,6 +439,9 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image):
     # Extract the screen coords (uv) as integers.
     u_coord = new_points_2d[:, 0].astype(np.int64)
     v_coord = new_points_2d[:, 1].astype(np.int64)
+
+    if not draw or rgb_image is None:
+        return rgb_image, points_2d
 
     # Since at the time of the creation of this script, the intensity function
     # is returning high values, these are adjusted to be nicely visualized.

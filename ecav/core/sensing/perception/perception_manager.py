@@ -626,7 +626,7 @@ class PerceptionManager:
                 continue
             rgb_images.append(
                 cv2.cvtColor(
-                    np.array(
+                    np.asarray(
                         rgb_camera.image),
                     cv2.COLOR_BGR2RGB))
 
@@ -641,15 +641,15 @@ class PerceptionManager:
         detection_end_time = time.time()
         self.client_metrics.update_detections_time(
             (detection_end_time - detection_start_time) * 1000)
-        if self.vehicle is None:
-            print("RSU Yolo Detection: %s" %yolo_detection)
-        logger.debug("Yolo Detection: %s" %yolo_detection)
+        logger.debug("Yolo Detection: %s", yolo_detection)
 
         # rgb_images for drawing
         rgb_draw_images = []
 
         lidar_data = self.lidar.data
-        logger.debug("Lidar Data: %s" %lidar_data)
+        logger.debug("Lidar Data: %s", lidar_data)
+        # The painted image exists only for the camera window.
+        draw = bool(self.camera_visualize)
 
         total_tracking_time = 0
         total_lidar_fusion_time = 0
@@ -658,8 +658,9 @@ class PerceptionManager:
             #logger.debug("Lidar Input: %s" %len(lidar_data))
             rgb_image, projected_lidar = st.project_lidar_to_camera(
                 self.lidar.sensor,
-                rgb_camera.sensor, lidar_data, np.array(
-                    rgb_camera.image))
+                rgb_camera.sensor, lidar_data,
+                np.array(rgb_camera.image) if draw else None,
+                draw=draw)
             rgb_draw_images.append(rgb_image)
 
             #logger.debug("Lidar Input to Fusion: %s" %len(lidar_data))
@@ -668,13 +669,10 @@ class PerceptionManager:
 
             tracking_start_time = time.time()
             tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
-            if self.vehicle is None:
-                print("RSU Tracking Detection: %s" %tracking_detection)
-                print("Yolo Frame %d Detection: %s" %(i, yolo_detection.xyxy[i]))
             tracking_end_time = time.time()
             total_tracking_time += tracking_end_time - tracking_start_time
 
-            logger.debug("Tracking Detection: %s" %tracking_detection)
+            logger.debug("Tracking Detection: %s", tracking_detection)
 
             lidar_fusion_start_time = time.time()
             objects = o3d_camera_lidar_fusion_from_tracker(
@@ -686,9 +684,7 @@ class PerceptionManager:
                 self.cav_world.tick_id)
             lidar_fusion_end_time = time.time()
             total_lidar_fusion_time += lidar_fusion_end_time - lidar_fusion_start_time
-            if self.vehicle is None:
-                print("RSU Objects after Fusion: %s" %objects)
-            logger.debug("Objects after lidar fusion: %s" %objects)
+            logger.debug("Objects after lidar fusion: %s", objects)
 
             # calculate the speed. current we retrieve from the server
             # directly.
