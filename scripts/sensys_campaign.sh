@@ -1,55 +1,81 @@
 #!/usr/bin/env bash
-# SenSys resubmission campaign driver. One campaign per host and per CARLA port.
-# Usage: scripts/sensys_campaign.sh <host-role> [--dry-run]
-#   host-role: atlas | cetus          (splits the arm list across the two machines)
-# Every invocation reuses STAMP so an interrupted campaign resumes in place.
+# SenSys resubmission campaign driver (matrix: reviews/response_plan.md, "Campaign sizing").
+# One campaign per host and per CARLA port; every invocation reuses STAMP so an
+# interrupted campaign resumes in place (completed runs are skipped).
+#
+#   scripts/sensys_campaign.sh atlas|cetus [--dry-run]
+#   STAMP=sensys_nov27 CARLA_PORT=2000 REPS=20 scripts/sensys_campaign.sh atlas
+#
+# Arms (manager type, anchoring):
+#   late_fusion off/on   V2X2V object sharing, Naive / SBA (the contract)
+#   late_fusion_etsi_self_announcement off   ETSI TR 103 562 sender-side self-announcement rule
+#   vips both            V2X2V with VIPS temporal alignment, with and without the contract
+#   infra_only both      I2V object sharing (RSU only), receiver-side contract on/off
+#   oracle on, cip on    ground-truth identity reference and cooperative planning
+# Geometries: scenario_3 left turn (ego YAMLs 2/4/8/16), SCP straight-through
+# (4ego only), blind overtake on Town01 (2ego only). Mixed-traffic variants
+# exist at scenario_3 4ego, SCP 4ego, blind overtake 2ego.
 set -euo pipefail
 ROLE="${1:?atlas|cetus}"; DRY="${2:-}"
-STAMP="${STAMP:-sensys_nov27}"          # shared stamp, resume-safe
+STAMP="${STAMP:-sensys_nov27}"
 PORT="${CARLA_PORT:-2000}"
 REPS="${REPS:-20}"
+PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
 LATS="0 50 100 150 200 250 300 350 400 450 500 550"
 SCALE_LATS="100 200 400"
-GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_late_fusion"
 SPEEDS="50 70"
-ETSI_MGR="${ETSI_MGR:-late_fusion_etsi_self_announcement}"   # set to the registered name of the ETSI arm
-COMMON="--self-id-radius 1.0 --repetitions $REPS --stamp $STAMP --carla-port $PORT --per-tick-age-log"
+ETSI="late_fusion_etsi_self_announcement"
+COMMON="--latency-distribution hybrid --self-id-radius 1.0 --repetitions $REPS --stamp $STAMP --carla-port $PORT --per-tick-age-log"
 
-run() { if [[ "$DRY" == "--dry-run" ]]; then echo "python3 test_runner.py $*"; else python3 test_runner.py "$@"; fi; }
+run() { if [[ "$DRY" == "--dry-run" ]]; then echo "$PY test_runner.py $*"; else "$PY" test_runner.py "$@"; fi; }
+# N for the envelope sweep is the largest ego count each geometry has below 8
+envelope_n() { case "$1" in blind_overtake*) echo 2 ;; *) echo 4 ;; esac; }
+scaling_n()  { case "$1" in openscenario_3*) echo "2 4 8 16" ;; scp*) echo "4" ;; *) echo "2" ;; esac; }
 
-# Arms: (manager-type, anchoring). oracle and cip carry the contract by construction.
 case "$ROLE" in
-  atlas) ARMS=("late_fusion both" "oracle on" "$ETSI_MGR off") ;;
-  cetus) ARMS=("vips both" "infra_only both" "cip on") ;;
+  atlas) ARMS=("late_fusion both" "$ETSI off" "oracle on" "cip on") ;;
+  cetus) ARMS=("vips both" "infra_only both") ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
+GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_late_fusion"
 
+mkdir -p experiment_results/campaign_meta
+{ echo "stamp=$STAMP role=$ROLE port=$PORT reps=$REPS"; git rev-parse HEAD; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_${ROLE}.txt"
+
+# 1. Envelope sweep: 12 latencies x 2 speeds at the geometry's envelope N
 for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2
-    # envelope sweep, single focal vehicle
-    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS $COMMON
-    # scaling at three latencies (ego-count variants exist for scenario_3 and scp at 4, blind overtake at 2)
-    case "$geom" in
-      blind_overtake_edge_late_fusion) egos="2" ;;
-      *) egos="2 4 8 16" ;;
-    esac
-    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts $egos $COMMON
+    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") $COMMON
   done
 done
 
-# Situation study: oracle only, speed multipliers 0.75x and 1.25x of 50 and 70
+# 2. Scaling: 3 latencies over the ego counts each geometry has
+for geom in $GEOMS; do
+  for arm in "${ARMS[@]}"; do
+    set -- $arm; mgr=$1; anch=$2
+    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts $(scaling_n "$geom") $COMMON
+  done
+done
+
+# 3. Situation study: oracle only, 0.75x and 1.25x of 50 and 70 km/h (cetus)
 if [[ "$ROLE" == "cetus" ]]; then
   for geom in $GEOMS; do
-    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 $COMMON
+    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 --ego-counts $(envelope_n "$geom") $COMMON
   done
 fi
 
-# Faults and mixed traffic: V2X2V only, Naive / ETSI / SBA (atlas)
+# 4. Mixed traffic: V2X2V only, Naive / ETSI / SBA, at the mixed variants' ego counts (atlas)
 if [[ "$ROLE" == "atlas" ]]; then
-  for geom in openscenario_3_edge_late_fusion_mixed scp_edge_late_fusion_mixed; do
-    run -t "$geom" --manager-types late_fusion "$ETSI_MGR" --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
-  done
-  run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion "$ETSI_MGR" --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 $COMMON
-  # beacon fault knobs are YAML keys from the gating track; add their test_runner flags here once merged
+  run -t openscenario_3_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
+  run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
+  run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
+  run -t scp_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
+  run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 $COMMON
+  run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 $COMMON
 fi
+
+# 5. Beacon faults: V2X2V Naive / ETSI / SBA, one knob at a time (YAML keys of the
+#    gating track: beacon_fault_loss_rate, beacon_fault_delay_ticks,
+#    beacon_fault_clock_offset_ms, beacon_fault_pos_noise_m). test_runner has no
+#    flag for them yet; see sensys_fault_sweep.sh once the flag lands.
