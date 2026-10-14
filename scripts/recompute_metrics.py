@@ -166,8 +166,19 @@ def compute_run_metrics(d):
     # Pass unless focal ego is stuck or had a collision
     result["s_clear"] = 1 if (not result["focal_stuck"] and focal_coll == 0) else 0
 
+    # --- S_prog: at least 60 percent of the target speed over the run ---
+    # Same clause the live evaluator applies (evaluate_manager.py); runs whose
+    # metrics file predates the target_speed_kmh field pass by default.
+    tgt_kmh = d.get("target_speed_kmh")
+    avg_mps = fv.get("avg_speed_mps")
+    if tgt_kmh is None or avg_mps is None:
+        result["s_prog"] = 1
+    else:
+        result["s_prog"] = 1 if float(avg_mps) >= 0.6 * float(tgt_kmh) / 3.6 else 0
+
     # --- S_op: operational success ---
-    result["s_op"] = result["s_coll"] & result["s_ghost"] & result["s_fp"] & result["s_clear"]
+    result["s_op"] = (result["s_coll"] & result["s_ghost"] & result["s_fp"]
+                      & result["s_clear"] & result["s_prog"])
 
     # --- Continuous metrics ---
     result["focal_avg_speed_mps"] = fv.get("avg_speed_mps", 0)
