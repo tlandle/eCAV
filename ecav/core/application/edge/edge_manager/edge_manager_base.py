@@ -148,6 +148,46 @@ class _BaseEdgeManager:
                 a_brake=float(_ck.get("a_brake", 6.0)),
             )
 
+        # Optional per-tick, per-object age-at-use logger (reviewer items on
+        # conflict-time age, critical-object age, burst loss). Off unless
+        # cfg['per_tick_age_log']['enabled']. Writes per_tick_age.csv into the
+        # run's own output dir, beside simulation_metrics.json.
+        self._age_logger = None
+        self._age_gt_tick = None
+        self._age_gt_snap = {}
+        _pt = cfg.get("per_tick_age_log") if not is_proxy else None
+        if _pt and _pt.get("enabled", False):
+            from ecav.core.application.edge.per_tick_age_logger import (
+                PerTickAgeLogger,
+            )
+            _run_dir = cfg.get("run_output_dir")
+            if _run_dir:
+                _pt_out = os.path.join(_run_dir, "per_tick_age.csv")
+            else:
+                _pt_out = _pt.get("out_path", "/tmp/per_tick_age.csv")
+            _ck_ref = _ck or {}
+            self._age_logger = PerTickAgeLogger(
+                out_path=_pt_out,
+                conflict_xy=tuple(_pt.get("conflict_xy",
+                                          _ck_ref.get("conflict_xy", (-84.8, 127.7)))),
+                cross_traffic_type=_pt.get("cross_traffic_type",
+                                           _ck_ref.get("cross_traffic_type", "tesla")),
+                match_radius_m=float(_pt.get("match_radius_m", 5.0)),
+            )
+            # Every SenSys manager publishes through the shared linear
+            # predictor with publish_tick=tick; wrapping it numbers each edge
+            # publish so missed publishes (burst loss) can be counted.
+            if self.lin_pred is not None:
+                _orig_gen = self.lin_pred.generate_predicted_trajectories
+                _age_logger = self._age_logger
+
+                def _gen_with_seq(*a, **kw):
+                    preds = _orig_gen(*a, **kw)
+                    if preds and kw.get("publish_tick") is not None:
+                        _age_logger.note_publish(kw["publish_tick"])
+                    return preds
+                self.lin_pred.generate_predicted_trajectories = _gen_with_seq
+
         # distributed mode flag (from cav_world)
         self.run_distributed = getattr(cav_world, 'run_distributed', False) if cav_world else False
 
@@ -375,6 +415,16 @@ class _BaseEdgeManager:
             cls = attr.get('gt_brake_class')
             if cls and cls not in events:
                 events[cls] = tick
+        if self._age_logger is not None:
+            self._log_per_tick_age(tick, vm)
+
+    def _log_per_tick_age(self, tick, vm):
+        """Per-tick, per-consumed-object age rows for one managed vehicle.
+        The GT snapshot is built once per tick and shared across vehicles."""
+        if self._age_gt_tick != tick:
+            self._age_gt_snap = self._live_gt_snapshot()
+            self._age_gt_tick = tick
+        self._age_logger.log_tick(tick, vm, self._age_gt_snap, self.dt)
 
     def get_competing_risk_metrics(self):
         """Return first-event ticks per vehicle and tie-rate analysis."""

@@ -94,6 +94,9 @@ ap.add_argument("--stamp", type=str, default=None,
                 help="Reuse this experiment stamp (resume): runs whose simulation_metrics.json already exists are skipped")
 ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.get("CARLA_PORT", 2000)),
                 help="CARLA RPC port for this campaign; one campaign per port and per host (default 2000 or $CARLA_PORT)")
+ap.add_argument("--per-tick-age-log", action="store_true", default=False,
+                help="Enable the per-tick, per-object age-at-use CSV "
+                     "(edge.per_tick_age_log.enabled) for every edge in every run.")
 args = ap.parse_args()
 
 CARLA_BIN = "CarlaUE4-Linux-Shipping"      # running binary name
@@ -275,7 +278,8 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                see_v2x_trace=None, see_v2x_filter=None,
                backhaul_mu=None, backhaul_sigma=None,
                disable_backhaul=False,
-               mac_type=None, mac_M=None, mac_p_keep=None, seed=None):
+               mac_type=None, mac_M=None, mac_p_keep=None, seed=None,
+               per_tick_age_log=False):
     """Updates the YAML dictionary with the current sweep parameters.
 
     *compute_budget*: float (ms) or None (unlimited).  The default
@@ -300,6 +304,10 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
             if manager_type is not None:
                 print(f"    setting manager_type to {manager_type}")
                 edge["manager_type"] = manager_type
+            if per_tick_age_log:
+                blk = dict(edge.get("per_tick_age_log") or {})
+                blk["enabled"] = True
+                edge["per_tick_age_log"] = blk
             if latency_ms is not None:
                 print(f"    setting edge latency to {latency_ms/1000.0} s")
                 edge["latency"] = latency_ms / 1000.0
@@ -525,6 +533,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if mac_type is not None: metrics["config_mac_type"] = mac_type
     if mac_M is not None: metrics["config_mac_M"] = mac_M
     if mac_p_keep is not None: metrics["config_mac_p_keep"] = mac_p_keep
+    if args.per_tick_age_log: metrics["config_per_tick_age_log"] = True
     (run_dir / "simulation_metrics.json").write_text(json.dumps(metrics, indent=2))
 
 # ───────────────────── backup all relevant YAMLs ─────────────────────────
@@ -614,7 +623,8 @@ try:
                    mac_type=MAC_TYPE,
                    mac_M=mac_m,
                    mac_p_keep=mac_pk,
-                   seed=SEED)
+                   seed=SEED,
+                   per_tick_age_log=args.per_tick_age_log)
         with cfg_file.open("w") as f:
             yaml.safe_dump(patched, f, sort_keys=False)
 
