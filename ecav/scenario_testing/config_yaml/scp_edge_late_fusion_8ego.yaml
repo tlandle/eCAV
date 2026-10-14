@@ -360,6 +360,7 @@ scenario:
             communication_range: 35
           behavior:
             <<: *base_behavior
+            overtake_allowed: false  # keeps the WB lane; the Tesla is beside it and the hero turns onto the EB lane
             max_speed: 50
             local_planner:
               <<: *base_local_planner
@@ -508,6 +509,7 @@ scenario:
             communication_range: 35
           behavior:
             <<: *base_behavior
+            overtake_allowed: false  # keeps the WB lane; the Tesla is beside it and the hero turns onto the EB lane
             max_speed: 50
             local_planner:
               <<: *base_local_planner

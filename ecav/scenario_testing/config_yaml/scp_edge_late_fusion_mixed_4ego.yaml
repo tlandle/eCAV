@@ -480,7 +480,7 @@ scenario:
         safety_time: 4
         emergency_param: 0.4
         ignore_traffic_light: true
-        overtake_allowed: true
+        overtake_allowed: false
         collision_time_ahead: 2
         overtake_counter_recover: 35
         sample_resolution: 4.5
