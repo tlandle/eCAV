@@ -88,14 +88,21 @@ def main(argv=None):
     bins = collections.defaultdict(list)
     for r in with_age:
         b = int(r["axis_ms"] // a.bin) * a.bin + a.bin / 2
-        bins[(r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"], b)].append(r["s_op"])
+        bins[(r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"], b)].append(r)
 
+    # S_op and its components per bin, so a curve shift (e.g. between control
+    # policies) is attributable to collisions, self-ghosts, false brakes, or
+    # stalls rather than read off the aggregate alone.
     rows = []
     for k in sorted(bins):
         v = bins[k]
-        p, lo, hi = wilson(sum(v), len(v))
+        p, lo, hi = wilson(sum(r["s_op"] for r in v), len(v))
         rows.append(dict(geom=k[0], speed=k[1], mgr=k[2], anch=k[3], N=k[4], kv=k[5], age_p99_bin_ms=k[6],
-                         n=len(v), p_sop=round(p, 3), lo=round(lo, 3), hi=round(hi, 3)))
+                         n=len(v), p_sop=round(p, 3), lo=round(lo, 3), hi=round(hi, 3),
+                         collided=sum(1 for r in v if r.get("focal_collisions", 0) > 0),
+                         self_ghost=sum(1 for r in v if r.get("focal_ghost_episodes", 0) > 0),
+                         false_brake=sum(1 for r in v if r.get("focal_fp_episodes", 0) > 0),
+                         stalled=sum(1 for r in v if r.get("s_prog", 1) == 0)))
     with open(os.path.join(out, "envelope_measured.csv"), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         w.writeheader()

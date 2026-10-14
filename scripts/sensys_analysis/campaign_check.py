@@ -80,7 +80,9 @@ def load_runs(root, stamp):
         row["edge_ms"] = e.get("timing_avg_ms", float("nan"))
         row["N"] = d.get("config_ego_count", 1)
         row["lat"] = int(d.get("config_latency_ms", 0) or 0)
-        row["kv"] = json.dumps(d.get("config_edge_kv", {}), sort_keys=True) if d.get("config_edge_kv") else ""
+        _kv = dict(d.get("config_edge_kv") or {})
+        _kv.update({f"behavior.{k}": v for k, v in (d.get("config_behavior_kv") or {}).items()})
+        row["kv"] = json.dumps(_kv, sort_keys=True) if _kv else ""
         row["dist"] = r.get("focal_dist_m", float("nan"))
         row["beacon_rejected"] = sum(v for k, v in e.items() if k.startswith("beacon_total_rejected_"))
         row["dup_rate_connected"] = r.get("dup_rate_connected", 0.0)
