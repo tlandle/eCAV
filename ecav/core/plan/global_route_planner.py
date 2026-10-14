@@ -219,9 +219,6 @@ class GlobalRoutePlanner(object):
         """
         This method places zero cost links in the topology graph
         representing availability of lane changes.
-        Only same-direction lanes are linked: a broken centre line lets
-        get_left_lane() return the oncoming lane, and without the sign
-        check routes ran on it (multi-ego east approach, 2026-10-13).
         """
 
         for segment in self._topology:
@@ -239,8 +236,7 @@ class GlobalRoutePlanner(object):
                         if next_waypoint is not None \
                                 and next_waypoint.lane_type \
                                 == carla.LaneType.Driving and \
-                                waypoint.road_id == next_waypoint.road_id and \
-                                waypoint.lane_id * next_waypoint.lane_id > 0:
+                                waypoint.road_id == next_waypoint.road_id:
                             next_road_option = RoadOption.CHANGELANERIGHT
                             next_segment = self._localize(
                                 next_waypoint.transform.location)
@@ -259,8 +255,7 @@ class GlobalRoutePlanner(object):
                         if next_waypoint is not None and \
                                 next_waypoint.lane_type == \
                                 carla.LaneType.Driving and \
-                                waypoint.road_id == next_waypoint.road_id and \
-                                waypoint.lane_id * next_waypoint.lane_id > 0:
+                                waypoint.road_id == next_waypoint.road_id:
                             next_road_option = RoadOption.CHANGELANELEFT
                             next_segment = self._localize(
                                 next_waypoint.transform.location)
