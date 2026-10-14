@@ -404,7 +404,9 @@ class HybridModel(LatencyModel):
             logger.info("HybridModel: in-order replay of %d rows, period %.0f ms",
                         len(self._replay), self._replay_period_ms)
 
-        if self._trace is not None and self._trace.size > 0:
+        if self._replay:
+            pass  # logged above; the in-order rows are the radio term
+        elif self._trace is not None and self._trace.size > 0:
             logger.info("HybridModel: %d trace samples, backhaul=%s "
                         "(mu=%.3f, sigma=%.3f), base=%.1f ms",
                         self._trace.size,
