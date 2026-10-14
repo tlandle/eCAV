@@ -436,6 +436,20 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         ]
 
 # ───────────────────── single run helper ─────────────────────────────────
+def _run_completed(run_dir: Path) -> bool:
+    """A run counts as done for --stamp resume only if its metrics file holds
+    vehicle results. The runner writes a metrics file on the error path too
+    (with an "error" key and no vehicles); those runs are redone."""
+    p = run_dir / "simulation_metrics.json"
+    if not p.exists():
+        return False
+    try:
+        m = json.loads(p.read_text())
+    except (OSError, ValueError):
+        return False
+    return "error" not in m and bool(m.get("vehicles"))
+
+
 def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
              compute_budget, jitter_std, mgr_type, rep,
              nms_threshold=None, ego_count=None, timestamp_noise=None,
@@ -469,7 +483,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     config_dir = "_".join(config_parts)
 
     run_dir = EXP_ROOT / f"speed_{spd_str}" / base_str / mgr_str / anchor_str / config_dir / f"run_{rep}"
-    if (run_dir / "simulation_metrics.json").exists():
+    if _run_completed(run_dir):
         print(f"    skip (done): {run_dir.relative_to(EXP_ROOT)}", flush=True)
         return "skipped"
     run_dir.mkdir(parents=True, exist_ok=True)
