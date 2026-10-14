@@ -94,6 +94,8 @@ ap.add_argument("--stamp", type=str, default=None,
                 help="Reuse this experiment stamp (resume): runs whose simulation_metrics.json already exists are skipped")
 ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.get("CARLA_PORT", 2000)),
                 help="CARLA RPC port for this campaign; one campaign per port and per host (default 2000 or $CARLA_PORT)")
+ap.add_argument("--keep-visualize", action="store_true", default=False,
+                help="Keep the YAML camera/lidar windows; by default every run is headless (visualize 0/false)")
 ap.add_argument("--per-tick-age-log", action="store_true", default=False,
                 help="Enable the per-tick, per-object age-at-use CSV "
                      "(edge.per_tick_age_log.enabled) for every edge in every run.")
@@ -418,6 +420,22 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
     for _sec in d.values():
         if isinstance(_sec, dict) and "configFile" in _sec and "port" in _sec:
             _sec["port"] = CARLA_PORT
+    if not args.keep_visualize:
+        # Campaign hosts are headless; every camera/lidar window is disabled.
+        def _headless(node):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if k == "camera" and isinstance(v, dict) and "visualize" in v:
+                        v["visualize"] = 0
+                    elif k == "lidar" and isinstance(v, dict) and "visualize" in v:
+                        v["visualize"] = False
+                    else:
+                        _headless(v)
+            elif isinstance(node, list):
+                for v in node:
+                    _headless(v)
+        _headless(d)
+
     if speed_kmh is not None:
         if "edge_list" in d.get("scenario", {}):
             # Patch only the focal ego (vehicles[0]) — other egos keep default

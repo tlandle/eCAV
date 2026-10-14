@@ -22,6 +22,7 @@ PORT="${CARLA_PORT:-2000}"
 REPS="${REPS:-20}"              # envelope sweep and mixed traffic
 SCALE_REPS="${SCALE_REPS:-10}"  # scaling and situation studies
 PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
+export PYTHONPATH="$HOME/carla-0.9.15/PythonAPI/carla:${PYTHONPATH:-}"   # CARLA agents package (needed on cetus)
 LATS="0 50 100 150 200 250 300 350 400 450 500 550"
 SCALE_LATS="100 200 400"
 SPEEDS="50 70"
