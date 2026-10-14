@@ -5336,10 +5336,15 @@ and/or precedence.
   (`draw=self.camera_visualize`), no second image copy, lazy logging arguments,
   RSU prints removed. Outputs are unchanged (the projected points are computed
   before the painting; nothing read the painted image or the strings).
-  After: perception 62 ms per call, N=1 run 84 s wall end to end on cetus.
-  Remaining per call: YOLO 22, lidar fusion 10, projection 10, cvtColor 8,
-  SORT 6, traffic lights 3. Next lever if needed: one YOLO forward for all
-  actors' cameras per tick instead of one per actor.
+  After: perception 62 ms per call, N=1 run 84 s wall end to end on cetus,
+  N=4 174 s (edge step 458 ms = six detect calls). Second round (5bd2338a):
+  the camera callback stores a contiguous 3-channel frame (cvtColor was
+  copying a strided view, 8 ms per call) and the lidar-to-world transform is
+  computed once per detect call (`lidar_points_to_world`) instead of once per
+  camera. Projection output checked bit-identical against the old path on a
+  20,000-point cloud (scratchpad proj_equiv.py on cetus). Next lever if N=4
+  must go faster: one YOLO forward for all actors' cameras per tick instead of
+  one per actor (six forwards of 22 ms).
 - `scripts/sensys_analysis/campaign_check.py <stamp>`: integrity gates
   (error-path files, runs under 100 frames, missing per-tick CSV, edge frame
   time), per-cell P(S_op) with Wilson intervals next to the April cell, shape
