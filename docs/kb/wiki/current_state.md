@@ -5733,3 +5733,125 @@ crossing) are unchanged.
   openscenario_3_edge_late_fusion.yaml after the gate stop.
 - Still open before the gate rerun: the cross-traffic tracking gap (agent
   working offline with the lineage constraint).
+
+### 2026-10-14 17:45 to 18:30: the post-turn drift without RSS is a destination push from the wrong junction lane; push gated, route start lane aligned, verified live
+
+Run under study: policy_smoke oracle / anchoring on / 200 ms / ttc_graded
+run_1 (no [RSS] line, no brake): the hero turned on the lane centre, then at
+CARLA frame ~1260 crawled at 8 to 18 km/h with `[TRAJ] mean_k=0.200` (the
+clip value) and `curv_limit=18 km/h`, from x = -71.7 bent left (south),
+and stopped against the pole at (-65.3, 125.3). Offline replays of the real
+LocalPlanner on the GT and on the GNSS trace do not reproduce the 0.2 kink,
+so the real planner's route differed from the replayed one: the route had
+been re-planned.
+
+Instrumentation added (kept, INFO): `[LP]` line per planner step
+(local_planner_behavior.run_step: ego pose, nearest lane, curved flag,
+spline nodes, path start and sharpest point ahead in the vehicle frame, the
+target handed to the lateral controller as fwd/lat/angle, target speed) and
+`[CTL]` line per controller step (pid_controller.run_step: heading error
+deg, raw and rate-limited steer, throttle, brake). Scratch readers:
+lp_probe.py, replan_scan.py (route changes = first node ahead not in the
+previous tick's node set), lane_probe.py, grp_probe.py.
+
+Mechanism (oracle_diag, 6 runs on port 2200 with the instrumentation, same
+cell as policy_smoke; replan_scan on run_1):
+- t153, hero at (-84.6, 121.1) heading north at 26 km/h, 4 m before the turn
+  entry: `behavior_agent` step 7 (push case) fires. Its guard was
+  `not lane_change_allowed and potential_curved_road and not
+  destination_push_flag`; `lane_change_allowed` is False here only because
+  `check_lane_change_permission` refuses lane changes when the path's mean
+  |k| exceeds 0.04, i.e. in every sharp turn, with no blocked lane change
+  and no vehicle anywhere. `get_push_destination` with `is_intersection`
+  False (no traffic lights in the scenario) pushes the destination
+  `ego_vehicle_wp.next(max(3 v, 10 m))` along the hero's NEAREST lane,
+  `map.get_waypoint(ego)`, which at the fork of the junction is road 291
+  lane -1 (straight on), not 263 lane -1 (the left turn). New route: three
+  waypoints due north, (-84.5, 124.9), (-84.6, 129.3), (-84.8, 133.7).
+- t153 to t168 the hero drives straight past the turn entry at (-84.5,
+  125.1), accelerating to 33 km/h (curvature limit released, path straight).
+- t168 the pushed route is used up (queue empty, buffer <= 1): "Global
+  Destination Reset" re-plans to the end waypoint from the nearest lane
+  (291/-1 at y = 126.8); the GRP route starts at the junction entry
+  (-84.5, 125.1), 1.7 m behind, then (-82.5, 130.1), (-78.2, 133.3). The
+  target jumps to (+6.5 m, -6.2 m), heading error -44 deg, full left lock.
+- t180 to t212 the hero takes the arc 2.2 to 3.4 m wide of the planned path
+  (path start 2.2 to 3.4 m to its left) at full left lock (-0.30) with a
+  heading error of -50 to -56 deg, accelerating 17 to 45 km/h under full
+  throttle because the sharpest point within 20 m ahead passes mid-arc
+  (kmax 0.124 to 0.033, limit 23 to 45 km/h); it exits at y = 137.6, 2.2 m
+  right of the road 24 lane centre (135.4), heading -20 deg, and is back on
+  the centre by x = -65 with a +5 to +14 deg correction (steer +0.08 to
+  +0.22). Every diag run that completed (5 of 6; run_4 lost its metrics to a
+  PyGILState crash at cleanup after reaching the destination) shows the
+  same two re-plans and the same wide exit.
+- The drifting policy_smoke run is the same sequence with a slower hero
+  (ttc_graded held it at 14 to 26 km/h in the arc, which keeps it longer
+  inside the junction overlap zone): along the exit the nearest Driving lane
+  flips between 263/-1 and the overlapping junction lanes 239/-1 (yaw -42),
+  316/1 (179), 282/-1 (-86), 350/1 (160 to 173), 271/-1 (-85), 255/1 (179),
+  whose centres pass within 0.3 to 1.0 m of the hero's lane (lane_probe.py
+  on the GT trace). A push (the 90-tick hold from the entry push had
+  expired) or the reset after it, taken from 316/1, 350/1 or 255/1, routes
+  the hero 513 m around the block: first waypoints (-72.2, 129.3), (-73.8,
+  126.0), (-74.0, 120.4) (grp_probe.py). From 282/-1 it is 380 m south
+  along x = -77.5. The spline from the eastbound history nodes onto that
+  route carries the 0.2 kink (18 km/h limit, the crawl), and the target
+  selection (first trajectory point 2.5 m ahead, else last point) steers
+  the hero left onto it: heading -11, -27, -37, -56, -63 deg from x = -73 to
+  -66, into the parking lane and the pole.
+
+So the coordinator's candidate (hold the curvature-limited speed until the
+heading error is small, or for a fixed distance past the arc) does not
+remove it: in the failing run the hero was already at 8 to 18 km/h through
+the exit. The spline start offset at speed is not the cause either: in the
+instrumented runs the path start stays within 0.1 to 1.5 m ahead of the
+vehicle; the 2 to 3 m lateral offset through the arc is the vehicle wide of
+the path after the pushed overshoot.
+
+Fix (behavior_agent.py):
+1. `check_lane_change_permission` records `lane_change_blocked`, True only
+   when a planned lane change (lane id and lateral change on the route) is
+   refused by the adjacent-lane collision check; the push case keys on it
+   instead of on `lane_change_allowed`. A sharp turn no longer pushes the
+   destination.
+2. `route_start_waypoint(map, location, ego_yaw, route_waypoints)`: the
+   nearest lane is used as the route start only when its direction is
+   within 60 deg of the heading; otherwise the first route waypoint still
+   ahead and aligned; else the nearest lane. Used by `set_destination`
+   (push, reset, overtake re-plans), computed before the buffers are
+   cleared. Test tests/test_route_start_lane.py: at (-80.6, 132.3) yaw 33
+   the nearest lane is 316/1 (yaw 179) and the start becomes 263/-1 2.6 m
+   ahead; same for 350/1 and 255/1 positions; the route from the chosen
+   start is under 60 m (the nearest-lane route was 513 m); the nearest lane
+   is kept on road 24; no heading or no route waypoints fall back to the
+   nearest lane.
+
+
+Verification (port 2200, commits b1f5c320 and b94bbba9, run as four 5-run
+campaigns because test_runner's own CARLA restart after run 5 came up
+unsettled next to the foreign port-2000 server and ran the hero's YOLO out
+of GPU memory once, oracle_diag run_6):
+- late_fusion, anchoring off, 0 ms, 10 runs (veer_fix2_a, veer_fix2_b):
+  10 of 10 completed by destination, no collision, no run off the road, no
+  route re-plan on the turn. End positions (-37.4,134.4) (-37.5,134.6)
+  (-36.6,133.7) (-38.0,134.7) (-34.7,133.7) (-35.3,133.5) (-36.8,133.7)
+  (-36.6,134.0) (-37.3,134.0) (-37.8,133.8). Exit (x -78 to -58): lane
+  offset within -1.0 to +0.8 m in 9 runs, heading error -22 to +5 deg,
+  steer saturated (0.30) only in the arc. veer_fix2_a run_1 is the stop-in-
+  the-arc case (a track at the hero's own position, [POTENTIAL GHOST] 0.46
+  m, braked it to 1 km/h at (-82.2,131.0) for 12 ticks; the restart swung
+  it 1.7 m wide at full lock, heading error -38 deg, and it recovered by
+  x = -66); not the push mechanism, and it completed.
+- oracle, anchoring on, 200 ms, hazard_response=ttc_graded, 10 runs
+  (veer_fix2_oracle_a, veer_fix2_oracle_b): 10 of 10 completed by
+  destination, no collision, no run off the road, no re-plan. End positions
+  (-37.0,134.8) x 7, (-37.6,134.8), (-37.2,134.8), (-37.1,134.9). Exit lane
+  offset -0.2 to +0.3 m, heading error -12.4 to +1.5 deg, peak steer 0.19 to
+  0.21, exit speed 27 to 30 km/h. Before the fix (oracle_diag, same cell,
+  5 completed runs): two re-plans per run, exit offset -1.2 to +1.7 m,
+  heading error -37 to +15 deg, full lock through the arc; policy_smoke
+  run_1 drifted into the pole.
+Scratch readers in the session scratchpad: verify_report.py (per-run
+table), lp_probe.py, replan_scan.py, lane_probe.py, grp_probe.py,
+brake_intervals.py.
