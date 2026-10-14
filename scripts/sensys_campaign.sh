@@ -3,7 +3,7 @@
 # One campaign per host and per CARLA port; every invocation reuses STAMP so an
 # interrupted campaign resumes in place (completed runs are skipped).
 #
-#   scripts/sensys_campaign.sh atlas|cetus [gate|physics|landing|trace|scaling|mixed|faults|all] [--dry-run]
+#   scripts/sensys_campaign.sh atlas|cetus [gate|physics|landing|trace|control|scaling|mixed|faults|all] [--dry-run]
 #   STAMP=sensys_nov27 CARLA_PORT=2000 REPS=20 scripts/sensys_campaign.sh atlas gate
 #
 # Stages run in this order and the gate script decides whether to go on:
@@ -94,6 +94,20 @@ if want trace && [[ "$ROLE" == "atlas" ]]; then
   for arm in "late_fusion both" "oracle on"; do
     set -- $arm; mgr=$1; anch=$2
     run -t openscenario_3_edge_late_fusion --manager-types "$mgr" --anchoring "$anch" --latencies 0 --speeds 70 --ego-counts 1 --see-v2x-filter regime=L regime=M regime=H --repetitions $SIT_REPS $COMMON
+  done
+fi
+
+# 2c. Control policy (reviewer C): the same envelope under speed adaptation and TTC-graded
+#     deceleration instead of the emergency stop; oracle and contract, scenario_3 and SCP,
+#     6 latencies, SIT_REPS seeds (cetus). The stop policy is the physics / landing data.
+if want control && [[ "$ROLE" == "cetus" ]]; then
+  for policy in "hazard_response=speed_adapt" "hazard_response=ttc_graded"; do
+    for geom in openscenario_3_edge_late_fusion scp_edge_late_fusion; do
+      for arm in "oracle on" "late_fusion on"; do
+        set -- $arm; mgr=$1; anch=$2
+        run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies 0 100 200 300 500 700 --speeds 70 --ego-counts 1 --repetitions $SIT_REPS --behavior-kv "$policy" $COMMON
+      done
+    done
   done
 fi
 
