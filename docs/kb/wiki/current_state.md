@@ -5319,3 +5319,87 @@ and/or precedence.
 - cetus state: CARLA on 2000 and the YOLO gRPC server on 18001 are up from the
   smoke (both started by this session's runner and will be reused). Atlas: the
   orphan CARLA on 2000 (pid 31255, per-tick agent's last smoke) is still up.
+
+### 2026-10-13 21:50 to 22:30: smoke defects fixed and verified (branch sensys/scenarios-mixed-speedadapt, on develop 2f900446)
+
+Fixes (commits 7c99f170, b196ab81, c0a5be66, 53ce165b, 602362d2, 93058317;
+eabbdd40 reverted by b9d4aa4e):
+- cav4 of the 4-ego layout spawned into a pole at (-77.5, 200.0): the
+  north-approach road 69 bends there (lane centre 6.8 m away). Moved to
+  road 69 lane -1 at (-74.7, 174.0, yaw 247), the spot the 8/16-ego files
+  already use (offline Town03 probe: 0.04 m from the lane centre). Files:
+  openscenario_3 4ego and mixed_4ego, scp 4ego and mixed_4ego.
+- The west-approach CAVs sat on road 23/24 lane -1, the only eastbound
+  driving lane, which is the hero's left-turn target lane (hero destination
+  (-28.8, 134.7/136.2) is that lane). Moved to the south approach's second
+  northbound lane, road 4 lane -2 (x = -88.1), BEHIND the hero so they cross
+  the Tesla's path after it has passed (an attempt with them ahead at y 100
+  stopped inside the crossing and was hit by the Tesla): 2ego cav2 and the
+  4-ego layouts' cav2 at y 40; 8ego cav2 72, cav6 64; 16ego cav2 49, cav10
+  41, cav14 33 (the crawlers cav5/cav7 at 80/65/57 stay). Destination
+  (-88.6, 155.0), road 69 lane 3.
+- East-approach CAVs (cav3, cav7, cav11, cav15) had destination
+  (-150.0, 132.7), 9.6 m off the road, snapping to the eastbound lane; the
+  route planner then sent them on a loop through the hero's approach road
+  (mixed smoke: cav3 into the parked Audi). Destination now (-139.7, 124.7)
+  on their own lane (road 23 lane 1), and overtake_allowed false for them.
+- Planner left-lane check (behavior_agent.py, overtake branch):
+  obstacle_vehicle_wpt.get_left_lane() returns None in the leftmost lane
+  or a junction, and the and/or precedence evaluated left_wpt.lane_type
+  anyway. Parenthesised, None means no lane change; None subject waypoint
+  returns False. Not hero-specific.
+- Edge prediction counters (planning_metrics edge_ticks_total,
+  edge_ticks_with_preds, edge_preds_received_total, edge_preds_ego_filtered,
+  edge_ticks_with_collision, edge_collisions_total) were defined in
+  8d6ee41b and never incremented on any path. Wired at the planner's
+  downlink consumption point (update_information, before the hold cache and
+  the merge with local predictions) and at the Pass-2 collision trigger for
+  edge-origin predictions (id set taken at the merge).
+- collision_check.trajectory_collision_check: an ego with no path (a CAV
+  held behind a blocker with an empty trajectory buffer) argmin'd an empty
+  array (104 "attempt to get argmin of an empty sequence" and 2 interp1d
+  length errors in one 8-ego run); now returns no collision.
+- get_push_destination: waypoint.next() returned [] for the hero held at the
+  junction stop line (5 "list index out of range" at ticks 173 to 179 of the
+  final LTAP 4-ego run); falls back to the waypoint. Compile-checked only:
+  the coordinator stopped further runs for the gate campaign.
+- vehicle_manager logs the traceback of a failed planner step (exc_info).
+- A global-route-planner change (same-direction lane-change links only)
+  was committed and reverted: offline traces showed the planner never
+  routed through the oncoming lane for these layouts; the east CAV's
+  lateral drift (below) is not a routing effect.
+- SCP ego variants scp_edge_late_fusion_2ego/_8ego/_16ego (YAML and .py)
+  derived from the scenario_3 files as the 4ego one (focal destination
+  (-85.1, 155.0), everything else as the scenario_3 variant).
+
+Verification (merged test_runner, --carla-port 2200 --latencies 100
+--speeds 70 --repetitions 1 --stamp defects_fix, late_fusion, anchoring on;
+CARLA pre-started with the port flag so carla_running() adopts it, Town03
+preloaded, 30 s settle; results under experiment_results/<base>/defects_fix,
+earlier attempts under defects_fix_attempt1/2):
+- openscenario_3_edge_late_fusion, 4 egos: 195 s wall, peak GPU 13.9 GB,
+  MAX_STEP 300; four egos localized every tick (245 LOC lines each); no
+  spawn collision, no collision at all (attempt 1 had hero-cav3 and
+  cav2-Tesla collisions, attempt 2 none); 5 planner step failures, all the
+  hero's push-destination next() (guarded afterwards); edge counters
+  4062 predictions over 246 ticks. Hero outcome: attempt 2 completed the
+  turn to (-74.2, 136.4); attempt 3 waited at the stop line (-83.5, 128.1)
+  to MAX_STEP because cav3 stopped on the target lane at (-81.8, 135.2).
+- scp_edge_late_fusion, 8 egos: 206 s wall, peak GPU 14.7 GB; hero
+  completed by destination exit at tick 136 at (-85.3, 146.1); eight egos
+  localized every tick; no spawn collision, no collision; 0 planner
+  exceptions (106 in attempt 1 before the collision-check guard); edge
+  counters 2966 predictions over 137 ticks. Attempt 2 (same layout, before
+  overtake_allowed false): hero hit the Tesla at the crossing at tick 86
+  (70 km/h, 100 ms; scenario outcome, not an ego).
+
+Open: the lead east-approach CAV drifts 2.5 m left of its lane centre from
+x = -33 to the intersection (GT y 130.9 to 134.3 by x = -72) in every run,
+with the route on lane 1 and overtakes off; it then sits on the hero's
+turn target lane and the hero yields to MAX_STEP (attempt 3) or passes
+after it (attempt 2). Not a layout defect; the second east CAV (cav7)
+stays at y 131. The committed 4ego YAML still carries the last sweep's
+patch (manager cip, latency 0.2, anchoring false, 50 km/h); test_runner
+overrides all of it per run. Worktree run-time symlinks (sort,
+ecav/worldfusion, data, scenario_runner entries) and generated stubs are
+in place and untracked.
