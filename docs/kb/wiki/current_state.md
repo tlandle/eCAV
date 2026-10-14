@@ -5733,3 +5733,20 @@ crossing) are unchanged.
   openscenario_3_edge_late_fusion.yaml after the gate stop.
 - Still open before the gate rerun: the cross-traffic tracking gap (agent
   working offline with the lineage constraint).
+
+## 2026-10-14 night: coasting tracks published at rest were the junction phantoms
+- `AB3DMOT_libs/model.py output()` zeroed the velocity of every coasting
+  track (time_since_update > 0) so the linear predictor's _MIN_KF_SPEED_MPS
+  gate would treat it as stationary. A crossing Tesla lost at a camera
+  handover was therefore published as a stationary obstacle at its last
+  position while its filter state kept moving; the hero braked for it, and
+  with the planner cache fix the same gap became a blind spot. Now only a
+  track that never reached min_hits is published at rest; a converged track
+  keeps its velocity through coasting. `tests/test_obs_tick_lineage.py`
+  (coasting_velocity) checks a 7-tick gap: 0.65 m/tick kept, 3.9 m advanced.
+- Tracking agent's branch (sensys/edge-tracking-gap, 213bd66c): kinematic
+  gate in m/s with a 3 m cross-view allowance and cross-source NMS; to be
+  merged on its report, with the live check in the gate rerun.
+- SEE-V2X in-order replay with gap-derived losses (6551ee88) for the trace
+  stage; ETSI omission coverage cost (uncovered omissions per sender);
+  stored last_obs_tick on every track; campaign_check transition bracketing.
