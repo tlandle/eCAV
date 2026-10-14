@@ -9,6 +9,12 @@ Per run (one per_tick_age.csv):
                           or a brake_event); NaN if the actor was not in the
                           consumed set at that tick
   conflict_time_tick      the tick of that decision
+  conflict_brake_age_ms   age of the conflict actor's state at the first
+                          braking decision taken while the actor WAS in the
+                          consumed set (the brake its state could inform)
+  conflict_brake_tick     the tick of that decision
+  edge_silence_max_ticks  longest run of planner ticks with no edge-sourced
+                          object at all
   burst_loss_max          longest run of consecutive edge publish sequence
                           numbers the focal vehicle never consumed
   missed_publish_frac     fraction of edge publishes (between the first and
@@ -122,6 +128,22 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
         if cand:
             conflict_age = max(cand)
 
+    # first braking decision taken WITH the conflict actor in the consumed
+    # set (the brake the actor's state could have informed)
+    conflict_brake_tick: Optional[int] = None
+    conflict_brake_age = float("nan")
+    for t in ticks:
+        rs = by_tick[t]
+        if not any(r["decision"] == "brake" or r["brake_event"] == "1" for r in rs):
+            continue
+        cand = [_f(r["age_at_use_ms"]) for r in rs
+                if r["source"] == "edge" and r["is_conflict_actor"] == "1"]
+        cand = [c for c in cand if not math.isnan(c)]
+        if cand:
+            conflict_brake_tick = t
+            conflict_brake_age = max(cand)
+            break
+
     # burst loss over edge publish sequence numbers
     seqs = sorted({int(_f(r["publish_seq"])) for r in edge
                    if r["publish_seq"] not in ("", None) and not math.isnan(_f(r["publish_seq"]))})
@@ -158,6 +180,9 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
         "critical_object_p99_ms": _p(crit, 99),
         "conflict_time_age_ms": conflict_age,
         "conflict_time_tick": float(brake_tick) if brake_tick is not None else float("nan"),
+        "conflict_brake_age_ms": conflict_brake_age,
+        "conflict_brake_tick": (float(conflict_brake_tick)
+                                if conflict_brake_tick is not None else float("nan")),
         "burst_loss_max": float(burst_max),
         "missed_publish_frac": missed_frac,
     }
@@ -165,8 +190,8 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
 
 # ----------------------------------------------------------------- groups
 METRICS = ["global_p99_age_ms", "critical_object_p99_ms", "conflict_time_age_ms",
-           "burst_loss_max", "missed_publish_frac", "edge_silence_max_ticks",
-           "p95_age_ms", "p50_age_ms"]
+           "conflict_brake_age_ms", "burst_loss_max", "missed_publish_frac",
+           "edge_silence_max_ticks", "p95_age_ms", "p50_age_ms"]
 
 
 def bootstrap_ci(vals: List[float], n_boot: int, ci: float, seed: int = 0):
@@ -222,7 +247,8 @@ def main(argv=None) -> int:
 
     # print
     hdr = ["group", "n_runs", "global_p99_age_ms", "critical_object_p99_ms",
-           "conflict_time_age_ms", "burst_loss_max", "missed_publish_frac"]
+           "conflict_time_age_ms", "conflict_brake_age_ms", "burst_loss_max",
+           "missed_publish_frac"]
     print("\t".join(hdr))
     for row in summary:
         cells = [row["group"][-70:], str(row["n_runs"])]
