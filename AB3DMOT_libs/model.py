@@ -48,6 +48,14 @@ class AB3DMOT(object):
 			self.max_age = cfg.max_age
 		if hasattr(cfg, 'min_hits'):
 			self.min_hits = cfg.min_hits
+		# Association gate override (SenSys reviewer A6 baseline sweep). The
+		# metric is one of dist_2d, dist_3d, m_dis (Mahalanobis with the KF
+		# innovation covariance), euler, iou_3d, giou_3d; the threshold is in
+		# the metric's native units (metres for dist_*, Mahalanobis units for
+		# m_dis, IoU for iou_*). Unset keys leave the get_param defaults.
+		if (getattr(cfg, 'assoc_metric', None) or getattr(cfg, 'assoc_algorithm', None)
+				or getattr(cfg, 'assoc_threshold', None) is not None):
+			self._apply_assoc_override(cfg)
 
 		# Identity exclusion zone: anisotropic heading-aligned gate
 		# prevents birth of anonymous tracks that are depth-error
@@ -63,6 +71,9 @@ class AB3DMOT(object):
 		self.birth_suppressed_by_gate = 0
 		self.births_anon_after_gate = 0
 		self.anon_cull_count = 0
+		# Anonymous-hold log: frames an anonymous track lived before a beacon
+		# bound it to an identity (detection arrived before its beacon).
+		self.anon_hold_ticks = []
 
 		# Post-birth cull: consecutive ticks an anon track is near
 		# a beacon-identified track before deletion
@@ -71,6 +82,19 @@ class AB3DMOT(object):
 		# debug
 		# self.debug_id = 2
 		self.debug_id = None
+
+	def _apply_assoc_override(self, cfg):
+		metric = getattr(cfg, 'assoc_metric', None) or self.metric
+		algm = getattr(cfg, 'assoc_algorithm', None) or self.algm
+		thres = getattr(cfg, 'assoc_threshold', None)
+		dist_like = metric in ['dist_3d', 'dist_2d', 'm_dis', 'euler']
+		if thres is None:
+			thres = abs(self.thres) if dist_like else self.thres
+		if dist_like: thres = -abs(float(thres))
+		self.algm, self.metric, self.thres = algm, metric, thres
+		if dist_like:                              self.max_sim, self.min_sim = 0.0, -100.
+		elif self.metric in ['iou_2d', 'iou_3d']:   self.max_sim, self.min_sim = 1.0, 0.0
+		elif self.metric in ['giou_2d', 'giou_3d']: self.max_sim, self.min_sim = 1.0, -1.0
 
 	def get_param(self, cfg, cat):
 		# get parameters for each dataset
@@ -386,6 +410,9 @@ class AB3DMOT(object):
 					if not already:
 						trk.carla_id = cid_in
 						trk.anchoring_age = 0
+						if getattr(trk, 'anon_birth_frame', -1) >= 0:
+							self.anon_hold_ticks.append(self.frame_count - trk.anon_birth_frame)
+							trk.anon_birth_frame = -1
 
 			if trk.id == self.debug_id:
 				print('after matching')
@@ -458,6 +485,7 @@ class AB3DMOT(object):
 			trk.carla_id = cid
 			trk.guid     = int(info[i, GUID])
 			trk.near_identified_ticks = 0  # for post-birth cull
+			trk.anon_birth_frame = self.frame_count if cid == -1 else -1
 			self.trackers.append(trk)
 			new_id_list.append(trk.id)
 

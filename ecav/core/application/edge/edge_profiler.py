@@ -127,6 +127,20 @@ class FrameMetrics:
     geom_dup_clusters: int = 0           # geometric duplicate clusters (always defined)
     geom_dup_tracks: int = 0             # tracks participating in geometric duplicate clusters
 
+    # Beacon validity (ValidBeacon), fault injection, anonymous hold (SenSys)
+    beacon_accepted: int = 0
+    beacon_rejected_displacement: int = 0
+    beacon_rejected_accel: int = 0
+    beacon_rejected_yaw_rate: int = 0
+    beacon_rejected_speed: int = 0
+    beacon_rejected_recency: int = 0
+    beacon_fault_lost: int = 0
+    beacon_fault_delayed: int = 0
+    beacon_fault_corrupted: int = 0
+    anon_merged: int = 0             # anonymous tracks bound to an identity this tick
+    anon_hold_ticks_sum: int = 0     # sum of hold durations of those merges
+    anon_hold_ticks_max: int = 0
+
     # Age-of-Information at publish boundary (ticks)
     aoi_ticks: int = 0  # current_tick - latest_source_tick
 
@@ -208,6 +222,19 @@ class IntersectionMetrics:
     total_geom_dup_tracks: int = 0
     ticks_with_geom_dups: int = 0
     geom_dup_tick_fraction: float = 0.0
+    # Beacon validity / faults / anonymous hold (aggregate)
+    total_beacon_accepted: int = 0
+    total_beacon_rejected_displacement: int = 0
+    total_beacon_rejected_accel: int = 0
+    total_beacon_rejected_yaw_rate: int = 0
+    total_beacon_rejected_speed: int = 0
+    total_beacon_rejected_recency: int = 0
+    total_beacon_fault_lost: int = 0
+    total_beacon_fault_delayed: int = 0
+    total_beacon_fault_corrupted: int = 0
+    total_anon_merged: int = 0
+    anon_hold_ticks_mean: float = 0.0
+    anon_hold_ticks_max: int = 0
 
     # AoI at publish boundary (aggregate)
     aoi_mean_ticks: float = 0.0
@@ -603,6 +630,15 @@ class EdgeProfiler:
         self._current_frame.geom_dup_clusters = geom_dup_clusters
         self._current_frame.geom_dup_tracks = geom_dup_tracks
 
+    def set_beacon_metrics(self, **counts):
+        """Set per-frame beacon validity, fault, and anonymous-hold counts.
+        Keys are FrameMetrics field names (beacon_*, anon_*)."""
+        if self._current_frame is None:
+            return
+        for k, v in counts.items():
+            if hasattr(self._current_frame, k):
+                setattr(self._current_frame, k, v)
+
     def set_aoi_ticks(self, aoi_ticks: int):
         """Set Age-of-Information for current frame (ticks since source)."""
         if self._current_frame is None:
@@ -755,6 +791,19 @@ class EdgeProfiler:
             total_ego_ghost_tracks=sum(f.ego_ghost_tracks for f in frames),
             total_geom_dup_clusters=sum(f.geom_dup_clusters for f in frames),
             total_geom_dup_tracks=sum(f.geom_dup_tracks for f in frames),
+            total_beacon_accepted=sum(f.beacon_accepted for f in frames),
+            total_beacon_rejected_displacement=sum(f.beacon_rejected_displacement for f in frames),
+            total_beacon_rejected_accel=sum(f.beacon_rejected_accel for f in frames),
+            total_beacon_rejected_yaw_rate=sum(f.beacon_rejected_yaw_rate for f in frames),
+            total_beacon_rejected_speed=sum(f.beacon_rejected_speed for f in frames),
+            total_beacon_rejected_recency=sum(f.beacon_rejected_recency for f in frames),
+            total_beacon_fault_lost=sum(f.beacon_fault_lost for f in frames),
+            total_beacon_fault_delayed=sum(f.beacon_fault_delayed for f in frames),
+            total_beacon_fault_corrupted=sum(f.beacon_fault_corrupted for f in frames),
+            total_anon_merged=sum(f.anon_merged for f in frames),
+            anon_hold_ticks_mean=(sum(f.anon_hold_ticks_sum for f in frames)
+                                  / max(1, sum(f.anon_merged for f in frames))),
+            anon_hold_ticks_max=max([f.anon_hold_ticks_max for f in frames] or [0]),
             ticks_with_geom_dups=sum(1 for f in frames if f.geom_dup_clusters > 0),
             geom_dup_tick_fraction=(
                 sum(1 for f in frames if f.geom_dup_clusters > 0) / len(frames)
@@ -929,6 +978,20 @@ class EdgeProfiler:
             'geom_dup_total_tracks': summary.total_geom_dup_tracks,
             'geom_dup_ticks_with': summary.ticks_with_geom_dups,
             'geom_dup_tick_fraction': summary.geom_dup_tick_fraction,
+
+            # Beacon validity / fault injection / anonymous hold
+            'beacon_total_accepted': summary.total_beacon_accepted,
+            'beacon_total_rejected_displacement': summary.total_beacon_rejected_displacement,
+            'beacon_total_rejected_accel': summary.total_beacon_rejected_accel,
+            'beacon_total_rejected_yaw_rate': summary.total_beacon_rejected_yaw_rate,
+            'beacon_total_rejected_speed': summary.total_beacon_rejected_speed,
+            'beacon_total_rejected_recency': summary.total_beacon_rejected_recency,
+            'beacon_fault_total_lost': summary.total_beacon_fault_lost,
+            'beacon_fault_total_delayed': summary.total_beacon_fault_delayed,
+            'beacon_fault_total_corrupted': summary.total_beacon_fault_corrupted,
+            'anon_hold_total_merged': summary.total_anon_merged,
+            'anon_hold_ticks_mean': summary.anon_hold_ticks_mean,
+            'anon_hold_ticks_max': summary.anon_hold_ticks_max,
 
             # AoI at publish boundary
             'aoi_mean_ticks': summary.aoi_mean_ticks,
@@ -1131,6 +1194,10 @@ class FrameProfileContext:
     def set_ego_uniqueness_metrics(self, **kwargs):
         """Set Ego-Uniqueness metrics (violations, duplicates, ghosts)"""
         self.profiler.set_ego_uniqueness_metrics(**kwargs)
+
+    def set_beacon_metrics(self, **kwargs):
+        """Set beacon validity / fault / anonymous-hold counts"""
+        self.profiler.set_beacon_metrics(**kwargs)
 
     def set_contention_metrics(self, **kwargs):
         """Set compute-contention metrics (vehicles affected, budget exceeded)"""
