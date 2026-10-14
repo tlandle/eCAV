@@ -3,17 +3,20 @@
 # One campaign per host and per CARLA port; every invocation reuses STAMP so an
 # interrupted campaign resumes in place (completed runs are skipped).
 #
-#   scripts/sensys_campaign.sh atlas|cetus [gate|envelope|scaling|situation|mixed|faults|all] [--dry-run]
+#   scripts/sensys_campaign.sh atlas|cetus [gate|physics|landing|scaling|mixed|faults|all] [--dry-run]
 #   STAMP=sensys_nov27 CARLA_PORT=2000 REPS=20 scripts/sensys_campaign.sh atlas gate
 #
 # Stages run in this order and the gate script decides whether to go on:
 #   gate      scenario_3, N=1, 70 km/h, 6 latencies, oracle / naive / SBA / ETSI, 10 seeds (240 runs,
 #             about 4 h on one host). Then: python scripts/sensys_analysis/campaign_check.py $STAMP
 #             FAIL stops here (a failing gate means the code or the scenario is wrong, not the seeds).
-#   envelope  every arm, 3 geometries, 8 latencies, 70 km/h, REPS seeds at N=1; gate again, then add
-#             seeds only to the cells campaign_check lists (interval straddles 0.8).
+#   physics   the envelope itself: oracle on all 3 geometries at 38 50 53 63 70 88 km/h, 8 latencies,
+#             SIT_REPS seeds at N=1; speeds split across the hosts. Success against measured age at
+#             use (scripts/sensys_analysis/envelope_measured.py) gives the physics boundary per situation.
+#   landing   every other arm on the 3 geometries at 70 km/h, 8 latencies, REPS seeds at N=1: where
+#             each architecture and contract setting lands on the same axis. campaign_check lists the
+#             cells that get 10 more seeds (interval straddles 0.8).
 #   scaling   3 latencies over the ego counts each geometry has, SCALE_REPS seeds.
-#   situation oracle at 50 km/h and at 0.75x / 1.25x of 50 and 70 km/h (cetus).
 #   mixed     V2X2V Naive / ETSI / SBA on the mixed-traffic variants (cetus).
 #   faults    beacon faults and ValidBeacon, V2X2V Naive / ETSI / SBA, N=4 (atlas).
 #
@@ -52,8 +55,8 @@ scaling_n()  { case "$1" in openscenario_3*) echo "2 4 8 16" ;; scp*) echo "4" ;
 # GATE: V2X2V with the Mahalanobis association gate (Wolf 2025 / Sensors 2026), chi-square 95% on the 7-D form
 GATE_KV="assoc_metric=m_dis assoc_threshold=3.75"
 case "$ROLE" in
-  atlas) ARMS=("late_fusion both" "$ETSI off" "oracle on" "cip on"); SCALE_ARMS=("late_fusion both" "$ETSI off" "oracle on") ;;
-  cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV") ;;
+  atlas) ARMS=("late_fusion both" "$ETSI off" "cip on"); SCALE_ARMS=("late_fusion both" "$ETSI off" "oracle on"); PHYS_SPEEDS="38 53 70" ;;
+  cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV"); PHYS_SPEEDS="50 63 88" ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
 GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_late_fusion"
@@ -72,28 +75,26 @@ if want gate; then
   fi
 fi
 
-# 1. Envelope sweep: 8 latencies x REPS seeds at N=1, 70 km/h; stage 2 adds seeds where campaign_check says so
-want envelope && for geom in $GEOMS; do
+# 1. Physics boundary: oracle, every geometry, the host's three approach speeds, SIT_REPS seeds at N=1
+want physics && for geom in $GEOMS; do
+  run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds $PHYS_SPEEDS --ego-counts 1 --repetitions $SIT_REPS $COMMON
+done
+
+# 2. Landing: every other arm at 70 km/h, 8 latencies, REPS seeds at N=1; campaign_check lists the top-up cells
+want landing && for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
     run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") --repetitions $REPS "${kvflag[@]}" $COMMON
   done
 done
 
-# 2. Scaling: 3 latencies x SCALE_REPS seeds at 70 km/h over the ego counts each geometry has
+# 3. Scaling: 3 latencies x SCALE_REPS seeds at 70 km/h over the ego counts each geometry has
 want scaling && for geom in $GEOMS; do
   for arm in "${SCALE_ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
     run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds 70 --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS "${kvflag[@]}" $COMMON
   done
 done
-
-# 3. Situation study: oracle only, 0.75x and 1.25x of 50 and 70 km/h (cetus)
-if want situation && [[ "$ROLE" == "cetus" ]]; then
-  for geom in $GEOMS; do
-    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 50 63 53 88 --ego-counts 1 --repetitions $SIT_REPS $COMMON
-  done
-fi
 
 # 4. Mixed traffic: V2X2V only, Naive / ETSI / SBA, at the mixed variants' ego counts (cetus)
 if want mixed && [[ "$ROLE" == "cetus" ]]; then
