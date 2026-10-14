@@ -186,19 +186,12 @@ class _BaseEdgeManager:
                                            _ck_ref.get("cross_traffic_type", "tesla")),
                 match_radius_m=float(_pt.get("match_radius_m", 5.0)),
             )
-            # Every SenSys manager publishes through the shared linear
-            # predictor with publish_tick=tick; wrapping it numbers each edge
-            # publish so missed publishes (burst loss) can be counted.
-            if self.lin_pred is not None:
-                _orig_gen = self.lin_pred.generate_predicted_trajectories
-                _age_logger = self._age_logger
-
-                def _gen_with_seq(*a, **kw):
-                    preds = _orig_gen(*a, **kw)
-                    if preds and kw.get("publish_tick") is not None:
-                        _age_logger.note_publish(kw["publish_tick"])
-                    return preds
-                self.lin_pred.generate_predicted_trajectories = _gen_with_seq
+            # Every SenSys manager publishes through self.lin_pred with
+            # publish_tick=tick. The lin_pred setter below wraps whatever
+            # predictor is assigned (the subclasses replace the shared one
+            # after super().__init__) so every edge publish gets a sequence
+            # number and missed publishes (burst loss) can be counted.
+            self.lin_pred = self._lin_pred
 
         # distributed mode flag (from cav_world)
         self.run_distributed = getattr(cav_world, 'run_distributed', False) if cav_world else False
@@ -207,6 +200,41 @@ class _BaseEdgeManager:
         weakref.ref(cav_world)().update_edge(self)
 
     # ─── abstract hooks every backend must override ────────────
+    # ------------------------------------------------------------------
+    # lin_pred is a property so the per-tick age logger can number edge
+    # publishes no matter which predictor a subclass assigns, or when.
+    @property
+    def lin_pred(self):
+        return self._lin_pred
+
+    @lin_pred.setter
+    def lin_pred(self, predictor):
+        self._lin_pred = self._wrap_predictor_for_age_log(predictor)
+
+    def _wrap_predictor_for_age_log(self, predictor):
+        """Return predictor with generate_predicted_trajectories wrapped to
+        call the age logger's note_publish(publish_tick). No-op when the
+        logger is off, the predictor has no such method, or it is already
+        wrapped."""
+        logger = getattr(self, "_age_logger", None)
+        if predictor is None or logger is None:
+            return predictor
+        gen = getattr(predictor, "generate_predicted_trajectories", None)
+        if gen is None or getattr(gen, "_ptage_wrapped", False):
+            return predictor
+
+        def _gen_with_seq(*a, **kw):
+            preds = gen(*a, **kw)
+            if preds and kw.get("publish_tick") is not None:
+                logger.note_publish(kw["publish_tick"])
+            return preds
+        _gen_with_seq._ptage_wrapped = True
+        try:
+            predictor.generate_predicted_trajectories = _gen_with_seq
+        except Exception:
+            pass
+        return predictor
+
     def start_edge(self):
         if self.is_proxy:
             return
