@@ -97,17 +97,13 @@ if want trace && [[ "$ROLE" == "atlas" ]]; then
   done
 fi
 
-# 2c. Control policy (reviewer C): the same envelope under speed adaptation and TTC-graded
-#     deceleration instead of the emergency stop; oracle and contract, scenario_3 and SCP,
-#     6 latencies, SIT_REPS seeds (cetus). The stop policy is the physics / landing data.
+# 2c. Control policy (reviewer C, Figure 7c): the reference envelope under an anticipatory
+#     TTC-graded deceleration (emergency stop kept as the fallback) against the emergency-stop
+#     policy of the physics stage; oracle arm, scenario_3 and SCP, 70 and 88 km/h, 6 latencies,
+#     SIT_REPS seeds: 240 runs (cetus). The stop-policy cells come from the physics stage.
 if want control && [[ "$ROLE" == "cetus" ]]; then
-  for policy in "hazard_response=speed_adapt" "hazard_response=ttc_graded"; do
-    for geom in openscenario_3_edge_late_fusion scp_edge_late_fusion; do
-      for arm in "oracle on" "late_fusion on"; do
-        set -- $arm; mgr=$1; anch=$2
-        run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies 0 100 200 300 500 700 --speeds 70 --ego-counts 1 --repetitions $SIT_REPS --behavior-kv "$policy" $COMMON
-      done
-    done
+  for geom in openscenario_3_edge_late_fusion scp_edge_late_fusion; do
+    run -t "$geom" --manager-types oracle --anchoring on --latencies 0 100 200 300 500 700 --speeds 70 88 --ego-counts 1 --repetitions $SIT_REPS --behavior-kv hazard_response=ttc_graded $COMMON
   done
 fi
 
