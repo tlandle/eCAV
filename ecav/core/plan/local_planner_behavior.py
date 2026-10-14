@@ -365,6 +365,11 @@ class LocalPlanner(object):
             x.append(cur_x)
             y.append(cur_y)
 
+        # spline node set for the [LP] diagnostic line in run_step
+        self._dbg_nodes = (list(zip(x, y)), index,
+                           f"{current_wpt.road_id}/{current_wpt.lane_id}",
+                           self.potential_curved_road)
+
         # calculate interpolation points
         rx, ry, ryaw, rk = [], [], [], []
 
@@ -685,6 +690,30 @@ class LocalPlanner(object):
         if _chosen is None:
             _chosen = self._trajectory_buffer[-1]
         self.target_waypoint, self._target_speed = _chosen
+
+        # [LP] diagnostic: ego pose, spline nodes, path start and the sharpest
+        # point ahead, and the target handed to the lateral controller, all in
+        # the vehicle frame (fwd, lat; lat > 0 is the +yaw side).
+        _tl = self.target_waypoint.transform.location if hasattr(
+            self.target_waypoint, 'is_junction') else self.target_waypoint.location
+        _dx, _dy = _tl.x - _ego_loc.x, _tl.y - _ego_loc.y
+        _tf, _tlat = _dx * _fx + _dy * _fy, -_dx * _fy + _dy * _fx
+        _nodes, _idx, _near, _curved = getattr(self, '_dbg_nodes', ([], 0, '?', None))
+        _sf = _sl = _kmax = _kf = float('nan')
+        if rx:
+            _sf = (rx[0] - _ego_loc.x) * _fx + (ry[0] - _ego_loc.y) * _fy
+            _sl = -(rx[0] - _ego_loc.x) * _fy + (ry[0] - _ego_loc.y) * _fx
+            _ahead = [(abs(k), (px - _ego_loc.x) * _fx + (py - _ego_loc.y) * _fy)
+                      for px, py, k in zip(rx[:200], ry[:200], rk[:200])
+                      if (px - _ego_loc.x) * _fx + (py - _ego_loc.y) * _fy > 0.0]
+            if _ahead:
+                _kmax, _kf = max(_ahead)
+        logger.info(f"[LP] ego=({_ego_loc.x:.2f},{_ego_loc.y:.2f}) yaw={self._ego_pos.rotation.yaw:.1f} "
+                    f"v={self._ego_speed:.1f} near={_near} curved={_curved} idx={_idx} "
+                    f"start=({_sf:+.1f},{_sl:+.1f}) kmax={_kmax:.3f}@{_kf:.1f} "
+                    f"tgt=({_tf:+.2f},{_tlat:+.2f}) ang={math.degrees(math.atan2(_tlat, _tf)):+.1f} "
+                    f"tspd={self._target_speed:.1f} n_tb={len(self._trajectory_buffer)} "
+                    f"nodes={[(round(a, 1), round(b, 1)) for a, b in _nodes]}")
 
         # Purge the queue of obsolete waypoints
         vehicle_transform = self._ego_pos
