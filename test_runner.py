@@ -90,6 +90,8 @@ ap.add_argument("--mac-p-keep", nargs="*", type=float, default=[],
 ap.add_argument("--seed", type=int, default=None,
                 help="Random seed for reproducibility")
 ap.add_argument("--repetitions", type=int, default=1)
+ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.get("CARLA_PORT", 2000)),
+                help="CARLA RPC port for this campaign; one campaign per port and per host (default 2000 or $CARLA_PORT)")
 args = ap.parse_args()
 
 CARLA_BIN = "CarlaUE4-Linux-Shipping"      # running binary name
@@ -163,7 +165,8 @@ print(f"  Total runs: {TOTAL_RUNS}\n", flush=True)
 
 # ───────────────── CARLA watchdog helpers ────────────────────────────────
 CARLA_SH   = Path.home() / "carla-0.9.15/CarlaUE4.sh"
-CARLA_PORT = 2000
+CARLA_PORT = int(args.carla_port)
+_CARLA_PROC = None   # handle of the server this runner started; kills are anchored to it
 
 def oncoming_speed_for(ego_kmh: int) -> float:
     """Return Lincoln target speed in m/s (WaypointFollower uses m/s).
@@ -181,7 +184,7 @@ def oncoming_speed_for(ego_kmh: int) -> float:
 def carla_running() -> bool:
     """True if server proc exists AND port answers."""
     try:
-        ok_proc = subprocess.run(["pgrep", "-f", CARLA_BIN], stdout=subprocess.DEVNULL).returncode == 0
+        ok_proc = subprocess.run(["pgrep", "-f", f"{CARLA_BIN}.*-carla-port={CARLA_PORT}(\\s|$)"], stdout=subprocess.DEVNULL).returncode == 0
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.5)
             ok_port = s.connect_ex(("127.0.0.1", CARLA_PORT)) == 0
@@ -191,8 +194,9 @@ def carla_running() -> bool:
 
 def start_carla():
     print("    (re)starting CARLA ...", flush=True)
-    subprocess.Popen([str(CARLA_SH), "-RenderOffScreen"],
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    global _CARLA_PROC
+    _CARLA_PROC = subprocess.Popen([str(CARLA_SH), "-RenderOffScreen", f"-carla-port={CARLA_PORT}"],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     t0 = time.time()
     while time.time() - t0 < 120:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -202,14 +206,21 @@ def start_carla():
                 time.sleep(3)  # let the RPC layer settle past port-open
                 return
         time.sleep(1)
-    raise RuntimeError("CARLA failed to open port 2000 within 120 s")
+    raise RuntimeError(f"CARLA failed to open port {CARLA_PORT} within 120 s")
 
 def kill_carla():
+    """Stop only the CARLA server bound to CARLA_PORT (the one this runner started)."""
     print("    stopping CARLA ...", flush=True)
-    subprocess.run(["pkill", "-f", CARLA_BIN], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    pat = f"{CARLA_BIN}.*-carla-port={CARLA_PORT}(\\s|$)"
+    subprocess.run(["pkill", "-f", pat], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if _CARLA_PROC is not None and _CARLA_PROC.poll() is None:
+        try:
+            _CARLA_PROC.terminate()
+        except Exception:
+            pass
     t0 = time.time()
     while time.time() - t0 < 15:
-        subprocess.run(["pkill", "-f", "CarlaUE4-Linux-Shipping"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["pkill", "-f", pat], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.5)
             if s.connect_ex(("127.0.0.1", CARLA_PORT)) != 0:
@@ -391,6 +402,12 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         for veh in d.get("scenario", {}).get("single_cav_list", []):
             _patch_vehicle_localization(veh, gps_noise, gps_dropout)
 
+    # CARLA port for this campaign: the client and the scenario runner must agree with the server
+    if isinstance(d.get("world"), dict):
+        d["world"]["client_port"] = CARLA_PORT
+    for _sec in d.values():
+        if isinstance(_sec, dict) and "configFile" in _sec and "port" in _sec:
+            _sec["port"] = CARLA_PORT
     if speed_kmh is not None:
         if "edge_list" in d.get("scenario", {}):
             # Patch only the focal ego (vehicles[0]) — other egos keep default
