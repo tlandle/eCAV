@@ -393,6 +393,8 @@ class AB3DMOT(object):
 			trk.kf.P = P_new[j]
 			trk.time_since_update = 0
 			trk.hits += 1
+			if getattr(self, '_cur_frame_tick', None) is not None:
+				trk.last_obs_tick = self._cur_frame_tick
 
 			if trk.id == self.debug_id:
 				print('After ego-compoensation')
@@ -486,6 +488,8 @@ class AB3DMOT(object):
 			trk.guid     = int(info[i, GUID])
 			trk.near_identified_ticks = 0  # for post-birth cull
 			trk.anon_birth_frame = self.frame_count if cid == -1 else -1
+			if getattr(self, '_cur_frame_tick', None) is not None:
+				trk.last_obs_tick = self._cur_frame_tick   # born from this frame's detection
 			self.trackers.append(trk)
 			new_id_list.append(trk.id)
 
@@ -686,6 +690,12 @@ class AB3DMOT(object):
 		"""
 		dets, info = dets_all['dets'], dets_all['info']         # dets: N x 7, float numpy array
 		if self.debug_id: print('\nframe is %s' % frame)
+		# tick of the frame being ingested; matched tracks record it as the
+		# time of their last real observation (observation lineage)
+		try:
+			self._cur_frame_tick = int(frame)
+		except (TypeError, ValueError):
+			self._cur_frame_tick = None
 	
 		# logging
 		self.frame_count += 1

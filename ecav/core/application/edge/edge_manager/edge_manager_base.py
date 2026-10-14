@@ -237,17 +237,20 @@ class _BaseEdgeManager:
             src = kw.get("source_tick")
             trks = getattr(getattr(self, "tracker", None), "trackers", None)
             if preds and src is not None and trks:
-                tsu = {}
+                obs_of = {}
                 for trk in trks:
                     try:
-                        tsu[int(trk.id)] = int(getattr(trk, "time_since_update", 0))
+                        last = getattr(trk, "last_obs_tick", None)
+                        if last is None:  # track born before the stamp existed
+                            last = int(src) - int(getattr(trk, "time_since_update", 0))
+                        obs_of[int(trk.id)] = int(last)
                     except (TypeError, ValueError):
                         pass
                 for p in preds:
                     tid = getattr(getattr(p, "obstacle_trajectory", None), "obstacle", None)
                     tid = getattr(tid, "track_id", None)
                     try:
-                        p.obs_tick = int(src) - tsu.get(int(tid), 0) if tid is not None else int(src)
+                        p.obs_tick = obs_of.get(int(tid), int(src)) if tid is not None else int(src)
                     except (TypeError, ValueError):
                         p.obs_tick = int(src)
             return preds
