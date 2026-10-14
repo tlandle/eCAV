@@ -24,6 +24,26 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from campaign_check import load_runs, wilson, ROOT  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "safety_envelope_paper"))
+from reduce_per_tick_age import reduce_run  # noqa: E402
+
+
+def run_axis(r, axis):
+    """Per-run age statistic on the chosen axis: critical (p99 over the
+    conflict actor's consumed objects, the paper's planner-side tail), global
+    (p99 over every consumed object; dominated by the planner's 24-tick hold of
+    unrefreshed tracks), or brake (age of the conflict actor at the first
+    braking decision)."""
+    rd = os.path.dirname(r["path"])
+    for p in (os.path.join(rd, "per_tick_age.csv"), os.path.join(rd, "evaluation_output", "per_tick_age.csv")):
+        if os.path.exists(p):
+            m = reduce_run(p)
+            key = {"critical": "critical_object_p99_ms", "global": "global_p99_age_ms", "brake": "conflict_brake_age_ms"}[axis]
+            v = m.get(key, float("nan"))
+            if v != v and axis == "critical":
+                v = m.get("global_p99_age_ms", float("nan"))
+            return v
+    return float("nan")
 
 ARM_LABEL = {
     ("oracle", "on"): "Oracle",
@@ -52,19 +72,22 @@ def main(argv=None):
     ap.add_argument("--bin", type=float, default=50.0)
     ap.add_argument("--threshold", type=float, default=0.8)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--axis", choices=("critical", "global", "brake"), default="critical")
     a = ap.parse_args(argv)
     out = a.out or os.path.join(ROOT, "safety_envelope_paper", "analysis", a.stamp)
     os.makedirs(out, exist_ok=True)
 
     runs = [r for r in load_runs(a.root, a.stamp) if not r.get("bad")]
-    with_age = [r for r in runs if r["age_p99"] == r["age_p99"]]
-    print(f"{len(runs)} runs, {len(with_age)} with a per-tick age log")
+    for r in runs:
+        r["axis_ms"] = run_axis(r, a.axis)
+    with_age = [r for r in runs if r["axis_ms"] == r["axis_ms"]]
+    print(f"{len(runs)} runs, {len(with_age)} with a per-tick age log; axis = {a.axis} p99 age at use")
     if not with_age:
         return 2
 
     bins = collections.defaultdict(list)
     for r in with_age:
-        b = int(r["age_p99"] // a.bin) * a.bin + a.bin / 2
+        b = int(r["axis_ms"] // a.bin) * a.bin + a.bin / 2
         bins[(r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"], b)].append(r["s_op"])
 
     rows = []
@@ -93,7 +116,7 @@ def main(argv=None):
                 break
         taus.append((arm, tau, len(pts), sum(n for _, _, n in pts)))
     with open(os.path.join(out, "tau_max.md"), "w") as fh:
-        fh.write(f"# tau_max at P(S_op) >= {a.threshold} on measured p99 age at use ({a.stamp})\n\n")
+        fh.write(f"# tau_max at P(S_op) >= {a.threshold} on measured {a.axis} p99 age at use ({a.stamp})\n\n")
         fh.write("| geometry | km/h | arm | N | bins | runs | tau_max (bin centre, ms) |\n|---|---|---|---|---|---|---|\n")
         for (geom, spd, mgr, anch, N, kv), tau, nb, nr in taus:
             fh.write(f"| {geom} | {spd} | {label(mgr, anch, kv)} | {N} | {nb} | {nr} | {tau if tau is not None else 'below threshold in the first bin'} |\n")
@@ -117,7 +140,7 @@ def main(argv=None):
             ax.errorbar(xs, [p[1] for p in pts], yerr=[[p[1] - p[2] for p in pts], [p[3] - p[1] for p in pts]],
                         marker="o", capsize=2, label=f"{label(arm[2], arm[3], arm[5])} {arm[1]} km/h N={arm[4]}")
         ax.axhline(a.threshold, color="gray", lw=0.8, ls="--")
-        ax.set_xlabel("measured p99 age at use (ms)")
+        ax.set_xlabel(f"measured {a.axis} p99 age at use (ms)")
         ax.set_ylabel("P(S_op)")
         ax.set_ylim(-0.02, 1.02)
         ax.set_title(geom)
