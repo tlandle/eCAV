@@ -5662,3 +5662,110 @@ does this check on a results tree).
   15:45, cetus 15:46); the 20 and 14 runs of the second start are kept as
   `sensys_nov27_gate2_partial`. Every figure stage runs on d24b53d8 or later
   only after the gate passes on it.
+
+### 2026-10-14: cross-traffic track loss at the RSU handover is an association defect, fixed offline (branch sensys/edge-track-handover)
+
+Runs: sensys_nov27_gate3_partial anchoring_on lat_0 run_4 (hero collided
+with the Tesla) and sensys_nov27_gate1 lat_0 run_10, late-fusion edge,
+AB3DMOT (det_name pvrcnn: hungar, dist_2d 4 m, min_hits 3, max_age 6).
+Ground truth: every per_tick_age.csv row of a tick carries conflict_dist_m
+against the same live GT point, so three or more rows trilaterate the
+Tesla per tick (residual 0.00; scratchpad gt_trilat.py, now inside
+scripts/diag/replay_edge_tracker.py). The Tesla (actor 455, WaypointFollower
+at 13.4 m/s) starts at tick 26, accelerates 2.8 to 13.7 m/s by tick 60
+(the "5 m/s" of track 29 over ticks 31 to 63 is half real: GT was 4.6 to
+13.7 m/s there, the KF lagged by 3 to 7 m/s), holds 13 m/s, crosses the
+conflict point (-84.8) at tick 113. The published conflict-actor track was
+absent for ticks 64 to 65, 69 to 74, 76 to 81 and 104 to 119, the last gap
+covering the crossing.
+
+Why the track dies. Not detection: both RSUs report the Tesla on every
+tick from 26 to 97, rsu_-2 alone from 98 to 120 (rsu_-1 at (-82, 126) loses
+it inside 8 m), the hero's own camera from 109. The two RSUs see different
+faces: the fusion box sits at the nearest-surface centroid
+(o3d_lidar_libs._nearest_surface_centroid, mean of the nearest half of the
+points), so rsu_-1, looking at the front, reports 0.7 m ahead of the GT
+centre and rsu_-2, looking at the rear plus its 2D SORT lag, 2.5 m behind:
+3.3 m apart on average, 4.5 m worst case, 68 percent of ticks at 3 m or
+more. rsu_-2 also repeats a stale box on 20 of 94 ticks (the perception
+step reuses the last camera image). The edge's _cross_source_nms (3 m,
+keeps the first-listed source) let the pair through on those ticks, and
+AB3DMOT's own nms() merged it within max(l, w) but keeps the LAST-listed of
+equal scores (argsort(scores)[::-1]), so the measurement handed to the KF
+flipped between the front face and the rear face by 3 to 4 m. The
+kinematic innovation gate in AB3DMOT_libs/matching.py then rejected it:
+kf_speed_ground is the KF state velocity per tracker frame (m/tick, one
+frame per source tick, see _ab3d_history_to_trajs dividing by dt) but the
+gate compared it with m/s constants, so every track below 10 m/s counted
+as stationary with a 1.0 m gate and a 13 m/s track got max(0.65 * 0.05 +
+1.0, 1.5) = 1.5 m. The rejected track coasts (output() zeroes the
+published velocity while time_since_update > 0, so the planner's linear
+predictor emits a stationary prediction), dies after max_age 6, and the
+unmatched detections birth a new id, which the predictor ignores until it
+has been published in 10 of the last 30 frames
+(linear_predictor_manager._MIN_HISTORY_ANONYMOUS). Each re-birth therefore
+costs 13 ticks of planner blindness; run_4 went through tracks 29, 48, 56,
+60, 63, 81, 84, 93 in 90 ticks. The jitter buffer also fed 8 of 599 frames
+out of order (a later packet arriving first; drain() sorts only what is
+ready), a 0.65 m backward innovation each time; secondary, not changed.
+
+Why the tracked speed is low. Three parts: the Tesla really was slow
+until tick 51 (GT 4.6 to 11 m/s over the life of track 29); the KF
+(R = 3, Q_vel = 0.01) lags an accelerating target by 3 to 7 m/s; and every
+published zero is a coasting frame, not a tracker estimate. Detections are
+not late (gen_tick = publish_tick at 0 ms). KF velocity initialisation is
+not the issue: P_vel = 1000 makes the second update set the velocity from
+the displacement; the phantom 16 to 49 m/s of newborn tracks in the replay
+comes from the face flip inside their first three frames.
+
+Fix (smallest set that holds the track through the handover, applied in
+the shared tracker and the shared NMS so every arm gets it: naive, SBA,
+ETSI, I2V and CIP inherit _collect_detections_for_frame from
+PredictionLateFusionEdge; VIPS calls _cross_source_nms itself; oracle has
+no NMS but shares matching.py):
+1. matching.py: trk_speed = kf_speed_ground / _DT before the gate, so the
+   stationary rule applies below 0.5 m/s as its comment says and the speed
+   term is the real per-tick displacement.
+2. matching.py: _D_BASE 1.0 to 3.0 m, the measured cross-view disagreement;
+   the dist_2d threshold (4 m) still bounds the innovation above it. The
+   stationary gate (1.0 m) is unchanged, so the parked-car hijack the gate
+   was built for is still rejected.
+3. _cross_source_nms default 3.0 to 5.0 m (one car length, the same radius
+   perception_manager's cross-camera NMS uses), both call sites on the
+   default, so one face per vehicle per frame reaches the tracker; the
+   copy in fusion/late_fusion_backend.py (adaptive and SOTA pluggable
+   edges) set to the same value.
+Not changed: max_age (longer coasting publishes a stationary ghost: with
+max_age 12 alone 46 percent of planner-visible ticks were stationary
+predictions and 36 ticks coasted at a 12.3 m/s speed error), the KF
+noise, the centroid itself, time_since_update semantics (a re-association
+is a real measurement update, so obs_tick = source_tick -
+time_since_update stays the observation time).
+
+Offline verification (scripts/diag/replay_edge_tracker.py: rebuilds every
+tracker frame from the [DET] lines in drain order, drives the real AB3DMOT
+with the edge's mot_cfg and the edge's NMS, scores against the
+trilaterated GT over ticks 26 to 136; before the change it reproduces the
+logged tracks, same ids and positions to 0.1 m through tick 63). Mean of
+run_4 and run_10:
+| setting | ids | tracker gap | published v err | coasting ticks (v err) | planner-visible uncovered / max gap | stationary frac |
+|---|---|---|---|---|---|---|
+| before | 12.5 | 2 | 6.9 m/s | 27 (12.5 m/s) | 58.5 / 44.5 | 0.18 |
+| unit fix only | 9.5 | 1 | 6.3 | 23.5 (12.4) | 43 / 25.5 | 0.21 |
+| unit fix + 3 m allowance | 3 | 0 | 3.5 | 11.5 (11.6) | 7.5 / 7.5 | 0.07 |
+| + 5 m NMS (shipped) | 1 | 0 | 2.2 | 0.5 | 4 / 4 | 0.01 |
+| max_age 12 alone | 7.5 | 1.5 | 6.7 | 36 (12.3) | 14.5 / 10.5 | 0.46 |
+Allowance sweep with the unit fix and 5 m NMS: 2.0 m gives 3.5 ids,
+2.5 m 2.5, 3.0 m 1. The shipped result is identical at both extent
+extremes the log lacks (3.5 and 5.5 m boxes) and with anchoring off. After
+the fix the Tesla is track 23 from its parked state to tick 136 with a
+measurement on every tick; the residual 2.2 m/s is the KF lag over the
+acceleration (ticks 26 to 55) and a dip to 7.7 m/s at the tick 98 source
+switch (rsu_-2's rear-face box is 2.5 m behind), back to 12.9 m/s by tick
+109; position error 1.4 m mean, 3.1 m max (the rear-face bias, not
+extrapolation).
+
+Live check when the GPU is free: one gate cell (late_fusion, anchoring on,
+0 ms, 70 km/h, 10 seeds) and read per_tick_age.csv for one conflict-actor
+track id from tick 26 to the crossing, no published speed below 10 m/s
+after tick 60, and no external_stale brake on the Tesla.

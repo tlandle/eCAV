@@ -443,7 +443,7 @@ class VIPSTemporalEdge(_BaseEdgeManager):
                             self, objects, beacons,
                             frame_idx=source_tick,
                             beacon_id_mgr=self.beacon_id_mgr)
-                        dets_all = _cross_source_nms(dets_all, cdist_thresh=3.0)
+                        dets_all = _cross_source_nms(dets_all)
 
                         num_dets = max(num_dets, len(dets_all['dets']))
 

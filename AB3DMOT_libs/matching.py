@@ -22,8 +22,28 @@ CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknow
 # KF velocity estimate is reliable.  For young tracks the large P[7:]
 # uncertainty makes the velocity unreliable, so we rely on the distance
 # threshold alone.
+#
+# trk_speed arrives as the KF state velocity, which is per tracker frame
+# (one frame per source tick), so it is converted to m/s with _DT before
+# the comparison. Until 2026-10-14 the per-frame value was compared
+# directly against the m/s constants: every track below 10 m/s counted
+# as stationary and got the 1 m gate, and the speed term contributed
+# at most 0.03 m, so a 13 m/s crossing vehicle was gated at 1.0-1.5 m.
+#
+# D_BASE covers the disagreement between object-level detections of the
+# same vehicle from different viewpoints. Roadside camera-lidar fusion
+# places a box at the nearest-surface centroid, so two RSUs that see a
+# crossing car end-on report its front and rear faces: 3.3 m apart on
+# average, 4.5 m worst case, in the SenSys scenario_3 logs
+# (docs/kb/wiki/current_state.md, 2026-10-14). The old 1 m allowance
+# rejected the measurement whenever the surviving detection switched
+# source, so the track coasted and died and the vehicle was re-born as
+# a new id. 3 m is the smallest allowance that keeps a 13 m/s crossing
+# vehicle on one track through an RSU handover in the offline replay
+# (scripts/diag/replay_edge_tracker.py). The association threshold
+# (4 m for dist_2d) still bounds the innovation above this.
 _DT                  = 0.05   # tick duration (seconds)
-_D_BASE              = 1.0    # measurement-noise allowance (m)
+_D_BASE              = 3.0    # cross-view measurement allowance (m)
 _D_MIN               = 1.5    # minimum gate size (m)
 _KINEMATIC_MIN_HITS  = 3      # min tracker updates before gate activates
 _V_STATIC            = 0.5    # below this = "stationary" track (m/s)
@@ -165,6 +185,8 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 		# stationary track implies 40 m/s velocity (800 m/s² accel).
 		trk_speed = getattr(trks[m[1]], 'kf_speed_ground', None)
 		trk_hits  = getattr(trks[m[1]], 'hits', 0)
+		if trk_speed is not None:
+			trk_speed = trk_speed / _DT       # KF velocity is per frame; gate is in m/s
 
 		if (trk_speed is not None and trk_hits >= _KINEMATIC_MIN_HITS
 				and metric in ('dist_3d', 'dist_2d', 'm_dis', 'euler')):
