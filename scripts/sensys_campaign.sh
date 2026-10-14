@@ -19,8 +19,10 @@ set -euo pipefail
 ROLE="${1:?atlas|cetus}"; DRY="${2:-}"
 STAMP="${STAMP:-sensys_nov27}"
 PORT="${CARLA_PORT:-2000}"
-REPS="${REPS:-20}"              # envelope sweep and mixed traffic
-SCALE_REPS="${SCALE_REPS:-10}"  # scaling and situation studies
+REPS="${REPS:-20}"              # envelope sweep (N=1)
+MIX_REPS="${MIX_REPS:-10}"      # mixed traffic (N=4 / N=2)
+SCALE_REPS="${SCALE_REPS:-5}"   # scaling and faults (N=4 and above)
+SIT_REPS="${SIT_REPS:-10}"      # situation study (N=1)
 PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
 export PYTHONPATH="$HOME/carla-0.9.15/PythonAPI/carla:${PYTHONPATH:-}"   # CARLA agents package (needed on cetus)
 LATS="0 50 100 150 200 250 300 350 400 450 500 550"
@@ -30,8 +32,8 @@ ETSI="late_fusion_etsi_self_announcement"
 COMMON="--latency-distribution hybrid --self-id-radius 1.0 --stamp $STAMP --carla-port $PORT --per-tick-age-log"
 
 run() { if [[ "$DRY" == "--dry-run" ]]; then echo "$PY test_runner.py $*"; else "$PY" test_runner.py "$@"; fi; }
-# N for the envelope sweep is the largest ego count each geometry has below 8
-envelope_n() { case "$1" in blind_overtake*) echo 2 ;; *) echo 4 ;; esac; }
+# Envelope sweep and situation study run at N=1 (April density); N=4 runs take 200 s, N=1 runs 65 s
+envelope_n() { echo 1; }
 scaling_n()  { case "$1" in openscenario_3*) echo "2 4 8 16" ;; scp*) echo "4" ;; *) echo "2" ;; esac; }
 
 case "$ROLE" in
@@ -44,7 +46,7 @@ GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_
 mkdir -p experiment_results/campaign_meta
 { echo "stamp=$STAMP role=$ROLE port=$PORT reps=$REPS"; git rev-parse HEAD; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_${ROLE}.txt"
 
-# 1. Envelope sweep: 12 latencies x 2 speeds at the geometry's envelope N
+# 1. Envelope sweep: 12 latencies x 2 speeds x REPS seeds at N=1
 for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2
@@ -52,33 +54,33 @@ for geom in $GEOMS; do
   done
 done
 
-# 2. Scaling: 3 latencies over the ego counts each geometry has
+# 2. Scaling: 3 latencies x SCALE_REPS seeds at 70 km/h over the ego counts each geometry has
 for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2
-    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS $COMMON
+    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds 70 --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS $COMMON
   done
 done
 
 # 3. Situation study: oracle only, 0.75x and 1.25x of 50 and 70 km/h (cetus)
 if [[ "$ROLE" == "cetus" ]]; then
   for geom in $GEOMS; do
-    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 --ego-counts $(envelope_n "$geom") --repetitions $SCALE_REPS $COMMON
+    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 --ego-counts 1 --repetitions $SIT_REPS $COMMON
   done
 fi
 
 # 4. Mixed traffic: V2X2V only, Naive / ETSI / SBA, at the mixed variants' ego counts (atlas)
 if [[ "$ROLE" == "atlas" ]]; then
-  run -t openscenario_3_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
-  run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
-  run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
-  run -t scp_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
-  run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $REPS $COMMON
-  run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $REPS $COMMON
+  run -t openscenario_3_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
+  run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
+  run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
+  run -t scp_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
+  run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $MIX_REPS $COMMON
+  run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $MIX_REPS $COMMON
 fi
 
 # 5. Beacon faults: V2X2V Naive / ETSI / SBA, one knob at a time via --edge-kv
-#    (keys of the gating track), scenario_3 and SCP at N=4, SCALE_REPS seeds, 200 ms.
+#    (keys of the gating track), scenario_3 and SCP at N=4, SCALE_REPS seeds, 200 ms, 70 km/h.
 if [[ "$ROLE" == "atlas" ]]; then
   FAULTS="beacon_fault_loss_rate=0.1 beacon_fault_loss_rate=0.3 beacon_fault_loss_rate=0.5 beacon_fault_loss_rate=0.7 \
           beacon_fault_delay_ticks=1 beacon_fault_delay_ticks=2 beacon_fault_delay_ticks=4 beacon_fault_delay_ticks=8 \
@@ -86,14 +88,14 @@ if [[ "$ROLE" == "atlas" ]]; then
           beacon_fault_pos_noise_m=0.5 beacon_fault_pos_noise_m=1.0 beacon_fault_pos_noise_m=2.0 beacon_fault_pos_noise_m=4.0"
   for geom in openscenario_3_edge_late_fusion scp_edge_late_fusion; do
     for kv in $FAULTS; do
-      run -t "$geom" --manager-types late_fusion --anchoring both --latencies 200 --speeds $SPEEDS --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" $COMMON
-      run -t "$geom" --manager-types "$ETSI" --anchoring off --latencies 200 --speeds $SPEEDS --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" $COMMON
+      run -t "$geom" --manager-types late_fusion --anchoring both --latencies 200 --speeds 70 --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" $COMMON
+      run -t "$geom" --manager-types "$ETSI" --anchoring off --latencies 200 --speeds 70 --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" $COMMON
     done
   done
   # ValidBeacon on, same faults, SBA arm only
   for geom in openscenario_3_edge_late_fusion scp_edge_late_fusion; do
     for kv in $FAULTS; do
-      run -t "$geom" --manager-types late_fusion --anchoring on --latencies 200 --speeds $SPEEDS --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" beacon_validity_checks=true $COMMON
+      run -t "$geom" --manager-types late_fusion --anchoring on --latencies 200 --speeds 70 --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" beacon_validity_checks=true $COMMON
     done
   done
 fi
