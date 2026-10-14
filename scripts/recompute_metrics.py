@@ -138,6 +138,15 @@ def compute_run_metrics(d):
             attr["gt_brake_class"] = "self_ghost"
             attr["gt_provenance"] = "self"
             reclassified += 1
+        elif (attr.get("gt_brake_class") == "self_ghost"
+                and attr.get("gt_matched_actor_id") not in (None, ego_actor_id)):
+            # April's definition: a self-ghost is a track whose nearest GT
+            # actor is the ego. The provenance-history taxonomy (July) also
+            # labels tracks that merely passed within the ego's radius; those
+            # matched another actor now and are counted as other false brakes.
+            attr["gt_brake_class"] = "other_fp"
+            attr["gt_provenance"] = "history_only"
+            reclassified += 1
 
     # Recount tick totals after reclassification
     ghost_ticks = sum(1 for a in ba if a.get("gt_brake_class") == "self_ghost")
@@ -166,15 +175,26 @@ def compute_run_metrics(d):
     # Pass unless focal ego is stuck or had a collision
     result["s_clear"] = 1 if (not result["focal_stuck"] and focal_coll == 0) else 0
 
-    # --- S_prog: at least 60 percent of the target speed over the run ---
-    # Same clause the live evaluator applies (evaluate_manager.py); runs whose
-    # metrics file predates the target_speed_kmh field pass by default.
-    tgt_kmh = d.get("target_speed_kmh")
-    avg_mps = fv.get("avg_speed_mps")
-    if tgt_kmh is None or avg_mps is None:
-        result["s_prog"] = 1
+    # --- S_prog: the focal completes the maneuver within the step budget ---
+    # Runs on the capped scenarios (config_max_step, or any run that carries
+    # the per-tick-log key) exit at the destination before the cap; reaching
+    # the cap means the focal never completed. The April runs ended on
+    # arrival with no cap, so there the clause is the evaluator's 60 percent
+    # of target speed.
+    edges_ = list(d.get("edges", {}).values())
+    frames_ = edges_[0].get("total_frames") if edges_ else None
+    cap = d.get("config_max_step")
+    if cap is None and "config_per_tick_age_log" in d:
+        cap = 300
+    if cap is not None and frames_ is not None:
+        result["s_prog"] = 1 if int(frames_) < int(cap) else 0
     else:
-        result["s_prog"] = 1 if float(avg_mps) >= 0.6 * float(tgt_kmh) / 3.6 else 0
+        tgt_kmh = d.get("target_speed_kmh")
+        avg_mps = fv.get("avg_speed_mps")
+        if tgt_kmh is None or avg_mps is None:
+            result["s_prog"] = 1
+        else:
+            result["s_prog"] = 1 if float(avg_mps) >= 0.6 * float(tgt_kmh) / 3.6 else 0
 
     # --- S_op: operational success ---
     result["s_op"] = (result["s_coll"] & result["s_ghost"] & result["s_fp"]

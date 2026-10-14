@@ -585,6 +585,12 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if nms_threshold is not None: metrics["config_nms_threshold"] = nms_threshold
     if ego_count is not None: metrics["config_ego_count"] = ego_count
     if EDGE_KV: metrics["config_edge_kv"] = dict(EDGE_KV)
+    try:  # the scenario file's step cap, so the reduction knows what "completed" means
+        import re as _re
+        _m = _re.search(r"^MAX_STEP\s*=\s*(\d+)", (Path("ecav/scenario_testing") / f"{scenario_name}.py").read_text(), _re.M)
+        if _m: metrics["config_max_step"] = int(_m.group(1))
+    except Exception:
+        pass
     if timestamp_noise is not None: metrics["config_timestamp_noise_ms"] = timestamp_noise
     if self_id_radius is not None: metrics["config_self_id_radius"] = self_id_radius
     if see_v2x_filter is not None: metrics["config_see_v2x_filter"] = see_v2x_filter
