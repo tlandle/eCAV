@@ -3,8 +3,19 @@
 # One campaign per host and per CARLA port; every invocation reuses STAMP so an
 # interrupted campaign resumes in place (completed runs are skipped).
 #
-#   scripts/sensys_campaign.sh atlas|cetus [--dry-run]
-#   STAMP=sensys_nov27 CARLA_PORT=2000 REPS=20 scripts/sensys_campaign.sh atlas
+#   scripts/sensys_campaign.sh atlas|cetus [gate|envelope|scaling|situation|mixed|faults|all] [--dry-run]
+#   STAMP=sensys_nov27 CARLA_PORT=2000 REPS=20 scripts/sensys_campaign.sh atlas gate
+#
+# Stages run in this order and the gate script decides whether to go on:
+#   gate      scenario_3, N=1, 70 km/h, 6 latencies, oracle / naive / SBA / ETSI, 10 seeds (240 runs,
+#             about 4 h on one host). Then: python scripts/sensys_analysis/campaign_check.py $STAMP
+#             FAIL stops here (a failing gate means the code or the scenario is wrong, not the seeds).
+#   envelope  every arm, 3 geometries, 12 latencies, 2 speeds, REPS seeds at N=1; gate again, then add
+#             seeds only to the cells campaign_check lists (interval straddles 0.8).
+#   scaling   3 latencies over the ego counts each geometry has, SCALE_REPS seeds.
+#   situation oracle at 0.75x and 1.25x of 50 and 70 km/h (cetus).
+#   mixed     V2X2V Naive / ETSI / SBA on the mixed-traffic variants (cetus).
+#   faults    beacon faults and ValidBeacon, V2X2V Naive / ETSI / SBA, N=4 (atlas).
 #
 # Arms (manager type, anchoring):
 #   late_fusion off/on   V2X2V object sharing, Naive / SBA (the contract)
@@ -16,7 +27,9 @@
 # (4ego only), blind overtake on Town01 (2ego only). Mixed-traffic variants
 # exist at scenario_3 4ego, SCP 4ego, blind overtake 2ego.
 set -euo pipefail
-ROLE="${1:?atlas|cetus}"; DRY="${2:-}"
+ROLE="${1:?atlas|cetus}"; STAGE="${2:-all}"; DRY="${3:-}"
+[[ "$STAGE" == "--dry-run" ]] && { STAGE=all; DRY="--dry-run"; }
+want() { [[ "$STAGE" == "all" || "$STAGE" == "$1" ]]; }
 STAMP="${STAMP:-sensys_nov27}"
 PORT="${CARLA_PORT:-2000}"
 REPS="${REPS:-20}"              # envelope sweep (N=1)
@@ -48,8 +61,19 @@ GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_
 mkdir -p experiment_results/campaign_meta
 { echo "stamp=$STAMP role=$ROLE port=$PORT reps=$REPS"; git rev-parse HEAD; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_${ROLE}.txt"
 
+# 0. Gate: the cells whose shape is known from April, 10 seeds, then campaign_check decides
+if want gate; then
+  for arm in "late_fusion both" "oracle on" "$ETSI off"; do
+    set -- $arm; mgr=$1; anch=$2
+    run -t openscenario_3_edge_late_fusion --manager-types "$mgr" --anchoring "$anch" --latencies 0 100 200 300 400 500 --speeds 70 --ego-counts 1 --repetitions 10 $COMMON
+  done
+  if [[ "$DRY" != "--dry-run" ]]; then
+    "$PY" scripts/sensys_analysis/campaign_check.py "$STAMP" | tee "experiment_results/campaign_meta/${STAMP}_gate_${ROLE}.txt" || { echo "gate FAILED, stopping"; exit 3; }
+  fi
+fi
+
 # 1. Envelope sweep: 12 latencies x 2 speeds x REPS seeds at N=1
-for geom in $GEOMS; do
+want envelope && for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
     run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") --repetitions $REPS "${kvflag[@]}" $COMMON
@@ -57,7 +81,7 @@ for geom in $GEOMS; do
 done
 
 # 2. Scaling: 3 latencies x SCALE_REPS seeds at 70 km/h over the ego counts each geometry has
-for geom in $GEOMS; do
+want scaling && for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
     run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds 70 --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS "${kvflag[@]}" $COMMON
@@ -65,14 +89,14 @@ for geom in $GEOMS; do
 done
 
 # 3. Situation study: oracle only, 0.75x and 1.25x of 50 and 70 km/h (cetus)
-if [[ "$ROLE" == "cetus" ]]; then
+if want situation && [[ "$ROLE" == "cetus" ]]; then
   for geom in $GEOMS; do
     run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 --ego-counts 1 --repetitions $SIT_REPS $COMMON
   done
 fi
 
 # 4. Mixed traffic: V2X2V only, Naive / ETSI / SBA, at the mixed variants' ego counts (cetus)
-if [[ "$ROLE" == "cetus" ]]; then
+if want mixed && [[ "$ROLE" == "cetus" ]]; then
   run -t openscenario_3_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
   run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
   run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
@@ -83,7 +107,7 @@ fi
 
 # 5. Beacon faults: V2X2V Naive / ETSI / SBA, one knob at a time via --edge-kv
 #    (keys of the gating track), scenario_3 and SCP at N=4, SCALE_REPS seeds, 200 ms, 70 km/h.
-if [[ "$ROLE" == "atlas" ]]; then
+if want faults && [[ "$ROLE" == "atlas" ]]; then
   FAULTS="beacon_fault_loss_rate=0.1 beacon_fault_loss_rate=0.3 beacon_fault_loss_rate=0.5 beacon_fault_loss_rate=0.7 \
           beacon_fault_delay_ticks=1 beacon_fault_delay_ticks=2 beacon_fault_delay_ticks=4 beacon_fault_delay_ticks=8 \
           beacon_fault_clock_offset_ms=50 beacon_fault_clock_offset_ms=100 beacon_fault_clock_offset_ms=200 beacon_fault_clock_offset_ms=400 \
