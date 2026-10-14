@@ -302,7 +302,7 @@ scenario:
         # NHTSA: SCP-with-NS
         - <<: *vehicle_base
           name: cav2
-          spawn_position: [-88.1, 100.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), ahead of the hero
+          spawn_position: [-88.1, 72.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), behind the hero
           destination: [-88.6, 155.0, 0.5]  # Road 69 lane 3, straight north
           sensing:
             <<: *base_sensing
@@ -339,7 +339,7 @@ scenario:
         - <<: *vehicle_base
           name: cav3
           spawn_position: [-20.0, 130.9, 1.0, 0, 180, 0]  # Road 24 lane +1 WB inner (Driving)
-          destination: [-150.0, 132.7, 0.5]
+          destination: [-139.7, 124.7, 0.5]  # Road 23 lane 1 WB (own lane), before the west junction
           sensing:
             <<: *base_sensing
             perception:
@@ -450,7 +450,7 @@ scenario:
         # Road 23 lane -1 EB inner (Driving), 6m behind cav2
         - <<: *vehicle_base
           name: cav6
-          spawn_position: [-88.1, 108.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), ahead of the hero
+          spawn_position: [-88.1, 64.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), behind the hero
           destination: [-88.6, 155.0, 0.5]  # Road 69 lane 3, straight north
           sensing:
             <<: *base_sensing
@@ -487,7 +487,7 @@ scenario:
         - <<: *vehicle_base
           name: cav7
           spawn_position: [-14.0, 130.6, 1.0, 0, 180, 0]  # Road 24/104 WB, 6m behind cav3
-          destination: [-150.0, 132.7, 0.5]
+          destination: [-139.7, 124.7, 0.5]  # Road 23 lane 1 WB (own lane), before the west junction
           sensing:
             <<: *base_sensing
             perception:

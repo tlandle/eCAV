@@ -429,7 +429,7 @@ scenario:
       name: cav2
       spawn_position:
       - -88.1
-      - 100.0
+      - 40.0
       - 1.0
       - 0
       - 90
@@ -511,8 +511,8 @@ scenario:
       - 180
       - 0
       destination:
-      - -150.0
-      - 132.7
+      - -139.7
+      - 124.7
       - 0.5
     - sensing:
         perception:
