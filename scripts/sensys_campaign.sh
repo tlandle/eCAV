@@ -19,13 +19,14 @@ set -euo pipefail
 ROLE="${1:?atlas|cetus}"; DRY="${2:-}"
 STAMP="${STAMP:-sensys_nov27}"
 PORT="${CARLA_PORT:-2000}"
-REPS="${REPS:-20}"
+REPS="${REPS:-20}"              # envelope sweep and mixed traffic
+SCALE_REPS="${SCALE_REPS:-10}"  # scaling and situation studies
 PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
 LATS="0 50 100 150 200 250 300 350 400 450 500 550"
 SCALE_LATS="100 200 400"
 SPEEDS="50 70"
 ETSI="late_fusion_etsi_self_announcement"
-COMMON="--latency-distribution hybrid --self-id-radius 1.0 --repetitions $REPS --stamp $STAMP --carla-port $PORT --per-tick-age-log"
+COMMON="--latency-distribution hybrid --self-id-radius 1.0 --stamp $STAMP --carla-port $PORT --per-tick-age-log"
 
 run() { if [[ "$DRY" == "--dry-run" ]]; then echo "$PY test_runner.py $*"; else "$PY" test_runner.py "$@"; fi; }
 # N for the envelope sweep is the largest ego count each geometry has below 8
@@ -46,7 +47,7 @@ mkdir -p experiment_results/campaign_meta
 for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2
-    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") $COMMON
+    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") --repetitions $REPS $COMMON
   done
 done
 
@@ -54,25 +55,25 @@ done
 for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
     set -- $arm; mgr=$1; anch=$2
-    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts $(scaling_n "$geom") $COMMON
+    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS $COMMON
   done
 done
 
 # 3. Situation study: oracle only, 0.75x and 1.25x of 50 and 70 km/h (cetus)
 if [[ "$ROLE" == "cetus" ]]; then
   for geom in $GEOMS; do
-    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 --ego-counts $(envelope_n "$geom") $COMMON
+    run -t "$geom" --manager-types oracle --anchoring on --latencies $LATS --speeds 38 63 53 88 --ego-counts $(envelope_n "$geom") --repetitions $SCALE_REPS $COMMON
   done
 fi
 
 # 4. Mixed traffic: V2X2V only, Naive / ETSI / SBA, at the mixed variants' ego counts (atlas)
 if [[ "$ROLE" == "atlas" ]]; then
-  run -t openscenario_3_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
-  run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
-  run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
-  run -t scp_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 $COMMON
-  run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 $COMMON
-  run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 $COMMON
+  run -t openscenario_3_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
+  run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
+  run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
+  run -t scp_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $REPS $COMMON
+  run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $REPS $COMMON
+  run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $REPS $COMMON
 fi
 
 # 5. Beacon faults: V2X2V Naive / ETSI / SBA, one knob at a time (YAML keys of the
