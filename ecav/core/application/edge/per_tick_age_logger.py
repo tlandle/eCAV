@@ -239,7 +239,7 @@ class PerTickAgeLogger:
             if not preds:
                 self._writer.writerow(
                     common_head
-                    + ["", "", "none", "", "", "", "", tick, "", "", "", "", "",
+                    + ["", "", "none", "", "", "", "", tick, "", "", "", "", "", "", "", "",
                        _fmt(c_id), 0, ""]
                     + common_tail)
                 self._fh.flush()
