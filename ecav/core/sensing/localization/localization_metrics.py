@@ -183,12 +183,16 @@ class LocalizationMetrics(object):
             # GNSS errors
             gnss_x_error = float(np.nanmean(np.abs(np.array(self.gt_x) - np.array(self.gnss_x))))
             gnss_y_error = float(np.nanmean(np.abs(np.array(self.gt_y) - np.array(self.gnss_y))))
-            gnss_yaw_error = float(np.nanmean(np.abs(np.array(self.gt_yaw) - np.array(self.gnss_yaw))))
+            # yaw differences wrapped to [-180, 180): a westbound vehicle has
+            # gt +179 and gnss -179 on the same tick
+            def _wrap_deg(d):
+                return (np.asarray(d, dtype=float) + 180.0) % 360.0 - 180.0
+            gnss_yaw_error = float(np.nanmean(np.abs(_wrap_deg(np.array(self.gt_yaw) - np.array(self.gnss_yaw)))))
 
             # Filter errors
             filter_x_error = float(np.nanmean(np.abs(np.array(self.gt_x) - np.array(self.filter_x))))
             filter_y_error = float(np.nanmean(np.abs(np.array(self.gt_y) - np.array(self.filter_y))))
-            filter_yaw_error = float(np.nanmean(np.abs(np.array(self.gt_yaw) - np.array(self.filter_yaw))))
+            filter_yaw_error = float(np.nanmean(np.abs(_wrap_deg(np.array(self.gt_yaw) - np.array(self.filter_yaw)))))
 
             # Compute ATE (Absolute Trajectory Error)
             gt_positions = np.column_stack([self.gt_x, self.gt_y])
