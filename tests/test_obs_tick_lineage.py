@@ -40,3 +40,30 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def coasting_velocity():
+    """A track lost after convergence is output with its filter velocity,
+    its position advancing along it, through the gap."""
+    w = AB3DMOTWrapper({"max_age": 10, "min_hits": 3, "anchoring": False})
+    trk = w._tracker
+    rows_by_tick = {}
+    for tick in range(1, 26):
+        dets = [det(-37.0 - 0.65 * tick, 127.7)] if (tick <= 12 or tick >= 20) else []
+        arr = np.array(dets) if dets else np.zeros((0, 7))
+        info = (np.array([[tick, 100 + tick, -1]] * len(dets), dtype=np.int64).reshape(len(dets), 3)
+                if dets else np.zeros((0, 3), dtype=np.int64))
+        out, _ = trk.track({"dets": arr, "info": info}, tick)
+        rows_by_tick[tick] = out
+    gap = [rows_by_tick[t] for t in range(13, 20)]
+    assert all(len(r) == 1 for r in gap), "track dropped during a 7-tick gap"
+    rows = [np.asarray(r[0]).reshape(-1) for r in gap]
+    speeds = [float(np.hypot(r[10], r[11])) for r in rows]
+    xs = [float(r[3]) for r in rows]
+    assert min(speeds) > 0.3, ("coasting velocity zeroed", speeds)
+    assert xs[-1] < xs[0] - 2.0, ("coasting position did not advance", xs)
+    print("coasting track keeps its velocity (m/tick %.2f..%.2f) and advances %.1f m over the gap" % (min(speeds), max(speeds), xs[0] - xs[-1]))
+
+
+if __name__ == "__main__":
+    coasting_velocity()

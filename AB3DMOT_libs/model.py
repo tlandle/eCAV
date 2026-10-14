@@ -579,12 +579,15 @@ class AB3DMOT(object):
 
 			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):
 				vel = trk.get_velocity().flatten()
-				# Zero out velocity for coasting tracks (predict-only, no
-				# fresh measurement).  Without update(), velocity is frozen
-				# at whatever the KF estimated during initialization — often
-				# a phantom artifact from LiDAR noise.  Setting it to zero
-				# lets the downstream _MIN_KF_SPEED_MPS gate filter them.
-				if trk.time_since_update > 0:
+				# A coasting track (predict-only, no fresh measurement) keeps
+				# the velocity the filter converged to while it was matched:
+				# a crossing vehicle briefly lost at a camera handover must
+				# be published moving, not as a stationary obstacle (the
+				# planner braked for such phantoms, 2026-10-14). Only a track
+				# that never reached min_hits has an uninitialised velocity;
+				# that one is published at rest so the downstream
+				# _MIN_KF_SPEED_MPS gate treats it as stationary.
+				if trk.time_since_update > 0 and trk.hits < self.min_hits:
 					vel = np.zeros(3)
 				out_row = np.concatenate([
 					d,                         # 0..6  [h,w,l,x,y,z,theta]
