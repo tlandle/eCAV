@@ -399,6 +399,7 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         vm.vehicle.apply_control(vm.run_step())
                         self._label_brake_attributions_gt(vm)
                         self._record_time_to_events(tick, vm)
+                    self._step_non_members(tick)
                     for rsu in self.rsu_manager_list:
                         rsu.update_info(); rsu.run_step()
                 return ecloud.EdgeObjects()
@@ -585,6 +586,7 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     vm.vehicle.apply_control(vm.run_step())
                     self._label_brake_attributions_gt(vm)
                     self._record_time_to_events(tick, vm)
+                self._step_non_members(tick)
                 for rsu in self.rsu_manager_list:
                     rsu.update_info(); rsu.run_step()
 

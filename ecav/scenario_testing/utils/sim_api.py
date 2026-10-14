@@ -95,6 +95,22 @@ ECLOUD_PUSH_API_PORT = 50061 # TODO: config
 # ---------------------------------------------------------------------------
 # Pick the right concrete Edge-manager class for an edge YAML block
 # ---------------------------------------------------------------------------
+def _edge_vehicle_connected(edge, cav, index):
+    """Mixed-traffic knob. A vehicle is non-connected when its own entry says
+    ``connected: false`` or when the edge's ``non_connected_fraction`` (0 to
+    1, default 0 = today's behaviour) selects it. The fraction marks the
+    last round(fraction * N) vehicles of the edge's list, so vehicle 0 (the
+    scenario's focal ego) stays connected."""
+    if cav.get('connected', True) is False:
+        return False
+    frac = float(edge.get('non_connected_fraction', 0.0) or 0.0)
+    if frac <= 0.0:
+        return True
+    n = len(edge.get('vehicles', []) or [])
+    n_nc = int(round(frac * n))
+    return index < n - n_nc
+
+
 def _select_edge_manager(edge_yaml_block):
     """
     Translate edge['manager_type'] into a registered edge-manager class.
@@ -1497,8 +1513,16 @@ class ScenarioManager:
                     #vehicle_manager.start_vehicle()
                     vehicle_manager.v2x_manager.set_platoon(None)
 
-                    # add the vehicle manager to platoon
-                    edge_manager.add_member(vehicle_manager)
+                    # add the vehicle manager to the edge, or keep it as a
+                    # non-connected road user (no beacon, no uplink, no
+                    # downlink) when the mixed-traffic knob selects it
+                    if _edge_vehicle_connected(edge, cav, index):
+                        vehicle_manager.connected = True
+                        edge_manager.add_member(vehicle_manager)
+                    else:
+                        vehicle_manager.connected = False
+                        vehicle_manager.agent._anchoring = False
+                        edge_manager.add_non_member(vehicle_manager)
                     self.vehicle_managers[index] = vehicle_manager
 
                     vehicle_manager.update_info()
@@ -1634,8 +1658,16 @@ class ScenarioManager:
                     #vehicle_manager.start_vehicle()
                     vehicle_manager.v2x_manager.set_platoon(None)
 
-                    # add the vehicle manager to platoon
-                    edge_manager.add_member(vehicle_manager)
+                    # add the vehicle manager to the edge, or keep it as a
+                    # non-connected road user (no beacon, no uplink, no
+                    # downlink) when the mixed-traffic knob selects it
+                    if _edge_vehicle_connected(edge, cav, index):
+                        vehicle_manager.connected = True
+                        edge_manager.add_member(vehicle_manager)
+                    else:
+                        vehicle_manager.connected = False
+                        vehicle_manager.agent._anchoring = False
+                        edge_manager.add_non_member(vehicle_manager)
                     self.vehicle_managers[index] = vehicle_manager
 
 

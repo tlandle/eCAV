@@ -159,6 +159,14 @@ class BehaviorAgent(object):
         # safety related
         self.safety_time = config_yaml['safety_time']
         self.emergency_param = config_yaml['emergency_param']
+        # Hazard response while the RSS proper response is active:
+        #   'stop'        -> emergency stop (target 0, brake 1.0), today's behaviour
+        #   'speed_adapt' -> slow to speed_adapt_target_kmh and hold; the
+        #                    <3 m floor in step 10 still stops for contact
+        self.hazard_response = config_yaml.get('hazard_response', 'stop')
+        self.speed_adapt_target_kmh = float(
+            config_yaml.get('speed_adapt_target_kmh', 15.0))
+        self._speed_adapt_hold = False
         # How many prediction modes (by score) the collision check sweeps
         # for multimodal predictors; 1 = argmax-only, 6 = full mode set.
         self.prediction_mode_top_k = config_yaml.get(
@@ -1967,7 +1975,10 @@ class BehaviorAgent(object):
             self._committed_brake_ttl = max(
                 self._committed_brake_ttl,
                 max(20, int(self.ttc / 0.05)))
-            distance = 0  # force emergency stop on FIRST tick too
+            if self.hazard_response == 'speed_adapt':
+                self._speed_adapt_hold = True
+            else:
+                distance = 0  # force emergency stop on FIRST tick too
             if obstacle_vehicle is not None and ego_loc is not None:
                 obs_loc = obstacle_vehicle.get_location()
                 self._rss_threat_carla_id = getattr(
@@ -2021,7 +2032,10 @@ class BehaviorAgent(object):
 
             if not safe:
                 is_hazard = True
-                distance = 0  # force emergency stop
+                if self.hazard_response == 'speed_adapt':
+                    self._speed_adapt_hold = True
+                else:
+                    distance = 0  # force emergency stop
                 logger.debug(
                     "[RSS] Proper response active — TTL=%d, "
                     "ego_speed=%.1f km/h",
@@ -2029,6 +2043,7 @@ class BehaviorAgent(object):
             else:
                 self._committed_brake_ttl = 0
                 self._rss_lateral_growing_ticks = 0
+                self._speed_adapt_hold = False
 
         car_following_flag = False
 
@@ -2054,6 +2069,9 @@ class BehaviorAgent(object):
             # NORMAL BEHAVIOR at max speed (measured: acceleration bursts
             # between braking clusters, straight into the blocker). The
             # only safe response is to keep braking.
+            if self.hazard_response == 'speed_adapt' and self._speed_adapt_hold:
+                return self._local_planner.run_step(
+                    rx, ry, rk, target_speed=self.speed_adapt_target_kmh)
             return 0, None
 
         if not is_hazard:
@@ -2325,6 +2343,10 @@ class BehaviorAgent(object):
                 return 0, None
 
             target_speed = self.car_following_manager(obstacle_vehicle, distance, target_speed)
+            if self.hazard_response == 'speed_adapt' and self._speed_adapt_hold:
+                # speed adaptation: hold the reduced speed instead of a stop
+                target_speed = min(target_speed if target_speed else self.max_speed,
+                                   self.speed_adapt_target_kmh)
             _ts_in = target_speed
             target_speed, target_loc = self._local_planner.run_step(
                 rx, ry, rk, target_speed=target_speed)
@@ -2345,6 +2367,10 @@ class BehaviorAgent(object):
         import os as _osd2
         if _osd2.environ.get('BEHAVIOR_DEBUG') and self.do_overtake:
             print(f"[SPD-DBG] br=normal do_ov=True entering planner")
+        if self.hazard_response == 'speed_adapt' and self._speed_adapt_hold:
+            # speed adaptation on a branch that would otherwise resume full
+            # speed (e.g. the left-turn hazard branch past its 3 m floor)
+            target_speed = self.speed_adapt_target_kmh
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)

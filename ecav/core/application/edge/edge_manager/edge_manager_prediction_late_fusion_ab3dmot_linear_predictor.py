@@ -1349,6 +1349,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             vm.vehicle.apply_control(vm.run_step())
             self._label_brake_attributions_gt(vm)
             self._record_time_to_events(tick, vm)
+        self._step_non_members(tick)
         # RSU perception refresh. Dropped when this method was split out of
         # run_step() during the multi-edge predictive latent migration merge
         # (46216a12) — the docstring above still promised it, the code
@@ -1452,6 +1453,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             vm.vehicle.apply_control(vm.run_step())
             self._label_brake_attributions_gt(vm)
             self._record_time_to_events(step, vm)
+        self._step_non_members(step)
         for rsu in self.rsu_manager_list:
             rsu.update_info()
             rsu.run_step()
