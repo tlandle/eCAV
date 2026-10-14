@@ -127,6 +127,8 @@ class _BaseEdgeManager:
         self._dup_track_counts = {
             cls: {'actors': 0, 'duplicates': 0, 'actor_ticks_with_dup': 0}
             for cls in ('connected', 'non_connected')}
+        # first tick a published track lay on each live vehicle (provenance)
+        self._first_track_tick = {}
 
         # Competing-risk time-to-event tracking
         # Records the first tick each failure class occurs per ego vehicle
@@ -266,6 +268,10 @@ class _BaseEdgeManager:
 
     def _step_non_members(self, tick) -> None:
         """Drive the non-connected vehicles on their own perception."""
+        if self.non_member_vehicle_managers and tick in (0, 1):
+            logger.info("[MIXED] stepping %d non-connected vehicle(s) at tick %s: ids=%s",
+                        len(self.non_member_vehicle_managers), tick,
+                        [vm.vehicle.id for vm in self.non_member_vehicle_managers])
         for vm in self.non_member_vehicle_managers:
             vm.agent.edge_predictions = []
             vm.update_info(tick)
@@ -357,6 +363,10 @@ class _BaseEdgeManager:
             cls = 'connected' if aid in managed else 'non_connected'
             c = self._dup_track_counts[cls]
             c['actors'] += 1
+            if n > 0 and aid not in self._first_track_tick:
+                self._first_track_tick[aid] = {
+                    'tick': tick, 'x': round(a['x'], 2), 'y': round(a['y'], 2),
+                    'type': a.get('type', ''), 'class': cls}
             if n > 1:
                 c['duplicates'] += n - 1
                 c['actor_ticks_with_dup'] += 1
@@ -364,7 +374,8 @@ class _BaseEdgeManager:
 
     def get_duplicate_track_metrics(self):
         """Duplicate-track summary per actor class for the run JSON."""
-        out = {'ticks': self._dup_track_ticks, 'radius_m': self._dup_radius}
+        out = {'ticks': self._dup_track_ticks, 'radius_m': self._dup_radius,
+               'first_track_tick': {str(k): v for k, v in self._first_track_tick.items()}}
         for cls, c in self._dup_track_counts.items():
             out[cls] = dict(c)
             out[cls]['duplicate_rate'] = (
