@@ -97,6 +97,8 @@ ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.g
 ap.add_argument("--edge-kv", nargs="*", type=str, default=[],
                 help="key=value pairs set on every edge block (beacon fault, ValidBeacon and gating knobs); "
                      "value parsed as int, float, true/false, or str; one value per campaign invocation")
+ap.add_argument("--see-v2x-replay", type=str, default=None, choices=["sequential"],
+                help="Replay the SEE-V2X trace in arrival order with gap-derived losses (edge.see_v2x_replay)")
 ap.add_argument("--behavior-kv", nargs="*", type=str, default=[],
                 help="key=value pairs set on every CAV's behavior block (hazard_response, "
                      "speed_adapt_target_kmh, ttc_graded_horizon_s); value parsed like --edge-kv")
@@ -378,6 +380,9 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
             for _k, _v in EDGE_KV.items():
                 print(f"    setting edge {_k} to {_v!r}")
                 edge[_k] = _v
+            if args.see_v2x_replay:
+                print(f"    setting see_v2x_replay to {args.see_v2x_replay}")
+                edge["see_v2x_replay"] = args.see_v2x_replay
 
             # Set self-ID radius
             if self_id_radius is not None:
@@ -609,6 +614,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if ego_count is not None: metrics["config_ego_count"] = ego_count
     if EDGE_KV: metrics["config_edge_kv"] = dict(EDGE_KV)
     if BEHAVIOR_KV: metrics["config_behavior_kv"] = dict(BEHAVIOR_KV)
+    if args.see_v2x_replay: metrics["config_see_v2x_replay"] = args.see_v2x_replay
     try:  # the scenario file's step cap, so the reduction knows what "completed" means
         import re as _re
         _m = _re.search(r"^MAX_STEP\s*=\s*(\d+)", (Path("ecav/scenario_testing") / f"{scenario_name}.py").read_text(), _re.M)

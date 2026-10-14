@@ -223,7 +223,7 @@ def cross_source_nms(dets_dict, cdist_thresh):
             'info': np.concatenate([info[beacon_mask], anon_info[anon_keep]], axis=0)}
 
 
-def make_tracker(max_age, anchoring=True):
+def make_tracker(max_age, anchoring=True, dup_x_max=None):
     cfg = edict({'vis': False, 'save_path': None, 'use_3d_iou': True, 'thres': 2.0,
                  'output_dir': None, 'min_hits': 3, 'max_age': max_age, 'ego_com': None,
                  'affi_pro': False, 'dataset': 'KITTI', 'det_name': 'pvrcnn',
@@ -231,6 +231,8 @@ def make_tracker(max_age, anchoring=True):
     cfg.assoc_metric = None
     cfg.assoc_threshold = None
     cfg.assoc_algorithm = None
+    if dup_x_max is not None:
+        cfg.dup_x_max = dup_x_max   # 0 disables the identity exclusion zone and its cull
     return AB3DMOT(cfg, 'Car')
 
 
@@ -238,7 +240,8 @@ def make_tracker(max_age, anchoring=True):
 # Replay + scoring
 # ----------------------------------------------------------------------
 def replay(frames, gt, args):
-    tracker = make_tracker(args.max_age, anchoring=not args.no_anchoring)
+    tracker = make_tracker(args.max_age, anchoring=not args.no_anchoring,
+                           dup_x_max=args.dup_x_max)
     state = {}
     per_tick = {}   # tick -> list of (tid, x, y, pub_speed, kf_speed, tsu, hits, n_hist)
     from collections import deque
@@ -389,6 +392,8 @@ def main():
                     help='edge cross-source NMS radius (m); 3.0 reproduces runs before 2026-10-14')
     ap.add_argument('--max-age', type=int, default=6)
     ap.add_argument('--no-anchoring', action='store_true')
+    ap.add_argument('--dup-x-max', type=float, default=None,
+                    help='identity exclusion zone along-track half-length (m); 0 disables it (default 8)')
     ap.add_argument('--ext', type=float, nargs=3, default=[4.5, 2.0, 1.5], metavar=('L', 'W', 'H'),
                     help='extents assumed for anonymous sensor detections')
     ap.add_argument('--beacon-ext', type=float, nargs=3, default=[4.6, 1.95, 1.85], metavar=('L', 'W', 'H'))

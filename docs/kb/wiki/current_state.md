@@ -5734,6 +5734,23 @@ crossing) are unchanged.
 - Still open before the gate rerun: the cross-traffic tracking gap (agent
   working offline with the lineage constraint).
 
+## 2026-10-14 night: coasting tracks published at rest were the junction phantoms
+- `AB3DMOT_libs/model.py output()` zeroed the velocity of every coasting
+  track (time_since_update > 0) so the linear predictor's _MIN_KF_SPEED_MPS
+  gate would treat it as stationary. A crossing Tesla lost at a camera
+  handover was therefore published as a stationary obstacle at its last
+  position while its filter state kept moving; the hero braked for it, and
+  with the planner cache fix the same gap became a blind spot. Now only a
+  track that never reached min_hits is published at rest; a converged track
+  keeps its velocity through coasting. `tests/test_obs_tick_lineage.py`
+  (coasting_velocity) checks a 7-tick gap: 0.65 m/tick kept, 3.9 m advanced.
+- Tracking agent's branch (sensys/edge-tracking-gap, 213bd66c): kinematic
+  gate in m/s with a 3 m cross-view allowance and cross-source NMS; to be
+  merged on its report, with the live check in the gate rerun.
+- SEE-V2X in-order replay with gap-derived losses (6551ee88) for the trace
+  stage; ETSI omission coverage cost (uncovered omissions per sender);
+  stored last_obs_tick on every track; campaign_check transition bracketing.
+
 ### 2026-10-14: cross-traffic track loss at the RSU handover is an association defect, fixed offline (branch sensys/edge-track-handover)
 
 Runs: sensys_nov27_gate3_partial anchoring_on lat_0 run_4 (hero collided
@@ -5835,6 +5852,49 @@ acceleration (ticks 26 to 55) and a dip to 7.7 m/s at the tick 98 source
 switch (rsu_-2's rear-face box is 2.5 m behind), back to 12.9 m/s by tick
 109; position error 1.4 m mean, 3.1 m max (the rear-face bias, not
 extrapolation).
+
+All 212 complete lat_0 to lat_500 runs of gate1 and gate3_partial,
+anchoring on and off (`--runs-file`; the old gate replayed from a copy of
+AB3DMOT_libs at 58200557 with `--nms-thresh 3.0`), mean per run, window
+ticks 26 to the GT passing x = -100:
+| setting | ids | published v err | coasting ticks | planner-visible uncovered / max gap (worst) | stationary frac |
+|---|---|---|---|---|---|
+| before | 10.5 | 6.3 m/s | 28.7 | 53.6 / 23.3 (50) | 0.27 |
+| gate fix only (NMS 3 m) | 3.9 | 4.4 | 15.3 | 14.8 / 9.5 (30) | 0.13 |
+| gate fix + 5 m NMS (shipped) | 1.8 | 2.7 | 3.5 | 11.2 / 8.2 (33) | 0.05 |
+| shipped + develop's coasting velocity (3919a5f5), the merged tree | 1.8 | 2.4 | 3.5 | 11.2 / 8.2 (33) | 0.01 |
+| shipped + identity exclusion zone off (`--dup-x-max 0`, diagnostic) | 1.7 | 2.7 | 4.2 | 8.0 / 5.4 (13) | 0.06 |
+The per-latency rows (0 to 500 ms) all move the same way (ids 8 to 12
+before, 1.3 to 2.6 after); the jitter-buffer reorders at higher delay do
+not break the track. On the merged tree the 3.5 coasting ticks per run
+are published at the filter velocity: their speed error is 3.8 m/s
+(was 13.0 with the zero rule) and their position error 2.5 m mean,
+4.9 m worst (the rear-face bias plus up to 6 ticks of extrapolation);
+run_10's one coasting tick goes from a 13.3 m/s to a 2.3 m/s published
+error at the same 3.2 m position error.
+
+Residual, not changed here: in 36 of the 212 runs the planner-visible gap
+is still 18 to 33 ticks and starts at GT x = -78 to -88, the conflict
+point. The tracker-level trace of gate1 anchoring_off lat_0 run_4 shows
+why: the hero waits at (-84.5, 121 to 125) heading north, the Tesla
+crosses at y = 127.7, so for ticks 110 to 112 the Tesla's anonymous track
+is 5.5 to 6.5 m along-track and 1.3 to 1.8 m cross-track of the hero's
+beacon-identified track, inside the identity exclusion zone (dup_x_max 8,
+dup_y_max 2); `_cull_anon_near_identified` deletes it on the third tick,
+`_in_exclusion_zone` blocks a re-birth until the Tesla has passed
+(x < -86.5), and the new id then waits 10 published frames. Disabling the
+zone in the replay bounds the tracker gap at 5 ticks and the planner gap
+at 13 over all 212 runs (last row above). The zone exists for ego echoes
+that move with the ego; a crossing vehicle's heading differs by 90 deg,
+which the zone does not test. This is the SBA/self-ghost mechanism, so a
+change there is the campaign owner's call, not part of this fix.
+
+Lineage (develop 1b2bcb88, merged): the fix changes which detection is
+matched, not how `time_since_update` or `last_obs_tick` are maintained; a
+re-association is a real match inside `update()`, so `last_obs_tick` is
+stamped there as before, and coasting leaves both untouched.
+`tests/test_obs_tick_lineage.py` passes on the merged tree (lineage through
+a 7-tick gap; coasting velocity kept, 3.9 m advanced).
 
 Live check when the GPU is free: one gate cell (late_fusion, anchoring on,
 0 ms, 70 km/h, 10 seeds) and read per_tick_age.csv for one conflict-actor

@@ -57,6 +57,17 @@ speed error 2.2 m/s (KF lag during the acceleration and a dip at the tick
 46 percent of planner-visible ticks stationary. Sweep: the allowance must
 reach 3 m for one id. Result identical at both box-extent extremes.
 
+All 212 complete gate runs (both gates, anchoring on and off, 0 to 500
+ms): ids 10.5 to 1.8, published speed error 6.3 to 2.7 m/s, coasting ticks
+28.7 to 3.5, planner-visible max gap 23.3 to 8.2 ticks mean. Residual 18 to
+33 tick gaps in 36 runs start at the conflict point: the identity
+exclusion zone culls the Tesla's anonymous track while it passes within
+2 m cross-track of the stopped hero's beacon track (zone off in the replay:
+tracker gap at most 5, planner gap at most 13). Not changed; reported.
+
+Merged develop twice (1b2bcb88 lineage, 3919a5f5 coasting velocity).
+tests/test_obs_tick_lineage.py passes on the merged tree.
+
 ## Files
 
 - AB3DMOT_libs/matching.py

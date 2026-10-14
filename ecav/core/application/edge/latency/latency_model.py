@@ -169,6 +169,45 @@ def load_trace(explicit_path: Optional[str] = None,
         return None
 
 
+def load_trace_rows(explicit_path: Optional[str] = None,
+                    filter_str: Optional[str] = None):
+    """The uplink stream of one sender from the SEE-V2X trace, in arrival
+    order, for in-order replay: a list of (rx_timestamp_us, latency_ms).
+    The sender with the most rows under the filter is used, so the message
+    spacing (and the gaps that mark lost messages) is one vehicle's."""
+    trace_file = _find_trace_file(explicit_path)
+    if trace_file is None:
+        return None
+    try:
+        import pandas as pd
+        df = pd.read_csv(trace_file)
+        if filter_str:
+            for part in filter_str.split("+"):
+                part = part.strip()
+                if part.startswith("intersection="):
+                    df = df[df["intersection"].astype(str) == part.split("=", 1)[1]]
+                elif part.startswith("regime="):
+                    int_id = _REGIME_MAP.get(part.split("=", 1)[1].upper())
+                    if int_id:
+                        df = df[df["intersection"].astype(str) == int_id]
+        if "receiver" in df.columns:
+            df = df[df["receiver"] == "rsu"]
+        if df.empty or "rx_timestamp_us" not in df.columns:
+            return None
+        sender = df["sender"].value_counts().idxmax() if "sender" in df.columns else None
+        if sender is not None:
+            df = df[df["sender"] == sender]
+        df = df.sort_values("rx_timestamp_us")
+        rows = list(zip(df["rx_timestamp_us"].astype("int64").tolist(),
+                        df["latency_ms"].astype(float).tolist()))
+        logger.info("Loaded %d in-order C-V2X rows (sender=%s) from %s (filter=%s)",
+                    len(rows), sender, trace_file, filter_str)
+        return rows if rows else None
+    except Exception as exc:
+        logger.error("Failed to parse %s for replay: %s", trace_file, exc)
+        return None
+
+
 def get_trace_metadata(explicit_path: Optional[str] = None) -> Dict:
     """Return metadata about the SEE-V2X trace for characterization plots.
 
@@ -339,15 +378,35 @@ class HybridModel(LatencyModel):
                  trace_samples: Optional[np.ndarray] = None,
                  backhaul_mu: float = _DEFAULT_BACKHAUL_MU,
                  backhaul_sigma: float = _DEFAULT_BACKHAUL_SIGMA,
-                 disable_backhaul: bool = False):
+                 disable_backhaul: bool = False,
+                 replay_rows=None, replay_period_ms: float = 20.0,
+                 replay_gap_factor: float = 1.5, replay_max_losses: int = 20):
         super().__init__(dt, loss_pct, timestamp_noise_ms)
         self._base_ms = base_ms
         self._trace = trace_samples
         self._backhaul_mu = backhaul_mu
         self._backhaul_sigma = backhaul_sigma
         self._disable_backhaul = disable_backhaul
+        # In-order replay: walk the sender's messages as recorded instead of
+        # drawing independent samples, so bursts and delivery gaps keep their
+        # temporal structure. A gap longer than replay_gap_factor x the
+        # message period is read as lost messages (one per missing period,
+        # capped), served through should_drop() before the next delivered
+        # message. Session boundaries (tens of seconds) are capped the same.
+        self._replay = list(replay_rows) if replay_rows else None
+        self._replay_i = 0
+        self._replay_period_ms = float(replay_period_ms)
+        self._replay_gap_factor = float(replay_gap_factor)
+        self._replay_max_losses = int(replay_max_losses)
+        self._pending_losses = 0
+        self.replay_losses_total = 0
+        if self._replay:
+            logger.info("HybridModel: in-order replay of %d rows, period %.0f ms",
+                        len(self._replay), self._replay_period_ms)
 
-        if self._trace is not None and self._trace.size > 0:
+        if self._replay:
+            pass  # logged above; the in-order rows are the radio term
+        elif self._trace is not None and self._trace.size > 0:
             logger.info("HybridModel: %d trace samples, backhaul=%s "
                         "(mu=%.3f, sigma=%.3f), base=%.1f ms",
                         self._trace.size,
@@ -357,9 +416,31 @@ class HybridModel(LatencyModel):
             logger.warning("HybridModel: no trace loaded, using U(30,80) ms "
                           "radio RTT fallback")
 
+    def should_drop(self) -> bool:
+        if self._replay:
+            if self._pending_losses > 0:
+                self._pending_losses -= 1
+                self.replay_losses_total += 1
+                return True
+            return False
+        return super().should_drop()
+
+    def _replay_next(self) -> float:
+        ts, lat = self._replay[self._replay_i]
+        nxt = (self._replay_i + 1) % len(self._replay)
+        if nxt != 0:
+            gap_ms = (self._replay[nxt][0] - ts) / 1000.0
+            missing = int(round(gap_ms / self._replay_period_ms)) - 1
+            if gap_ms > self._replay_gap_factor * self._replay_period_ms and missing > 0:
+                self._pending_losses = min(missing, self._replay_max_losses)
+        self._replay_i = nxt
+        return float(lat)
+
     def _sample_ms(self) -> float:
         # Radio link RTT (one-way estimate)
-        if self._trace is not None and self._trace.size > 0:
+        if self._replay:
+            rtt_radio = self._replay_next()
+        elif self._trace is not None and self._trace.size > 0:
             rtt_radio = float(np.random.choice(self._trace))
         else:
             rtt_radio = random.uniform(30.0, 80.0)
@@ -432,9 +513,17 @@ def create_latency_model(cfg: Dict, dt: float) -> LatencyModel:
         backhaul_mu = float(cfg.get("backhaul_mu", _DEFAULT_BACKHAUL_MU))
         backhaul_sigma = float(cfg.get("backhaul_sigma", _DEFAULT_BACKHAUL_SIGMA))
         disable_backhaul = bool(cfg.get("disable_backhaul", False))
+        replay_rows = None
+        if str(cfg.get("see_v2x_replay", "")).lower() == "sequential":
+            replay_rows = load_trace_rows(trace_path, trace_filter)
+            if replay_rows is None:
+                logger.warning("see_v2x_replay: sequential requested but no rows loaded; "
+                               "falling back to independent samples")
 
         return HybridModel(mean_ms, dt, loss_pct, ts_noise,
                           trace_samples=trace_samples,
+                          replay_rows=replay_rows,
+                          replay_period_ms=float(cfg.get("see_v2x_replay_period_ms", 20.0)),
                           backhaul_mu=backhaul_mu,
                           backhaul_sigma=backhaul_sigma,
                           disable_backhaul=disable_backhaul)
