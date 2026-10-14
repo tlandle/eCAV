@@ -6043,3 +6043,17 @@ of GPU memory once, oracle_diag run_6):
 Scratch readers in the session scratchpad: verify_report.py (per-run
 table), lp_probe.py, replan_scan.py, lane_probe.py, grp_probe.py,
 brake_intervals.py.
+
+## 2026-10-14 18:36: gate rerun on 278e72fe, both hosts, all fixes in
+- Merged the drift fix (b1f5c320, b94bbba9): the junction destination push
+  fired on every sharp turn because the curvature rule cleared
+  lane_change_allowed; it re-planned from the nearest lane, which inside the
+  Town03 junction is one of several overlapping lanes of other roads. Push now
+  only on a blocked lane change; a route that starts at the vehicle starts
+  from a lane within 60 degrees of its heading. 10 of 10 complete in both
+  cells (late_fusion off 0 ms; oracle on 200 ms ttc_graded), exit within 0.3 m
+  of the lane centre. tests/test_route_start_lane.py.
+- Gate stage restarted on 278e72fe: atlas 18:35, cetus 18:36. cetus's run on the
+  old code kept as sensys_nov27_gate3_oldcode (260 runs). Earlier partials:
+  gate1, gate2_partial, gate3_partial on atlas; gate1, gate2_partial on cetus.
+  Expected finish about 23:15.
