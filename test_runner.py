@@ -90,6 +90,8 @@ ap.add_argument("--mac-p-keep", nargs="*", type=float, default=[],
 ap.add_argument("--seed", type=int, default=None,
                 help="Random seed for reproducibility")
 ap.add_argument("--repetitions", type=int, default=1)
+ap.add_argument("--stamp", type=str, default=None,
+                help="Reuse this experiment stamp (resume): runs whose simulation_metrics.json already exists are skipped")
 ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.get("CARLA_PORT", 2000)),
                 help="CARLA RPC port for this campaign; one campaign per port and per host (default 2000 or $CARLA_PORT)")
 args = ap.parse_args()
@@ -147,7 +149,7 @@ TOTAL_RUNS = (len(BASE_LIST) * len(MGR_TYPE_LIST) * len(ANCHOR_LIST) * len(LAT_L
 ROOT        = Path(__file__).resolve().parent
 CFG_DIR     = ROOT / "ecav/scenario_testing/config_yaml"
 
-STAMP       = datetime.now().strftime("%Y%m%d_%H%M%S")
+STAMP = args.stamp if args.stamp else (datetime.now().strftime("%Y%m%d_%H%M%S"))
 EXP_ROOT    = ROOT / "experiment_results" / args.scenario / STAMP
 OUT_BASE    = ROOT / "ecav/scenario_testing/evaluation_outputs"
 LOG_DIR     = ROOT / "logs"
@@ -459,6 +461,9 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     config_dir = "_".join(config_parts)
 
     run_dir = EXP_ROOT / f"speed_{spd_str}" / base_str / mgr_str / anchor_str / config_dir / f"run_{rep}"
+    if (run_dir / "simulation_metrics.json").exists():
+        print(f"    skip (done): {run_dir.relative_to(EXP_ROOT)}", flush=True)
+        return None
     run_dir.mkdir(parents=True, exist_ok=True)
 
     eval_dir = OUT_BASE / STAMP / f"{base_str}_{mgr_str}_{anchor_str}_{spd_str}_{config_dir}_rep_{rep}"
