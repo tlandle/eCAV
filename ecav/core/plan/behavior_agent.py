@@ -1742,13 +1742,16 @@ class BehaviorAgent(object):
 
         # when it comes to the intersection, we need to use the future
         # waypoint to make sure the next waypoint is at the same lane
-        if is_intersection:
-            reset_target = waypoint_buffer[reset_index][0].next(
-                max(self._ego_speed / 3.6, 10.0))[0]
+        # next() returns an empty list at the end of a road segment (a hero
+        # held at a junction stop line hit this); fall back to the waypoint
+        # itself rather than raising out of the planner step.
+        if is_intersection and len(waypoint_buffer) > 0:
+            base_wp = waypoint_buffer[reset_index][0]
+            nxt = base_wp.next(max(self._ego_speed / 3.6, 10.0))
         else:
-            reset_target = \
-                ego_vehicle_wp.next(max(self._ego_speed / 3.6 * 3,
-                                        10.0))[0]
+            base_wp = ego_vehicle_wp
+            nxt = ego_vehicle_wp.next(max(self._ego_speed / 3.6 * 3, 10.0))
+        reset_target = nxt[0] if nxt else base_wp
         logger.debug(
             'Vehicle id: %d :destination pushed forward because of '
             'potential collision, reset destination :%f. %f, %f' %
