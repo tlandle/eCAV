@@ -82,6 +82,9 @@ def load_runs(root, stamp):
         row["lat"] = int(d.get("config_latency_ms", 0) or 0)
         row["kv"] = json.dumps(d.get("config_edge_kv", {}), sort_keys=True) if d.get("config_edge_kv") else ""
         row["dist"] = r.get("focal_dist_m", float("nan"))
+        row["beacon_rejected"] = sum(v for k, v in e.items() if k.startswith("beacon_total_rejected_"))
+        row["dup_rate_connected"] = r.get("dup_rate_connected", 0.0)
+        row["dup_rate_non_connected"] = r.get("dup_rate_non_connected", 0.0)
         row["per_tick_wanted"] = bool(d.get("config_per_tick_age_log"))
         rd = os.path.dirname(f)
         row["per_tick_present"] = os.path.exists(os.path.join(rd, "per_tick_age.csv")) or \
@@ -129,6 +132,98 @@ def april_cells(path):
         out[(d.get("config_manager_type"), "on" if d.get("config_anchoring") else "off",
              d.get("config_ego_count", 1), int(d.get("config_latency_ms", 0) or 0),
              d.get("config_speed_kmh"))].append(r["s_op"])
+    return out
+
+
+def effect_gates(cells, threshold):
+    """E1 to E6 of reviews/expected_effects.md: does each new evaluation make
+    the difference it was added to show. Only cells that exist are tested."""
+    out = []
+
+    def p_of(geom, spd, mgr, anch, N, lat, kv=""):
+        v = cells.get((geom, spd, mgr, anch, N, lat, kv))
+        return wilson(sum(r["s_op"] for r in v), len(v)) if v else None
+
+    def ghosts(geom, spd, mgr, anch, N, lat, kv=""):
+        v = cells.get((geom, spd, mgr, anch, N, lat, kv), [])
+        return sum(r["focal_ghost_episodes"] for r in v)
+
+    def tau(geom, spd, mgr, anch, N, kv=""):
+        lats = sorted(k[5] for k in cells if k[:5] == (geom, spd, mgr, anch, N) and k[6] == kv)
+        ok = [l for l in lats if p_of(geom, spd, mgr, anch, N, l, kv)[0] >= threshold]
+        return (max(ok) if ok else -1), lats
+
+    etsi = "late_fusion_etsi_self_announcement"
+    for geom, spd, N in sorted(set((k[0], k[1], k[4]) for k in cells)):
+        tag = f"{geom} {spd} km/h N={N}"
+        # E1 ETSI between naive and SBA: like SBA at 100 ms, toward naive by 200 to 300 ms
+        e100 = p_of(geom, spd, etsi, "off", N, 100); n100 = p_of(geom, spd, "late_fusion", "off", N, 100)
+        if e100 and n100:
+            if e100[1] > n100[2] and e100[0] - n100[0] >= 0.3:
+                out.append(("PASS", f"E1a {tag}: ETSI {e100[0]:.2f} beats naive {n100[0]:.2f} at 100 ms (self-ghost removed when the beacon is fresh)"))
+            else:
+                out.append(("WARN", f"E1a {tag}: ETSI {e100[0]:.2f} vs naive {n100[0]:.2f} at 100 ms, no separation; the rule is not removing the self-ghost here"))
+        for lat in (200, 300):
+            e = p_of(geom, spd, etsi, "off", N, lat); sba = p_of(geom, spd, "late_fusion", "on", N, lat)
+            if e and sba:
+                if sba[1] > e[2] and sba[0] - e[0] >= 0.3:
+                    out.append(("PASS", f"E1b {tag}: SBA {sba[0]:.2f} beats ETSI {e[0]:.2f} at {lat} ms, ETSI ghosts {ghosts(geom, spd, etsi, 'off', N, lat)}"))
+                    break
+                elif lat == 300:
+                    out.append(("WARN", f"E1b {tag}: ETSI tracks SBA through 300 ms ({e[0]:.2f} vs {sba[0]:.2f}); the age window is not binding, only the wrong-match mode separates them"))
+        # E2 Mahalanobis gate equals naive
+        gate_kvs = sorted(set(k[6] for k in cells if "assoc_metric" in k[6]))
+        for kv in gate_kvs:
+            for lat in (100, 200):
+                g = p_of(geom, spd, "late_fusion", "off", N, lat, kv); nv = p_of(geom, spd, "late_fusion", "off", N, lat)
+                if g and nv:
+                    sev = "PASS" if abs(g[0] - nv[0]) <= 0.2 or (g[1] <= nv[2] and nv[1] <= g[2]) else "WARN"
+                    out.append((sev, f"E2 {tag} {lat} ms: gate {g[0]:.2f} vs naive {nv[0]:.2f} ({'same within interval' if sev == 'PASS' else 'association changed the self-ghost outcome'})"))
+        # E3 faults: loss 0.7 below no-fault; ValidBeacon rejects at 4 m noise
+        base = p_of(geom, spd, "late_fusion", "on", N, 200)
+        for kv in sorted(set(k[6] for k in cells if "beacon_fault_loss_rate" in k[6])):
+            lv = json.loads(kv).get("beacon_fault_loss_rate")
+            f = p_of(geom, spd, "late_fusion", "on", N, 200, kv)
+            if f and base and lv is not None and lv >= 0.5:
+                sev = "PASS" if f[2] < base[1] else "WARN"
+                out.append((sev, f"E3 {tag}: SBA at loss {lv} is {f[0]:.2f} vs no-fault {base[0]:.2f} ({'degrades' if sev == 'PASS' else 'no degradation measured'})"))
+        for kv in sorted(set(k[6] for k in cells if "beacon_fault_pos_noise_m" in k[6] and "beacon_validity_checks" in k[6])):
+            v = cells.get((geom, spd, "late_fusion", "on", N, 200, kv), [])
+            if v:
+                rej = [r.get("beacon_rejected", 0) for r in v]
+                sev = "PASS" if all(x > 0 for x in rej) else "WARN"
+                out.append((sev, f"E3 {tag}: ValidBeacon rejections per run under {kv}: {rej}"))
+        # E4 mixed traffic: non-connected duplicates above connected
+        if "mixed" in geom:
+            v = cells.get((geom, spd, "late_fusion", "on", N, 200, ""), [])
+            if v:
+                wins = sum(1 for r in v if r.get("dup_rate_non_connected", 0) > r.get("dup_rate_connected", 0))
+                sev = "PASS" if wins >= 0.8 * len(v) else "WARN"
+                out.append((sev, f"E4 {tag}: non-connected duplicate rate above connected in {wins} of {len(v)} seeds"))
+        # E6 geometry ordering of the oracle budget is reported per speed below
+    # E5 / E6: tau_max tables
+    taus = {}
+    for geom, spd, mgr, anch, N in sorted(set(k[:5] for k in cells)):
+        t, lats = tau(geom, spd, mgr, anch, N)
+        if len(lats) >= 3:
+            taus[(geom, spd, mgr, anch, N)] = t
+    for (geom, spd, mgr, anch, N), t in sorted(taus.items()):
+        out.append(("INFO", f"tau_max({threshold}) {geom} {spd} km/h {mgr}/{anch} N={N}: {t} ms"))
+    # E5 oracle budget falls with speed
+    for geom, N in sorted(set((k[0], k[4]) for k in taus)):
+        spds = sorted(set(int(k[1]) for k in taus if k[0] == geom and k[4] == N and k[2] == "oracle" and k[1].isdigit()))
+        if len(spds) >= 2:
+            lo, hi = taus[(geom, str(spds[0]), "oracle", "on", N)], taus[(geom, str(spds[-1]), "oracle", "on", N)]
+            sev = "PASS" if hi < lo else "WARN"
+            out.append((sev, f"E5 {geom} N={N}: oracle tau_max {lo} ms at {spds[0]} km/h vs {hi} ms at {spds[-1]} km/h ({'budget falls with speed' if sev == 'PASS' else 'no speed effect measured'})"))
+    # E6 geometry ordering
+    for spd, N in sorted(set((k[1], k[4]) for k in taus)):
+        g = {k[0]: t for k, t in taus.items() if k[1] == spd and k[4] == N and k[2] == "oracle"}
+        order = [x for x in ("openscenario_3_edge_late_fusion", "scp_edge_late_fusion", "blind_overtake_edge_late_fusion") if x in g]
+        if len(order) >= 2:
+            vals = [g[x] for x in order]
+            sev = "PASS" if all(a >= b for a, b in zip(vals, vals[1:])) else "WARN"
+            out.append((sev, f"E6 {spd} km/h N={N}: oracle tau_max by geometry {dict(zip(order, vals))} ({'ordered left turn >= SCP >= overtake' if sev == 'PASS' else 'ordering differs from the closing-speed argument'})"))
     return out
 
 
@@ -253,6 +348,14 @@ def main(argv=None):
         print(f"{sev} {msg}")
         if sev == "FAIL":
             fails += 1
+
+    # 4. effect gates
+    print("\n== effect gates (reviews/expected_effects.md)")
+    eg = effect_gates(cells, a.threshold)
+    if not eg:
+        print("no new-evaluation cells yet")
+    for sev, msg in eg:
+        print(f"{sev} {msg}")
 
     # 5. stage-2 cells
     if stage2:
