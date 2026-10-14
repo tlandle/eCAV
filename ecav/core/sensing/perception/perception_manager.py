@@ -166,8 +166,9 @@ class CameraSensor:
             return
         image = np.array(event.raw_data)
         image = image.reshape((self.image_height, self.image_width, 4))
-        # we need to remove the alpha channel
-        image = image[:, :, :3]
+        # we need to remove the alpha channel; contiguous so cvtColor in the
+        # tick loop does not copy the frame again
+        image = np.ascontiguousarray(image[:, :, :3])
 
         self.image = image
         self.frame = event.frame
@@ -650,6 +651,8 @@ class PerceptionManager:
         logger.debug("Lidar Data: %s", lidar_data)
         # The painted image exists only for the camera window.
         draw = bool(self.camera_visualize)
+        # lidar points in world space once per detect call, not once per camera
+        world_points = st.lidar_points_to_world(self.lidar.sensor, lidar_data)
 
         total_tracking_time = 0
         total_lidar_fusion_time = 0
@@ -660,7 +663,7 @@ class PerceptionManager:
                 self.lidar.sensor,
                 rgb_camera.sensor, lidar_data,
                 np.array(rgb_camera.image) if draw else None,
-                draw=draw)
+                draw=draw, world_points=world_points)
             rgb_draw_images.append(rgb_image)
 
             #logger.debug("Lidar Input to Fusion: %s" %len(lidar_data))

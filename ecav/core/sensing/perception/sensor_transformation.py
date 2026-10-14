@@ -334,7 +334,21 @@ def get_2d_bb(vehicle, sensor, senosr_transform):
     return p2d_bb
 
 
-def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image, draw=True):
+def lidar_points_to_world(lidar, point_cloud):
+    """Lidar points (n, 4) to homogeneous world coordinates (4, n).
+
+    The camera-independent half of project_lidar_to_camera, so a caller with
+    several cameras computes it once per lidar frame.
+    """
+    local_lidar_points = np.array(point_cloud[:, :3]).T
+    local_lidar_points = np.r_[
+        local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
+    lidar_2_world = x_to_world_transformation(lidar.get_transform())
+    return np.dot(lidar_2_world, local_lidar_points)
+
+
+def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image, draw=True,
+                            world_points=None):
     """
     Project lidar to camera space.
 
@@ -357,6 +371,10 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image, draw=True):
         The per-point Python loop costs about 6 ms per camera, so callers
         that do not display the image pass False.
 
+    world_points : np.ndarray or None
+        Output of lidar_points_to_world for this point cloud; computed here
+        when None.
+
     Returns
     -------
     rgb_image : np.ndarray
@@ -373,20 +391,9 @@ def project_lidar_to_camera(lidar, camera, point_cloud, rgb_image, draw=True):
     # focus on the 3D points.
     intensity = np.array(point_cloud[:, 3])
 
-    # Point cloud in lidar sensor space array of shape (3, p_cloud_size).
-    local_lidar_points = np.array(point_cloud[:, :3]).T
-
-    # Add an extra 1.0 at the end of each 3d point so it becomes of
-    # shape (4, p_cloud_size) and it can be multiplied by a (4, 4) matrix.
-    local_lidar_points = np.r_[
-        local_lidar_points, [np.ones(local_lidar_points.shape[1])]]
-
-    # This (4, 4) matrix transforms the points from lidar space to world space.
-    lidar_2_world = x_to_world_transformation(lidar.get_transform())
-    #print(len(lidar_2_world.T))
-
-    # transform lidar points from lidar space to world space
-    world_points = np.dot(lidar_2_world, local_lidar_points)
+    # transform lidar points from lidar space to world space, (4, p_cloud_size)
+    if world_points is None:
+        world_points = lidar_points_to_world(lidar, point_cloud)
 
     # project lidar world points to camera space
     sensor_points = world_to_sensor(world_points, camera.get_transform())
