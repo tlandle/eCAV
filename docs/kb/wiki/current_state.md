@@ -6057,3 +6057,21 @@ brake_intervals.py.
   old code kept as sensys_nov27_gate3_oldcode (260 runs). Earlier partials:
   gate1, gate2_partial, gate3_partial on atlas; gate1, gate2_partial on cetus.
   Expected finish about 23:15.
+
+## 2026-10-14 19:30: the gate's first finding is the scenario, not the code
+- On 278e72fe every contract-arm cell from 0 to 500 ms is 1.00 with zero
+  ghosts, collisions, false brakes or stalls, and naive at 0 ms is 1.00. The
+  per-tick logs show why: the Tesla crosses the hero's lane at tick 117 to 129
+  while the hero is 5 to 16 m short of the junction at 1 to 8 m/s and reaches
+  it 0.4 to 3 s later, and the hero's own camera sees the Tesla from tick 109
+  through the car occluders (April 30: firetrucks replaced by cars for the
+  WorldFusion training distribution). No decision depends on the edge's age.
+- Both gates stopped (atlas 138 runs, cetus 88, kept as
+  sensys_nov27_gate4_noconflict). New `scenarios/scenario_3_occluded.xml`:
+  April's five firetruck occluders, Tesla as the crossing car; the 15
+  scenario_3 and SCP late-fusion YAMLs point at it (29df61ca). test_runner
+  `--cross-trigger-dist` passes CROSS_TRIGGER_DIST to the scenario (the Tesla
+  starts when the hero is that far from the trigger point; default 80 fires at
+  spawn, smaller is later and tighter). Tuning runs trig80 / trig40 / trig25
+  (3 seeds, SBA on, 0 ms) to place the crossing about 1 s ahead of the hero's
+  arrival and to confirm the hero's camera no longer sees the Tesla first.
