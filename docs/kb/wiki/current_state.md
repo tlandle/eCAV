@@ -5319,3 +5319,35 @@ and/or precedence.
 - cetus state: CARLA on 2000 and the YOLO gRPC server on 18001 are up from the
   smoke (both started by this session's runner and will be reused). Atlas: the
   orphan CARLA on 2000 (pid 31255, per-tick agent's last smoke) is still up.
+
+## 2026-10-13 (night): why a late-fusion run took 3 minutes, and the fix
+- Profile (`ECAV_PROFILE=1 test_runner.py ...`, cProfile into the run dir; cetus,
+  N=1, late_fusion, SBA on, 100 ms): 92 s wall, 178 edge steps at 278 ms. The
+  edge step is `_advance_actors` calling `update_info` on the vehicle and both
+  RSUs, so one step is three `perception_manager.detect` calls at 90 ms each.
+  Inside one detect call: YOLO 22 ms; `project_lidar_to_camera` 25 ms (a Python
+  loop painting every projected lidar point onto the image, visualization
+  only); `np.array(camera.image)` copies 17 ms; `o3d_camera_lidar_fusion` 9 ms;
+  SORT 6 ms; `logger.debug("...%s" % yolo_detection)` and the RSU prints 7 ms
+  (eager string formatting of the Detections object and tensors). April's
+  per-vehicle perception was 43 ms and its edge step 25 ms because the
+  vehicle updates were timed outside the edge step then.
+- Fix (3789ca3a): the lidar painting runs only when the camera window is on
+  (`draw=self.camera_visualize`), no second image copy, lazy logging arguments,
+  RSU prints removed. Outputs are unchanged (the projected points are computed
+  before the painting; nothing read the painted image or the strings).
+  After: perception 62 ms per call, N=1 run 84 s wall end to end on cetus.
+  Remaining per call: YOLO 22, lidar fusion 10, projection 10, cvtColor 8,
+  SORT 6, traffic lights 3. Next lever if needed: one YOLO forward for all
+  actors' cameras per tick instead of one per actor.
+- `scripts/sensys_analysis/campaign_check.py <stamp>`: integrity gates
+  (error-path files, runs under 100 frames, missing per-tick CSV, edge frame
+  time), per-cell P(S_op) with Wilson intervals next to the April cell, shape
+  gates (G1 all arms near 1 at 0 ms; G2 no self-ghost episodes with the
+  contract on; G3 P does not rise with latency; G4 SBA beats naive somewhere;
+  G5 oracle holds at 200 ms), and the list of cells whose interval straddles
+  0.8 with the resume command that adds seeds. Exit 1 on FAIL.
+- `scripts/sensys_campaign.sh <role> <stage>`: gate (240 runs per host, same
+  cells on both hosts so the hosts are checked against each other), envelope,
+  scaling, situation, mixed, faults. The gate stage runs campaign_check and
+  stops on FAIL.
