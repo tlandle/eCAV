@@ -632,9 +632,39 @@ class LocalPlanner(object):
         elif trajectory:
             self._trajectory_buffer = trajectory.copy()
 
-        # Target waypoint
-        self.target_waypoint, self._target_speed = \
-            self._trajectory_buffer[min(1, len(self._trajectory_buffer) - 1)]
+        # Target waypoint: the first trajectory point at least a minimum
+        # distance AHEAD of the vehicle. generate_trajectory spaces the
+        # points by the motion predicted per trajectory_dt, so at standstill
+        # point 1 sits a few centimetres from the path start; a start abeam
+        # or behind the vehicle (history-anchored spline after a turn) then
+        # gives the heading-error controller an angle of 80 to 150 deg and
+        # full lock while pulling away (gate run 2026-10-14: hero stopped at
+        # the junction exit 1 m off centre, swung left off the road).
+        _ego_loc = self._ego_pos.location
+        _yaw = math.radians(self._ego_pos.rotation.yaw)
+        _fx, _fy = math.cos(_yaw), math.sin(_yaw)
+        _min_ahead = max(2.5, 0.4 * self._ego_speed / 3.6)
+        _chosen = None
+        for _tr, _spd in self._trajectory_buffer:
+            _dx = _tr.location.x - _ego_loc.x
+            _dy = _tr.location.y - _ego_loc.y
+            if _dx * _fx + _dy * _fy >= _min_ahead:
+                _chosen = (_tr, _spd)
+                break
+        if _chosen is None:
+            # the whole sampled trajectory is abeam or behind (the spline's
+            # start is anchored to the first history node by straight-line
+            # distance and can lag far behind once the vehicle has left the
+            # lane): aim at the first route waypoint ahead instead
+            for _wp, _ in self._waypoint_buffer:
+                _dx = _wp.transform.location.x - _ego_loc.x
+                _dy = _wp.transform.location.y - _ego_loc.y
+                if _dx * _fx + _dy * _fy >= _min_ahead:
+                    _chosen = (_wp.transform, self._trajectory_buffer[-1][1])
+                    break
+        if _chosen is None:
+            _chosen = self._trajectory_buffer[-1]
+        self.target_waypoint, self._target_speed = _chosen
 
         # Purge the queue of obsolete waypoints
         vehicle_transform = self._ego_pos
