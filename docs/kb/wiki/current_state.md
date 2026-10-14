@@ -5655,3 +5655,10 @@ runs again: no off-road or static collision, the hero reaches its
 destination or MAX_STEP, and in the GT trace no heading change above 30 deg
 within 2 s of any standstill restart (restart_scan.py in the scratchpad
 does this check on a results tree).
+- 15:45: local planner lookahead fix merged (1e11f96a: the lateral target is the
+  first trajectory point at least max(2.5 m, 0.4 s x speed) ahead; a standstill
+  restart off centre no longer saturates steering, which is how gate1 run_4 left
+  the road after its turn). Both gates restarted a third time on d24b53d8 (atlas
+  15:45, cetus 15:46); the 20 and 14 runs of the second start are kept as
+  `sensys_nov27_gate2_partial`. Every figure stage runs on d24b53d8 or later
+  only after the gate passes on it.
