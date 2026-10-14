@@ -5706,3 +5706,30 @@ Runs are longer (232 to 340 localization ticks against 180 to 215; loop
 steps 342 to 426 against the single-hero runner's MAX_STEP 600), so the
 cell's wall time grows by about a third. The RSS proper responses on the approach (the Tesla
 crossing) are unchanged.
+
+## 2026-10-14 evening: plan review adopted; veer fixed; control policies; lineage
+- External plan review (Tyler relayed): adopted. Observation lineage: every
+  published prediction carries obs_tick = source_tick - time_since_update of its
+  track (edge_manager_base predictor wrapper), the per-tick log writes age at
+  use from it with frame_age_ms and lineage_ok beside it, the reduction reports
+  conflict-actor coverage and longest gap (dc4993c8). VIPS arm named as the
+  timestamp-correct temporal baseline for reviewer B (time rectification of
+  delayed detections by velocity before association). Trace stage: SEE-V2X
+  regimes L/M/H as the only delay (90 runs). envelope_measured: tau_max at 0.8 /
+  0.9 / 0.95 and a bootstrap interval of the measured axis.
+- Reviewer C's second control strategy: `hazard_response: ttc_graded`
+  (target speed = max_speed x ttc / ttc_graded_horizon_s, default 3 s) next to
+  `speed_adapt`; test_runner `--behavior-kv`; campaign stage `control` on cetus
+  (speed_adapt and ttc_graded, oracle and contract, scenario_3 and SCP, 6
+  latencies, 10 seeds, 480 runs) (a6868c4a).
+- Post-turn veer: cause was the curvature speed limit (sqrt(8 m/s^2 / mean
+  curvature of the whole path): 35 to 44 km/h at the 13 m arc, released 30
+  degrees before the turn ended). Fix 4c5f46e3: limit from the sharpest
+  curvature within 20 m ahead at 5 m/s^2 (24 km/h in the arc). Live: 3 of 10
+  veered before, 10 of 10 complete after. Merged 39951d19. Runs are about a
+  third longer (342 to 426 steps).
+- Killing a running test_runner leaves its per-run YAML patch in the shared
+  checkout; `git checkout -- <yaml>` restores it. Done for
+  openscenario_3_edge_late_fusion.yaml after the gate stop.
+- Still open before the gate rerun: the cross-traffic tracking gap (agent
+  working offline with the lineage constraint).
