@@ -5465,3 +5465,27 @@ in place and untracked.
 - `reviews/expected_effects.md` (paper repo) states the prediction, the deciding
   statistic and the run set for each new evaluation; `campaign_check.py` carries
   them as effect gates E1 to E6 next to the shape gates.
+
+## 2026-10-14: first gate cells, what the gate exposed, metric aligned with April
+- First atlas gate cells (SBA, N=1, 70 km/h) failed G1 at 0 ms with P(S_op) 0.30:
+  7 of 10 runs failed the 60 percent of target speed clause because today's route
+  is 55 to 70 m with a left turn (the April runs covered 600 to 1,170 m), and the
+  self-ghost label came from the July provenance-history taxonomy (1f970053),
+  which tags a parked column car's track as self_ghost when the ego passes within
+  its radius; every April self_ghost had the ego as its nearest actor.
+  `recompute_metrics.py` (43c06160) now defines S_prog as completion before the
+  step cap on capped scenarios (April keeps the evaluator's speed clause, 1,961
+  successes unchanged) and counts self-ghost by the ego match; history-only labels
+  become other_fp. test_runner writes config_max_step. With that: SBA 0.90 / 0.80
+  / 1.00 at 0 / 100 / 200 ms against April 1.00 / 1.00 / 0.90, intervals overlap,
+  shape gates pass.
+- The scenario is not April's: on 2026-04-30 (4541b30e) the five firetruck
+  occluders became cars (audi, tesla, mercedes, bmw, patrol) and the Lincoln a
+  Tesla. The column is stationary in both.
+- Cross-traffic tracks freeze at the junction: the Tesla is tracked as a chain of
+  short tracks (handovers between RSU cameras), each coasting at zero speed at
+  its last position; the planner brakes for a phantom (10 to 16 external_stale
+  brakes per run in about half the runs, not in S_op). Known since May (KB
+  2026-05-31) and the reason for the taxonomy. It slows the hero (avg 9 to 11
+  m/s) and is a tracker publish question, not a scenario one.
+- One 0 ms run hit a building after the turn (offroad); not yet explained.
