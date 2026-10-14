@@ -5489,3 +5489,29 @@ in place and untracked.
   2026-05-31) and the reason for the taxonomy. It slows the hero (avg 9 to 11
   m/s) and is a tracker publish question, not a scenario one.
 - One 0 ms run hit a building after the turn (offroad); not yet explained.
+
+## 2026-10-14 afternoon: naive and contract cells of the gate (atlas, N=1, 70 km/h, 10 seeds)
+| configured ms | naive P (ghost episodes) | April naive | SBA P (ghosts) | April SBA |
+|---|---|---|---|---|
+| 0 | 0.80 (3) | 1.00 | 0.90 (0) | 1.00 |
+| 100 | 0.20 (10) | 0.75 | 0.80 (0) | 1.00 |
+| 200 | 0.56 (2) | 0.10 | 0.80 (0) | 0.90 |
+| 300 | 0.50 (2) | 0.00 | 0.90 (0) | 0.75 |
+| 400 | 0.00 (4, 11 false brakes) | 0.00 | 1.00 (0) | 0.00 |
+| 500 | | 0.00 | 0.70 (0) | 0.00 |
+- The logic boundary reproduces: naive collapses at 100 ms with ten self-ghost
+  episodes, the contract removes every one. The physics boundary on this route is
+  far later than April's: the contract arm holds 1.00 at 400 ms and 0.70 at 500 ms
+  where April had 0.00. The hero averages 9 to 11 m/s on the 55 m route against
+  April's 12 to 17 m/s on the long one, so the same configured delay is a smaller
+  fraction of the time to the conflict. The latency axis of the physics and
+  landing stages now runs to 700 and 1000 ms so the oracle's failure is inside
+  the sweep.
+- Naive recovers to 0.5 at 200 to 300 ms (2 ghosts) before the physics failures:
+  the stale self-echo falls behind the ego at larger delays and stops triggering
+  the planner; April's faster hero hit physics failures before that showed.
+- Measured axis: global p99 age at use is 1.5 to 2.0 s in every run (the
+  planner holds unrefreshed tracks for 24 ticks), p50 is the configured delay
+  plus one tick. `envelope_measured.py` therefore bins on the conflict actor's
+  p99 age (`--axis critical`, from reduce_per_tick_age), with global and
+  first-brake axes selectable.
