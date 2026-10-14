@@ -69,8 +69,8 @@ if [[ "$ROLE" == "cetus" ]]; then
   done
 fi
 
-# 4. Mixed traffic: V2X2V only, Naive / ETSI / SBA, at the mixed variants' ego counts (atlas)
-if [[ "$ROLE" == "atlas" ]]; then
+# 4. Mixed traffic: V2X2V only, Naive / ETSI / SBA, at the mixed variants' ego counts (cetus)
+if [[ "$ROLE" == "cetus" ]]; then
   run -t openscenario_3_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
   run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
   run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
