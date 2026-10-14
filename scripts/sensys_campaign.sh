@@ -88,12 +88,13 @@ want landing && for geom in $GEOMS; do
   done
 done
 
-# 2b. Trace replay: the SEE-V2X field trace as the only delay (no synthetic offset), per intersection
-#     regime L / M / H, oracle / naive / contract, scenario_3 at 70 km/h, SIT_REPS seeds (90 runs, 1.6 h)
+# 2b. Trace replay: the SEE-V2X field trace replaces the swept delay and the radio term only (in arrival
+#     order, losses from the trace's delivery gaps; backhaul fit and all processing unchanged), per
+#     intersection regime L / M / H, oracle / naive / contract, scenario_3 at 70 km/h, SIT_REPS seeds (90 runs)
 if want trace && [[ "$ROLE" == "atlas" ]]; then
   for arm in "late_fusion both" "oracle on"; do
     set -- $arm; mgr=$1; anch=$2
-    run -t openscenario_3_edge_late_fusion --manager-types "$mgr" --anchoring "$anch" --latencies 0 --speeds 70 --ego-counts 1 --see-v2x-filter regime=L regime=M regime=H --repetitions $SIT_REPS $COMMON
+    run -t openscenario_3_edge_late_fusion --manager-types "$mgr" --anchoring "$anch" --latencies 0 --speeds 70 --ego-counts 1 --see-v2x-filter regime=L regime=M regime=H --see-v2x-replay sequential --repetitions $SIT_REPS $COMMON
   done
 fi
 
