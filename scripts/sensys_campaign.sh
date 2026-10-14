@@ -36,9 +36,11 @@ run() { if [[ "$DRY" == "--dry-run" ]]; then echo "$PY test_runner.py $*"; else 
 envelope_n() { echo 1; }
 scaling_n()  { case "$1" in openscenario_3*) echo "2 4 8 16" ;; scp*) echo "4" ;; *) echo "2" ;; esac; }
 
+# GATE: V2X2V with the Mahalanobis association gate (Wolf 2025 / Sensors 2026), chi-square 95% on the 7-D form
+GATE_KV="assoc_metric=m_dis assoc_threshold=3.75"
 case "$ROLE" in
   atlas) ARMS=("late_fusion both" "$ETSI off" "oracle on" "cip on") ;;
-  cetus) ARMS=("vips both" "infra_only both") ;;
+  cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV") ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
 GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_late_fusion"
@@ -49,16 +51,16 @@ mkdir -p experiment_results/campaign_meta
 # 1. Envelope sweep: 12 latencies x 2 speeds x REPS seeds at N=1
 for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
-    set -- $arm; mgr=$1; anch=$2
-    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") --repetitions $REPS $COMMON
+    set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
+    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $LATS --speeds $SPEEDS --ego-counts $(envelope_n "$geom") --repetitions $REPS "${kvflag[@]}" $COMMON
   done
 done
 
 # 2. Scaling: 3 latencies x SCALE_REPS seeds at 70 km/h over the ego counts each geometry has
 for geom in $GEOMS; do
   for arm in "${ARMS[@]}"; do
-    set -- $arm; mgr=$1; anch=$2
-    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds 70 --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS $COMMON
+    set -- $arm; mgr=$1; anch=$2; shift 2; kv=("$@"); kvflag=(); [[ ${#kv[@]} -gt 0 ]] && kvflag=(--edge-kv "${kv[@]}")
+    run -t "$geom" --manager-types "$mgr" --anchoring "$anch" --latencies $SCALE_LATS --speeds 70 --ego-counts $(scaling_n "$geom") --repetitions $SCALE_REPS "${kvflag[@]}" $COMMON
   done
 done
 
