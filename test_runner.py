@@ -463,7 +463,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     run_dir = EXP_ROOT / f"speed_{spd_str}" / base_str / mgr_str / anchor_str / config_dir / f"run_{rep}"
     if (run_dir / "simulation_metrics.json").exists():
         print(f"    skip (done): {run_dir.relative_to(EXP_ROOT)}", flush=True)
-        return None
+        return "skipped"
     run_dir.mkdir(parents=True, exist_ok=True)
 
     eval_dir = OUT_BASE / STAMP / f"{base_str}_{mgr_str}_{anchor_str}_{spd_str}_{config_dir}_rep_{rep}"
@@ -618,14 +618,14 @@ try:
         with cfg_file.open("w") as f:
             yaml.safe_dump(patched, f, sort_keys=False)
 
-        run_once(baseline, anchor, lat, spd, loss, gnoise, gdrop,
+        _res = run_once(baseline, anchor, lat, spd, loss, gnoise, gdrop,
                  cbudget, jitter, mgr_type, rep,
                  nms_threshold=nms_thresh, ego_count=ego_count,
                  timestamp_noise=ts_noise, self_id_radius=sidr,
                  see_v2x_filter=v2x_filter,
                  mac_type=MAC_TYPE, mac_M=mac_m, mac_p_keep=mac_pk)
 
-        if run_idx < TOTAL_RUNS and run_idx % 5 == 0:
+        if _res != "skipped" and run_idx < TOTAL_RUNS and run_idx % 5 == 0:
             kill_carla()
             start_carla()
 finally:
