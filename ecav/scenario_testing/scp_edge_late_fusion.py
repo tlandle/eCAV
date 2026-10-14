@@ -17,7 +17,7 @@ from ecav.scenario_testing.utils.yaml_utils import add_current_time
 from ecav.scenario_testing.utils.edge_fusion_client import EdgeFusionClient
 from ecav.scenario_testing.utils.edge_registration_server import EdgeRegistrationServer
 
-MAX_STEP = 300
+MAX_STEP = 600
 SCENARIO_NAME = 'scp_edge_late_fusion'
 scenario_runner = None
 
