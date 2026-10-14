@@ -85,13 +85,15 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
         #                        because the sender held no usable beacon
         #                        for it or the gate rejected the match
         self._etsi_per_sender: Dict[str, Dict[str, int]] = {}
+        self._omitted_this_tick: Dict[int, list] = {}
         self._etsi_tick_rows: List[Dict[str, int]] = []
 
     # ------------------------------------------------------------------
     @staticmethod
     def _new_counter() -> Dict[str, int]:
         return {"omitted": 0, "omitted_true_self": 0, "omitted_other_actor": 0,
-                "omitted_no_gt": 0, "missed_self_no_beacon": 0,
+                "omitted_no_gt": 0, "omitted_uncovered": 0,
+                "omitted_other_actor_uncovered": 0, "missed_self_no_beacon": 0,
                 "missed_self_gate": 0, "kept": 0}
 
     def _record_broadcast(self, beacons, frame_idx: int) -> None:
@@ -197,6 +199,9 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
                         gt.get("type", "?"))
                 counter["omitted"] += 1; tick_row["omitted"] += 1
                 counter[key] += 1; tick_row[key] += 1
+                # remembered for the coverage check against the merged uplink
+                self._omitted_this_tick.setdefault(frame_idx, []).append(
+                    (dx, dy, key, sender_tag))
                 continue
             kept.append(det)
             counter["kept"] += 1; tick_row["kept"] += 1
@@ -227,6 +232,29 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
         return out
 
     # ------------------------------------------------------------------
+    def _after_uplink_collect(self, objects, beacons, frame_idx):
+        """Coverage cost of the rule (TR 103 562 is a redundancy-mitigation
+        rule, not an identity association): an omitted detection whose actor
+        no other sender reported this tick leaves the edge without that actor.
+        Counted per tick against the merged uplink, 2 m radius; the planner's
+        exposure is the uncovered omissions on real actors."""
+        omitted = self._omitted_this_tick.pop(frame_idx, [])
+        if not omitted:
+            return
+        kept = [(float(o.location.x), float(o.location.y))
+                for o in (objects.get("vehicles", []) or [])]
+        for dx, dy, key, sender_tag in omitted:
+            covered = any(math.hypot(dx - kx, dy - ky) <= 2.0 for kx, ky in kept)
+            if covered:
+                continue
+            counter = self._etsi_per_sender.setdefault(sender_tag, self._new_counter())
+            counter["omitted_uncovered"] += 1
+            if key == "omitted_other_actor":
+                counter["omitted_other_actor_uncovered"] += 1
+        # drop stale ticks so the dict never grows
+        for k in [k for k in self._omitted_this_tick if frame_idx - k > 50]:
+            self._omitted_this_tick.pop(k, None)
+
     def get_etsi_metrics(self) -> Dict[str, Any]:
         total = self._new_counter()
         for c in self._etsi_per_sender.values():
@@ -246,6 +274,9 @@ class LateFusionEtsiSelfAnnouncementEdge(PredictionLateFusionEdge):
             "totals": total,
             # ETSI wrong-match failure: a real object dropped from the uplink.
             "omitted_wrong_fraction": (total["omitted_other_actor"] / omitted) if omitted else 0.0,
+            "omitted_uncovered": total.get("omitted_uncovered", 0),
+            "omitted_other_actor_uncovered": total.get("omitted_other_actor_uncovered", 0),
+            "omitted_uncovered_fraction": (total.get("omitted_uncovered", 0) / omitted) if omitted else 0.0,
             "omitted_no_gt_fraction": (total["omitted_no_gt"] / omitted) if omitted else 0.0,
             # ETSI missed-message failure: a self-announced object forwarded anyway.
             "self_announced_forwarded_fraction": (missed / self_announced) if self_announced else 0.0,

@@ -229,6 +229,30 @@ class _BaseEdgeManager:
             preds = gen(*a, **kw)
             if preds and kw.get("publish_tick") is not None:
                 logger.note_publish(kw["publish_tick"])
+            # Observation lineage: a coasting track's prediction is built from
+            # its last matched detection, not from this frame. Stamp each
+            # prediction with obs_tick = source_tick - time_since_update of its
+            # track so the age the planner sees follows the observation.
+            # source_tick stays the frame clock (frame_age in the log).
+            src = kw.get("source_tick")
+            trks = getattr(getattr(self, "tracker", None), "trackers", None)
+            if preds and src is not None and trks:
+                obs_of = {}
+                for trk in trks:
+                    try:
+                        last = getattr(trk, "last_obs_tick", None)
+                        if last is None:  # track born before the stamp existed
+                            last = int(src) - int(getattr(trk, "time_since_update", 0))
+                        obs_of[int(trk.id)] = int(last)
+                    except (TypeError, ValueError):
+                        pass
+                for p in preds:
+                    tid = getattr(getattr(p, "obstacle_trajectory", None), "obstacle", None)
+                    tid = getattr(tid, "track_id", None)
+                    try:
+                        p.obs_tick = obs_of.get(int(tid), int(src)) if tid is not None else int(src)
+                    except (TypeError, ValueError):
+                        p.obs_tick = int(src)
             return preds
         _gen_with_seq._ptage_wrapped = True
         try:

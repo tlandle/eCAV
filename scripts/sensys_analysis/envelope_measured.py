@@ -88,38 +88,66 @@ def main(argv=None):
     bins = collections.defaultdict(list)
     for r in with_age:
         b = int(r["axis_ms"] // a.bin) * a.bin + a.bin / 2
-        bins[(r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"], b)].append(r["s_op"])
+        bins[(r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"], b)].append(r)
 
+    # S_op and its components per bin, so a curve shift (e.g. between control
+    # policies) is attributable to collisions, self-ghosts, false brakes, or
+    # stalls rather than read off the aggregate alone.
     rows = []
     for k in sorted(bins):
         v = bins[k]
-        p, lo, hi = wilson(sum(v), len(v))
+        p, lo, hi = wilson(sum(r["s_op"] for r in v), len(v))
         rows.append(dict(geom=k[0], speed=k[1], mgr=k[2], anch=k[3], N=k[4], kv=k[5], age_p99_bin_ms=k[6],
-                         n=len(v), p_sop=round(p, 3), lo=round(lo, 3), hi=round(hi, 3)))
+                         n=len(v), p_sop=round(p, 3), lo=round(lo, 3), hi=round(hi, 3),
+                         collided=sum(1 for r in v if r.get("focal_collisions", 0) > 0),
+                         self_ghost=sum(1 for r in v if r.get("focal_ghost_episodes", 0) > 0),
+                         false_brake=sum(1 for r in v if r.get("focal_fp_episodes", 0) > 0),
+                         stalled=sum(1 for r in v if r.get("s_prog", 1) == 0)))
     with open(os.path.join(out, "envelope_measured.csv"), "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
 
-    # tau_max per arm and situation on the measured axis
-    taus = []
-    arms = sorted(set((r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"]) for r in rows))
-    for arm in arms:
-        pts = sorted((r["age_p99_bin_ms"], r["p_sop"], r["n"]) for r in rows if (r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"]) == arm)
+    # tau_max per arm and situation on the measured axis, at three thresholds
+    # (reviewer C: sensitivity of the useful-age budget to the success level),
+    # plus a bootstrap interval of the per-cell measured p99 age (run-level
+    # uncertainty of the axis itself).
+    import random
+    rng = random.Random(0)
+
+    def tau_at(pts, thr):
         running = 1.0
         tau = None
         for x, p, n in pts:
             running = min(running, p)
-            if running >= a.threshold:
+            if running >= thr:
                 tau = x
             else:
                 break
-        taus.append((arm, tau, len(pts), sum(n for _, _, n in pts)))
+        return tau
+
+    thresholds = (0.8, 0.9, 0.95)
+    taus = []
+    arms = sorted(set((r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"]) for r in rows))
+    for arm in arms:
+        pts = sorted((r["age_p99_bin_ms"], r["p_sop"], r["n"]) for r in rows if (r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"]) == arm)
+        axis_vals = [r["axis_ms"] for r in with_age if (r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"]) == arm]
+        boots = []
+        for _ in range(1000):
+            smp = [rng.choice(axis_vals) for _ in axis_vals]
+            smp.sort()
+            boots.append(smp[len(smp) // 2])
+        boots.sort()
+        med_lo, med_hi = boots[int(0.025 * len(boots))], boots[int(0.975 * len(boots)) - 1]
+        taus.append((arm, [tau_at(pts, t) for t in thresholds], len(pts), sum(n for _, _, n in pts), med_lo, med_hi))
     with open(os.path.join(out, "tau_max.md"), "w") as fh:
-        fh.write(f"# tau_max at P(S_op) >= {a.threshold} on measured {a.axis} p99 age at use ({a.stamp})\n\n")
-        fh.write("| geometry | km/h | arm | N | bins | runs | tau_max (bin centre, ms) |\n|---|---|---|---|---|---|---|\n")
-        for (geom, spd, mgr, anch, N, kv), tau, nb, nr in taus:
-            fh.write(f"| {geom} | {spd} | {label(mgr, anch, kv)} | {N} | {nb} | {nr} | {tau if tau is not None else 'below threshold in the first bin'} |\n")
+        fh.write(f"# tau_max on measured {a.axis} p99 age at use ({a.stamp})\n\n")
+        fh.write("tau_max is the largest bin centre at which the running minimum of P(S_op) stays at or above the threshold. "
+                 "The last column is the 95% bootstrap interval of the median per-run p99 age across the arm's runs.\n\n")
+        fh.write("| geometry | km/h | arm | N | bins | runs | tau 0.8 | tau 0.9 | tau 0.95 | median p99 age CI (ms) |\n|---|---|---|---|---|---|---|---|---|---|\n")
+        for (geom, spd, mgr, anch, N, kv), tl, nb, nr, lo, hi in taus:
+            cells = " | ".join(str(t) if t is not None else "< first bin" for t in tl)
+            fh.write(f"| {geom} | {spd} | {label(mgr, anch, kv)} | {N} | {nb} | {nr} | {cells} | [{lo:.0f}, {hi:.0f}] |\n")
     print(open(os.path.join(out, "tau_max.md")).read())
 
     # figures

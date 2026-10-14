@@ -163,9 +163,16 @@ class BehaviorAgent(object):
         #   'stop'        -> emergency stop (target 0, brake 1.0), today's behaviour
         #   'speed_adapt' -> slow to speed_adapt_target_kmh and hold; the
         #                    <3 m floor in step 10 still stops for contact
+        #   'ttc_graded'  -> deceleration graded by the predicted time to
+        #                    collision: the target speed is max_speed scaled
+        #                    by ttc / ttc_graded_horizon_s, so a distant
+        #                    threat slows the ego a little and an imminent
+        #                    one stops it (reviewer C's second control policy)
         self.hazard_response = config_yaml.get('hazard_response', 'stop')
         self.speed_adapt_target_kmh = float(
             config_yaml.get('speed_adapt_target_kmh', 15.0))
+        self.ttc_graded_horizon_s = float(
+            config_yaml.get('ttc_graded_horizon_s', 3.0))
         self._speed_adapt_hold = False
         # How many prediction modes (by score) the collision check sweeps
         # for multimodal predictors; 1 = argmax-only, 6 = full mode set.
@@ -1673,6 +1680,24 @@ class BehaviorAgent(object):
                     return True
         return False
 
+    def _graded_hazard_speed_kmh(self, base_kmh=None):
+        """Target speed while a hazard response other than 'stop' holds.
+        speed_adapt: the fixed adapt speed. ttc_graded: max_speed scaled by
+        ttc / horizon, clipped to [0, 1], so the deceleration grows as the
+        predicted time to collision shrinks. Never above base_kmh when given."""
+        if self.hazard_response == 'ttc_graded':
+            ttc = getattr(self, 'ttc', None)
+            try:
+                frac = min(1.0, max(0.0, float(ttc) / self.ttc_graded_horizon_s))
+            except (TypeError, ValueError, ZeroDivisionError):
+                frac = 0.0
+            target = self.max_speed * frac
+        else:
+            target = self.speed_adapt_target_kmh
+        if base_kmh:
+            target = min(base_kmh, target)
+        return target
+
     def is_close_to_destination(self):
         """
         Check if the current ego vehicle's position is close to destination
@@ -2014,7 +2039,7 @@ class BehaviorAgent(object):
             self._committed_brake_ttl = max(
                 self._committed_brake_ttl,
                 max(20, int(self.ttc / 0.05)))
-            if self.hazard_response == 'speed_adapt':
+            if self.hazard_response in ('speed_adapt', 'ttc_graded'):
                 self._speed_adapt_hold = True
             else:
                 distance = 0  # force emergency stop on FIRST tick too
@@ -2071,7 +2096,7 @@ class BehaviorAgent(object):
 
             if not safe:
                 is_hazard = True
-                if self.hazard_response == 'speed_adapt':
+                if self.hazard_response in ('speed_adapt', 'ttc_graded'):
                     self._speed_adapt_hold = True
                 else:
                     distance = 0  # force emergency stop
@@ -2108,9 +2133,9 @@ class BehaviorAgent(object):
             # NORMAL BEHAVIOR at max speed (measured: acceleration bursts
             # between braking clusters, straight into the blocker). The
             # only safe response is to keep braking.
-            if self.hazard_response == 'speed_adapt' and self._speed_adapt_hold:
+            if self.hazard_response in ('speed_adapt', 'ttc_graded') and self._speed_adapt_hold:
                 return self._local_planner.run_step(
-                    rx, ry, rk, target_speed=self.speed_adapt_target_kmh)
+                    rx, ry, rk, target_speed=self._graded_hazard_speed_kmh())
             return 0, None
 
         if not is_hazard:
@@ -2382,10 +2407,10 @@ class BehaviorAgent(object):
                 return 0, None
 
             target_speed = self.car_following_manager(obstacle_vehicle, distance, target_speed)
-            if self.hazard_response == 'speed_adapt' and self._speed_adapt_hold:
-                # speed adaptation: hold the reduced speed instead of a stop
-                target_speed = min(target_speed if target_speed else self.max_speed,
-                                   self.speed_adapt_target_kmh)
+            if self.hazard_response in ('speed_adapt', 'ttc_graded') and self._speed_adapt_hold:
+                # speed adaptation / graded deceleration instead of a stop
+                target_speed = self._graded_hazard_speed_kmh(
+                    target_speed if target_speed else self.max_speed)
             _ts_in = target_speed
             target_speed, target_loc = self._local_planner.run_step(
                 rx, ry, rk, target_speed=target_speed)
@@ -2406,10 +2431,11 @@ class BehaviorAgent(object):
         import os as _osd2
         if _osd2.environ.get('BEHAVIOR_DEBUG') and self.do_overtake:
             print(f"[SPD-DBG] br=normal do_ov=True entering planner")
-        if self.hazard_response == 'speed_adapt' and self._speed_adapt_hold:
-            # speed adaptation on a branch that would otherwise resume full
-            # speed (e.g. the left-turn hazard branch past its 3 m floor)
-            target_speed = self.speed_adapt_target_kmh
+        if self.hazard_response in ('speed_adapt', 'ttc_graded') and self._speed_adapt_hold:
+            # speed adaptation / graded deceleration on a branch that would
+            # otherwise resume full speed (e.g. the left-turn hazard branch
+            # past its 3 m floor)
+            target_speed = self._graded_hazard_speed_kmh()
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)

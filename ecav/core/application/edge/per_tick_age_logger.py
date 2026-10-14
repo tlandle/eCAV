@@ -49,6 +49,7 @@ The file is small: no boxes, no trajectories, about 25 short fields per row.
 from __future__ import annotations
 
 import csv
+import logging
 import math
 import os
 import time
@@ -60,6 +61,7 @@ COLUMNS = [
     "track_id", "carla_id", "source", "provenance",
     "gen_tick", "publish_tick", "publish_seq", "consume_tick",
     "age_at_use_ms", "publish_age_ms",
+    "obs_tick", "frame_age_ms", "lineage_ok",
     "obs_x", "obs_y", "obs_speed_mps",
     "conflict_actor_id", "is_conflict_actor", "conflict_dist_m",
     "ego_speed_mps", "ctrl_throttle", "ctrl_brake", "decision",
@@ -97,6 +99,8 @@ class PerTickAgeLogger:
         self._writer = None
         # publish_tick -> sequence number, assigned in publish order
         self._publish_seq: Dict[int, int] = {}
+        # rows whose obs <= frame <= publish <= consume ordering failed
+        self._lineage_violations = 0
         self._next_seq = 0
         # per-vehicle count of brake attributions seen, to detect a new one
         self._brake_seen: Dict[int, int] = {}
@@ -129,6 +133,14 @@ class PerTickAgeLogger:
                 pass
             self._fh = None
             self._writer = None
+            if self._lineage_violations:
+                logging.getLogger(__name__).warning(
+                    "[PTAGE] %d rows violated obs<=frame<=publish<=consume in %s",
+                    self._lineage_violations, self._path)
+
+    @property
+    def lineage_violations(self) -> int:
+        return self._lineage_violations
 
     # ------------------------------------------------------------------
     def _pick_conflict_actor(self, gt_snapshot: Dict[int, dict]) -> Optional[tuple]:
@@ -227,7 +239,7 @@ class PerTickAgeLogger:
             if not preds:
                 self._writer.writerow(
                     common_head
-                    + ["", "", "none", "", "", "", "", tick, "", "", "", "", "",
+                    + ["", "", "none", "", "", "", "", tick, "", "", "", "", "", "", "", "",
                        _fmt(c_id), 0, ""]
                     + common_tail)
                 self._fh.flush()
@@ -238,12 +250,22 @@ class PerTickAgeLogger:
                 tid = getattr(obs, "track_id", None)
                 cid = getattr(obs, "carla_id", None)
                 cid_i = int(cid) if cid is not None else None
-                gen_tick = getattr(pred, "source_tick", None)
+                frame_tick = getattr(pred, "source_tick", None)
+                obs_tick = getattr(pred, "obs_tick", None)
+                # age at use follows the observation (last matched detection of
+                # the track); frame_age_ms is the tracker frame clock for reference
+                gen_tick = obs_tick if obs_tick is not None else frame_tick
                 pub_tick = getattr(pred, "publish_tick", None)
                 source = "edge" if pub_tick is not None else "local"
                 prov = self._provenance(cid_i, focal_id, anchoring)
                 age_ms = ((tick - int(gen_tick)) * dt * 1000.0) if gen_tick is not None else None
+                frame_age_ms = ((tick - int(frame_tick)) * dt * 1000.0) if frame_tick is not None else None
                 pub_age_ms = ((tick - int(pub_tick)) * dt * 1000.0) if pub_tick is not None else None
+                # lineage: obs <= frame <= publish <= consume
+                chain = [int(x) for x in (obs_tick, frame_tick, pub_tick) if x is not None] + [int(tick)]
+                lineage_ok = 1 if all(a <= b for a, b in zip(chain, chain[1:])) else 0
+                if not lineage_ok:
+                    self._lineage_violations += 1
                 seq = self._publish_seq.get(int(pub_tick)) if pub_tick is not None else None
                 ox, oy, ospd = self._obs_xy_speed(pred)
                 if conflict is not None and not math.isnan(ox):
@@ -261,6 +283,7 @@ class PerTickAgeLogger:
                     + [_fmt(tid), _fmt(cid_i), source, prov,
                        _fmt(gen_tick), _fmt(pub_tick), _fmt(seq), tick,
                        _fmt(age_ms), _fmt(pub_age_ms),
+                       _fmt(obs_tick), _fmt(frame_age_ms), lineage_ok,
                        _fmt(ox), _fmt(oy), _fmt(ospd),
                        _fmt(c_id), is_conflict, _fmt(cdist)]
                     + common_tail)

@@ -108,6 +108,19 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
     edge = [r for r in rows if r["source"] == "edge"]
     ages = [_f(r["age_at_use_ms"]) for r in edge]
     crit = [_f(r["age_at_use_ms"]) for r in edge if r["is_conflict_actor"] == "1"]
+    # coverage of the conflict actor: between its first and last consumed
+    # tick, the share of ticks with a consumed track and the longest gap.
+    # A missing actor is reported here, never folded into the age statistics.
+    crit_ticks = sorted({int(r["tick"]) for r in edge if r["is_conflict_actor"] == "1"})
+    if len(crit_ticks) >= 2:
+        span = crit_ticks[-1] - crit_ticks[0] + 1
+        conflict_coverage = len(crit_ticks) / span
+        conflict_max_gap = max(b - a - 1 for a, b in zip(crit_ticks, crit_ticks[1:]))
+    else:
+        conflict_coverage = float("nan") if not crit_ticks else 1.0
+        conflict_max_gap = float("nan") if not crit_ticks else 0
+    lineage_bad = sum(1 for r in rows if r.get("lineage_ok") == "0")
+    frame_ages = [_f(r["frame_age_ms"]) for r in edge if r.get("frame_age_ms") not in (None, "")]
 
     # first braking decision
     by_tick: Dict[int, List[dict]] = defaultdict(list)
@@ -174,6 +187,10 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
         "n_rows": len(rows),
         "n_ticks": len(ticks),
         "edge_silence_max_ticks": float(silence_max),
+        "conflict_coverage": float(conflict_coverage),
+        "conflict_max_gap_ticks": float(conflict_max_gap),
+        "lineage_violations": float(lineage_bad),
+        "frame_p99_age_ms": _p(frame_ages, 0.99) if frame_ages else float("nan"),
         "p50_age_ms": _p(ages, 50),
         "p95_age_ms": _p(ages, 95),
         "global_p99_age_ms": _p(ages, 99),

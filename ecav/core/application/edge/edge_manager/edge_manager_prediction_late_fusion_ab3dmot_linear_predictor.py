@@ -687,7 +687,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             arrival = frame_idx + ul_ticks
         else:
             arrival = self.latency_model.stamp(frame_idx)
+        self._after_uplink_collect(objects, beacons, frame_idx)
         self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+
+    # ------------------------------------------------------------------
+    def _after_uplink_collect(self, objects, beacons, frame_idx):
+        """Hook with the merged uplink of this tick (every sender's payload),
+        before it enters the jitter buffer. Default: nothing. The ETSI arm uses
+        it to measure what its omissions cost in coverage."""
+        return None
 
     # ------------------------------------------------------------------
     def _sender_payload(self, sender_tag, sender_vid, src_objects, beacons,

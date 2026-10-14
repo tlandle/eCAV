@@ -97,6 +97,9 @@ ap.add_argument("--carla-port", type=int, default=int(__import__("os").environ.g
 ap.add_argument("--edge-kv", nargs="*", type=str, default=[],
                 help="key=value pairs set on every edge block (beacon fault, ValidBeacon and gating knobs); "
                      "value parsed as int, float, true/false, or str; one value per campaign invocation")
+ap.add_argument("--behavior-kv", nargs="*", type=str, default=[],
+                help="key=value pairs set on every CAV's behavior block (hazard_response, "
+                     "speed_adapt_target_kmh, ttc_graded_horizon_s); value parsed like --edge-kv")
 ap.add_argument("--keep-visualize", action="store_true", default=False,
                 help="Keep the YAML camera/lidar windows; by default every run is headless (visualize 0/false)")
 ap.add_argument("--per-tick-age-log", action="store_true", default=False,
@@ -176,6 +179,7 @@ def _parse_kv(items):
                     out[k] = v
     return out
 EDGE_KV = _parse_kv(args.edge_kv)
+BEHAVIOR_KV = _parse_kv(args.behavior_kv)
 STAMP = args.stamp if args.stamp else (datetime.now().strftime("%Y%m%d_%H%M%S"))
 EXP_ROOT    = ROOT / "experiment_results" / args.scenario / STAMP
 OUT_BASE    = ROOT / "ecav/scenario_testing/evaluation_outputs"
@@ -446,6 +450,23 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
     for _sec in d.values():
         if isinstance(_sec, dict) and "configFile" in _sec and "port" in _sec:
             _sec["port"] = CARLA_PORT
+    if BEHAVIOR_KV:
+        # Control policy knobs on every CAV's behavior block (edge members
+        # and single_cav_list alike), so every vehicle drives the same policy.
+        def _behaviors(node):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if k == "behavior" and isinstance(v, dict):
+                        for bk, bv in BEHAVIOR_KV.items():
+                            v[bk] = bv
+                    else:
+                        _behaviors(v)
+            elif isinstance(node, list):
+                for v in node:
+                    _behaviors(v)
+        _behaviors(d)
+        print(f"    setting behavior {BEHAVIOR_KV} on every CAV")
+
     if not args.keep_visualize:
         # Campaign hosts are headless; every camera/lidar window is disabled.
         def _headless(node):
@@ -518,6 +539,8 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     macM_str = f"macM_{mac_M}" if mac_M is not None else ""
     macpk_str = f"macpk_{mac_p_keep}" if mac_p_keep is not None else ""
     kv_str = "_".join(f"{k}-{v}" for k, v in sorted(EDGE_KV.items())) if EDGE_KV else ""
+    if BEHAVIOR_KV:
+        kv_str = "_".join(x for x in [kv_str, "_".join(f"{k}-{v}" for k, v in sorted(BEHAVIOR_KV.items()))] if x)
 
     # Build config component string (filter out empty)
     config_parts = [lat_str, loss_str, gnoise_str, gdrop_str, budget_str, jitter_str]
@@ -585,6 +608,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if nms_threshold is not None: metrics["config_nms_threshold"] = nms_threshold
     if ego_count is not None: metrics["config_ego_count"] = ego_count
     if EDGE_KV: metrics["config_edge_kv"] = dict(EDGE_KV)
+    if BEHAVIOR_KV: metrics["config_behavior_kv"] = dict(BEHAVIOR_KV)
     try:  # the scenario file's step cap, so the reduction knows what "completed" means
         import re as _re
         _m = _re.search(r"^MAX_STEP\s*=\s*(\d+)", (Path("ecav/scenario_testing") / f"{scenario_name}.py").read_text(), _re.M)
