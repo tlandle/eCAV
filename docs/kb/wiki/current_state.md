@@ -5091,3 +5091,84 @@ Commands to run when the GPU is free, in this order:
 then the same with `-t openscenario_3_edge_late_fusion_mixed --ego-counts 4`,
 `-t scp_edge_late_fusion`, `-t blind_overtake_edge_late_fusion`, and a copy
 of the smoke YAML with `hazard_response: speed_adapt` under `behavior`.
+
+### 2026-10-13 20:28 to 20:42: closed-loop smoke of the three geometries on a private CARLA (port 2200)
+
+Run with `ecav.py` directly (never test_runner, whose kill_carla pkills every
+CARLA binary) beside the idle port-2000 server of the finished per-tick track.
+Port wiring is YAML only: `world.client_port` (aliased by
+`scenario_runner.port`), `scenario_runner.trafficManagerPort`, and
+`ml_manager.yolo_endpoint`; copies `<name>_p2200.{yaml,py}` carried 2200 /
+8200 / 18201 plus `anchoring: true` and a `conflict_kinematics` block
+(deleted after the smoke; regenerate by copying the committed files and
+changing those keys). The YOLO gRPC server on 18201 was started and never
+contacted: the sequential path loads YOLO in-process (`[ML Manager]
+Initializing in LOCAL mode`), the endpoint is read only with `-d`.
+Worktree needs beyond the committed tree: `python ecav.py --build` (ecloud
+stubs at the root), `grpc_tools.protoc ... --python_out=./ecav/protos
+perception.proto`, and symlinks to the main checkout for the untracked
+`scenario_runner/` entries, the `sort` and `ecav/worldfusion` submodule dirs
+(empty gitlinks in a worktree), and `data/` (latency traces). Attempt 1
+failed on `sort` missing; attempts 2 and 3 of SCP died in CUDA OOM at the
+first detection (CARLA peaks ~6 GB during its first map load beside the
+3.3 GB idle server and ~5 GB desktop); attempt 4 preloaded Town03 with a
+bare client and waited 30 s (CARLA settles to ~5.2 GB), then ran clean.
+Peak GPU 13.5 GB. Every run ends with `Fatal Python error:
+PyGILState_Release` after the metrics are written (rc 134; present in the
+February campaign logs too, harmless).
+
+Results (one seed each, latency 0, anchoring on, late fusion, 43 km/h;
+outputs under the session scratchpad `smoke2200/<name>/`):
+- `scp_edge_late_fusion`: 75 s wall, exit by destination (`sys.exit(0)` at
+  tick 212, behavior_agent.py:1800), metrics written. Focal from (-84.8,80)
+  north through the intersection, min 0.3 m from the conflict (-84.8,127.7)
+  at tick 178, no collision, no brake attribution. Tesla (actor 195) first
+  moved at tick 26 at (-35.2,127.7), first tracked by the edge at tick 31 at
+  (-36.1,127.7), crossed the conflict at tick 113 (0.5 m); the focal braked
+  to 1.1 m/s at ticks 120 to 140 and proceeded. One planner exception at
+  tick 167 (`'NoneType' object has no attribute 'lane_type'`,
+  behavior_agent.py:1259, `left_wpt` None in the overtake branch; the
+  vehicle manager issues a one-tick stop and continues). Duplicate tracks:
+  connected 0.006, non-connected 0.116.
+- `blind_overtake_edge_late_fusion`: 125 s wall, 600 ticks (MAX_STEP),
+  metrics written. Focal (317.4,195.4) west; entered the oncoming lane at
+  tick ~270 (287.3,198.3), passed the truck (278,195.4) at tick 284
+  (279.8,199.3), braked hard at tick 300 at (271.1,199.5) (all brake
+  attributions true_positive), met the second oncoming car head-on at
+  x~265 y~199: first collision warning at tick 336, 100 collision ticks with
+  actor 463 (oncoming) and static geometry, final pose (234.2,201.5).
+  Oncoming cars appeared on the eastbound lane y~199 as intended: first
+  tracked at tick 35 (248.2,199.0), tick 254 (237.4,199.2), tick 366
+  (218.0,199.2). `scenario_1.xml` names `vehicle.nissan.seat.leon`, which
+  CARLA 0.9.15 does not have; ScenarioRunner substitutes
+  `vehicle.tesla.model3` (log warning), so a conflict trace on this geometry
+  must use `cross_traffic_type: tesla`, not `seat` (the smoke trace had no
+  cross rows for that reason).
+- `openscenario_3_edge_late_fusion_mixed_4ego`: 200 s wall, 300 ticks
+  (MAX_STEP), metrics written. `[MIXED] stepping 2 non-connected vehicle(s)
+  at tick 0: ids=[265, 276]`; both logged a localization line every tick and
+  moved (265 from (-20.0,130.9) to (-78.9,123.4); 276 from (-77.5,200.0) to
+  (-59.9,211.2)); `vehicles[id].connected` false for both; no vehicle
+  received edge predictions in this run (edge_preds_received_total 0 for
+  all four, see unresolved). Hero reached the conflict (0.7 m at tick 173);
+  Tesla crossed at tick 113. Hero braked for ghosts (attributions
+  external_stale_fp, self_ghost) and stopped at the intersection entry
+  (-83.7,131.0) by tick 200, then collided with cav2 (254, connected,
+  eastbound on y~136) around ticks 207 to 255 (48 collision ticks each);
+  cav3 (265) hit the Audi occluder (248) after turning into the hero's
+  approach road; cav4 (276) hit a static pole 0.4 m from its spawn and sat
+  against it (187 collision ticks). The planner lane_type exception hit
+  cav2 and cav3 172 times (it is in the February 4-ego logs too). Duplicate
+  tracks: connected 0.0099 (5 of 506 actor-ticks), non-connected 0.0721
+  (146 of 2024); first-track ticks recorded for all nine live vehicles.
+
+Unresolved from the smoke: the 4-ego layout's cav4 spawn (-77.5,200) is
+into a pole and cav2/cav3 trigger the lane_type exception (pre-existing,
+committed layout); the hero-cav2 collision in the mixed run is the hero's
+left turn into cav2's lane (4-ego layout, not the knob); `edge_preds_received_total`
+is 0 for every vehicle in all three runs, so that counter is not wired on
+this path (the planner did consume predictions: ghost and true-positive
+brake attributions exist); `distance_traveled_m` disagrees with GT motion
+(0.4 m for cav4 which moved 20 m); `left_wpt.lane_type` at
+behavior_agent.py:1259 is evaluated when `left_wpt` is None because of
+and/or precedence.
