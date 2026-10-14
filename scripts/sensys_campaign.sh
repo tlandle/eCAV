@@ -77,7 +77,23 @@ if [[ "$ROLE" == "atlas" ]]; then
   run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $REPS $COMMON
 fi
 
-# 5. Beacon faults: V2X2V Naive / ETSI / SBA, one knob at a time (YAML keys of the
-#    gating track: beacon_fault_loss_rate, beacon_fault_delay_ticks,
-#    beacon_fault_clock_offset_ms, beacon_fault_pos_noise_m). test_runner has no
-#    flag for them yet; see sensys_fault_sweep.sh once the flag lands.
+# 5. Beacon faults: V2X2V Naive / ETSI / SBA, one knob at a time via --edge-kv
+#    (keys of the gating track), scenario_3 and SCP at N=4, SCALE_REPS seeds, 200 ms.
+if [[ "$ROLE" == "atlas" ]]; then
+  FAULTS="beacon_fault_loss_rate=0.1 beacon_fault_loss_rate=0.3 beacon_fault_loss_rate=0.5 beacon_fault_loss_rate=0.7 \
+          beacon_fault_delay_ticks=1 beacon_fault_delay_ticks=2 beacon_fault_delay_ticks=4 beacon_fault_delay_ticks=8 \
+          beacon_fault_clock_offset_ms=50 beacon_fault_clock_offset_ms=100 beacon_fault_clock_offset_ms=200 beacon_fault_clock_offset_ms=400 \
+          beacon_fault_pos_noise_m=0.5 beacon_fault_pos_noise_m=1.0 beacon_fault_pos_noise_m=2.0 beacon_fault_pos_noise_m=4.0"
+  for geom in openscenario_3_edge_late_fusion scp_edge_late_fusion; do
+    for kv in $FAULTS; do
+      run -t "$geom" --manager-types late_fusion --anchoring both --latencies 200 --speeds $SPEEDS --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" $COMMON
+      run -t "$geom" --manager-types "$ETSI" --anchoring off --latencies 200 --speeds $SPEEDS --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" $COMMON
+    done
+  done
+  # ValidBeacon on, same faults, SBA arm only
+  for geom in openscenario_3_edge_late_fusion scp_edge_late_fusion; do
+    for kv in $FAULTS; do
+      run -t "$geom" --manager-types late_fusion --anchoring on --latencies 200 --speeds $SPEEDS --ego-counts 4 --repetitions $SCALE_REPS --edge-kv "$kv" beacon_validity_checks=true $COMMON
+    done
+  done
+fi
