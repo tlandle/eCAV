@@ -541,6 +541,9 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if ego_count is not None and ego_count > 1:
         scenario_name = f"{scenario_name}_{ego_count}ego"
     cmd = [sys.executable, "ecav.py", "-t", scenario_name, "--apply_ml", "--output_dir", str(eval_dir)]
+    if os.environ.get("ECAV_PROFILE"):
+        # ECAV_PROFILE=1: cProfile the main process; profile.pstats lands in the run dir
+        cmd = [sys.executable, "-m", "cProfile", "-o", str(run_dir / "profile.pstats")] + cmd[1:]
 
     run_log = run_dir / "runner_stdout.txt"
     with run_log.open("w") as log_f:
