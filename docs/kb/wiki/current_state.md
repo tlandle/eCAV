@@ -5440,3 +5440,28 @@ patch (manager cip, latency 0.2, anchoring false, 50 km/h); test_runner
 overrides all of it per run. Worktree run-time symlinks (sort,
 ecav/worldfusion, data, scenario_runner entries) and generated stubs are
 in place and untracked.
+
+## 2026-10-14: scenario fixes merged (f02499fd), gate stage running on both hosts
+- Merged sensys/scenarios-mixed-speedadapt tip ad8e5074: cav4 and cav2 spawns moved
+  off the pole and off the hero's turn lane in every multi-ego layout, east-approach
+  destinations snapped onto their lane with overtakes off, SCP 2/8/16 ego variants,
+  planner guards (None left lane means no lane change; empty ego path in the
+  collision check; empty next() in the push-destination lookup), prediction
+  counters wired at the downlink consumption point, planner step tracebacks logged.
+  Verification on port 2200: LTAP/OD 4 egos 195 s, SCP 8 egos 206 s, no spawn
+  collision, no planner exception after the guards, no collisions.
+- Still open for N >= 4: the lead east-approach CAV drifts 2.5 m left onto the
+  hero's turn target lane from x = -33 and can stop there, so the hero yields to
+  MAX_STEP. Needed before the scaling, faults and mixed stages; not in the N=1 gate
+  or envelope.
+- Gate stage (`scripts/sensys_campaign.sh <role> gate`, stamp sensys_nov27, 240
+  runs per host) started on cetus at 13:52:59 and atlas at 13:53:29, both on
+  f02499fd. Two earlier cetus starts on d5a6229a are set aside as
+  `sensys_nov27_stale_d5a6229a` (12 runs) and `sensys_nov27_disturbed` (one run
+  shared with a leftover client); neither is campaign data. The orphan CARLA on
+  atlas was stopped (Tyler's call). Lesson repeated: a `pgrep -f` pattern inside an
+  ssh command line matches the ssh shell itself and kills it (exit 255); kill by
+  explicit PID.
+- `reviews/expected_effects.md` (paper repo) states the prediction, the deciding
+  statistic and the run set for each new evaluation; `campaign_check.py` carries
+  them as effect gates E1 to E6 next to the shape gates.
