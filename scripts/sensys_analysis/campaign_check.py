@@ -359,6 +359,38 @@ def main(argv=None):
     for sev, msg in eg:
         print(f"{sev} {msg}")
 
+    # 4b. axis bracketing: an arm whose success is still at or above the threshold at its
+    # largest configured delay, or already below it at its smallest, has no measured
+    # transition; list the delays to add instead of extrapolating tau_max.
+    print("\n== transition bracketing")
+    brack = []
+    for key in sorted(set((k[0], k[1], k[2], k[3], k[4], k[6]) for k in cells)):
+        geom, spd, mgr, anch, N, kv = key
+        lats = sorted(k[5] for k in cells if (k[0], k[1], k[2], k[3], k[4], k[6]) == key)
+        if len(lats) < 2:
+            continue
+        def pp(l):
+            v = cells[(geom, spd, mgr, anch, N, l, kv)]
+            return wilson(sum(r["s_op"] for r in v), len(v))
+        hi = pp(lats[-1]); lo = pp(lats[0])
+        kvs = ""
+        if kv:
+            kvd = json.loads(kv)
+            ekv = {k: v for k, v in kvd.items() if not k.startswith("behavior.")}
+            bkv = {k[9:]: v for k, v in kvd.items() if k.startswith("behavior.")}
+            kvs = (f" --edge-kv {' '.join(f'{x}={y}' for x, y in ekv.items())}" if ekv else "") + \
+                  (f" --behavior-kv {' '.join(f'{x}={y}' for x, y in bkv.items())}" if bkv else "")
+        ego = f" --ego-counts {N}" if N and N > 1 else ""
+        base = f"python test_runner.py -t {geom} --manager-types {mgr} --anchoring {anch} --speeds {spd}{ego} --repetitions {len(cells[(geom, spd, mgr, anch, N, lats[-1], kv)])} --stamp {a.stamp} --latency-distribution hybrid --self-id-radius 1.0 --per-tick-age-log{kvs}"
+        if hi[1] >= a.threshold:
+            brack.append(("WARN", f"{geom} {spd} km/h {mgr}/{anch} N={N} {kv}: still {hi[0]:.2f} at {lats[-1]} ms, no transition measured; add", f"{base} --latencies {lats[-1] + 300} {lats[-1] + 600}"))
+        if lo[2] < a.threshold and lats[0] > 0:
+            brack.append(("WARN", f"{geom} {spd} km/h {mgr}/{anch} N={N} {kv}: already {lo[0]:.2f} at {lats[0]} ms; add", f"{base} --latencies 0 {max(0, lats[0] // 2)}"))
+    if not brack:
+        print("every arm's transition lies inside its sweep")
+    for sev, msg, cmd in brack:
+        print(f"{sev} {msg}\n    {cmd}")
+
     # 5. stage-2 cells
     if stage2:
         print(f"\n== {len(stage2)} cells straddle P={a.threshold}; add {a.stage2} seeds each (resume with the same stamp):")
