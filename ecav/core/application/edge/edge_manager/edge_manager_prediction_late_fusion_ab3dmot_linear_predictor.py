@@ -194,7 +194,7 @@ def _collect_ab3d_detections(edge,
     return {'dets': dets_arr, 'info': info_arr}
 
 
-def _cross_source_nms(dets_dict, cdist_thresh=3.0):
+def _cross_source_nms(dets_dict, cdist_thresh=5.0):
     """Deduplicate anonymous sensor detections from multiple sources.
 
     Beacons (info CID > 0) are kept unconditionally.
@@ -205,6 +205,16 @@ def _cross_source_nms(dets_dict, cdist_thresh=3.0):
     This prevents the tracker from receiving N copies of the same
     real-world object when N egos all observe it, keeping association
     cost O(objects²) instead of O((N*objects)²).
+
+    The radius is one car length, the same value the per-RSU cross-camera
+    NMS uses (perception_manager.cross_camera_nms_threshold). Object-level
+    detections sit at the nearest-surface centroid, so two RSUs that see a
+    crossing car end-on report its front and rear faces 3.3 m apart on
+    average (4.5 m worst case, SenSys scenario_3 logs, 2026-10-14). The
+    earlier 3 m radius let that pair through on most ticks; AB3DMOT's own
+    NMS then merged it but keeps the last-listed of equal scores, so the
+    detection fed to the track alternated between the two faces and the
+    innovation gate rejected it. See docs/kb/wiki/current_state.md.
     """
     dets = dets_dict['dets']
     info = dets_dict['info']
@@ -755,7 +765,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         dets_all = _collect_ab3d_detections(
             self, objects, beacons, frame_idx=source_tick,
             beacon_id_mgr=self.beacon_id_mgr)
-        dets_all = _cross_source_nms(dets_all, cdist_thresh=3.0)
+        dets_all = _cross_source_nms(dets_all)
         return dets_all
 
     # ------------------------------------------------------------------

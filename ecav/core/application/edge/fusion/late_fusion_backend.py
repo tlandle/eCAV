@@ -101,8 +101,14 @@ class LateFusionBackend(BaseFusionBackend):
 
         return result
 
-    def _cross_source_nms(self, dets_dict, cdist_thresh=3.0):
-        """Deduplicate anonymous detections from multiple sources."""
+    def _cross_source_nms(self, dets_dict, cdist_thresh=5.0):
+        """Deduplicate anonymous detections from multiple sources.
+
+        One car length, matching the late-fusion edge manager's
+        _cross_source_nms: two RSUs that see a crossing car end-on report
+        its front and rear faces 3.3 m apart on average, which a 3 m radius
+        let through as a pair (docs/kb/wiki/current_state.md, 2026-10-14).
+        """
         dets = dets_dict['dets']
         info = dets_dict['info']
         if len(dets) == 0:
