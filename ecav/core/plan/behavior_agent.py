@@ -598,10 +598,16 @@ class BehaviorAgent(object):
         clean_history : boolean
             Flag to clean the waypoint history.
         """
-        # the route lane must be chosen before the buffers are cleared
+        # the route lane must be chosen before the buffers are cleared; the
+        # heading check applies only to a route starting at the vehicle
+        # (push, reset, overtake), not to one planned from a point elsewhere
+        # (reroute from the end of the queue, a spawn-time start)
+        _ego_yaw = None
+        if self._ego_pos is not None and \
+                self._ego_pos.location.distance(start_location) < 5.0:
+            _ego_yaw = self._ego_pos.rotation.yaw
         self.start_waypoint = route_start_waypoint(
-            self._map, start_location,
-            self._ego_pos.rotation.yaw if self._ego_pos else None,
+            self._map, start_location, _ego_yaw,
             list(self.get_local_planner().get_waypoint_buffer()) +
             list(self.get_local_planner().get_waypoints_queue()))
 
