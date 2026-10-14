@@ -5900,3 +5900,24 @@ Live check when the GPU is free: one gate cell (late_fusion, anchoring on,
 0 ms, 70 km/h, 10 seeds) and read per_tick_age.csv for one conflict-actor
 track id from tick 26 to the crossing, no published speed below 10 m/s
 after tick 60, and no external_stale brake on the Tesla.
+
+## 2026-10-14 night: tracking handover merged; identity exclusion zone corrected
+- Merged sensys/edge-track-handover (bc4aef88): matching.py gate in m/s (was
+  m/tick against m/s constants, so every track under 10 m/s got a 1 m gate and
+  died at the cross-view flip), base gate 3 m for the two RSU faces of one car,
+  cross-source NMS 5 m. Offline over 212 gate runs: ids per run 10.5 -> 1.8,
+  stationary fraction 0.27 -> 0.01 with the coasting-velocity fix, planner
+  uncovered ticks 53.6 -> 11.2.
+- Residual it reported: in 36 of 212 runs the identity exclusion zone
+  (dup_x_max 8 along, dup_y_max 2 across, around every beacon-identified
+  track) culled the Tesla's anonymous track as it crossed within 2 m in front
+  of the stopped hero, an 18 to 33 tick planner-visible gap at the conflict.
+  Corrected in AB3DMOT_libs/model.py: the zone is asymmetric (a stale echo of
+  a moving vehicle lies behind it, never ahead: dup_x_max back, dup_x_ahead
+  2.5 m forward) and the cull requires kinematic consistency (anonymous and
+  identified track speeds within dup_v_max 2 m/s). Both knobs on the tracker
+  cfg with defaults. This is the "detection that cannot be assigned to an
+  existing anchor" case of the SBA lifecycle for the paper: it stays an
+  anonymous track unless it sits behind the anchor and moves with it.
+- Offline replay of the 220 gate runs with the corrected zone running
+  (scratchpad replay_after_zone.txt); the live check is the gate rerun.

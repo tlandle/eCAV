@@ -63,6 +63,16 @@ class AB3DMOT(object):
 		#   x_max: along-track (longitudinal) — covers 5-8m depth error
 		#   y_max: cross-track (lateral)      — tight to spare adjacent lanes
 		self._dup_x_max = getattr(cfg, 'dup_x_max', 8.0)
+		# The stale echo of a moving identified vehicle lies BEHIND it along
+		# its heading (it is that vehicle's own earlier position), never
+		# ahead: the zone reaches dup_x_max back and only dup_x_ahead forward,
+		# so a vehicle crossing in front of a stopped CAV is not swallowed.
+		# A duplicate also moves with the vehicle it duplicates: the cull
+		# needs the anonymous track's speed within dup_v_max of the
+		# identified track's (both from the KF state, m/tick over dt).
+		self._dup_x_ahead = getattr(cfg, 'dup_x_ahead', 2.5)
+		self._dup_v_max = getattr(cfg, 'dup_v_max', 2.0)
+		self._dup_dt = getattr(cfg, 'dt', 0.05)
 		self._dup_y_max = getattr(cfg, 'dup_y_max', 2.0)
 		self._dup_size_ratio = getattr(cfg, 'dup_size_ratio', 2.5)
 
@@ -464,7 +474,7 @@ class AB3DMOT(object):
 			cos_t, sin_t = math.cos(theta), math.sin(theta)
 			dx_along =  dx_world * cos_t + dz_world * sin_t
 			dy_cross = -dx_world * sin_t + dz_world * cos_t
-			if abs(dx_along) <= self._dup_x_max and abs(dy_cross) <= self._dup_y_max:
+			if -self._dup_x_max <= dx_along <= self._dup_x_ahead and abs(dy_cross) <= self._dup_y_max:
 				return True
 		return False
 
@@ -543,9 +553,15 @@ class AB3DMOT(object):
 				cos_t, sin_t = math.cos(theta), math.sin(theta)
 				dx_along =  dx_w * cos_t + dz_w * sin_t
 				dy_cross = -dx_w * sin_t + dz_w * cos_t
-				if abs(dx_along) <= self._dup_x_max and abs(dy_cross) <= self._dup_y_max:
-					near = True
-					break
+				if not (-self._dup_x_max <= dx_along <= self._dup_x_ahead and abs(dy_cross) <= self._dup_y_max):
+					continue
+				# kinematic consistency: a duplicate moves with its original
+				v_trk = math.hypot(float(trk.kf.x[7]), float(trk.kf.x[9])) / self._dup_dt
+				v_it = math.hypot(float(it.kf.x[7]), float(it.kf.x[9])) / self._dup_dt
+				if abs(v_trk - v_it) > self._dup_v_max:
+					continue
+				near = True
+				break
 
 			if near:
 				trk.near_identified_ticks = getattr(trk, 'near_identified_ticks', 0) + 1
