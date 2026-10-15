@@ -607,12 +607,21 @@ class AB3DMOT(object):
 				if _hist is None:
 					_hist = trk.pos_hist = []
 				_hist.append((self.frame_count, float(trk.kf.x[0]), float(trk.kf.x[2])))
-				if len(_hist) > 11:
+				if len(_hist) > 21:
 					del _hist[0]
 				if len(_hist) >= 3:
 					(f0, x0, z0), (f1, x1, z1) = _hist[0], _hist[-1]
 					n = max(1, f1 - f0)
 					vel = np.array([(x1 - x0) / n, float(vel[1]) if len(vel) > 1 else 0.0, (z1 - z0) / n])
+					# Slower than 2 m/s over the last second is published at
+					# rest: a parked vehicle whose measured centroid wanders
+					# between its visible faces (up to 1.9 m across a second)
+					# must not be extrapolated into the road, and a vehicle
+					# that is really moving that slowly covers under 2.5 m in
+					# the planner's horizon. The threshold is the one the
+					# predictor already applied at 1 m/s (_MIN_KF_SPEED_MPS).
+					if math.hypot(vel[0], vel[2]) / max(getattr(self, 'dt', 0.05), 1e-3) < 2.0:
+						vel = np.zeros(3)
 				# A coasting track (predict-only, no fresh measurement) keeps
 				# the velocity the filter converged to while it was matched:
 				# a crossing vehicle briefly lost at a camera handover must
