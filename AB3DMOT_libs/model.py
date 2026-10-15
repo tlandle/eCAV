@@ -335,7 +335,7 @@ class AB3DMOT(object):
 
 		return trks
 
-	def update(self, matched, unmatched_trks, dets, info):
+	def update(self, matched, unmatched_trks, dets, info, edges=None):
 		# update matched trackers with assigned detections
 		# Vectorized Kalman update across all matched trackers.
 		# H and R are identical across trackers; stack x, P, and z and
@@ -403,6 +403,7 @@ class AB3DMOT(object):
 			trk.kf.P = P_new[j]
 			trk.time_since_update = 0
 			trk.hits += 1
+			self._note_edges(trk, edges, d_idx)
 			if getattr(self, '_cur_frame_tick', None) is not None:
 				trk.last_obs_tick = self._cur_frame_tick
 
@@ -478,7 +479,7 @@ class AB3DMOT(object):
 				return True
 		return False
 
-	def birth(self, dets, info, unmatched_dets):
+	def birth(self, dets, info, unmatched_dets, edges=None):
 		# create and initialise new trackers for unmatched detections
 
 		new_id_list = list()
@@ -498,6 +499,7 @@ class AB3DMOT(object):
 			trk.guid     = int(info[i, GUID])
 			trk.near_identified_ticks = 0  # for post-birth cull
 			trk.anon_birth_frame = self.frame_count if cid == -1 else -1
+			self._note_edges(trk, edges, i)
 			if getattr(self, '_cur_frame_tick', None) is not None:
 				trk.last_obs_tick = self._cur_frame_tick   # born from this frame's detection
 			self.trackers.append(trk)
@@ -574,6 +576,52 @@ class AB3DMOT(object):
 			self.trackers.remove(trk)
 			self.anon_cull_count += 1
 
+	def _note_edges(self, trk, edges, idx):
+		"""Keep the measured box edges (world xmin, xmax, ymin, ymax) of the
+		detection a track was born from or matched to, with the frame, for the
+		published velocity. Bundles without 'edges' leave the track on the
+		position-displacement estimate."""
+		if edges is None or idx >= len(edges):
+			return
+		h = getattr(trk, 'edge_hist', None)
+		if h is None:
+			h = trk.edge_hist = []
+		h.append((self.frame_count, tuple(float(v) for v in edges[idx][:4])))
+		if len(h) > 21:
+			del h[0]
+
+	def _edge_velocity(self, eh, vel):
+		"""Velocity (m per frame, [vx, vy, vz] in the state's axes) from the
+		slower-moving edge of the measured box per ground axis. A rigid vehicle
+		moves both edges of its box; a change of what is visible moves one: a
+		parked truck seen from behind by a CAV closing on it grows from its rear
+		face along its side, so the mean of its points slid north at 4 to 7 m/s
+		while its rear edge stood still (2026-10-15, scenario_3 column), and a
+		camera box cut by the image edge slides the same way alongside. Edges
+		moving in opposite directions give zero. The last half of the history
+		must agree (the slower of the two estimates), and under 2 m/s over the
+		window the track is published at rest, as for the position estimate."""
+		def slower(a, b):
+			if a * b <= 0.0:
+				return 0.0
+			return a if abs(a) < abs(b) else b
+		def est(e0, e1, n):
+			return (slower(e1[0] - e0[0], e1[1] - e0[1]) / n,
+			        slower(e1[2] - e0[2], e1[3] - e0[3]) / n)
+		(f0, e0), (f1, e1) = eh[0], eh[-1]
+		n = max(1, f1 - f0)
+		vx, vz = est(e0, e1, n)
+		fh, ehalf = eh[len(eh) // 2]
+		nh = max(1, f1 - fh)
+		hx, hz = est(ehalf, e1, nh)
+		v_long = math.hypot(vx, vz)
+		v_half = math.hypot(hx, hz)
+		if v_long > 1e-6 and v_half < v_long:
+			vx, vz = vx * v_half / v_long, vz * v_half / v_long
+		if math.hypot(vx, vz) / max(getattr(self, 'dt', 0.05), 1e-3) < 2.0:
+			vx, vz = 0.0, 0.0
+		return np.array([vx, float(vel[1]) if len(vel) > 1 else 0.0, vz])
+
 	def output(self):
 		# output exiting tracks that have been stably associated, i.e., >= min_hits
 		# and also delete tracks that have appeared for a long time, i.e., >= max_age
@@ -609,12 +657,16 @@ class AB3DMOT(object):
 				_hist.append((self.frame_count, float(trk.kf.x[0]), float(trk.kf.x[2])))
 				if len(_hist) > 21:
 					del _hist[0]
+				_eh = getattr(trk, 'edge_hist', None)
 				if len(_hist) < 10:
 					# under half a second of history the displacement is
 					# dominated by the measured centroid settling (a track
 					# born from one sensor's face of a parked vehicle read
 					# 5 to 8 m/s on its first frames, 2026-10-14): at rest
 					vel = np.zeros(3)
+				elif _eh is not None and len(_eh) >= 10:
+					# measured box edges available: the slower edge decides (see _edge_velocity)
+					vel = self._edge_velocity(_eh, vel)
 				else:
 					(f0, x0, z0), (f1, x1, z1) = _hist[0], _hist[-1]
 					n = max(1, f1 - f0)
@@ -773,6 +825,7 @@ class AB3DMOT(object):
 		NOTE: The number of objects returned may differ from the number of detections provided.
 		"""
 		dets, info = dets_all['dets'], dets_all['info']         # dets: N x 7, float numpy array
+		edges = dets_all.get('edges') if hasattr(dets_all, 'get') else None   # measured box edges per det
 		if self.debug_id: print('\nframe is %s' % frame)
 		# tick of the frame being ingested; matched tracks record it as the
 		# time of their last real observation (observation lineage)
@@ -797,6 +850,8 @@ class AB3DMOT(object):
 			keep_idx, _ = nms(dets, inst_types)
 			dets = [dets[i] for i in keep_idx]
 			info = info[keep_idx]
+			if edges is not None:
+				edges = np.asarray(edges)[keep_idx]
 
 		# tracks propagation based on velocity
 		trks = self.prediction()
@@ -828,10 +883,10 @@ class AB3DMOT(object):
 		# print_log(affi, log=self.log, display=False)
 
 		# update trks with matched detection measurement
-		self.update(matched, unmatched_trks, dets, info)
+		self.update(matched, unmatched_trks, dets, info, edges)
 
 		# create and initialise new trackers for unmatched detections
-		new_id_list = self.birth(dets, info, unmatched_dets)
+		new_id_list = self.birth(dets, info, unmatched_dets, edges)
 
 		# Post-birth cull: delete anonymous tracks that have persisted
 		# near a beacon-identified track for too many consecutive ticks.

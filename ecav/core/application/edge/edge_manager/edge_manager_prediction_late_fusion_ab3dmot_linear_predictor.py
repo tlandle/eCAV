@@ -43,6 +43,7 @@ from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
 from ecav.core.tracking.ab3dmot_format import (
     stack_rows,
     vehicles_to_ab3dmot_rows,
+    vehicles_world_edges,
 )
 from ecav.core.application.edge.latency.ns3_lut_sampler import (
     get_default as _get_lut_sampler,
@@ -100,7 +101,7 @@ def _collect_ab3d_detections(edge,
     the raw ``carla_id``.  This lets the anchoring protocol inside
     ``matching.py`` work with pseudonymous identities.
     """
-    det_rows, info_rows = [], []
+    det_rows, info_rows, edge_rows = [], [], []
     beacon_meta = getattr(edge, '_beacon_meta', {}).get(frame_idx, {})
 
     # a) beacons (one per managed vehicle) ----------------------------
@@ -145,6 +146,7 @@ def _collect_ab3d_detections(edge,
             identity = vm.vehicle.id
         det_rows.append([h,w,l, loc.x,loc.z,loc.y, beacon_theta, 1.0])
         info_rows.append([frame_idx, _next_edge_guid(), identity])
+        edge_rows.append([loc.x, loc.x, loc.y, loc.y])   # a beacon's centre is exact
 
     # b) sensor detections -- shared library, see ab3dmot_format.py
     # The confidence column orders the cross-source merge: a roadside
@@ -163,8 +165,9 @@ def _collect_ab3d_detections(edge,
         )
         det_rows.extend(sensor_dets)
         info_rows.extend(sensor_info)
+        edge_rows.extend(vehicles_world_edges(_grp))
 
-    bundle = stack_rows(det_rows, info_rows)
+    bundle = stack_rows(det_rows, info_rows, edge_rows)
     dets_arr = bundle['dets']
     info_arr = bundle['info']
     # Box-quality normalization (class-conditioned size prior).
@@ -200,7 +203,10 @@ def _collect_ab3d_detections(edge,
                     src = '?'
             logger.info("[DET] tick=%d src=%s x=%.1f y=%.1f conf=%.2f cid=%d",
                         frame_idx, src, d[3], d[5], d[7], inf[2])
-    return {'dets': dets_arr, 'info': info_arr}
+    out = {'dets': dets_arr, 'info': info_arr}
+    if 'edges' in bundle:
+        out['edges'] = bundle['edges']
+    return out
 
 
 def _cross_source_nms(dets_dict, cdist_thresh=5.0):
@@ -227,6 +233,7 @@ def _cross_source_nms(dets_dict, cdist_thresh=5.0):
     """
     dets = dets_dict['dets']
     info = dets_dict['info']
+    edges = dets_dict.get('edges')
     if len(dets) == 0:
         return dets_dict
 
@@ -240,6 +247,7 @@ def _cross_source_nms(dets_dict, cdist_thresh=5.0):
 
     anon_dets = dets[anon_mask]
     anon_info = info[anon_mask]
+    anon_edges = edges[anon_mask] if edges is not None else None
 
     # CARLA x = det col 3, CARLA y = det col 5 (KITTI z = CARLA y)
     centers = anon_dets[:, [3, 5]]
@@ -257,6 +265,7 @@ def _cross_source_nms(dets_dict, cdist_thresh=5.0):
     # order changed, which the tracker read as motion (stationary trucks
     # published at up to 9 m/s, 2026-10-14).
     merged = anon_dets.copy()
+    merged_edges = anon_edges.copy() if anon_edges is not None else None
     for i in order:
         if suppressed[i]:
             continue
@@ -270,13 +279,20 @@ def _cross_source_nms(dets_dict, cdist_thresh=5.0):
             top = members & (scores >= scores[members].max() - 1e-6)
             merged[i, 3] = float(np.mean(anon_dets[top, 3]))
             merged[i, 5] = float(np.mean(anon_dets[top, 5]))
+            if merged_edges is not None:
+                # the union of the members' measured boxes
+                _e = anon_edges[top]
+                merged_edges[i] = [_e[:, 0].min(), _e[:, 1].max(), _e[:, 2].min(), _e[:, 3].max()]
         suppressed |= dists < cdist_thresh
 
     anon_keep = np.array(keep)
     kept_dets = np.concatenate([dets[beacon_mask], merged[anon_keep]], axis=0)
     kept_info = np.concatenate([info[beacon_mask], anon_info[anon_keep]], axis=0)
 
-    return {'dets': kept_dets, 'info': kept_info}
+    out = {'dets': kept_dets, 'info': kept_info}
+    if edges is not None:
+        out['edges'] = np.concatenate([edges[beacon_mask], merged_edges[anon_keep]], axis=0)
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────

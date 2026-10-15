@@ -44,6 +44,7 @@ import carla
 
 from easydict import EasyDict as edict
 from AB3DMOT_libs.model import AB3DMOT
+from ecav.core.tracking.ab3dmot_format import vehicles_world_edges
 
 import ecloud_pb2 as ecloud
 
@@ -99,7 +100,7 @@ def _collect_anonymous_detections(edge,
       anchoring protocol to associate beacon tracks by identity.
     """
     global _GUID
-    det_rows, info_rows = [], []
+    det_rows, info_rows, edge_rows = [], [], []
 
     # a) beacons -----------------------------------------------------------
     #    KITTI camera convention: KITTI_x=CARLA_x, KITTI_y=CARLA_z, KITTI_z=CARLA_y
@@ -109,6 +110,7 @@ def _collect_anonymous_detections(edge,
         loc, ext = beacons[vm.vehicle.id]
         h, w, l = ext.z * 2, ext.y * 2, ext.x * 2
         det_rows.append([h, w, l, loc.x, loc.z, loc.y, 0.0, 1.0])
+        edge_rows.append([loc.x, loc.x, loc.y, loc.y])   # a beacon's centre is exact
         _GUID += 1
         if beacon_id_mgr is not None:
             identity = beacon_id_mgr.get_temp_id(
@@ -123,11 +125,15 @@ def _collect_anonymous_detections(edge,
         h, w, l = bbx.z * 2, bbx.y * 2, bbx.x * 2
         loc = obj.location
         det_rows.append([h, w, l, loc.x, loc.z, loc.y, 0.0, 0.5])
+        edge_rows.extend(vehicles_world_edges([obj]))
         _GUID += 1
         info_rows.append([frame_idx, _GUID, -1])  # anonymous
 
-    return {'dets': np.asarray(det_rows, np.float32) if det_rows else np.empty((0, 8), np.float32),
-            'info': np.asarray(info_rows, np.int64) if info_rows else np.empty((0, 3), np.int64)}
+    out = {'dets': np.asarray(det_rows, np.float32) if det_rows else np.empty((0, 8), np.float32),
+           'info': np.asarray(info_rows, np.int64) if info_rows else np.empty((0, 3), np.int64)}
+    if det_rows:
+        out['edges'] = np.asarray(edge_rows, np.float64)
+    return out
 
 
 def _time_rectify_detections(dets_dict: dict,
@@ -163,6 +169,8 @@ def _time_rectify_detections(dets_dict: dict,
         return dets_dict
 
     dets = dets_dict['dets'].copy()
+    edges = dets_dict.get('edges')
+    edges = None if edges is None else np.array(edges, dtype=np.float64)
 
     # Get existing tracks from tracker for velocity lookup
     # Track state: [h,w,l, x(KITTI), y(KITTI), z(KITTI), yaw, tid, cid, ?, dx, dy, dz]
@@ -207,8 +215,14 @@ def _time_rectify_detections(dets_dict: dict,
             # kf_dx, kf_dz are in m/tick (KITTI x, z = CARLA x, y)
             dets[i, 3] += ts['kf_dx'] * staleness  # KITTI x
             dets[i, 5] += ts['kf_dz'] * staleness  # KITTI z
+            if edges is not None:
+                edges[i, 0:2] += ts['kf_dx'] * staleness
+                edges[i, 2:4] += ts['kf_dz'] * staleness
 
-    return {'dets': dets, 'info': dets_dict['info']}
+    out = {'dets': dets, 'info': dets_dict['info']}
+    if edges is not None:
+        out['edges'] = edges
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────

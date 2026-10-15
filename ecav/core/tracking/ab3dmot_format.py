@@ -67,6 +67,32 @@ def vehicles_to_ab3dmot_rows(
     return det_rows, info_rows
 
 
+def vehicles_world_edges(vehicles: Iterable) -> List[List[float]]:
+    """World-frame edges [xmin, xmax, ymin, ymax] of each object's measured
+    box: the corners of the fused point box when the object carries them
+    (the raw visible extent, before any centre offset), else the bounding
+    box the object was built from. The tracker publishes velocity from the
+    slower-moving edge, so a parked vehicle whose visible side grows as a
+    sensor passes is not read as moving."""
+    rows: List[List[float]] = []
+    for obj in vehicles or []:
+        c = getattr(obj, "corner", None)
+        if c is None:
+            c = getattr(obj, "corners", None)
+        try:
+            c = None if c is None else np.asarray(c, dtype=float)
+        except Exception:
+            c = None
+        if c is not None and c.ndim == 2 and c.shape[0] >= 2 and c.shape[1] >= 2:
+            rows.append([float(c[:, 0].min()), float(c[:, 0].max()),
+                         float(c[:, 1].min()), float(c[:, 1].max())])
+            continue
+        bb = obj.bounding_box
+        loc, ext = bb.location, bb.extent
+        rows.append([loc.x - ext.x, loc.x + ext.x, loc.y - ext.y, loc.y + ext.y])
+    return rows
+
+
 def vehicles_to_ab3dmot_dets(
     vehicles: Iterable,
     frame_idx: int,
@@ -90,11 +116,16 @@ def vehicles_to_ab3dmot_dets(
 def stack_rows(
     det_rows: List[List[float]],
     info_rows: List[List[int]],
+    edge_rows: List[List[float]] = None,
 ) -> dict:
-    """Stack already-collected rows into the bundle layout."""
+    """Stack already-collected rows into the bundle layout; ``edge_rows``
+    (one [xmin, xmax, ymin, ymax] per detection) rides along as 'edges'."""
     if not det_rows:
         return empty_bundle()
-    return {
+    out = {
         'dets': np.asarray(det_rows, dtype=np.float32),
         'info': np.asarray(info_rows, dtype=np.int64),
     }
+    if edge_rows is not None and len(edge_rows) == len(det_rows):
+        out['edges'] = np.asarray(edge_rows, dtype=np.float64)
+    return out
