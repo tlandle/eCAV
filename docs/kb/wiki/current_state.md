@@ -6128,3 +6128,20 @@ had the newborn-track hop in 2 of 5 runs; hz11 tests the hold.
 Tests: tests/test_obs_tick_lineage.py (lineage, coasting velocity, alternating
 faces at rest with a 13 m/s crossing car). Self-kill rule broken twice more
 tonight by pgrep patterns in the same command as the kill; list, then kill.
+
+## 2026-10-14 22:52: gate restarted on de7c6d9e, both hosts
+- hz12 on the April geometry (firetruck occluders, column at x=-81): 6 of 6
+  runs complete by destination, no collision, no false brake; the Tesla is one
+  or two track ids at 12.6 to 12.8 m/s with coverage 0.79 and gaps of 2 ticks;
+  the hero reaches the junction 1.5 to 2.9 s after the crossing in five runs
+  and 0.2 s before it in one, braking on the edge's prediction of the Tesla
+  (true-positive brakes, TTC 1.15 s). Last change: the published velocity is
+  the slower of the one-second and half-second displacement estimates
+  (de7c6d9e).
+- Gate stage launched on de7c6d9e: atlas 22:51, cetus 22:52; the earlier
+  starts are kept as sensys_nov27_gate1 to gate4 on atlas and gate1,
+  gate2_partial, gate3_oldcode, gate4_noconflict on cetus. Expected finish
+  about 03:30. The physics stage starts on a pass.
+- Lane geometry from the simulator: road 4 lane -1 centre x=-84.55, width
+  3.5 m; firetruck half-width 1.45 (near face at -82.45, 2.1 m from the lane
+  centre against the planner's 2.0 m lateral threshold); nissan patrol 0.97.
