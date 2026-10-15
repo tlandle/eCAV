@@ -609,7 +609,13 @@ class AB3DMOT(object):
 				_hist.append((self.frame_count, float(trk.kf.x[0]), float(trk.kf.x[2])))
 				if len(_hist) > 21:
 					del _hist[0]
-				if len(_hist) >= 3:
+				if len(_hist) < 10:
+					# under half a second of history the displacement is
+					# dominated by the measured centroid settling (a track
+					# born from one sensor's face of a parked vehicle read
+					# 5 to 8 m/s on its first frames, 2026-10-14): at rest
+					vel = np.zeros(3)
+				else:
 					(f0, x0, z0), (f1, x1, z1) = _hist[0], _hist[-1]
 					n = max(1, f1 - f0)
 					vel = np.array([(x1 - x0) / n, float(vel[1]) if len(vel) > 1 else 0.0, (z1 - z0) / n])

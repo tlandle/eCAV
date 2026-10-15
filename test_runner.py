@@ -527,7 +527,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
              compute_budget, jitter_std, mgr_type, rep,
              nms_threshold=None, ego_count=None, timestamp_noise=None,
              self_id_radius=None, see_v2x_filter=None,
-             mac_type=None, mac_M=None, mac_p_keep=None):
+             mac_type=None, mac_M=None, mac_p_keep=None, _retry=False):
     base_str = f"baseline_{baseline}" if baseline is not None else "baseline_default"
     anchor_str = f"anchoring_{'on' if anchoring else 'off'}" if anchoring is not None else "anchoring_default"
     lat_str = f"lat_{int(lat_ms)}" if lat_ms is not None else "lat_orig"
@@ -602,6 +602,17 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
         with (eval_dir / "simulation_metrics.json").open() as f:
             metrics = json.load(f)
     except Exception as e:
+        # One retry for a run that produced no metrics (a map load that timed
+        # out while the simulator was still tearing the previous run down is
+        # the usual cause); the retry restarts the simulator first.
+        if not _retry:
+            print(f"    run produced no metrics ({str(e)[:80]}); restarting CARLA and retrying once", flush=True)
+            kill_carla(); start_carla()
+            return run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
+                            compute_budget, jitter_std, mgr_type, rep,
+                            nms_threshold=nms_threshold, ego_count=ego_count, timestamp_noise=timestamp_noise,
+                            self_id_radius=self_id_radius, see_v2x_filter=see_v2x_filter,
+                            mac_type=mac_type, mac_M=mac_M, mac_p_keep=mac_p_keep, _retry=True)
         metrics = {"success_rate": 0.0, "error": str(e)}
 
     # Add config parameters to metrics file for easier analysis
