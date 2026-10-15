@@ -8,8 +8,9 @@ from ecav.core.tracking.ab3dmot_wrapper import AB3DMOTWrapper  # noqa: E402
 
 
 def det(x, y):
-    # [h, w, l, x, y, z, theta] per AB3DMOT's detection layout
-    return np.array([1.5, 2.0, 4.5, x, y, 0.0, 0.0], dtype=float)
+    # [h, w, l, x, y, z, theta] in AB3DMOT's KITTI layout: KITTI y is height,
+    # KITTI z is CARLA y (the ground-plane columns are 3 and 5)
+    return np.array([1.5, 2.0, 4.5, x, 0.0, y, 0.0], dtype=float)
 
 
 def main():
@@ -55,9 +56,10 @@ def coasting_velocity():
                 if dets else np.zeros((0, 3), dtype=np.int64))
         out, _ = trk.track({"dets": arr, "info": info}, tick)
         rows_by_tick[tick] = out
-    gap = [rows_by_tick[t] for t in range(13, 20)]
-    assert all(len(r) == 1 for r in gap), "track dropped during a 7-tick gap"
-    rows = [np.asarray(r[0]).reshape(-1) for r in gap]
+    # track() returns [array of shape (n_tracks, cols)]
+    gap = [np.asarray(rows_by_tick[t][0]) for t in range(13, 20)]
+    assert all(g.shape[0] == 1 for g in gap), "track dropped during a 7-tick gap"
+    rows = [g[0] for g in gap]
     speeds = [float(np.hypot(r[10], r[11])) for r in rows]
     xs = [float(r[3]) for r in rows]
     assert min(speeds) > 0.3, ("coasting velocity zeroed", speeds)
@@ -67,3 +69,30 @@ def coasting_velocity():
 
 if __name__ == "__main__":
     coasting_velocity()
+
+
+def published_velocity_is_displacement():
+    """A stationary object whose measured face alternates by 1.4 m between
+    sensors is published at rest; a moving one at its real speed."""
+    w = AB3DMOTWrapper({"max_age": 10, "min_hits": 3, "anchoring": False})
+    trk = w._tracker
+    last_static = last_moving = None
+    for tick in range(1, 41):
+        face = -82.4 if tick % 2 else -81.0          # alternating faces of a parked truck
+        dets = [det(face, 101.7), det(-37.0 - 0.65 * tick, 127.7)]
+        arr = np.array(dets)
+        info = np.array([[tick, 100 + i, -1] for i in range(len(dets))], dtype=np.int64)
+        out, _ = trk.track({"dets": arr, "info": info}, tick)
+        for r in np.asarray(out[0]):
+            spd = float(np.hypot(r[10], r[12])) / 0.05
+            if abs(r[5] - 101.7) < 3:
+                last_static = spd
+            else:
+                last_moving = spd
+    assert last_static is not None and last_static < 1.0, ("parked truck published moving", last_static)
+    assert last_moving is not None and 10.0 < last_moving < 16.0, ("crossing car speed", last_moving)
+    print("published speed: parked truck with alternating faces %.2f m/s, crossing car %.1f m/s" % (last_static, last_moving))
+
+
+if __name__ == "__main__":
+    published_velocity_is_displacement()

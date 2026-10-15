@@ -851,6 +851,11 @@ class BehaviorAgent(object):
 
             if not collision_free:
                 vehicle_state = True
+                _vl = vehicle.get_location()
+                logger.warning("[HAZARD-P1] cid=%s at (%.1f,%.1f) ext=(%.2f,%.2f) ego=(%.1f,%.1f) v=%.1f",
+                               getattr(vehicle, 'carla_id', None), _vl.x, _vl.y,
+                               vehicle.bounding_box.extent.x, vehicle.bounding_box.extent.y,
+                               self.vehicle.get_location().x, self.vehicle.get_location().y, self._ego_speed)
 
                 # gap between bumpers, not centers: subtract both actors'
                 # half-lengths. The old hardcoded 3 m under-counted a
@@ -1946,7 +1951,7 @@ class BehaviorAgent(object):
         # 1. Traffic light management
         if self.traffic_light_manager(ego_vehicle_wp) != 0:
             # TODO - eCLOUD: (we have no traffic lights in sims yet)
-            #logger.debug("Traffic light manager returned 1, stopping")
+            logger.warning("[STOP] traffic light")
             return 0, None
         end_time = time.time()
         self.planning_metrics.update_agent_step_list(1, end_time-start_time)
@@ -1970,7 +1975,7 @@ class BehaviorAgent(object):
                 clean_history=True)
             
             if rerouted == -1:
-                logger.debug("Trying to reroute but failed, stopping")
+                logger.warning("[STOP] reroute failed")
                 return 0, None
 
         end_time = time.time()
@@ -2209,6 +2214,7 @@ class BehaviorAgent(object):
             if self.hazard_response in ('speed_adapt', 'ttc_graded') and self._speed_adapt_hold:
                 return self._local_planner.run_step(
                     rx, ry, rk, target_speed=self._graded_hazard_speed_kmh())
+            logger.warning("[STOP] hazard without obstacle (ttl=%d)", self._committed_brake_ttl)
             return 0, None
 
         if not is_hazard:

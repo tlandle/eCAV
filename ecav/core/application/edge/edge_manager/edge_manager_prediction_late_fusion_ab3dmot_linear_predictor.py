@@ -241,15 +241,26 @@ def _cross_source_nms(dets_dict, cdist_thresh=5.0):
     keep = []
     suppressed = np.zeros(len(anon_dets), dtype=bool)
 
+    # Each cluster is one object seen from several sensors; its members are
+    # that object's visible faces (nearest-surface centroids), so the kept
+    # row takes the mean centre of the cluster instead of one face. Keeping
+    # one face let the fed position alternate between faces as the sender
+    # order changed, which the tracker read as motion (stationary trucks
+    # published at up to 9 m/s, 2026-10-14).
+    merged = anon_dets.copy()
     for i in order:
         if suppressed[i]:
             continue
         keep.append(i)
         dists = np.linalg.norm(centers[i] - centers, axis=1)
+        members = (dists < cdist_thresh) & ~suppressed
+        if members.sum() > 1:
+            merged[i, 3] = float(np.mean(anon_dets[members, 3]))
+            merged[i, 5] = float(np.mean(anon_dets[members, 5]))
         suppressed |= dists < cdist_thresh
 
     anon_keep = np.array(keep)
-    kept_dets = np.concatenate([dets[beacon_mask], anon_dets[anon_keep]], axis=0)
+    kept_dets = np.concatenate([dets[beacon_mask], merged[anon_keep]], axis=0)
     kept_info = np.concatenate([info[beacon_mask], anon_info[anon_keep]], axis=0)
 
     return {'dets': kept_dets, 'info': kept_info}

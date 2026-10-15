@@ -131,16 +131,24 @@ class LateFusionBackend(BaseFusionBackend):
         keep = []
         suppressed = np.zeros(len(anon_dets), dtype=bool)
 
+        # kept row at the mean centre of its cluster (the members are the
+        # same object's faces seen from different sensors), as in the
+        # late-fusion edge manager's _cross_source_nms
+        merged = anon_dets.copy()
         for i in order:
             if suppressed[i]:
                 continue
             keep.append(i)
             dists = np.linalg.norm(centers[i] - centers, axis=1)
+            members = (dists < cdist_thresh) & ~suppressed
+            if members.sum() > 1:
+                merged[i, 3] = float(np.mean(anon_dets[members, 3]))
+                merged[i, 5] = float(np.mean(anon_dets[members, 5]))
             suppressed |= dists < cdist_thresh
 
         anon_keep = np.array(keep)
         kept_dets = np.concatenate(
-            [dets[beacon_mask], anon_dets[anon_keep]], axis=0)
+            [dets[beacon_mask], merged[anon_keep]], axis=0)
         kept_info = np.concatenate(
             [info[beacon_mask], anon_info[anon_keep]], axis=0)
 

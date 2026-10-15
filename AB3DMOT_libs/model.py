@@ -595,6 +595,24 @@ class AB3DMOT(object):
 
 			if ((trk.time_since_update < self.max_age) and (trk.hits >= self.min_hits or self.frame_count <= self.min_hits)):
 				vel = trk.get_velocity().flatten()
+				# Published velocity is the track's displacement over its last
+				# 0.5 s (finite difference of the output positions), not the
+				# filter's instantaneous velocity state. The state absorbs the
+				# jumps between the faces of one object seen from different
+				# sensors (a stationary truck's state read up to 16 m/s on
+				# 2026-10-14); the displacement over ten ticks does not, and a
+				# coasting track's positions advance by the state velocity so the
+				# two agree there. The state stays as is for prediction and gating.
+				_hist = getattr(trk, 'pos_hist', None)
+				if _hist is None:
+					_hist = trk.pos_hist = []
+				_hist.append((self.frame_count, float(trk.kf.x[0]), float(trk.kf.x[2])))
+				if len(_hist) > 11:
+					del _hist[0]
+				if len(_hist) >= 3:
+					(f0, x0, z0), (f1, x1, z1) = _hist[0], _hist[-1]
+					n = max(1, f1 - f0)
+					vel = np.array([(x1 - x0) / n, float(vel[1]) if len(vel) > 1 else 0.0, (z1 - z0) / n])
 				# A coasting track (predict-only, no fresh measurement) keeps
 				# the velocity the filter converged to while it was matched:
 				# a crossing vehicle briefly lost at a camera handover must
