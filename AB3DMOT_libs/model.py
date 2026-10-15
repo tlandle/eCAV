@@ -628,12 +628,18 @@ class AB3DMOT(object):
 					# predictor already applied at 1 m/s (_MIN_KF_SPEED_MPS).
 					if math.hypot(vel[0], vel[2]) / max(getattr(self, 'dt', 0.05), 1e-3) < 2.0:
 						vel = np.zeros(3)
-						# and the state agrees: a track at rest by displacement
-						# must not carry a velocity state that walks its
-						# prediction onto the next parked vehicle (a track
-						# hopped along a column of trucks at 18 m/s, 2026-10-14)
-						trk.kf.x[7] = 0.0
-						trk.kf.x[9] = 0.0
+				# After half a second the filter's ground-plane velocity state
+				# follows the same estimate: the state velocity is what the
+				# coasting prediction and the velocity-aware association gate
+				# use, and a state that absorbed one jump between sensor faces
+				# walked a track along a column of parked trucks at 14 to 21
+				# m/s (2026-10-14) because each coast re-associated to the next
+				# vehicle. Under half a second the filter keeps its own
+				# estimate (a 13 m/s target would otherwise be lost before the
+				# displacement is available). Position and size untouched.
+				if len(_hist) >= 10:
+					trk.kf.x[7] = float(vel[0])
+					trk.kf.x[9] = float(vel[2])
 				# A coasting track (predict-only, no fresh measurement) keeps
 				# the velocity the filter converged to while it was matched:
 				# a crossing vehicle briefly lost at a camera handover must
