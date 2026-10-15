@@ -6075,3 +6075,29 @@ brake_intervals.py.
   spawn, smaller is later and tighter). Tuning runs trig80 / trig40 / trig25
   (3 seeds, SBA on, 0 ms) to place the crossing about 1 s ahead of the hero's
   arrival and to confirm the hero's camera no longer sees the Tesla first.
+
+## 2026-10-14 22:15: why April's geometry stalled today's hero (not the scenario)
+- Reverted the occluder move (070ba008): Tyler, "April's runs were fine". The
+  hero at full throttle with a brake every few ticks and no hazard logged
+  pointed at code, and the planner's step 5b (added 2026-08-05 for the blind
+  overtake) was it: below 4 m/s any stationary object within 2.5 m lateral and
+  30 m ahead is a "blocking lead", latched after 15 ticks, car-followed at
+  target 0; the near face of a 2.8 m wide firetruck in the adjacent lane is
+  2.3 m from the hero's centre, so the hero never left spawn speed. Cars (2.0
+  m wide) sit at 2.8 m and never triggered it. Fixed: the lead must be inside
+  the ego's own lane (1.75 m) (020a4bbc).
+- Two tracker changes on the way to that finding, both kept: cross-source NMS
+  keeps the cluster's mean centre (1e384f0b), and the published velocity is
+  the displacement over the last second, zero under 2 m/s, zero under half a
+  second of history (38c1875c, pending commit). Reason: a merged track of a
+  parked truck inherited the state velocity of the jumps between the faces
+  the sensors see (up to 16 m/s); the hero's own nearest-surface centroid of
+  a long vehicle slides as it passes. Tests in tests/test_obs_tick_lineage.py.
+- Planner warnings [HAZARD-P1] (own detection in path), [HAZARD-P2] (edge
+  prediction in path), [STOP] (stop paths) stay in the code.
+- With the lead fix (hz6): hero 6.2 to 6.5 m/s average, completes by
+  destination, the Tesla crosses at tick 119 and the hero reaches the junction
+  1.1 to 5 s later; the hero's own camera never sees the Tesla before the
+  junction (firetrucks occlude), the edge sees it from tick 28. One brake at
+  spawn remained from a newborn track published at 5 to 8 m/s (history gate
+  added). A map-load timeout lost one run; the runner retries once.
