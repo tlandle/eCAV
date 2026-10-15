@@ -6101,3 +6101,30 @@ brake_intervals.py.
   junction (firetrucks occlude), the edge sees it from tick 28. One brake at
   spawn remained from a newborn track published at 5 to 8 m/s (history gate
   added). A map-load timeout lost one run; the runner retries once.
+
+## 2026-10-14 22:40: what it took to pass the firetruck column (tracker chain)
+After the step-5b lead fix the hero drove, and the remaining false brakes came
+from the edge's tracks of the parked column, each a distinct mechanism:
+1. Published velocity: zeroing coasting velocity (phantom stationary objects)
+   fixed first, then the displacement over the last second (38c1875c), under
+   2 m/s at rest, zero under half a second of history (5086f97b).
+2. Cross-source merge (1e384f0b, ab19700c): the kept row sits at the mean of
+   the members with the highest confidence present; roadside observations get
+   0.6 and a vehicle's own 0.5, because a vehicle's view of an adjacent parked
+   vehicle slides as it passes while the RSU's holds still.
+3. Lidar fusion position (4a650573): mean of all visible points, not of the
+   nearest half (the nearest half slides along a long vehicle's side).
+4. Velocity state (8ee98fce, 95e424b4): after half a second the filter's
+   ground-plane velocity state follows the displacement estimate (a state that
+   absorbed one face jump walked a track along the column at 14 to 21 m/s,
+   re-associating to the next truck at each coast); a young coasting track
+   holds its position.
+Live checks (hz6 to hz11, late_fusion SBA on, 0 ms, 70 km/h): hero 6.5 to 9.7
+m/s average, 18 to 19 m/s peak, completes by destination in 270 to 400 ticks;
+the Tesla is one track at 13 m/s with coverage 0.7 to 0.8; the hero reaches
+the junction 0.5 to 5 s after it crosses and brakes on its own camera when
+the gap is under 1 s (true-positive brakes, the intended conflict). hz10 still
+had the newborn-track hop in 2 of 5 runs; hz11 tests the hold.
+Tests: tests/test_obs_tick_lineage.py (lineage, coasting velocity, alternating
+faces at rest with a 13 m/s crossing car). Self-kill rule broken twice more
+tonight by pgrep patterns in the same command as the kill; list, then kill.
