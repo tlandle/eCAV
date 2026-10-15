@@ -166,7 +166,7 @@ class PerceptionEdge(_BaseEdgeManager):
                 # tracks and predicts locally, so any self-ghost that appears
                 # is produced by multi-source object disagreement reaching the
                 # on-board tracker, not by edge-side prediction.
-                self._label_brake_attributions_gt(vm)
+                self._label_brake_attributions_gt(vm, tick=tick)
 
             self._log_conflict_kinematics(tick, self._live_gt_snapshot())
 

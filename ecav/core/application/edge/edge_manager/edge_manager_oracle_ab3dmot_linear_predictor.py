@@ -397,7 +397,7 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     for vm in self.vehicle_manager_list:
                         vm.update_info(tick)
                         vm.vehicle.apply_control(vm.run_step())
-                        self._label_brake_attributions_gt(vm)
+                        self._label_brake_attributions_gt(vm, tick=tick)
                         self._record_time_to_events(tick, vm)
                     self._step_non_members(tick)
                     for rsu in self.rsu_manager_list:
@@ -584,7 +584,7 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 for vm in self.vehicle_manager_list:
                     vm.update_info(tick)
                     vm.vehicle.apply_control(vm.run_step())
-                    self._label_brake_attributions_gt(vm)
+                    self._label_brake_attributions_gt(vm, tick=tick)
                     self._record_time_to_events(tick, vm)
                 self._step_non_members(tick)
                 for rsu in self.rsu_manager_list:

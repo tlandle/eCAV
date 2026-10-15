@@ -64,6 +64,7 @@ COLUMNS = [
     "obs_tick", "frame_age_ms", "lineage_ok",
     "obs_x", "obs_y", "obs_speed_mps",
     "conflict_actor_id", "is_conflict_actor", "conflict_dist_m",
+    "conflict_gt_x", "conflict_gt_y",
     "ego_speed_mps", "ctrl_throttle", "ctrl_brake", "decision",
     "brake_event", "brake_reason", "gt_brake_class", "ttc_s",
 ]
@@ -104,6 +105,10 @@ class PerTickAgeLogger:
         self._next_seq = 0
         # per-vehicle count of brake attributions seen, to detect a new one
         self._brake_seen: Dict[int, int] = {}
+        # ground truth per tick (last 100 ticks), so a consumed state is
+        # matched against the conflict actor where it was at the state's
+        # observation tick, not where it is now
+        self._gt_hist: Dict[int, Dict[int, dict]] = {}
 
     # ------------------------------------------------------------------
     def note_publish(self, publish_tick: Optional[int]) -> None:
@@ -227,6 +232,11 @@ class PerTickAgeLogger:
 
             conflict = self._pick_conflict_actor(gt_snapshot)
             c_id = conflict[0] if conflict else None
+            self._gt_hist[int(tick)] = gt_snapshot or {}
+            for _old in [t for t in self._gt_hist if t < int(tick) - 100]:
+                del self._gt_hist[_old]
+            cgx = conflict[1] if conflict else float("nan")
+            cgy = conflict[2] if conflict else float("nan")
             anchoring = bool(getattr(agent, "_anchoring", False))
 
             common_head = [tick, _fmt(sim_t), _fmt(wall), focal_id]
@@ -240,7 +250,7 @@ class PerTickAgeLogger:
                 self._writer.writerow(
                     common_head
                     + ["", "", "none", "", "", "", "", tick, "", "", "", "", "", "", "", "",
-                       _fmt(c_id), 0, ""]
+                       _fmt(c_id), 0, "", _fmt(cgx), _fmt(cgy)]
                     + common_tail)
                 self._fh.flush()
                 return
@@ -279,7 +289,17 @@ class PerTickAgeLogger:
                 seq = self._publish_seq.get(int(pub_tick)) if pub_tick is not None else None
                 ox, oy, ospd = self._obs_xy_speed(pred)
                 if conflict is not None and not math.isnan(ox):
-                    cdist = math.hypot(ox - conflict[1], oy - conflict[2])
+                    # against the actor where it was at the state's observation
+                    # tick, so a stale but correct state still matches
+                    cpos = None
+                    if gen_tick is not None:
+                        snap = self._gt_hist.get(int(gen_tick))
+                        vd = (snap.get(c_id) or snap.get(str(c_id))) if snap else None
+                        if vd is not None:
+                            cpos = (float(vd["x"]), float(vd["y"]))
+                    if cpos is None:
+                        cpos = (conflict[1], conflict[2])
+                    cdist = math.hypot(ox - cpos[0], oy - cpos[1])
                 else:
                     cdist = float("nan")
                 is_conflict = 0
@@ -295,7 +315,7 @@ class PerTickAgeLogger:
                        _fmt(age_ms), _fmt(pub_age_ms),
                        _fmt(obs_tick), _fmt(frame_age_ms), lineage_ok,
                        _fmt(ox), _fmt(oy), _fmt(ospd),
-                       _fmt(c_id), is_conflict, _fmt(cdist)]
+                       _fmt(c_id), is_conflict, _fmt(cdist), _fmt(cgx), _fmt(cgy)]
                     + common_tail)
             self._fh.flush()
         except Exception:

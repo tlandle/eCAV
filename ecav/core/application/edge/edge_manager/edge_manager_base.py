@@ -575,7 +575,7 @@ class _BaseEdgeManager:
     _SELFDUP_LONG_M  = 8.0   # longitudinal (along ego heading)
     _SELFDUP_LAT_M   = 3.0   # lateral (perpendicular to heading)
 
-    def _label_brake_attributions_gt(self, vm) -> None:
+    def _label_brake_attributions_gt(self, vm, tick=None) -> None:
         """
         GT-label any new brake attributions from the behavior agent.
 
@@ -616,6 +616,20 @@ class _BaseEdgeManager:
         if not gt_actors:
             return
 
+        # Ground truth per tick, so a brake on a state observed at tick t is
+        # matched against the actors where they were at t, not where they are
+        # now: a correctly tracked 13 m/s crossing car consumed 400 ms late
+        # sits 5 m from its live position and was labelled a false brake on
+        # a parked vehicle (2026-10-15).
+        hist = getattr(self, '_gt_actor_hist', None)
+        if hist is None:
+            hist = self._gt_actor_hist = {}
+        if tick is not None:
+            hist[int(tick)] = gt_actors
+            for _old in [t for t in hist if t < int(tick) - 100]:
+                del hist[_old]
+        gt_live = gt_actors
+
         ego_id = vm.vehicle.id
         # Set of all managed ego vehicle IDs for provenance tagging
         managed_ids = {m.vehicle.id for m in self.vehicle_manager_list}
@@ -629,6 +643,17 @@ class _BaseEdgeManager:
         gt_by_id = {a['id']: a for a in gt_actors}
 
         for attr in unlabeled:
+            _t_obs = attr.get('obs_tick')
+            if _t_obs is None:
+                _t_obs = attr.get('source_tick')
+            gt_actors = gt_live
+            if _t_obs is not None:
+                try:
+                    gt_actors = hist.get(int(float(_t_obs)), gt_live)
+                except (TypeError, ValueError):
+                    gt_actors = gt_live
+            gt_xy = np.array([[a['x'], a['y']] for a in gt_actors])
+            gt_by_id = {a['id']: a for a in gt_actors}
             obs_xy = np.array([attr['obs_x'], attr['obs_y']])
             ego_xy = np.array([attr['ego_x'], attr['ego_y']])
 

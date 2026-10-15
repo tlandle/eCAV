@@ -110,14 +110,18 @@ def gt_from_csv(csv_path):
     {tick: (x, y, speed_mps)} with linear fill for ticks that have fewer
     than three rows."""
     byt = {}
+    explicit = {}   # logs since 2026-10-15 carry the live GT per tick
     with open(csv_path) as fh:
         for r in csv.DictReader(fh):
+            gx, gy = r.get('conflict_gt_x', ''), r.get('conflict_gt_y', '')
+            if gx not in ('', None) and gy not in ('', None):
+                explicit.setdefault(int(r['tick']), (float(gx), float(gy)))
             if r['obs_x'] == '' or r['conflict_dist_m'] == '':
                 continue
             byt.setdefault(int(r['tick']), []).append(
                 (float(r['obs_x']), float(r['obs_y']), float(r['conflict_dist_m'])))
-    gt = {}
-    for t, pts in byt.items():
+    gt = dict(explicit)
+    for t, pts in ([] if explicit else byt.items()):
         if len(pts) < 3:
             continue
         x0, y0, d0 = pts[0]

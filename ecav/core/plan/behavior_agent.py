@@ -1079,6 +1079,7 @@ class BehaviorAgent(object):
                     # publish_tick = when edge pushed prediction,
                     # trigger_tick = when brake decision was made
                     'source_tick': getattr(pred, 'source_tick', None),
+                    'obs_tick': getattr(pred, 'obs_tick', None),
                     'publish_tick': getattr(pred, 'publish_tick', None),
                     'trigger_tick': (self._current_global_tick
                                      if self._current_global_tick is not None

@@ -162,7 +162,7 @@ class _PluggableEdgeBase(_BaseEdgeManager):
             if not self.run_distributed:
                 vm.update_info(tick)
                 vm.vehicle.apply_control(vm.run_step())
-                self._label_brake_attributions_gt(vm)
+                self._label_brake_attributions_gt(vm, tick=tick)
 
         for rsu in self.rsu_manager_list:
             if not self.run_distributed:

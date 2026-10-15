@@ -146,7 +146,7 @@ class CIPEdge(InfraOnlyEdge):
 
             # Diagnostics still run on the parent's per-vm helpers.
             try:
-                self._label_brake_attributions_gt(vm)
+                self._label_brake_attributions_gt(vm, tick=tick)
                 self._record_time_to_events(tick, vm)
             except Exception:  # noqa: BLE001
                 logger.debug("CIP: per-vm metric helper raised", exc_info=True)
