@@ -272,6 +272,33 @@ def shape_gates(cells, threshold):
         po = p_of(geom, spd, "oracle", "on", N, 200, kv)
         if po is not None and po[2] < threshold:
             out.append(("FAIL", f"G5 {tag}: oracle at 200 ms is {po[0]:.2f} [{po[1]:.2f},{po[2]:.2f}], the physics boundary should be past 300 ms"))
+        # G6: a false brake on something other than the conflict actor is a perception
+        # or tracking artefact in any arm, not a failure of age or identity, so at every
+        # delay up to 200 ms (the oracle still near 1 and a stale conflict actor still
+        # within the label's match radius) each V2X arm's false-brake run fraction must
+        # lie inside the oracle cell's interval; self-ghosts are held to the oracle at
+        # zero delay only (from 50 ms on they are the logic failure under study). A
+        # parked vehicle read as moving by a passing sensor failed this at 100 ms in
+        # every V2X arm on 2026-10-15 (3 to 10 of 10 runs, oracle 0 of 10).
+        for lat in lats:
+            orc = cells.get((geom, spd, "oracle", "on", N, lat, kv), [])
+            if not orc or lat > 200:
+                continue
+            comps = [("false-brake", "focal_fp_episodes")]
+            if lat == 0:
+                comps.append(("self-ghost", "focal_ghost_episodes"))
+            for comp, key in comps:
+                k_o = sum(1 for r in orc if r.get(key, 0) > 0)
+                ub = wilson(k_o, len(orc))[2]
+                for mgr, anch in arms:
+                    if mgr == "oracle":
+                        continue
+                    v = cells.get((geom, spd, mgr, anch, N, lat, kv), [])
+                    if not v:
+                        continue
+                    k = sum(1 for r in v if r.get(key, 0) > 0)
+                    if k / len(v) > ub:
+                        out.append(("FAIL", f"G6 {tag} {mgr}/{anch}: {k} of {len(v)} runs with a {comp} at {lat} ms, oracle {k_o} of {len(orc)} (upper bound {ub:.2f})"))
     return out
 
 
