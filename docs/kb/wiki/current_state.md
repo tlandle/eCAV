@@ -6202,3 +6202,88 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   1dc9eeb3 at 18:50 on both hosts (atlas fresh CARLA, cetus reused hz13's
   server on port 2000); logs/gate_atlas.log and ~/sensys_wt/logs/gate_cetus.log;
   expected finish about 23:30. Plan doc updated and pushed (40172f2).
+
+## 2026-10-15 19:25: the zero-delay false brakes are a visibility slide; velocity from the slower edge (7c3df587)
+- Mechanism, from the [DET] lines and an offline replay (scripts/diag/
+  trace_region.py): a parked truck's camera-lidar report is the mean of its
+  visible points; as a sensor closes on it from behind, the visible set
+  grows from the rear face along the side and the mean moves north at the
+  sensor's approach rate (87.8 to 92.8 m in 14 ticks beside the hero at 7 to
+  8.6 m/s); alongside, the camera box cut by the image edge slides the mean
+  forward at the hero's speed (120.2 to 123.5 m in 0.7 s). The junction RSU's
+  front-face report holds still; the NMS keeps it while present, and when it
+  drops the track jumps to the sliding report and the displacement velocity
+  (de7c6d9e rule) reads 4 to 7 m/s with a component toward the lane; the
+  planner's P2 check brakes on the predicted path (TTC 0.4 to 0.8 s). The
+  826b040e offset does not touch the slide (hz14 on atlas on 826b040e+: still
+  1 of 10 at 0 ms; 100 ms contract 0 of 10, 200 ms 1 of 3).
+- Fix 7c3df587: every detection carries its measured box edges (world xmin,
+  xmax, ymin, ymax from the fused corners, before the centre offset;
+  beacons zero-size), through the cross-source NMS (union over the merged
+  members) and the VIPS rectification, into AB3DMOT; the published velocity
+  per ground axis is the displacement of the slower-moving edge (opposite
+  signs give zero), then the existing half-window agreement and 2 m/s floor.
+  A rigid vehicle moves both edges; a visibility change moves one. Bundles
+  without edges (replay tool, WorldFusion backend) keep the position rule.
+  tests/test_edge_velocity.py: growing truck 0.0 m/s, car 13.0 m/s, fallback
+  3.6 m/s; tests/test_obs_tick_lineage.py unchanged.
+- Gates on 1dc9eeb3 stopped on both hosts at 19:19 (atlas 37 runs, cetus 21),
+  kept as sensys_nov27_gate6_1dc9eeb3. Background runners ignore SIGINT
+  (non-interactive shell), so the stop was SIGTERM to driver and runner, then
+  the run's process group by pgid; the runner's YAML restore did not run and
+  the .bak was moved back by hand. On atlas the working YAML had drifted from
+  HEAD (an old safe_dump round trip); the resolved config a gate6 run logged
+  on atlas equals the one cetus (HEAD base) logged for the same cell, apart
+  from timestamp and output dir, so the drift was immaterial; both YAMLs
+  reset to HEAD. Validation hz14 on 7c3df587: atlas ETSI 100 ms x10, cetus
+  ETSI 100 ms x10 and naive 100 ms x10 (the cells with 6 to 10 of 10 false
+  brakes on de7c6d9e). Then the gate on 7c3df587 on both hosts.
+- Fourth external review (relayed 19:00) adopted into the plan (paper repo
+  f1d311f): validation report, gate G6 (zero-delay V2X false brakes and
+  ghosts within the oracle cell), predictive-value reduction
+  envelope_predict.py, VIPS causal trace, architecture wording, two 2026
+  citations.
+
+## 2026-10-15 19:40: second tracker round (13448846) and observation-tick labelling (435fbb12); validation hz15
+- hz14 on 7c3df587 (slower-edge velocity): atlas ETSI 100 ms 0 of 10 false
+  brakes (de7c6d9e: 6 of 10), 1 self-ghost (the ETSI arm's own failure);
+  cetus ETSI 100 ms 1 false brake in the first 7. That one is a different
+  route: during a 3-tick dropout of the junction RSU's report, the passing
+  hero's own reports of the column walked 1.8 to 2.8 m per frame (the
+  camera-lidar inlier window hopping along the trucks), a young track at
+  rest followed them through the 3 m per-frame cross-view allowance, and
+  its first velocity came from the position path (edge history under ten
+  frames) at 16 m/s toward the lane. 13448846: a track with fewer than ten
+  matched edge frames is gated at 1.5 m per frame (admits 30 m/s of real
+  motion) and published at rest; a box hop beyond the expected motion plus
+  2 m restarts the velocity estimate; the [DET] source label was misaligned
+  (vehicle reports printed as rsu_-2) and is fixed. Tests
+  (tests/test_edge_velocity.py): walking reports leave a resting track at
+  rest and publish no velocity, a 24 m/s car stays one track and publishes
+  24 m/s, a 2.5 m hop gives ten frames at rest then the true speed.
+- Measurement: the per-tick logger and the brake labeller matched a consumed
+  state against the live ground truth, so a correctly tracked 13 m/s actor
+  consumed 300 ms late sat beyond the 5 m match radius: conflict coverage
+  read 0.53 in every V2X arm at 200 ms (oracle 1.00) and a true-positive
+  brake at high delay could be labelled a false brake. 435fbb12: both keep
+  the last 100 ticks of ground truth and match against the actor where it
+  was at the state's observation tick (the attribution now carries
+  obs_tick); the per-tick log adds conflict_gt_x/gt_y (live), which the
+  replay tool reads instead of trilaterating. reduce_per_tick_age:
+  critical_object_p99_ms now ends at the first consumption of the actor's
+  last fresh observation (the post-conflict hold took the oracle's p99 to
+  1.2 to 1.6 s); the full-range value stays as critical_object_p99_full_ms.
+  On de7c6d9e oracle cells the windowed p99 is 180 to 230 ms at 0 ms
+  configured, 380 to 430 at 200, 650 to 710 at 500.
+- campaign_check G6 (e1bb792a): every V2X arm's false-brake run fraction
+  within the oracle cell's interval at each delay up to 200 ms, self-ghosts
+  at 0 ms; it fails the de7c6d9e gate at 100 ms (contract 3 of 10, ETSI 6 of
+  10 against oracle 0 of 10). envelope_predict.py written (reference fitted
+  on oracle runs, other cells held out, p99 / coverage / gap predictors,
+  logic cells separate).
+- Gate rule reminder: test_runner's --anchoring takes one value; a chain of
+  invocations is needed for off and on (hz15 first launch failed on
+  "--anchoring off on", relaunched as a chain). Validation hz15 on atlas
+  (435fbb12): ETSI off 100 x10, naive 100 x10, contract 200 x10 (coverage
+  check); cetus after hz14: contract 0 x10 and 100 x10. Then the gate on
+  both hosts on 435fbb12.
