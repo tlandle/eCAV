@@ -27,6 +27,7 @@ Example:
 
 import argparse, copy, itertools, json, os, shutil, subprocess, sys, time, yaml, socket
 from pathlib import Path
+from scripts.proc_watchdog import stream_with_watchdog, kill_session
 from datetime import datetime
 
 # ───────────────────────── CLI ────────────────────────────────────────────
@@ -110,6 +111,11 @@ ap.add_argument("--keep-visualize", action="store_true", default=False,
 ap.add_argument("--per-tick-age-log", action="store_true", default=False,
                 help="Enable the per-tick, per-object age-at-use CSV "
                      "(edge.per_tick_age_log.enabled) for every edge in every run.")
+ap.add_argument("--no-output-timeout", type=float, default=300.0,
+                help="Seconds without a line from the run before its process group is killed and the run "
+                     "retried once on a fresh simulator (a simulator that dies mid-run otherwise hangs the runner)")
+ap.add_argument("--run-timeout", type=float, default=1800.0,
+                help="Wall-clock cap per run in seconds; same handling as --no-output-timeout")
 args = ap.parse_args()
 
 CARLA_BIN = "CarlaUE4-Linux-Shipping"      # running binary name
@@ -205,6 +211,7 @@ print(f"  Total runs: {TOTAL_RUNS}\n", flush=True)
 CARLA_SH   = Path.home() / "carla-0.9.15/CarlaUE4.sh"
 CARLA_PORT = int(args.carla_port)
 _CARLA_PROC = None   # handle of the server this runner started; kills are anchored to it
+_LIVE_RUN = [None]   # the run in flight, so an interrupted sweep takes it down with it
 
 def oncoming_speed_for(ego_kmh: int) -> float:
     """Return Lincoln target speed in m/s (WaypointFollower uses m/s).
@@ -588,14 +595,24 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
             header = f"\n{'='*60}\n  {base_str} {mgr_str} {anchor_str} {lat_str} {loss_str} rep={rep}\n  CMD: {' '.join(cmd)}\n{'='*60}\n"
             live_f.write(header)
             live_f.flush()
+            # The run gets its own session, so a watchdog kill also reaches the
+            # scenario runner and the orchestration server it spawns.
             proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                    text=True, encoding="utf-8", errors="replace", env=_env)
-            for line in proc.stdout:
+                                    text=True, encoding="utf-8", errors="replace", env=_env,
+                                    start_new_session=True)
+            _LIVE_RUN[0] = proc
+
+            def _sink(line):
                 log_f.write(line)
                 live_f.write(line)
                 live_f.flush()
-            proc.wait()
+            watchdog_reason = stream_with_watchdog(proc, _sink, args.no_output_timeout, args.run_timeout)
+            _LIVE_RUN[0] = None
         log_f.write(f"\nRET: {proc.returncode}\n")
+        if watchdog_reason:
+            # a killed run is void; no earlier metrics file may stand in for it
+            (eval_dir / "simulation_metrics.json").unlink(missing_ok=True)
+            print(f"    watchdog: {watchdog_reason}", flush=True)
 
     try:
         shutil.copytree(eval_dir, run_dir / "evaluation_output", dirs_exist_ok=True)
@@ -756,6 +773,8 @@ try:
             kill_carla()
             start_carla()
 finally:
+    if _LIVE_RUN[0] is not None and _LIVE_RUN[0].poll() is None:
+        kill_session(_LIVE_RUN[0])
     # Restore all backed-up YAMLs (base and multi-ego variants)
     for (baseline, ego_count), (cfg_file, bak_file, _) in yaml_backups.items():
         if bak_file.exists():
