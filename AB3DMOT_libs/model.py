@@ -628,6 +628,12 @@ class AB3DMOT(object):
 					# predictor already applied at 1 m/s (_MIN_KF_SPEED_MPS).
 					if math.hypot(vel[0], vel[2]) / max(getattr(self, 'dt', 0.05), 1e-3) < 2.0:
 						vel = np.zeros(3)
+						# and the state agrees: a track at rest by displacement
+						# must not carry a velocity state that walks its
+						# prediction onto the next parked vehicle (a track
+						# hopped along a column of trucks at 18 m/s, 2026-10-14)
+						trk.kf.x[7] = 0.0
+						trk.kf.x[9] = 0.0
 				# A coasting track (predict-only, no fresh measurement) keeps
 				# the velocity the filter converged to while it was matched:
 				# a crossing vehicle briefly lost at a camera handover must

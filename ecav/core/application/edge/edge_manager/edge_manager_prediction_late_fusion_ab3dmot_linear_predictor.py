@@ -147,13 +147,22 @@ def _collect_ab3d_detections(edge,
         info_rows.append([frame_idx, _next_edge_guid(), identity])
 
     # b) sensor detections -- shared library, see ab3dmot_format.py
-    sensor_dets, sensor_info = vehicles_to_ab3dmot_rows(
-        objects.get("vehicles", []),
-        frame_idx=frame_idx,
-        guid_provider=_next_edge_guid,
-    )
-    det_rows.extend(sensor_dets)
-    info_rows.extend(sensor_info)
+    # The confidence column orders the cross-source merge: a roadside
+    # observation (0.6) outranks a vehicle's own (0.5), because a vehicle's
+    # nearest-surface centroid of an adjacent parked vehicle slides as it
+    # passes, while the RSU's view of the same object holds still.
+    _objs = list(objects.get("vehicles", []) or [])
+    _rsu = [o for o in _objs if str(getattr(o, "_det_source", "")).startswith("rsu")]
+    _veh = [o for o in _objs if not str(getattr(o, "_det_source", "")).startswith("rsu")]
+    for _grp, _conf in ((_rsu, 0.6), (_veh, 0.5)):
+        sensor_dets, sensor_info = vehicles_to_ab3dmot_rows(
+            _grp,
+            frame_idx=frame_idx,
+            guid_provider=_next_edge_guid,
+            conf=_conf,
+        )
+        det_rows.extend(sensor_dets)
+        info_rows.extend(sensor_info)
 
     bundle = stack_rows(det_rows, info_rows)
     dets_arr = bundle['dets']
@@ -255,8 +264,12 @@ def _cross_source_nms(dets_dict, cdist_thresh=5.0):
         dists = np.linalg.norm(centers[i] - centers, axis=1)
         members = (dists < cdist_thresh) & ~suppressed
         if members.sum() > 1:
-            merged[i, 3] = float(np.mean(anon_dets[members, 3]))
-            merged[i, 5] = float(np.mean(anon_dets[members, 5]))
+            # the mean over the members of the highest confidence present
+            # (roadside views when there are any), so a vehicle's sliding
+            # view of a parked neighbour does not move the merged centre
+            top = members & (scores >= scores[members].max() - 1e-6)
+            merged[i, 3] = float(np.mean(anon_dets[top, 3]))
+            merged[i, 5] = float(np.mean(anon_dets[top, 5]))
         suppressed |= dists < cdist_thresh
 
     anon_keep = np.array(keep)

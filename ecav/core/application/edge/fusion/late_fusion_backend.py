@@ -142,8 +142,9 @@ class LateFusionBackend(BaseFusionBackend):
             dists = np.linalg.norm(centers[i] - centers, axis=1)
             members = (dists < cdist_thresh) & ~suppressed
             if members.sum() > 1:
-                merged[i, 3] = float(np.mean(anon_dets[members, 3]))
-                merged[i, 5] = float(np.mean(anon_dets[members, 5]))
+                top = members & (scores >= scores[members].max() - 1e-6)
+                merged[i, 3] = float(np.mean(anon_dets[top, 3]))
+                merged[i, 5] = float(np.mean(anon_dets[top, 5]))
             suppressed |= dists < cdist_thresh
 
         anon_keep = np.array(keep)
