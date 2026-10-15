@@ -68,6 +68,7 @@ def load_runs(root, stamp):
             row["bad"] = "error-path metrics"
             runs.append(row)
             continue
+        d["_run_dir"] = os.path.dirname(f)
         r = compute_run_metrics(d)
         if r is None:
             row["bad"] = "no focal vehicle"

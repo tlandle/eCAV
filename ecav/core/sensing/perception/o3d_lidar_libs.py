@@ -399,6 +399,19 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
 
         # Compute nearest-surface centroid BEFORE the o3d x-flip.
         near_centroid_sensor = _nearest_surface_centroid(select_points)
+        # The visible surface is the near side of the vehicle; its mean sits
+        # on that surface, half a vehicle short of the centre along the line
+        # of sight. Move it 1.0 m (half a car width, under half a truck's)
+        # away from the sensor so every sensor's report of one vehicle lands
+        # near its centre instead of on the face it sees: two RSUs seeing a
+        # car end-on reported faces 3.3 m apart, and a CAV's own report of
+        # an adjacent parked truck sat 2.1 m from its lane centre against a
+        # planner threshold of 2.0 m (2026-10-14).
+        _r = float(np.hypot(near_centroid_sensor[0], near_centroid_sensor[1]))
+        if _r > 1e-3:
+            near_centroid_sensor = near_centroid_sensor.copy()
+            near_centroid_sensor[0] += 1.0 * near_centroid_sensor[0] / _r
+            near_centroid_sensor[1] += 1.0 * near_centroid_sensor[1] / _r
 
         # to visualize 3d lidar points in o3d visualizer, we need to
         # revert the x coordinates

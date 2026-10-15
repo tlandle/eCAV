@@ -99,6 +99,43 @@ def _count_episodes(brake_attributions, gap=2):
     return ghost, fp, tp
 
 
+def _ego_headings(d):
+    """Unit heading of the focal vehicle per tick from the run's per-tick log
+    (positions two ticks apart), keyed by tick; empty when the log is absent."""
+    out = {}
+    rd = d.get("_run_dir")
+    p = os.path.join(rd, "runner_stdout.txt") if rd else None
+    if not p or not os.path.exists(p):
+        return out
+    try:
+        import re as _re
+        pos = {}
+        pat = _re.compile(r"\[LOC\] v=(\d+) t=(\d+) gnss=\([^)]*\) gt=\((-?[\d.]+),(-?[\d.]+)\)")
+        focal = None
+        with open(p, errors="ignore") as fh:
+            for line in fh:
+                m = pat.search(line)
+                if not m:
+                    continue
+                v, t = int(m.group(1)), int(m.group(2))
+                if focal is None:
+                    focal = v
+                if v != focal or t in pos:
+                    continue
+                pos[t] = (float(m.group(3)), float(m.group(4)))
+        for t in pos:
+            a, b = pos.get(t - 2, pos.get(t - 1)), pos.get(t + 2, pos.get(t + 1, pos.get(t)))
+            if a is None or b is None:
+                continue
+            hx, hy = b[0] - a[0], b[1] - a[1]
+            n = math.hypot(hx, hy)
+            if n > 0.05:
+                out[t] = (hx / n, hy / n)
+    except Exception:
+        return {}
+    return out
+
+
 def compute_run_metrics(d):
     """Compute corrected per-run metrics using focal ego only."""
     result = {}
@@ -132,21 +169,30 @@ def compute_run_metrics(d):
     ba = fv.get("brake_attributions", [])
     ego_actor_id = int(focal_vid)
     reclassified = 0
+    # A self-ghost is the ego's own echo: a track in the ego's lane corridor
+    # (under 1.75 m lateral to its heading) that trails or sits on it. The
+    # nearest-GT-actor rule alone mislabels two things: a parked vehicle
+    # beside the lane whose face is nearer the ego than its own centre (the
+    # junction-entry truck, 2.1 m lateral), and the echo at high delay, which
+    # trails the ego by more than the match radius and matches another actor.
+    # The ego heading at the trigger tick comes from the per-tick log when the
+    # run has one; otherwise +y (the scenario_3 approach).
+    _hdg = _ego_headings(d)
     for attr in ba:
-        if (attr.get("gt_matched_actor_id") == ego_actor_id
-                and attr.get("gt_brake_class") != "self_ghost"):
-            attr["gt_brake_class"] = "self_ghost"
-            attr["gt_provenance"] = "self"
-            reclassified += 1
-        elif (attr.get("gt_brake_class") == "self_ghost"
-                and attr.get("gt_matched_actor_id") not in (None, ego_actor_id)):
-            # April's definition: a self-ghost is a track whose nearest GT
-            # actor is the ego. The provenance-history taxonomy (July) also
-            # labels tracks that merely passed within the ego's radius; those
-            # matched another actor now and are counted as other false brakes.
-            attr["gt_brake_class"] = "other_fp"
-            attr["gt_provenance"] = "history_only"
-            reclassified += 1
+        ox, oy, ex, ey = attr.get("obs_x"), attr.get("obs_y"), attr.get("ego_x"), attr.get("ego_y")
+        lateral = None
+        if None not in (ox, oy, ex, ey):
+            hx, hy = _hdg.get(attr.get("trigger_tick"), (0.0, 1.0))
+            dx, dy = float(ox) - float(ex), float(oy) - float(ey)
+            lateral = abs(-dx * hy + dy * hx)
+            along = dx * hx + dy * hy
+        in_corridor = lateral is not None and lateral < 1.75 and along < 3.0
+        raw = attr.get("gt_brake_class")
+        looks_like_echo = (attr.get("gt_matched_actor_id") == ego_actor_id or raw == "self_ghost")
+        if looks_like_echo and in_corridor and raw != "self_ghost":
+            attr["gt_brake_class"] = "self_ghost"; attr["gt_provenance"] = "self"; reclassified += 1
+        elif looks_like_echo and not in_corridor and raw == "self_ghost":
+            attr["gt_brake_class"] = "other_fp"; attr["gt_provenance"] = "beside_lane"; reclassified += 1
 
     # Recount tick totals after reclassification
     ghost_ticks = sum(1 for a in ba if a.get("gt_brake_class") == "self_ghost")
