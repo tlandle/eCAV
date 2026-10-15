@@ -4,15 +4,13 @@
         <ego_vehicle x="-84.8" y="80" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
         <other_actor x="-35.0" y="127.7" z="-500" yaw="180" model="vehicle.tesla.model3" />
         <!-- SenSys campaign geometry: the April occluders (firetrucks) so the crossing car is hidden from the
-             hero's own sensors until the junction and only the edge can report it. The column sits at x=-79.5
-             (April: -81.0): a firetruck's side is then 2.9 m from the hero's body, outside the planner's
-             2 m in-path threshold, while the line of sight to the crossing car stays blocked on the approach; the crossing car is the
+             hero's own sensors until the junction and only the edge can report it; the crossing car is the
              Tesla the per-tick logger keys on -->
-        <other_actor x="-79.5" y="119.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
-        <other_actor x="-79.5" y="110.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
-        <other_actor x="-79.5" y="101.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
-        <other_actor x="-79.5" y="92.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
-        <other_actor x="-79.5" y="83.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="119.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="110.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="101.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="92.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
+        <other_actor x="-81.0" y="83.7" z="-500" yaw="90" model="vehicle.carlamotors.firetruck" />
         <weather cloudiness="0" precipitation="75" precipitation_deposits="0" wind_intensity="0" sun_azimuth_angle="0" sun_altitude_angle="75" fog_density = "0" />
     </scenario>
 </scenarios>
