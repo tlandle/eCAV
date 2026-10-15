@@ -1008,6 +1008,13 @@ class BehaviorAgent(object):
             # TTC=1000 means only the spatial-overlap fallback triggered
             # (e.g. parked cars near the path) — not a real collision course.
             if collision and ttc < time_ahead:
+                _o = pred.obstacle_trajectory.obstacle
+                _s0 = conflict_traj[0].location if conflict_traj else None
+                _s1 = conflict_traj[-1].location if conflict_traj else None
+                logger.warning("[HAZARD-P2] track=%s cid=%s ttc=%.2f obs_speed=%.1f traj=(%.1f,%.1f)->(%.1f,%.1f) n=%d ego=(%.1f,%.1f) v=%.1f",
+                               getattr(_o, 'track_id', None), getattr(_o, 'carla_id', None), ttc, obs_speed,
+                               _s0.x if _s0 else 0, _s0.y if _s0 else 0, _s1.x if _s1 else 0, _s1.y if _s1 else 0,
+                               len(conflict_traj or []), ego_loc.x, ego_loc.y, ego_speed_mps)
                 # Re-run WITH drawing for confirmed collisions only,
                 # on the mode that actually conflicted
                 self._collision_check.trajectory_collision_check(
@@ -1111,7 +1118,14 @@ class BehaviorAgent(object):
                         (obs_loc.y - ego_loc.y)**2)**0.5
         return None
 
-    def _find_blocking_lead(self, max_ahead=30.0):
+    def _find_blocking_lead(self, max_ahead=30.0, max_lateral=1.75):
+        # max_lateral: inside the ego's own lane (half a 3.5 m lane). It was
+        # 2.5 m until 2026-10-14: the near face of a 2.8 m wide vehicle
+        # parked in the adjacent lane is 2.3 m from the ego's centre, so a
+        # column of parked trucks read as a blocking lead from spawn, the
+        # ego car-followed it at target 0 and never reached the 4 m/s that
+        # releases the latch (scenario_3 occluders; April's planner predates
+        # this detector).
         """Stationary predicted obstacle in the ego's lane just ahead.
 
         Used by the blocked-state overtake trigger (step 5b) and by the
@@ -1136,7 +1150,7 @@ class BehaviorAgent(object):
             dx, dy = loc.x - ex, loc.y - ey
             ahead = dx * cos_y + dy * sin_y
             lateral = abs(-dx * sin_y + dy * cos_y)
-            if not (0.5 < ahead < max_ahead and lateral < 2.5):
+            if not (0.5 < ahead < max_ahead and lateral < max_lateral):
                 continue
             if get_speed(v) > 3.6:  # km/h; above parked-jitter floor
                 continue
@@ -1160,7 +1174,7 @@ class BehaviorAgent(object):
             dx, dy = loc.x - ex, loc.y - ey
             ahead = dx * cos_y + dy * sin_y
             lateral = abs(-dx * sin_y + dy * cos_y)
-            if not (0.5 < ahead < max_ahead and lateral < 2.5):
+            if not (0.5 < ahead < max_ahead and lateral < max_lateral):
                 if _dbg and abs(ahead) < 25 and lateral < 6:
                     print(f"[LEAD] reject-geom id={obs.carla_id} ahead={ahead:.1f} lat={lateral:.1f}")
                 continue
@@ -1200,7 +1214,7 @@ class BehaviorAgent(object):
                 dx, dy = loc.x - ex, loc.y - ey
                 ahead = dx * cos_y + dy * sin_y
                 lateral = abs(-dx * sin_y + dy * cos_y)
-                if 0.5 < ahead < max_ahead and lateral < 2.5:
+                if 0.5 < ahead < max_ahead and lateral < max_lateral:
                     if _dbg:
                         print(f"[LEAD] cache id={getattr(obs, 'carla_id', -1)} "
                               f"ahead={ahead:.1f}")
