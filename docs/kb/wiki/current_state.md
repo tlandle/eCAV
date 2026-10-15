@@ -6145,3 +6145,60 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
 - Lane geometry from the simulator: road 4 lane -1 centre x=-84.55, width
   3.5 m; firetruck half-width 1.45 (near face at -82.45, 2.1 m from the lane
   centre against the planner's 2.0 m lateral threshold); nissan patrol 0.97.
+
+## 2026-10-15 18:50: de7c6d9e gate read on both hosts; fusion offset verified; runner watchdog; gate relaunched on 1dc9eeb3
+- Label rule in recompute_metrics since 826b040e: self-ghost = a consumed
+  track inside the ego's lane corridor (lateral under 1.75 m, along under
+  3 m, heading from the `[LOC]` lines of runner_stdout); any other braking
+  track is other_fp ("beside_lane"). S_op = no collision, no self-ghost, no
+  other_fp, completion before the scenario's step cap. April reduces to the
+  same 1961 successes under this rule.
+- de7c6d9e gate, P(S_op) at 0/100/200/300/400/500 ms, 10 seeds, with
+  [ghost episodes; false-brake episodes] summed over the cell:
+  atlas naive 1.00/0.80/0.80/0.70/0.10/0.00 [0;0 0;2 2;0 0;4 10;0 11;1],
+  contract 0.90/0.70/0.80/0.90/0.90/0.70 [fp 1 3 2 1 1 3, ghosts 0],
+  oracle 0.90/1.00/1.00/0.90/1.00/0.90 [fp 1 0 0 1 0 1], ETSI 0.80/0.40/0.83
+  (0/100/200 only; atlas hung at run 207);
+  cetus naive 0.80/0.40/0.90/0.90/0.00/0.00 [0;2 0;6 1;0 1;0 11;0 13;0],
+  contract 0.90/0.30/0.90/1.00/1.00/0.80 [fp 1 7 1 0 0 3, ghosts 0],
+  ETSI 0.80/0.10/0.60/0.80/0.10/0.00 [fp 2 10 0 0 0 0; ghosts 0 0 4 2 10 14],
+  oracle 0.90/1.00/1.00/1.00/0.90/0.90 [fp 1 0 0 0 1 1]. Shape gates pass on
+  both hosts. April: naive 1.00/0.75/0.10/0.00/0.00/0.00, contract
+  1.00/1.00/0.90/0.75/0.00/0.00, oracle 1.00/1.00/1.00/0.90/0.10/0.00.
+- Reading: the naive self-ghost cliff moved from 150 ms (April) to 400 ms;
+  the contract and oracle hold to 500 ms (the step cap 600 and the shorter
+  route change the physics boundary; the physics stage measures it on the
+  age axis). The defect left is the 100 ms cell: false brakes in every V2X
+  arm (naive 2/6, contract 3/7, ETSI 6/10 of 10 on atlas/cetus) and none in
+  the oracle; the braking tracks sit beside the hero's lane at the parked
+  column (x about -82.7 against the lane centre -84.55 and the planner's
+  2.0 m lateral threshold) and carry 3 to 9 m/s. At 0 ms the same reports
+  are the lidar surface mean of the truck's near face.
+- 826b040e (lidar fusion position = mean of the visible points offset
+  1.0 m from the sensor toward the vehicle centre): hz13 on cetus, contract
+  10/10 and oracle 4/4 at 0 ms, no ghost, no false brake (de7c6d9e: 0.90 in
+  both). The 100 ms cell is read from the relaunched gate (contract 100 ms
+  is runs 11 to 20 of the first runner invocation).
+- Atlas gate hang: CARLA segfaulted in the Vulkan RHI (FPackedUniformBuffers
+  ::Init, crash report ~/.config/Epic/CarlaUE4/Saved/Crashes, pid 513843 at
+  01:50; a second report at 22:12 the evening before) during run 207; the
+  scenario runner aborted on the client timeout, ecav.py's main thread spun
+  at 100 percent CPU for 17 h (61 threads, defunct child), and test_runner
+  iterated the dead run's stdout with no timeout. Fix 1dc9eeb3:
+  scripts/proc_watchdog.py streams each run with a no-output timeout
+  (300 s) and a wall-clock cap (1800 s), the run starts in its own session so
+  the kill reaches the scenario runner and the orchestration server, a
+  killed run drops any metrics file and goes through the existing no-metrics
+  retry (CARLA restarted, one retry); an interrupted sweep kills the live
+  run. tests/test_proc_watchdog.py (run as a script; opencda310 has no
+  pytest). py-spy needs sudo on atlas (ptrace scope); the hot thread came
+  from /proc/<pid>/task/*/stat.
+- Edge frame time WARN in campaign_check (atlas about 100 ms, cetus about
+  170 ms, April 25 to 37 ms) is the same on de7c6d9e, 826b040e and hz13: two
+  perception calls per edge frame on the host's GPU. The measured-age axis
+  carries it; not a code regression.
+- Stamps: de7c6d9e gates kept as sensys_nov27_gate5_de7c6d9e on both hosts
+  (experiment_results, evaluation_outputs, run log). Gate relaunched on
+  1dc9eeb3 at 18:50 on both hosts (atlas fresh CARLA, cetus reused hz13's
+  server on port 2000); logs/gate_atlas.log and ~/sensys_wt/logs/gate_cetus.log;
+  expected finish about 23:30. Plan doc updated and pushed (40172f2).
