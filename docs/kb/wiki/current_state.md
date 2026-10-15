@@ -6287,3 +6287,29 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   (435fbb12): ETSI off 100 x10, naive 100 x10, contract 200 x10 (coverage
   check); cetus after hz14: contract 0 x10 and 100 x10. Then the gate on
   both hosts on 435fbb12.
+
+## 2026-10-15 19:51: age-zero publishes fixed (3ff9d06f); gate relaunched on cetus; atlas follows hz15
+- Found while prototyping the causal trace (scripts/sensys_analysis/
+  self_ghost_trace.py): on a tick with no newly drained frame the late-fusion
+  edge re-published with source_tick None, the wrapper skipped the obs_tick
+  stamp, and the per-tick log read those rows as age 0 (gen = publish =
+  consume): 23 percent of the conflict actor's rows in the V2X arms and 8
+  percent in the oracle on the de7c6d9e gate. 3ff9d06f: the manager passes
+  the last drained frame's tick; the wrapper falls back to the tracker's
+  last ingested frame; tests/test_publish_obs_tick.py.
+- The causal trace on a naive 400 ms self-ghost run reads as the paper's
+  logic failure: the vehicle's own track (its pseudonym, anonymous in the
+  naive arm) consumed 400 to 450 ms late sits 5.4 to 6.8 m behind it at its
+  own speed and the planner brakes on it at tick 121; the parked column sits
+  at lateral -4 m at rest. Time rectification would move that track onto
+  the vehicle; what remains is read from the landing stage's VIPS runs.
+- Validation on 435fbb12: cetus hz14 naive 100 ms 10 of 10 (de7c6d9e 6 of
+  10 false brakes), ETSI 100 ms 9 of 10 (the one walk case, closed by
+  13448846); atlas hz15 ETSI 100 ms 10 of 10, naive 100 ms 4 of 4 so far,
+  contract 200 ms pending. Cetus gate stopped (3 runs on 435fbb12, kept as
+  sensys_nov27_gate7_435fbb12) and relaunched on 3ff9d06f at 19:51 with the
+  after-gate watcher (scripts/sensys_after_gate.sh: on PASS runs
+  `sensys_campaign.sh cetus all`, which skips the gate's finished runs).
+  Atlas gate launches on 3ff9d06f after hz15. pgrep from a remote shell
+  whose command line names the script matches that shell: list only, kill
+  by the PIDs listed before the relaunch.
