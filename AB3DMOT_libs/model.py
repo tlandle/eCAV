@@ -640,6 +640,14 @@ class AB3DMOT(object):
 				if len(_hist) >= 10:
 					trk.kf.x[7] = float(vel[0])
 					trk.kf.x[9] = float(vel[2])
+				elif trk.time_since_update > 0:
+					# A young track that has lost its detection holds its
+					# position instead of coasting on a velocity it has had
+					# no time to establish: coasting on a face jump walked a
+					# newborn track onto the neighbouring parked vehicle and
+					# the displacement then read that hop as 16 to 19 m/s.
+					trk.kf.x[7] = 0.0
+					trk.kf.x[9] = 0.0
 				# A coasting track (predict-only, no fresh measurement) keeps
 				# the velocity the filter converged to while it was matched:
 				# a crossing vehicle briefly lost at a camera handover must
