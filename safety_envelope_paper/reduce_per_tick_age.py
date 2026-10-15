@@ -130,8 +130,21 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
     else:
         conflict_coverage = float("nan") if not crit_ticks else 1.0
         conflict_max_gap = float("nan") if not crit_ticks else 0
-    crit = [_f(r["age_at_use_ms"]) for r in edge if r["is_conflict_actor"] == "1"
-            and (first_cid is None or r.get("conflict_actor_id") == first_cid)]
+    crit_rows = [r for r in edge if r["is_conflict_actor"] == "1"
+                 and (first_cid is None or r.get("conflict_actor_id") == first_cid)]
+    crit_full = [_f(r["age_at_use_ms"]) for r in crit_rows]
+    # The planner keeps consuming the actor's last state after the actor has
+    # left every sensor's view (post-conflict hold, age climbing to 1.4 s on
+    # the oracle at 200 ms); the decision window ends at the first consumption
+    # of the actor's last fresh observation.
+    obs = [int(_f(r["obs_tick"])) for r in crit_rows if r.get("obs_tick") not in ("", None)]
+    if obs:
+        last_obs = max(obs)
+        t_end = min(int(r["tick"]) for r in crit_rows
+                    if r.get("obs_tick") not in ("", None) and int(_f(r["obs_tick"])) == last_obs)
+        crit = [_f(r["age_at_use_ms"]) for r in crit_rows if int(r["tick"]) <= t_end]
+    else:
+        crit = crit_full
     lineage_bad = sum(1 for r in rows if r.get("lineage_ok") == "0")
     frame_ages = [_f(r["frame_age_ms"]) for r in edge if r.get("frame_age_ms") not in (None, "")]
 
@@ -208,6 +221,7 @@ def reduce_run(csv_path: str, focal: str = "lowest") -> Dict[str, float]:
         "p95_age_ms": _p(ages, 95),
         "global_p99_age_ms": _p(ages, 99),
         "critical_object_p99_ms": _p(crit, 99),
+        "critical_object_p99_full_ms": _p(crit_full, 99),
         "conflict_time_age_ms": conflict_age,
         "conflict_time_tick": float(brake_tick) if brake_tick is not None else float("nan"),
         "conflict_brake_age_ms": conflict_brake_age,

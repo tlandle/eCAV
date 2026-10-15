@@ -329,6 +329,11 @@ class AB3DMOT(object):
 			trk_vel = kf_tmp.kf.x.reshape((-1))[7:10]
 			trk_box.kf_speed_ground = float(
 				(trk_vel[0]**2 + trk_vel[2]**2)**0.5)
+			# measured-edge history: a track with fewer than ten matched frames
+			# has no robust velocity yet and gets the young-track gate
+			_eh = getattr(kf_tmp, 'edge_hist', None)
+			trk_box.edges_in_use = _eh is not None
+			trk_box.n_edge_frames = len(_eh) if _eh is not None else 0
 
 			trks.append(trk_box)
 			#trks.append(Box3D.array2bbox(trk_tmp))
@@ -586,7 +591,19 @@ class AB3DMOT(object):
 		h = getattr(trk, 'edge_hist', None)
 		if h is None:
 			h = trk.edge_hist = []
-		h.append((self.frame_count, tuple(float(v) for v in edges[idx][:4])))
+		e = tuple(float(v) for v in edges[idx][:4])
+		if h:
+			# A hop of the whole box beyond what the track's velocity explains
+			# (2 m over the expected motion) is a change of object or of view,
+			# not motion: the velocity estimate restarts from this frame.
+			f0, e0 = h[-1]
+			df = max(1, self.frame_count - f0)
+			v = trk.kf.x.reshape(-1)[7:10]
+			expected = math.hypot(float(v[0]), float(v[2])) * df
+			moved = math.hypot((e[0] + e[1] - e0[0] - e0[1]) / 2.0, (e[2] + e[3] - e0[2] - e0[3]) / 2.0)
+			if moved > expected + 2.0:
+				del h[:]
+		h.append((self.frame_count, e))
 		if len(h) > 21:
 			del h[0]
 
@@ -664,9 +681,13 @@ class AB3DMOT(object):
 					# born from one sensor's face of a parked vehicle read
 					# 5 to 8 m/s on its first frames, 2026-10-14): at rest
 					vel = np.zeros(3)
-				elif _eh is not None and len(_eh) >= 10:
-					# measured box edges available: the slower edge decides (see _edge_velocity)
-					vel = self._edge_velocity(_eh, vel)
+				elif _eh is not None:
+					# measured box edges in use: the slower edge decides after ten
+					# matched frames (see _edge_velocity); before that the track is
+					# published at rest, never from the position displacement, which
+					# a young track dragged along a column by a passing sensor's
+					# wandering reports read as 16 m/s (2026-10-15)
+					vel = self._edge_velocity(_eh, vel) if len(_eh) >= 10 else np.zeros(3)
 				else:
 					(f0, x0, z0), (f1, x1, z1) = _hist[0], _hist[-1]
 					n = max(1, f1 - f0)

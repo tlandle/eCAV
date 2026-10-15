@@ -69,6 +69,82 @@ def fallback_without_edges():
     print("without edges: the sliding centre of the truck is published at %.1f m/s (position-displacement path)" % v)
 
 
+
+
+def _feed(trk, k, boxes):
+    """Feed one frame of boxes (world xmin, xmax, ymin, ymax) with edges; return (tid, x, y, speed) rows."""
+    dets = np.array([det_from_box(b) for b in boxes], dtype=float).reshape(len(boxes), 7)
+    info = np.array([[k, 1000 * k + i, -1] for i in range(len(boxes))], dtype=np.int64).reshape(len(boxes), 3)
+    bundle = {"dets": dets, "info": info, "edges": np.array(boxes, dtype=float).reshape(len(boxes), 4)}
+    out, _ = trk.track(bundle, k)
+    rows = out[0] if out and len(out[0]) else np.zeros((0, 16))
+    return [(int(r[7]), float(r[3]), float(r[5]), math.hypot(float(r[10]), float(r[12])) / DT) for r in rows]
+
+
+def walking_reports_do_not_move_a_resting_track():
+    """A roadside sensor reports a parked truck at rest; during a 3-frame
+    dropout a passing vehicle's reports of the column walk 1.8 m per frame.
+    The resting track must not follow them, and no published track may carry
+    the walk as velocity."""
+    w = AB3DMOTWrapper({"max_age": 10, "min_hits": 3, "anchoring": False})
+    trk = w._tracker
+    rest = (-82.45, -79.55, 106.5, 114.9)          # truck centred (-81.0, 110.7)
+    worst = 0.0
+    for k in range(1, 31):
+        boxes = []
+        if not 13 <= k <= 15:
+            boxes.append(rest)
+        if k >= 13:
+            y = 109.9 - 1.8 * (k - 13)
+            boxes.append((-83.3, -81.3, y - 1.0, y + 1.0))
+        rows = _feed(trk, k, boxes)
+        for tid, x, y, v in rows:
+            worst = max(worst, v)
+            if abs(x + 81.0) < 1.5 and abs(y - 110.7) < 1.5:
+                assert v == 0.0, (k, tid, v)
+    assert worst == 0.0, worst
+    print("walking reports beside a resting track: every published track at rest (max %.1f m/s)" % worst)
+
+
+def fast_car_is_tracked_and_published():
+    w = AB3DMOTWrapper({"max_age": 10, "min_hits": 3, "anchoring": False})
+    trk = w._tracker
+    ids, late = set(), []
+    for k in range(1, 25):
+        x = -37.0 - 1.2 * k                       # 24 m/s
+        rows = _feed(trk, k, [(x - 2.25, x + 2.25, 126.7, 128.7)])
+        for tid, _, _, v in rows:
+            ids.add(tid)
+            if k >= 14:
+                late.append(v)
+    assert len(ids) == 1, ids
+    assert late and all(abs(v - 24.0) < 2.5 for v in late), late
+    print("24 m/s car: one track, published %.1f m/s from frame 14" % late[-1])
+
+
+def hop_restarts_the_estimate():
+    """A moving track whose box hops 2.5 m beyond its expected motion in one
+    frame (inside the association gate) restarts its velocity estimate."""
+    w = AB3DMOTWrapper({"max_age": 10, "min_hits": 3, "anchoring": False})
+    trk = w._tracker
+    speeds = {}
+    off = 0.0
+    for k in range(1, 40):
+        if k == 14:
+            off = 2.5
+        x = -37.0 - 0.5 * k - off                 # 10 m/s, then a 2.5 m hop
+        rows = _feed(trk, k, [(x - 2.25, x + 2.25, 126.7, 128.7)])
+        for _, _, _, v in rows:
+            speeds[k] = v
+    assert all(abs(speeds[k] - 10.0) < 1.5 for k in range(11, 14)), {k: speeds[k] for k in range(11, 14)}
+    assert all(speeds[k] == 0.0 for k in range(15, 23)), {k: speeds[k] for k in range(15, 23)}
+    assert all(abs(speeds[k] - 10.0) < 1.5 for k in range(28, 39)), {k: speeds[k] for k in range(28, 39)}
+    print("hop: published %.1f m/s before, 0 for the next ten matched frames, %.1f m/s after" % (speeds[12], speeds[38]))
+
+
 if __name__ == "__main__":
     slower_edge_rule()
     fallback_without_edges()
+    walking_reports_do_not_move_a_resting_track()
+    fast_car_is_tracked_and_published()
+    hop_restarts_the_estimate()

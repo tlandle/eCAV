@@ -188,6 +188,27 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 		if trk_speed is not None:
 			trk_speed = trk_speed / _DT       # KF velocity is per frame; gate is in m/s
 
+		# Young-track gate: a track whose measured-edge history is shorter than
+		# ten matched frames has no robust velocity, so the cross-view allowance
+		# does not apply to it frame after frame; its innovation is bounded by
+		# _D_MIN from birth. A track at rest beside a column of parked vehicles
+		# was walked 1.8 to 2.8 m per frame by a passing vehicle's wandering
+		# reports during a 3-tick roadside dropout and published at 16 m/s
+		# (2026-10-15). 1.5 m per frame still admits 30 m/s of real motion.
+		if (getattr(trks[m[1]], 'edges_in_use', False)
+				and getattr(trks[m[1]], 'n_edge_frames', 0) < 10
+				and metric in ('dist_3d', 'dist_2d', 'm_dis', 'euler')):
+			if metric in ('m_dis', 'euler') and aff_matrix[m[0], m[1]] < -0.01:
+				d = dist_ground(dets[m[0]], trks[m[1]])
+			else:
+				d = -aff_matrix[m[0], m[1]]
+			if d > _D_MIN:
+				logger.debug("[YOUNG GATE] rejected match det=%d trk=%d d=%.2fm > %.2fm (edge frames=%d)",
+				             m[0], m[1], d, _D_MIN, getattr(trks[m[1]], 'n_edge_frames', 0))
+				unmatched_dets.append(m[0])
+				unmatched_trks.append(m[1])
+				continue
+
 		if (trk_speed is not None and trk_hits >= _KINEMATIC_MIN_HITS
 				and metric in ('dist_3d', 'dist_2d', 'm_dis', 'euler')):
 			if metric in ('m_dis', 'euler') and aff_matrix[m[0], m[1]] < -0.01:

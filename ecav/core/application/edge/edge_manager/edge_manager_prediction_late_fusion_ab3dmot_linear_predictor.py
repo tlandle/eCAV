@@ -190,8 +190,8 @@ def _collect_ab3d_detections(edge,
     # Beacon detections (from vehicle_manager_list) have cid > 0
     # Sensor detections come from objects["vehicles"] with _det_source tag
     if len(dets_arr) > 0:
-        obj_list = objects.get("vehicles", [])
-        n_beacons = len(beacons)
+        obj_list = _rsu + _veh          # the order the rows were appended in
+        n_beacons = len(dets_arr) - len(obj_list)
         for idx, (d, inf) in enumerate(zip(dets_arr, info_arr)):
             if inf[2] > 0:
                 src = "beacon"
