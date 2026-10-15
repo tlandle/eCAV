@@ -920,6 +920,8 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # ===== 2. convert to trajectories & predict ===================
             with frame.time("detection"):
                 self._latest_source_tick = latest_source_tick
+                if latest_source_tick is not None:
+                    self._last_drained_source_tick = latest_source_tick
                 self._ab3d_history_to_trajs(self._track_history, horizon=30, tick=tick)
                 num_tracks = len(self.tracked_trajectories)
 
@@ -983,9 +985,14 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
             with frame.time("prediction"):
                 t0 = time.perf_counter()
+                # On a tick with no newly drained frame the published state is
+                # still the last frame's: stamp it with that frame's tick, not
+                # with nothing (which the log read as age zero, a quarter of the
+                # conflict actor's rows at 400 ms on 2026-10-15).
                 preds = self.lin_pred.generate_predicted_trajectories(
                             self.tracked_trajectories,
-                            source_tick=latest_source_tick,
+                            source_tick=(latest_source_tick if latest_source_tick is not None
+                                         else getattr(self, '_last_drained_source_tick', None)),
                             publish_tick=tick)
                 predict_ms = (time.perf_counter() - t0) * 1e3
                 num_predictions = len(preds)

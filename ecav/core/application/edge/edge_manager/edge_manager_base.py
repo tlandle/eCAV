@@ -235,6 +235,9 @@ class _BaseEdgeManager:
             # track so the age the planner sees follows the observation.
             # source_tick stays the frame clock (frame_age in the log).
             src = kw.get("source_tick")
+            if src is None:
+                # no frame drained this tick: the tracker's last ingested frame
+                src = getattr(getattr(self, "tracker", None), "_cur_frame_tick", None)
             trks = getattr(getattr(self, "tracker", None), "trackers", None)
             if preds and src is not None and trks:
                 obs_of = {}
