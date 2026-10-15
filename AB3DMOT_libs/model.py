@@ -619,6 +619,18 @@ class AB3DMOT(object):
 					(f0, x0, z0), (f1, x1, z1) = _hist[0], _hist[-1]
 					n = max(1, f1 - f0)
 					vel = np.array([(x1 - x0) / n, float(vel[1]) if len(vel) > 1 else 0.0, (z1 - z0) / n])
+					# The last half second must agree: a measured face that
+					# slid along a parked vehicle and then stopped at its end
+					# (the passing CAV's camera box reaching the front corner)
+					# still shows motion over the full second but none over
+					# the last half; the published velocity is the slower of
+					# the two estimates, in the direction of the longer one.
+					(fh, xh, zh) = _hist[len(_hist) // 2]
+					nh = max(1, f1 - fh)
+					v_long = math.hypot(vel[0], vel[2])
+					v_half = math.hypot((x1 - xh) / nh, (z1 - zh) / nh)
+					if v_long > 1e-6 and v_half < v_long:
+						vel = vel * (v_half / v_long)
 					# Slower than 2 m/s over the last second is published at
 					# rest: a parked vehicle whose measured centroid wanders
 					# between its visible faces (up to 1.9 m across a second)
