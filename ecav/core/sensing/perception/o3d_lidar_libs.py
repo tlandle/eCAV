@@ -299,10 +299,14 @@ def _nearest_surface_centroid(select_points):
 
     Must be called BEFORE the o3d x-flip on select_points.
     """
-    depths = np.linalg.norm(select_points, axis=1)
-    near_mask = depths <= np.percentile(depths, 50)
-    near_pts = select_points[near_mask] if near_mask.sum() >= 2 else select_points
-    return near_pts.mean(axis=0)
+    # The mean of every point in the box, not of the nearest half. The
+    # nearest half of a long vehicle seen from alongside is wherever the
+    # observer is closest, so it slides along the vehicle as the observer
+    # passes (a parked truck read 4 to 6 m/s from the passing CAV,
+    # 2026-10-14); the mean of the visible surface is the midpoint of what
+    # is seen and moves far less. For a roadside view of a car the two differ
+    # by under a metre.
+    return select_points.mean(axis=0)
 
 
 def _sensor_point_to_world_transform(point_sensor, lidar_sensor):
