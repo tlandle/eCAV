@@ -6595,3 +6595,29 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   the control stage (240 runs), then scaling; the chain is interrupted
   after control for the probe and tight set, then resumed (`all` skips
   finished runs).
+
+## 2026-10-16 15:50: Tyler's objections; atlas paused for probes
+- Tyler: the self-ghost cliff was at 150 ms in April and is at 300 ms now;
+  the eval must vary speed for the V2X arms; the overtake stays. Facts:
+  the Oct 14 curvature limit (A_LAT_MAX 5 m/s^2 on the sharpest bend
+  within 20 m, replacing 8 m/s^2 on the mean curvature) caps the left turn
+  at about 8 m/s regardless of nominal speed, so the echo that trailed 2.9
+  m at 150 ms and 19 m/s in April needs 300 ms now, and the speed study on
+  scenario_3 collapses to one turn speed; on SCP (no turn) ghosts start at
+  150 ms. The driver sweeps speed for the oracle only (the stage table),
+  while expected_effects E5 needs naive and SBA at the other speeds too.
+  The overtake variant (Oct 13) ran scenario_1 without the Khonsu
+  environment (ONCOMING_SPEED=12, TRIGGER_DIST=300; defaults 7.9 m/s and
+  150 m) and at 38 to 70 km/h instead of 43, so the oncoming car arrives
+  mid-overtake in every run; the oncoming's velocity was published 0.4 s
+  after first sight, before the commit, so the tracker is not the cause.
+- Knob curv_lat_accel (behavior block, default 5, --behavior-kv), runner
+  --scenario-env pass-through, scripts/sensys_overtake_gate.sh.
+- Atlas chain paused (control stage at run 8; resumes later). Running:
+  curv8_probe (scenario_3, oracle, 70 km/h, 0/300/500 ms, 10 seeds,
+  curv_lat_accel=8) then the overtake gate (Khonsu timing, oracle and
+  contract at 0 ms, 10 seeds). If the hero stays on the road at 8 m/s^2
+  and the oracle fails inside the sweep, the junction stages rerun with
+  the April turn speed and the V2X arms at all six speeds; else the margin
+  probe. Cetus continues its landing (curvature 5; its runs belong to the
+  configuration that will be superseded if the knob changes).
