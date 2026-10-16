@@ -6438,3 +6438,24 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   the second relaunch passed and the landing stage runs (contract arm,
   scenario_3). Rule: a bundle for cetus starts at the commit cetus is on
   (`git -C ~/sensys_wt log -1`), never at an arbitrary later one.
+
+## 2026-10-16 09:30: CIP arm void at zero delay; mini-gate of the ungated arms; landing cells on scenario_3
+- Landing (atlas, scenario_3, 70 km/h, 10 seeds, 0/50/100/150/200/300/400/
+  500/700/1000 ms): naive 1.00 x5, 0.50, 0.10, 0.00, 0.00, 0.00 (self-ghosts
+  from 300 ms); ETSI 1.00 x4, 0.90, 0.50, 0.00, 0.10, 0.00, 0.00; contract
+  1.00 x7, 0.90, 0.80, 1.00 (collisions 1 and 2 at 500 and 700 ms, none at
+  1,000: tracking-induced, the oracle holds). At 700 and 1,000 ms the
+  naive and ETSI arms also carry false-brake labels (3, 10; 1, 8 runs) under
+  the self-ghosts; not a heading artefact (the heading source now extends
+  past the 100-tick pose log via the beacon rows, 3a8fc75f, no change);
+  their matched actor is read below. They do not move P there.
+- CIP ("cip on") at 0 ms: P = 0.00, 91 self-ghost episodes, 39 false-brake
+  episodes, 9 collisions, 10 stalls in 10 runs. Never gated. Out of the
+  atlas ARMS (8948ac26); its 12 runs moved to
+  experiment_results/openscenario_3_edge_late_fusion/sensys_nov27_cip_void_atlas.
+- The cetus landing arms (vips off/on, infra_only off/on, late_fusion with
+  the Mahalanobis gate off/on) were never gated either: mini-gate hz16 on
+  atlas, 0 ms, 5 seeds each (30 runs), before the chains continue; an arm
+  that fails G1 there is taken out the same way. Atlas chain is stopped
+  for it; cetus runs its SCP physics sweep meanwhile (relaunch waiter2
+  will use whatever driver is merged when the sweep ends, about 12:45).
