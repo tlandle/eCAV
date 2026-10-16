@@ -6364,3 +6364,17 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   data; it tracks naive; fix the message after the campaign, not during).
   Table in the paper repo validation_report.md §3. Cetus gate ends about
   01:00 and the same chain runs there.
+
+## 2026-10-16 01:10: cetus gate PASSED first pass; both hosts in the physics stage
+- Cetus (240 runs, no void run): naive 1.00/1.00/0.90/0.40/0.00/0.00,
+  ETSI 1.00/1.00/1.00/0.70/0.00/0.00, contract 1.00 x6, oracle 1.00 x6;
+  self-ghosts only; no false brake. Agrees with atlas within one run per
+  cell. The watcher launched `all` at 01:09; the redo script keeps waiting
+  (the watcher process lives through the stages) and will find "launching
+  the remaining stages" when it exits; harmless. Physics stage: atlas 110
+  runs at 01:10 (about 55 s per run, 900 per host, done about 13:00 Oct
+  16); landing follows automatically. Validation report §3 has both
+  tables (paper repo). Campaign monitoring: logs/stages_<role>.log on each
+  host; campaign_check per stamp; conflict_track_quality.py for the
+  crossing car; envelope_measured.py and envelope_predict.py once the
+  physics stage has its oracle cells.
