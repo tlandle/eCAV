@@ -6634,3 +6634,16 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   curv_lat_accel=8, oracle at 0/300/500 ms, 10 seeds. Then
   scripts/sensys_junction.sh (STAMP, EXTRA) reruns gate, physics at six
   speeds, and the V2X arms at six speeds on both hosts.
+- 16:10: overtake gate with Khonsu's environment (ONCOMING_SPEED=12,
+  TRIGGER_DIST=300) at 70 km/h: oracle 0 of 10 (10 collisions, 10 stalls),
+  contract 2 of 7. The hero waits at its standoff while the first oncoming
+  passes (ticks 80 to 160), commits as the second one is 44 m out at 12
+  m/s (3.7 s), launches from standstill, meets it head-on at TTC 1.15 s
+  and stalls in contact. Khonsu ran the hero at 43 km/h, its acceptance
+  (khonsu_accept.py) counted overtake completion and treated a residual
+  collision as a safe abort, and its runs set LOOKAHEAD_S for the
+  forecast horizon the overtake recheck uses. A 43 km/h oracle check with
+  the same environment is queued on atlas ahead of the scenario_3 margin
+  probe. curv8_probe: oracle 1.00 at 0, 300, 500 ms (no conflict). Cetus
+  SCP margin probe: trigger 60 m oracle 1.00 at 0, 300, 500; 45 and 30 m
+  pending.
