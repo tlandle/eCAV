@@ -6489,3 +6489,16 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   VIPS_TEMPORAL keeps the old manager. tests/test_vips_rectification.py.
   VIPS runs last on cetus (42d1ce3c, merged there) so no VIPS landing run
   happens before the mini-gate hz17 on the new class.
+- 10:05, hz16 so far (0 ms, 5 seeds): I2V object sharing without the
+  receiver contract (infra_only off) 3 of 5; the 2 failures are self-ghosts
+  at the run's start: the roadside report of the launching hero's rear
+  face sits 2.0 m behind its centre at rest, outside the 1.0 m spatial
+  self-identification radius (the arm has no identity channel), inside the
+  hero's own footprint, and the planner's spatial-overlap check brakes. A
+  footprint-based self-identification would remove it but is a planner
+  change, which would void every run so far; kept as a finding with its
+  mechanism (self_id_radius is a stated parameter; the receiver contract is
+  the paper's I2V answer). campaign_check G1 (1dcd1263): for arms with no
+  identity channel, zero-delay self-ghost-only failures are a WARN finding,
+  not a FAIL, so the chain is not blocked. Mahalanobis-gate naive 2 of 2
+  clean so far; vips-on, infra-on, gate-on pending.
