@@ -818,6 +818,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
             # ===== 1. Drain jitter buffer → feed persistent tracker ========
             with frame.time("tracking"):
+                self._drain_tick = tick   # the tick a drained frame is ingested at (VIPS rectification)
                 new_frames = self._jitter_buffer.drain(tick)
                 latest_dets = None
                 latest_source_tick = None

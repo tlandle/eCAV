@@ -27,6 +27,7 @@ from .edge_manager_oracle_ab3dmot_linear_predictor import (
 from .edge_manager_vips_temporal_alignment import (
     VIPSTemporalEdge,
 )
+from .edge_manager_vips_late_fusion import VIPSLateFusionEdge
 from .edge_manager_sota import SOTAEdge
 from .edge_manager_adaptive import AdaptiveEdge
 from .edge_manager_worldfusion_ab3dmot_mtr_adaptive import (
@@ -48,6 +49,7 @@ __all__ = [
     "WorldFusionEdge",
     "OracleEdge",
     "VIPSTemporalEdge",
+    "VIPSLateFusionEdge",
     "SOTAEdge",
     "AdaptiveEdge",
 ]
@@ -62,8 +64,8 @@ _EDGE_REGISTRY = {
     "LATE_FUSION": LateFusionEdge,
     "WORLDFUSION_PRED": WorldFusionEdge,
     "WORLDFUSION": WorldFusionEdge,  # alias
-    "VIPS": VIPSTemporalEdge,
-    "VIPS_PRED": VIPSTemporalEdge,  # alias
+    "VIPS": VIPSLateFusionEdge,        # late-fusion pipeline plus time rectification
+    "VIPS_PRED": VIPSLateFusionEdge,   # alias
     "ORACLE": OracleEdge,
     "VIPS_TEMPORAL": VIPSTemporalEdge,
     "SOTA_EDGE": SOTAEdge,
