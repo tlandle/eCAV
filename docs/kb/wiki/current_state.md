@@ -6502,3 +6502,14 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   identity channel, zero-delay self-ghost-only failures are a WARN finding,
   not a FAIL, so the chain is not blocked. Mahalanobis-gate naive 2 of 2
   clean so far; vips-on, infra-on, gate-on pending.
+- 10:20, hz16 complete except the Mahalanobis-gate contract cell: I2V with
+  "receiver contract" (infra_only on) is void: 0 of 3 at zero delay, 46
+  self-ghost episodes, stalls from tick 15 with the hero at rest.
+  InfraOnlyEdge forces anchoring off (no beacons, nothing to anchor) and
+  there is no receiver-side contract in code; the YAML flag only tells the
+  planner anchoring is on, so it stops identifying itself spatially and
+  brakes on its own roadside track. The plan's "I2V with receiver contract"
+  arm therefore does not exist; dropped from the cetus landing and scaling
+  arms (commit above, merged on cetus). Mahalanobis-gate naive 5 of 5
+  clean. The old VIPS manager: off 3 of 5, on 5 of 5 (moot; hz17 checks the
+  rebuilt class).
