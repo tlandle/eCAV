@@ -6399,3 +6399,30 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   executes).
 - Atlas: 498 physics runs by 06:13, one watchdog kill (simulator crash),
   three short-run retries, all recovered in place. Cetus: 235, none.
+
+## 2026-10-16 07:40: overtake geometry void at zero delay; taken out of the chain; SCP physics like scenario_3
+- SCP oracle (atlas, 38 and 53 km/h complete, 70 started): P = 1.00 at
+  every delay to 1,000 ms, like scenario_3; the same junction with a
+  straight crossing gives the same margin.
+- blind_overtake_edge_late_fusion, oracle at 0 ms: P = 0.00, 0.00, 0.10 at
+  38, 53, 70 km/h with 10, 10, 9 collision runs. The run shows the hero
+  braking correctly on the slow lead car (true-positive brakes, TTC 0.8 to
+  0.2 s), the lead stopping 4 m ahead, and the hero then creeping at 1.5 to
+  2 m/s into it and staying in contact for 385 ticks (edge_collisions_total
+  385); the oncoming cars (775, 776) are not involved. The planner never
+  pulls out (overtake_allowed is true in the YAML); the car-following at
+  near-zero speed lets it touch the stopped lead. With perfect information
+  at zero delay the geometry fails, so every run on it is void (G1 would
+  fail). It had never been through a gate.
+- Action: atlas chain stopped at overtake run 33 (driver, runner, run,
+  watcher, redo all exited; CARLA kept; YAML restored, no drift); driver
+  1a242d19 drops the overtake from GEOMS and the mixed stage; atlas `all`
+  relaunched (resumes: scenario_3 and SCP physics done, landing next; log
+  logs/stages_atlas.log, first pass in stages_atlas_first.log). Cetus:
+  driver killed, its scenario_3 physics sweep finishes (~15 runs), then
+  /tmp/cetus_relaunch.sh merges the bundle and relaunches `all`
+  (logs/cetus_relaunch.log). The overtake runs stay on disk under the stamp
+  (experiment_results/blind_overtake_edge_late_fusion/sensys_nov27); they
+  are not used. Whether the overtake geometry is fixed (planner pull-out at
+  low speed, or the scenario's lead behaviour) is Tyler's call; without it
+  the paper has two geometries at the junction (LTAP/OD and SCP).
