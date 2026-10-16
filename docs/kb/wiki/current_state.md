@@ -6556,3 +6556,25 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   then Mahalanobis gate both, then VIPS both, on scenario_3 then SCP. Atlas
   is in the SCP landing (ETSI arm); three watchdog catches so far today,
   all recovered in place.
+
+## 2026-10-16 14:15: first measured-axis envelope (atlas landing complete on both geometries)
+- envelope_measured.py now reads tau_max from a monotone (pool-adjacent-
+  violators) fit over the 50 ms measured-age bins (f4e9cada); the running
+  minimum had let a sparse low-age bin with one failure end the contract's
+  envelope at 75 ms.
+- tau_max at 0.8 / 0.9 / 0.95 on the critical p99 axis, 70 km/h, 10 seeds
+  per configured cell (measured p99 runs about 200 ms above the configured
+  delay): scenario_3 naive 425/375/375, ETSI 425/425/275, contract
+  1275/825/625, oracle past the sweep (1225 = last bin); SCP naive
+  525/175/175, ETSI 425/225/225, contract 725/225/225, oracle past the
+  sweep (1175). The contract's SCP envelope ends at the collision class
+  (pipeline lag against a 70 km/h straight crossing), not at identity.
+- envelope_predict.py on the data so far (reference fitted on the oracle
+  per geometry and speed; 34 physics cells and 26 logic cells held out):
+  mean absolute error of P(S_op) from the scalar p99 predictor 0.079 on
+  cells without self-ghosts, 0.54 on cells with them (the envelope does not
+  model identity failures, by construction); adding coverage changes
+  nothing, the 10-tick gap rule worsens it (0.168), so the burst-loss
+  predictor needs the trace stage's losses rather than a fixed gap.
+- Atlas: landing stage complete on both geometries, check PASS, trace
+  stage running (SEE-V2X replay). Cetus: landing on scenario_3, I2V arm.
