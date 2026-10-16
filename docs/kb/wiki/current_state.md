@@ -6578,3 +6578,20 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   predictor needs the trace stage's losses rather than a fixed gap.
 - Atlas: landing stage complete on both geometries, check PASS, trace
   stage running (SEE-V2X replay). Cetus: landing on scenario_3, I2V arm.
+
+## 2026-10-16 15:15: conflict margin is the lever; tight-margin situation prepared
+- The oracle holds to 1 s at every speed on both geometries, so speed does
+  not bring the physical boundary inside the sweep; the crossing car's
+  trigger distance does (CROSS_TRIGGER_DIST, April 80 m, smaller = later
+  start = tighter conflict; `--cross-trigger-dist` on the runner, recorded
+  in the metrics). Tyler (15:00): fix the scenario rather than sweep to
+  3 s. Plan: keep the current runs as the wide-margin situation; probe
+  trigger distances 60/50/40 m with the oracle at 0/300/500 ms
+  (scripts/sensys_margin_probe.sh, one stamp per distance); run the chosen
+  distance as the tight situation (scripts/sensys_tight.sh: gate, oracle
+  physics at the host's speeds, naive/contract/ETSI landing at 70 km/h,
+  stamp sensys_nov27_tight<dist>) on both hosts before the scaling stage.
+  Trigger distance: Tyler picks or the probe does (pending). Atlas is in
+  the control stage (240 runs), then scaling; the chain is interrupted
+  after control for the probe and tight set, then resumed (`all` skips
+  finished runs).
