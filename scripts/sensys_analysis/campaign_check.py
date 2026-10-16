@@ -230,6 +230,10 @@ def effect_gates(cells, threshold):
     return out
 
 
+# arms whose vehicles send nothing: self-identification is spatial only
+NO_IDENTITY_ARMS = {("infra_only", "off")}
+
+
 # (name, severity, predicate over cells dict, message)
 def shape_gates(cells, threshold):
     out = []
@@ -246,10 +250,21 @@ def shape_gates(cells, threshold):
         lats = sorted(set(k[5] for k in cells if k[0] == geom and k[1] == spd and k[4] == N and k[6] == kv))
         tag = f"{geom} {spd} km/h N={N}{' ' + kv if kv else ''}"
         for mgr, anch in arms:
-            # G1: at zero latency every arm succeeds (no conflict reaches the planner late)
+            # G1: at zero latency every arm succeeds (no conflict reaches the planner late).
+            # An arm with no identity channel at all (I2V object sharing without the
+            # receiver contract: the vehicle sends nothing, so its own roadside track can
+            # only be recognised spatially, within self_id_radius) can fail at zero delay
+            # by identity alone; that is a finding the logic figure reports, not a defect,
+            # so it is a WARN there, provided the failures are self-ghosts.
             p0 = p_of(geom, spd, mgr, anch, N, 0, kv)
             if p0 is not None and p0[2] < 0.8:
-                out.append(("FAIL", f"G1 {tag} {mgr}/{anch}: P(S_op) at 0 ms is {p0[0]:.2f} [{p0[1]:.2f},{p0[2]:.2f}], expected near 1"))
+                v0 = cells.get((geom, spd, mgr, anch, N, 0, kv), [])
+                only_ghosts = all((r.get("focal_ghost_episodes", 0) > 0) or r["s_op"] for r in v0) and \
+                    not any(r.get("focal_collisions", 0) > 0 or r.get("focal_fp_episodes", 0) > 0 for r in v0)
+                if (mgr, anch) in NO_IDENTITY_ARMS and only_ghosts:
+                    out.append(("WARN", f"G1 {tag} {mgr}/{anch}: P(S_op) at 0 ms is {p0[0]:.2f} by self-ghost alone; the arm has no identity channel (reported as a finding)"))
+                else:
+                    out.append(("FAIL", f"G1 {tag} {mgr}/{anch}: P(S_op) at 0 ms is {p0[0]:.2f} [{p0[1]:.2f},{p0[2]:.2f}], expected near 1"))
             # G2: the contract removes self-ghost episodes
             if anch == "on" or mgr == "oracle":
                 v = cells.get((geom, spd, mgr, anch, N, 0, kv), [])
