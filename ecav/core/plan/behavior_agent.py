@@ -2088,8 +2088,14 @@ class BehaviorAgent(object):
         # lead's bumper, and an overtake launched from that gap understeers
         # into the lead's corner (measured). A stationary vehicle on the path
         # IS a lead: engage car-following early so the approach decelerates
-        # to the standoff deterministically.
+        # to the standoff deterministically. The standoff exists for the
+        # overtake launch; a scenario that forbids overtaking (the junction
+        # geometries) must not stop for a stationary object beside its path.
+        # The hero's own perception places the junction's parked column at
+        # 1.6 to 1.7 m lateral, inside the 1.75 m lane gate, and the hero
+        # then stalled on the approach in seven of ten seeds (2026-10-16).
         if (not is_hazard and not self.do_overtake
+                and self.overtake_allowed_origin
                 and self._ego_speed >= 4.0 and self._ego_pos is not None):
             _lead = self._find_blocking_lead(max_ahead=60.0)
             if _lead is not None:

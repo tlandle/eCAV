@@ -18,7 +18,8 @@ from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTrans
                                                                       WaypointFollower,
                                                                       Idle)
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest
-from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import DriveDistance, InTriggerDistanceToLocation
+from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (DriveDistance, InTriggerDistanceToLocation,
+                                                                               InTimeToArrivalToLocation)
 from srunner.scenarios.basic_scenario import BasicScenario
 
 class ProbabilisticBrakeJitter(py_trees.behaviour.Behaviour):
@@ -264,8 +265,19 @@ class Scenario_3(BasicScenario):
         # boundary scenario). Env-overridable so boundary sweeps need no edit.
         import os
         self._trigger_distance = float(os.environ.get("CROSS_TRIGGER_DIST", 80))
+        # CROSS_TRIGGER_TTA (seconds): when set, the crossing car launches
+        # when the ego's time to arrival at the conflict point (distance over
+        # current speed) drops below this value instead of at a fixed
+        # distance from the crossing car's spawn. The distance trigger fires
+        # at a fixed ego position, so the crossing car's arrival relative to
+        # the ego's depends on the ego's speed; the time trigger phases the
+        # crossing to the ego's arrival at every approach speed.
+        _tta = os.environ.get("CROSS_TRIGGER_TTA")
+        self._trigger_tta = float(_tta) if _tta else None
+        self._conflict_location = carla.Location(x=-84.8, y=127.9, z=0.5)
         print(f"[SCENARIO_3] trigger_distance={self._trigger_distance} "
-              f"(CROSS_TRIGGER_DIST env={os.environ.get('CROSS_TRIGGER_DIST')})",
+              f"(CROSS_TRIGGER_DIST env={os.environ.get('CROSS_TRIGGER_DIST')}) "
+              f"trigger_tta={self._trigger_tta}",
               flush=True)
         self.agents = []
 
@@ -355,8 +367,12 @@ class Scenario_3(BasicScenario):
             seq.add_child(ActorTransformSetter(actor, transform))
             if use_trigger:
                 trigger_location = getattr(self, f"vehicle_0{i + 1}_trigger_location")
-                seq.add_child(InTriggerDistanceToLocation(
-                    self.ego_vehicles[0], trigger_location, self._trigger_distance))
+                if i == 0 and self._trigger_tta is not None:
+                    seq.add_child(InTimeToArrivalToLocation(
+                        self.ego_vehicles[0], self._trigger_tta, self._conflict_location))
+                else:
+                    seq.add_child(InTriggerDistanceToLocation(
+                        self.ego_vehicles[0], trigger_location, self._trigger_distance))
                 self.agents.append(drive)
             seq.add_child(drive)
             seq.add_child(Idle())

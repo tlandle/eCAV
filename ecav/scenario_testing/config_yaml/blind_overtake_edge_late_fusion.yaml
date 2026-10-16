@@ -277,6 +277,14 @@ scenario:
           name: rsu1
           spawn_position: [295.0, 200.0, 3.0]
           id: -1
+        # Second RSU over the oncoming approach: with one RSU at the
+        # overtake zone (50 m sensing) the oncoming car enters the edge's
+        # view about 3 s before it reaches the truck, after the focal CAV has
+        # already committed to the gap (oracle 0 ms at 43 km/h: 2 of 10).
+        - <<: *rsu_base
+          name: rsu2
+          spawn_position: [200.0, 200.0, 3.0]
+          id: -1
       vehicles:
         - <<: *vehicle_base
           name: cav1
