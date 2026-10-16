@@ -516,10 +516,25 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         ]
 
 # ───────────────────── single run helper ─────────────────────────────────
+MIN_EDGE_FRAMES = 100   # a run shorter than this never reached the conflict: void
+
+
+def _edge_frames(metrics) -> int:
+    """Frames the (first) edge processed, as campaign_check counts them."""
+    try:
+        edges = list((metrics.get("edges") or {}).values())
+        return int(edges[0].get("total_frames", 0)) if edges else 0
+    except (AttributeError, TypeError, ValueError):
+        return 0
+
+
 def _run_completed(run_dir: Path) -> bool:
     """A run counts as done for --stamp resume only if its metrics file holds
-    vehicle results. The runner writes a metrics file on the error path too
-    (with an "error" key and no vehicles); those runs are redone."""
+    vehicle results and the edge processed at least MIN_EDGE_FRAMES frames.
+    The runner writes a metrics file on the error path too (with an "error"
+    key and no vehicles), and a run whose simulator timed out at the start
+    wrote a metrics file reading success after four ticks (2026-10-15);
+    both are redone."""
     p = run_dir / "simulation_metrics.json"
     if not p.exists():
         return False
@@ -527,7 +542,8 @@ def _run_completed(run_dir: Path) -> bool:
         m = json.loads(p.read_text())
     except (OSError, ValueError):
         return False
-    return "error" not in m and bool(m.get("vehicles"))
+    return "error" not in m and bool(m.get("vehicles")) and (
+        "edges" not in m or _edge_frames(m) >= MIN_EDGE_FRAMES)
 
 
 def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
@@ -618,6 +634,10 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
         shutil.copytree(eval_dir, run_dir / "evaluation_output", dirs_exist_ok=True)
         with (eval_dir / "simulation_metrics.json").open() as f:
             metrics = json.load(f)
+        if "edges" in metrics and _edge_frames(metrics) < MIN_EDGE_FRAMES:
+            # the simulator answered too late for the run to happen; same
+            # handling as a run with no metrics (restart the simulator, retry once)
+            raise RuntimeError(f"short run: {_edge_frames(metrics)} edge frames")
     except Exception as e:
         # One retry for a run that produced no metrics (a map load that timed
         # out while the simulator was still tearing the previous run down is
