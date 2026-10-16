@@ -237,8 +237,19 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             excluded_snapshot: dict of non-detectable vehicle types
         """
         DETECTION_RANGE = 50.0
+        # Ground truth within range of any managed sensor: the CAVs and the
+        # RSUs. Anchoring on the CAVs alone (until 2026-10-16) made the
+        # oracle blind to a crossing car 13 m from an RSU until the focal
+        # CAV itself came within 50 m, later than the camera-lidar arms see
+        # it; the junction hero then braked at TTC 1.15 s and the overtake
+        # hero committed before the oncoming car was published.
         managed_locs = [vm.vehicle.get_location()
                         for vm in self.vehicle_manager_list]
+        for rsu in self.rsu_manager_list:
+            sp = getattr(rsu, 'spawn_position', None)
+            if sp is not None and len(sp) >= 2:
+                managed_locs.append(carla.Location(x=float(sp[0]), y=float(sp[1]),
+                                                   z=float(sp[2]) if len(sp) > 2 else 0.0))
 
         gt_actors = []
         carla_snapshot = {}
