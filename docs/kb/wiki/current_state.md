@@ -6350,3 +6350,17 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   the chain gate -> redo -> all needs no hand. Cetus merged to 454687f4
   while its gate runs (the running runner has the old file loaded; the
   resume uses the new one).
+
+## 2026-10-15 23:40: atlas gate PASSED on 3ff9d06f; physics stage running
+- First pass FAIL on the one void run; the redo script resumed the gate at
+  23:32, the check passed at 23:34, the watcher launched `all`; the
+  physics stage (oracle, 38 km/h first) is running on atlas. Final atlas
+  table (10 seeds): naive 1.00/1.00/1.00/0.50/0.10/0.00, ETSI
+  1.00/1.00/0.90/0.50/0.00/0.10, contract 1.00 x5 then 0.90 (one
+  collision), oracle 1.00 x6; every V2X failure is a self-ghost; no false
+  brake, no stall. ETSI fails like naive from 300 ms (its beacon window is
+  2 ticks), the contract holds: the E1 prediction is replaced by this
+  finding (campaign_check's E1b wording "tracks SBA" is wrong for this
+  data; it tracks naive; fix the message after the campaign, not during).
+  Table in the paper repo validation_report.md §3. Cetus gate ends about
+  01:00 and the same chain runs there.
