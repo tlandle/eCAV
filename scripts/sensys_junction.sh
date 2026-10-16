@@ -47,7 +47,7 @@ run -t openscenario_3_edge_late_fusion --manager-types oracle --anchoring on --l
 run -t openscenario_3_edge_late_fusion --manager-types "$ETSI" --anchoring off --latencies $LATS6 --speeds 70 $EKV
 "$PY" scripts/sensys_analysis/campaign_check.py "$STAMP" || { echo "$(date +%T) gate FAILED, stopping"; exit 1; }
 # 2. physics: oracle, this host's speeds, both geometries
-for sc in $GEOMS; do run -t "$sc" --manager-types oracle --anchoring on --latencies $LATS --speeds $SPEEDS; done
+for sc in $GEOMS; do run -t "$sc" --manager-types oracle --anchoring on --latencies $LATS --speeds $SPEEDS $EKV; done
 # 3. speed landing: naive, contract, ETSI at this host's speeds, both geometries
 for sc in $GEOMS; do
   run -t "$sc" --manager-types late_fusion --anchoring both --latencies $LATS6 --speeds $SPEEDS $EKV
