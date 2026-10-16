@@ -6513,3 +6513,17 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   arms (commit above, merged on cetus). Mahalanobis-gate naive 5 of 5
   clean. The old VIPS manager: off 3 of 5, on 5 of 5 (moot; hz17 checks the
   rebuilt class).
+
+## 2026-10-16 10:40: rebuilt VIPS arm passes at zero delay; atlas chain relaunched
+- hz17 (VIPSLateFusionEdge, 0 ms, 5 seeds): without the contract 5 of 5,
+  with it 5 of 5; no ghost, no false brake; conflict-actor coverage 0.73
+  and 0.74, longest gap 9 ticks, p99 200 to 240 ms (late-fusion arms: gap 2
+  to 4). Every arm in the landing stage has now passed a zero-delay check:
+  naive, contract, ETSI, oracle (gate, 10 seeds); Mahalanobis gate with and
+  without the contract, VIPS with and without, I2V without contract (its
+  zero-delay self-ghost is a reported finding) (mini-gates, 5 seeds).
+- Atlas chain relaunched (`all`): landing resumes on scenario_3 with the
+  arms it has not run, then SCP landing, trace, control, scaling, faults.
+  Cetus relaunches with the revised driver when its SCP physics sweep ends
+  (about 14:00): landing on both geometries with I2V-off, Mahalanobis
+  gate, VIPS, then scaling and mixed.
