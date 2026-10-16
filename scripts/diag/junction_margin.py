@@ -53,8 +53,28 @@ def analyse(path, approach=APPROACH_M):
                 reach = k
         prev_t, prev_v = t, v
     vmin = min(speed[t] for t in ticks if (in_lane and in_lane[0] - 40 <= t <= (in_lane[-1] + 20))) if in_lane else float("nan")
+    # Unbraked arrival: extrapolate from the last tick before the first
+    # sustained brake (ctrl_brake > 0.5 for 3 ticks after tick 60) at the
+    # speed held then. delta = car's lane entry minus that arrival: negative
+    # means the car enters before the hero would have arrived unbraked.
+    brk = {}
+    for r in rows:
+        if r.get("ctrl_brake") not in ("", None, "nan"):
+            brk[int(r["tick"])] = float(r["ctrl_brake"])
+    tb = None
+    for t in sorted(brk):
+        if t > 60 and all(brk.get(t + k, 0) > 0.5 for k in range(3)):
+            tb = t
+            break
+    unbraked = None
+    if tb is not None and tb in s_at and speed.get(tb, 0) > 1.0:
+        unbraked = tb + (approach - s_at[tb]) / speed[tb] / 0.05
+    elif reach is not None:
+        unbraked = reach
+    delta = (in_lane[0] - unbraked) if (in_lane and unbraked is not None) else None
     return dict(in_lane=(in_lane[0], in_lane[-1]) if in_lane else None, reach=reach, vmin=vmin, n_gt=len(gt),
-                s_end=s)
+                s_end=s, brake_tick=tb, unbraked=round(unbraked) if unbraked is not None else None,
+                delta=round(delta) if delta is not None else None)
 
 
 def main():
@@ -68,15 +88,15 @@ def main():
     base = os.path.join(a.root, a.geom, a.stamp)
     paths = sorted(glob.glob(os.path.join(base, "**", "per_tick_age.csv"), recursive=True))
     print(f"{len(paths)} runs under {base}")
-    print(f"{'mgr':>12} {'lat':>5} {'run':>4} {'car in lane':>13} {'hero reach':>10} {'margin':>7} {'vmin':>5} {'coll':>4}")
+    print(f"{'mgr':>12} {'spd':>4} {'lat':>5} {'run':>4} {'car in lane':>13} {'hero reach':>10} {'margin':>7} {'vmin':>5} {'coll':>4} {'brake':>6} {'unbraked':>8} {'delta':>6}")
     import json
     out = []
     for p in paths:
         rd = os.path.dirname(p)
-        m = re.search(r"mgr_([a-z_]+)/anchoring_(\w+)/lat_(\d+)_.*?/run_(\d+)", p)
+        m = re.search(r"speed_spd_(\d+)/.*?mgr_([a-z_]+)/anchoring_(\w+)/lat_(\d+)_.*?/run_(\d+)", p)
         if not m:
             continue
-        mgr, anch, lat, run = m.group(1), m.group(2), int(m.group(3)), int(m.group(4))
+        spd, mgr, anch, lat, run = int(m.group(1)), m.group(2), m.group(3), int(m.group(4)), int(m.group(5))
         if a.mgr and mgr != a.mgr:
             continue
         r = analyse(p, a.approach)
@@ -91,8 +111,8 @@ def main():
                 pass
         il = r["in_lane"]
         margin = (r["reach"] - il[1]) if (il and r["reach"] is not None) else None
-        print(f"{mgr:>12} {lat:>5} {run:>4} {str(il):>13} {str(r['reach']):>10} {str(margin):>7} {r['vmin']:5.1f} {str(coll):>4}")
-        out.append((mgr, lat, run, il, r["reach"], margin, r["vmin"], coll))
+        print(f"{mgr:>12} {spd:>4} {lat:>5} {run:>4} {str(il):>13} {str(r['reach']):>10} {str(margin):>7} {r['vmin']:5.1f} {str(coll):>4} {str(r['brake_tick']):>6} {str(r['unbraked']):>8} {str(r['delta']):>6}")
+        out.append((mgr, spd, lat, run, il, r["reach"], margin, r["vmin"], coll, r["delta"]))
     return 0
 
 
