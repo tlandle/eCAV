@@ -6469,3 +6469,23 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   stale conflict-actor brake labelled non-hazard from the obs-tick state
   against the live ego pose). Gate cells (no false brakes) and the April
   columns are unchanged.
+
+## 2026-10-16 09:40: VIPS arm rebuilt on the late-fusion pipeline (6b4db5a1)
+- hz16 (0 ms, 5 seeds): the standalone VIPS manager (naive) failed 2 of 5
+  runs with a self-ghost at zero delay: the vehicle's own beacon track was
+  published at rest, lagged 1.8 m behind the vehicle, lost its identity
+  after a few coasting ticks and the planner braked on it. Its detection,
+  identity and publish paths differ from the late-fusion manager's in ways
+  nobody audited; reviewer B's arm must differ from naive by rectification
+  alone.
+- VIPSLateFusionEdge subclasses PredictionLateFusionEdge and overrides
+  _collect_detections_for_frame: after the usual collection and NMS, each
+  drained frame's detections are moved from their observation tick to the
+  ingest tick (self._drain_tick, set in the base's drain loop) by the
+  matched track's KF velocity (_time_rectify_detections from the old
+  module, edges moved with them). obs_tick stays the frame's tick, so age
+  at use still follows the observation (rectification predicts, it does
+  not refresh). Registry: VIPS and VIPS_PRED -> the new class;
+  VIPS_TEMPORAL keeps the old manager. tests/test_vips_rectification.py.
+  VIPS runs last on cetus (42d1ce3c, merged there) so no VIPS landing run
+  happens before the mini-gate hz17 on the new class.
