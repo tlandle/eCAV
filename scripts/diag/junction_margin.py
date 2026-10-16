@@ -6,8 +6,9 @@
 The crossing car's ground-truth x at each observation tick gives the ticks at
 which it occupies the hero's lane (|x + 84.8| < 3.4 m, half lengths summed).
 The hero's distance along its approach is the integral of its logged speed
-(the approach from the spawn at y=80 to the crossing car's near edge at
-y=126.9 is straight, 44.5 m to the hero's front bumper). The margin is the
+(the approach from the spawn to the crossing car's near edge at y=126.9 is
+straight; --approach is that length to the hero's front bumper: 94.5 m from
+the y=30 spawn in use since e97fc929, 44.5 m from the April y=80 spawn). The margin is the
 tick at which the hero's front reaches the crossing car's lane minus the tick
 at which the crossing car leaves it: positive means the hero arrived after the
 car had cleared, negative means the hero entered the lane while the car was in
@@ -19,10 +20,10 @@ import argparse, csv, glob, os, re, sys
 
 HERO_X = -84.8
 HALF_SUM = 3.4
-APPROACH_M = 44.5
+APPROACH_M = 94.5
 
 
-def analyse(path):
+def analyse(path, approach=APPROACH_M):
     rows = list(csv.DictReader(open(path)))
     gt = {}
     speed = {}
@@ -48,7 +49,7 @@ def analyse(path):
             vk = prev_v + (v - prev_v) * (k - prev_t) / (t - prev_t)
             s += vk * 0.05
             s_at[k] = s
-            if reach is None and s >= APPROACH_M:
+            if reach is None and s >= approach:
                 reach = k
         prev_t, prev_v = t, v
     vmin = min(speed[t] for t in ticks if (in_lane and in_lane[0] - 40 <= t <= (in_lane[-1] + 20))) if in_lane else float("nan")
@@ -62,6 +63,7 @@ def main():
     ap.add_argument("--geom", default="openscenario_3_edge_late_fusion")
     ap.add_argument("--root", default="experiment_results")
     ap.add_argument("--mgr", default=None)
+    ap.add_argument("--approach", type=float, default=APPROACH_M, help="metres from the spawn to the crossing car's near edge (front bumper)")
     a = ap.parse_args()
     base = os.path.join(a.root, a.geom, a.stamp)
     paths = sorted(glob.glob(os.path.join(base, "**", "per_tick_age.csv"), recursive=True))
@@ -77,7 +79,7 @@ def main():
         mgr, anch, lat, run = m.group(1), m.group(2), int(m.group(3)), int(m.group(4))
         if a.mgr and mgr != a.mgr:
             continue
-        r = analyse(p)
+        r = analyse(p, a.approach)
         if r is None:
             continue
         mj = os.path.join(rd, "simulation_metrics.json")
