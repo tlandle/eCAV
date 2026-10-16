@@ -55,7 +55,9 @@ scaling_n()  { case "$1" in openscenario_3*) echo "2 4 8 16" ;; scp*) echo "4" ;
 # GATE: V2X2V with the Mahalanobis association gate (Wolf 2025 / Sensors 2026), chi-square 95% on the 7-D form
 GATE_KV="assoc_metric=m_dis assoc_threshold=3.75"
 case "$ROLE" in
-  atlas) ARMS=("late_fusion both" "$ETSI off" "cip on"); SCALE_ARMS=("late_fusion both" "$ETSI off" "oracle on"); PHYS_SPEEDS="38 53 70" ;;
+  # "cip on" is out until it works: at zero delay on scenario_3 it stalled 10 of 10 runs with 91
+  # self-ghost episodes and 9 collisions (Oct 16); it had never been through a gate.
+  atlas) ARMS=("late_fusion both" "$ETSI off"); SCALE_ARMS=("late_fusion both" "$ETSI off" "oracle on"); PHYS_SPEEDS="38 53 70" ;;
   cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV"); PHYS_SPEEDS="50 63 88" ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
