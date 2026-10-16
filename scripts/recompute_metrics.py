@@ -111,18 +111,36 @@ def _ego_headings(d):
         import re as _re
         pos = {}
         pat = _re.compile(r"\[LOC\] v=(\d+) t=(\d+) gnss=\([^)]*\) gt=\((-?[\d.]+),(-?[\d.]+)\)")
+        # The [LOC] lines stop after 100 ticks; the focal vehicle's own beacon
+        # rows in the edge's [DET] log (GNSS, every tick it beacons) carry the
+        # pose on. With one managed vehicle every beacon is the focal's; with
+        # more, the beacon nearest the previous pose is taken.
+        bpat = _re.compile(r"\[DET\] tick=(\d+) src=beacon x=(-?[\d.]+) y=(-?[\d.]+) ")
         focal = None
+        beacons = {}
         with open(p, errors="ignore") as fh:
             for line in fh:
                 m = pat.search(line)
-                if not m:
+                if m:
+                    v, t = int(m.group(1)), int(m.group(2))
+                    if focal is None:
+                        focal = v
+                    if v != focal or t in pos:
+                        continue
+                    pos[t] = (float(m.group(3)), float(m.group(4)))
                     continue
-                v, t = int(m.group(1)), int(m.group(2))
-                if focal is None:
-                    focal = v
-                if v != focal or t in pos:
-                    continue
-                pos[t] = (float(m.group(3)), float(m.group(4)))
+                b = bpat.search(line)
+                if b:
+                    beacons.setdefault(int(b.group(1)), []).append((float(b.group(2)), float(b.group(3))))
+        for t in sorted(beacons):
+            if t in pos:
+                continue
+            cands = beacons[t]
+            prev = pos.get(t - 1, pos.get(t - 2))
+            if len(cands) == 1:
+                pos[t] = cands[0]
+            elif prev is not None:
+                pos[t] = min(cands, key=lambda c: (c[0] - prev[0]) ** 2 + (c[1] - prev[1]) ** 2)
         for t in pos:
             a, b = pos.get(t - 2, pos.get(t - 1)), pos.get(t + 2, pos.get(t + 1, pos.get(t)))
             if a is None or b is None:
