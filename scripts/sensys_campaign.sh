@@ -58,7 +58,10 @@ case "$ROLE" in
   # "cip on" is out until it works: at zero delay on scenario_3 it stalled 10 of 10 runs with 91
   # self-ghost episodes and 9 collisions (Oct 16); it had never been through a gate.
   atlas) ARMS=("late_fusion both" "$ETSI off"); SCALE_ARMS=("late_fusion both" "$ETSI off" "oracle on"); PHYS_SPEEDS="38 53 70" ;;
-  cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV"); PHYS_SPEEDS="50 63 88" ;;
+  # VIPS runs last on cetus: at zero delay its own-vehicle track published at rest 1.8 m behind the
+  # vehicle and the planner braked on it (hz16, Oct 16); the arm is being brought onto the
+  # late-fusion pipeline plus rectification before its landing runs start.
+  cetus) ARMS=("infra_only both" "late_fusion both $GATE_KV" "vips both"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV"); PHYS_SPEEDS="50 63 88" ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
 # blind_overtake_edge_late_fusion is out until its geometry works: with the oracle at zero delay the
