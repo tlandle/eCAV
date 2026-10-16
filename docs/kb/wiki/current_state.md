@@ -6550,3 +6550,9 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   V2X cells below the envelope at low age; the TTC-graded controller
   (control stage) is the experiment that tests whether a controller with
   more lead removes it. No code change.
+- 13:12: cetus SCP physics complete (oracle 1.00 at every delay at 50, 63,
+  88 km/h as well); its chain relaunched with the revised driver (gate
+  recheck PASS, 840 runs skipped) and is in the landing stage: I2V-off,
+  then Mahalanobis gate both, then VIPS both, on scenario_3 then SCP. Atlas
+  is in the SCP landing (ETSI arm); three watchdog catches so far today,
+  all recovered in place.
