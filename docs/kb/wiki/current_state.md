@@ -6684,13 +6684,13 @@ Also in: planner start_hold_ticks (9695c96a; --behavior-kv start_hold_ticks=90 f
 
 Running: cetus SCP calibration tta_probe_{4.0,5.0,6.0,7.0,8.0} (oracle fixed); atlas ovfix_t4 (overtake oracle 43 km/h, hold 90, 3 seeds) then scenario_3 calibration, same values.
 
-## 2026-10-16 17:35: a killed chain's child kept running; horizon 3 s; calibrations rerun (5cc449b3)
+## 2026-10-16 17:20: a killed chain's child kept running; horizon 3 s; calibrations rerun (5cc449b3)
 
 Killing the atlas extension chain by its script PID at 17:06 left its child (`sensys_tta_probe.sh atlas "6.5 7.0 7.5 8.0"`) running against the same CARLA port while the oracle-fixed chain started: two clients ticked one server, the overtake runs ovfix_t4 1 and 2 timed out, and the concurrent cells ran at twice the simulated speed (hero 14 m/s at tick 30, crossing car published at 25 to 27 m/s, dt still 0.05 by the pipeline's own clock). Atlas stamps from 17:07 to 17:12 are renamed tta_probe_rogue_* (6.5, 7.0, 7.5, 8.0, and the overlapped 4.0 and 5.0); only tta_probe_h2_6.0 (17:13) ran alone. The memory rule stands: list the script and its children by PID and kill all of them, then verify before the next launch. Cetus's h2 cells ran alone and are valid but superseded.
 
 With the oracle range fixed the crossing car is consumed from tick 21 at its spawn, yet scenario_3 at TTA 4.0 to 7.0 still stopped 1 m into the lane: the planner's collision_time_ahead of 2 s is below the stopping time from 70 km/h (18 m/s: 20 m at 8 m/s^2 plus the reaction), and the time-synchronised collision check only flags near-simultaneous arrivals, so a cruising hero either passes just ahead of the crossing car or brakes too late. April's hero arrived at about 14 m/s because of the 48 m approach, which is why 2 s sufficed there. Both junction YAMLs now set collision_time_ahead 3 (the per-CAV behavior block, which also already carried overtake_allowed false). Calibrations rerunning under 5cc449b3: cetus SCP tta_probe_{5,6,7,8} (stamps h2 renamed), atlas scenario_3 the same after the ovfix_t4 redo. The single valid overtake run so far (ovfix_t4 run 3: oracle 43 km/h, hold 90, RSU-anchored oracle) completed without collision in 218 frames.
 
-## 2026-10-16 18:05: the planner's conflict horizon was the predictor's 1.25 s (71aeae47)
+## 2026-10-16 17:29: the planner's conflict horizon was the predictor's 1.25 s (71aeae47)
 
 With the oracle range fixed and collision_time_ahead 3 s, scenario_3 still collided at TTA 5.0 to 7.0 with identical ticks, and the 8.0 cell passed only through a local-perception emergency stop at TTC 0.66 s (HAZARD-P1, margin 4 ticks). The [TRAJ_COLL] line of the 7.0 run shows why: obs_tp_max=1.19 s. Every edge manager built its LinearPredictorManager with num_future_steps=25, 25 steps of 50 ms, so the time-synchronised collision check could never see a crossing more than 1.2 s out, whatever collision_time_ahead says. April's hero reached the crossing at about 14 m/s (the 48 m approach) and could stop within 1.2 s; at 18 m/s it cannot. The horizon is now the edge config key prediction_steps (default 25, the old behaviour; --edge-kv prediction_steps=60 gives 3 s) and the junction YAMLs' local planner buffer is 16 waypoints (72 m, 3 s at 88 km/h), since the check is also bounded by the hero's own path length (ego_tp_max 2.67 s at 17.9 m/s with 12 waypoints). The overtake gate (overtake_gate2, 1 run, stamp renamed overtake_gate2_h25) was stopped so that every stage runs under the same horizon; it restarts with the knob after the calibration.
 
@@ -6698,7 +6698,7 @@ Process note: the tool shell killed itself a fourth time on `pgrep -f "ecav.py -
 
 Calibrations rerunning under 71aeae47 with EXTRA "--behavior-kv curv_lat_accel=8 --edge-kv prediction_steps=60": atlas scenario_3 and cetus SCP, TTA 6.0 7.0 8.0 9.0, 1 seed, 0 ms. Earlier stamps renamed tta_probe_h3_* (2 s predictions, 3 s time_ahead).
 
-## 2026-10-16 18:30: calibration under 71aeae47 passes; crossing values chosen; speed check running
+## 2026-10-16 17:37: calibration under 71aeae47 passes; crossing values chosen; speed check running
 
 Oracle 70 km/h 0 ms, 1 seed, 3 s predictions, buffer 16, collision_time_ahead 3, curv_lat_accel 8, spawn y=30 (stamps tta_probe_{6,7,8,9}). scenario_3: yield at every value; margin (ticks between the crossing car clearing the lane and the hero's bumper entering it) +27, +53, +68, +73 for TTA 6, 7, 8, 9; HAZARD-P2 fires at TTC 2.85 s and the hero stops from 18.5 m/s before the lane. SCP: 6.0 collides (hero first by 5 ticks unbraked, brakes into the car's path, -18), 7.0 +41, 8.0 +49, 9.0 +51. Chosen: TTA_S3 6.0 and TTA_SCP 7.0, the cells where the crossing car enters the lane within two ticks of the hero's unbraked arrival; larger values put the car earlier and the stale-state failure later. Expected boundary near the collision check's time tolerance (about 0.5 s) at 70 km/h.
 
