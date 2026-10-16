@@ -8,9 +8,9 @@ Every run's p99 of age at use is read from its per_tick_age.csv (edge-source
 rows consumed by the focal vehicle), so the x axis is what the planner saw, not
 the configured delay. Runs are binned by that p99 (50 ms bins by default) per
 (geometry, speed, manager, anchoring, N, knobs); each bin reports P(S_op) with a
-Wilson 95% interval. tau_max is the largest bin centre at which the running
-minimum of P(S_op) over bins is still at or above the threshold (the running
-minimum keeps a single high bin past the cliff from counting).
+Wilson 95% interval. tau_max is the largest bin centre at which the monotone
+non-increasing fit of P(S_op) over bins (adjacent violating bins pooled) is
+still at or above the threshold.
 
 Writes <out>/envelope_measured.csv (one row per bin), <out>/tau_max.md, and one
 PNG per geometry with a curve per arm.
@@ -116,11 +116,28 @@ def main(argv=None):
     rng = random.Random(0)
 
     def tau_at(pts, thr):
-        running = 1.0
+        """Largest bin centre at which the monotone (non-increasing) fit of
+        P(S_op) over the measured-age bins is still at or above thr. The fit
+        pools adjacent bins that violate monotonicity (pool-adjacent-
+        violators on successes and counts), so a sparse low-age bin with one
+        failure does not end the envelope by itself (with 10 seeds per
+        configured cell spread over 50 ms bins, a bin holds 2 to 5 runs)."""
+        blocks = [[x, p * n, n] for x, p, n in pts]   # [centre, successes, count]
+        merged = []
+        for b in blocks:
+            merged.append(b)
+            while len(merged) >= 2 and merged[-2][1] / merged[-2][2] < merged[-1][1] / merged[-1][2]:
+                a, c = merged.pop(), merged.pop()
+                merged.append([c[0], a[1] + c[1], a[2] + c[2]])
+        rate = {}
+        for i, blk in enumerate(merged):
+            end = merged[i + 1][0] if i + 1 < len(merged) else float("inf")
+            for x, _, _ in pts:
+                if blk[0] <= x < end:
+                    rate[x] = blk[1] / blk[2]
         tau = None
-        for x, p, n in pts:
-            running = min(running, p)
-            if running >= thr:
+        for x, _, _ in pts:
+            if rate[x] >= thr:
                 tau = x
             else:
                 break
@@ -142,7 +159,7 @@ def main(argv=None):
         taus.append((arm, [tau_at(pts, t) for t in thresholds], len(pts), sum(n for _, _, n in pts), med_lo, med_hi))
     with open(os.path.join(out, "tau_max.md"), "w") as fh:
         fh.write(f"# tau_max on measured {a.axis} p99 age at use ({a.stamp})\n\n")
-        fh.write("tau_max is the largest bin centre at which the running minimum of P(S_op) stays at or above the threshold. "
+        fh.write("tau_max is the largest bin centre at which the monotone non-increasing fit of P(S_op) over the bins stays at or above the threshold. "
                  "The last column is the 95% bootstrap interval of the median per-run p99 age across the arm's runs.\n\n")
         fh.write("| geometry | km/h | arm | N | bins | runs | tau 0.8 | tau 0.9 | tau 0.95 | median p99 age CI (ms) |\n|---|---|---|---|---|---|---|---|---|---|\n")
         for (geom, spd, mgr, anch, N, kv), tl, nb, nr, lo, hi in taus:
