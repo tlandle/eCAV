@@ -141,7 +141,7 @@ vehicle_base: &vehicle_base
     emergency_param: .4 # used to identify whether a emergency stop needed
     ignore_traffic_light: true # whether to ignore traffic light
     overtake_allowed: false # junction geometry: nothing to overtake; the overtake approach rules stay off
-    collision_time_ahead: 2 # used for collision checking
+    collision_time_ahead: 3 # junction: a 2 s horizon is below the stopping time from 70 km/h (20 m at 8 m/s^2 plus reaction); 3 s covers 88 km/h
     overtake_counter_recover: 35 # the vehicle can not do another overtake during next certain steps
     sample_resolution: 4.5 # the unit distance between two adjacent waypoints in meter
     local_planner: &base_local_planner # trajectory planning related
