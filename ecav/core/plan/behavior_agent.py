@@ -252,6 +252,13 @@ class BehaviorAgent(object):
             'overtake_lane_safety_time_ahead', 2.0)
         self.ignore_traffic_light = config_yaml['ignore_traffic_light']
         self.overtake_allowed = config_yaml['overtake_allowed']
+        # start_hold_ticks: the planner commands a stop for this many ticks
+        # after it starts. The scenario runner creates its actors a few
+        # seconds after the focal CAV starts ticking (the overtake's oncoming
+        # cars appear about 70 ticks in), and a planner that commits before
+        # they exist decides on an empty opposing lane. 0 keeps the old
+        # behaviour; test_runner --behavior-kv start_hold_ticks=90 sets it.
+        self.start_hold_ticks = int(config_yaml.get('start_hold_ticks', 0))
         self.overtake_allowed_origin = config_yaml['overtake_allowed']
         # Lateral acceleration the local planner allows in the sharpest bend
         # ahead (m/s^2); 5 caps a 13 m junction turn at about 8 m/s, 8 at
@@ -1922,6 +1929,10 @@ class BehaviorAgent(object):
 
         agent_step_start_time = time.time()
         self._step_count += 1
+        if self._step_count <= self.start_hold_ticks:
+            if self._step_count == 1:
+                logger.info("[HOLD] start hold for %d ticks", self.start_hold_ticks)
+            return 0, None
         # retrieve ego location
         ego_vehicle_loc = self._ego_pos.location
         if len(self.ego_location_buffer) == 10:
