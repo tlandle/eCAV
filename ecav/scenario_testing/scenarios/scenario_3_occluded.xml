@@ -1,7 +1,8 @@
 <?xml version="1.0"?>
 <scenarios>
     <scenario name="Scenario_3" type="Scenario_3" town="Town03"> <!--'name' is same as yaml, 'type' is same as .py class-->
-        <ego_vehicle x="-84.8" y="80" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
+        <!-- Spawn 98 m before the crossing (road 4 is straight from y=25 to the junction; the next junction south is at y=0 to 20) so the focal reaches its commanded speed before the conflict. The April spawn at y=80 left 48 m, which no speed above 60 km/h reaches from rest. -->
+        <ego_vehicle x="-84.8" y="30" z="1.0" yaw="90" model="vehicle.nissan.patrol" />
         <other_actor x="-35.0" y="127.7" z="-500" yaw="180" model="vehicle.tesla.model3" />
         <!-- SenSys campaign geometry: the April occluders (firetrucks) so the crossing car is hidden from the
              hero's own sensors until the junction and only the edge can report it; the crossing car is the
