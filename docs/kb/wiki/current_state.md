@@ -6313,3 +6313,17 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   Atlas gate launches on 3ff9d06f after hz15. pgrep from a remote shell
   whose command line names the script matches that shell: list only, kill
   by the PIDs listed before the relaunch.
+
+## 2026-10-15 20:05: hz15 clean on every cell; atlas gate launched on 3ff9d06f
+- hz15 (435fbb12, atlas): ETSI 100 ms 10 of 10, naive 100 ms 10 of 10,
+  contract 200 ms 10 of 10, no self-ghost, no false brake, no collision, no
+  stall (de7c6d9e: 6, 2, 2 false brakes in those cells). Conflict-actor
+  tracking with the observation-tick match: contract 200 ms coverage 0.83,
+  longest gap 2 ticks (de7c6d9e read 0.55 and 22 under the live match),
+  ids 2.9 per run (slightly more rebirths than before: the young-track gate
+  is 1.5 m), published speed 9.7 m/s over the approach, windowed p99 359 ms.
+- Gate relaunched on 3ff9d06f: cetus 19:51, atlas 20:05, both with the
+  after-gate watcher; expected finish about 00:30; on PASS the driver
+  continues through physics, landing, trace, control, scaling, mixed,
+  faults. Earlier stamps kept: gate5_de7c6d9e, gate6_1dc9eeb3 (both hosts),
+  gate7_435fbb12 (cetus, 3 runs).
