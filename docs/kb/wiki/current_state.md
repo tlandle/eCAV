@@ -6426,3 +6426,15 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   are not used. Whether the overtake geometry is fixed (planner pull-out at
   low speed, or the scenario's lead behaviour) is Tyler's call; without it
   the paper has two geometries at the junction (LTAP/OD and SCP).
+- 07:45: the first cetus relaunch merged nothing (the bundle's base commit
+  289978e8 was not on cetus; bundles must start at the last commit cetus
+  has) and ran the old driver; its gate recheck passed and SCP physics
+  started (valid). Fixed: bundle 454687f4..develop merged (git replaces the
+  file by rename, so the running bash keeps its old inode), the old driver
+  killed, /tmp/cetus_relaunch2.sh relaunches `all` with the new driver when
+  the SCP sweep ends (about 12:45). Atlas: the first relaunch's gate recheck
+  failed on the void overtake cells (G1); those runs moved to
+  experiment_results/blind_overtake_edge_late_fusion/sensys_nov27_overtake_void;
+  the second relaunch passed and the landing stage runs (contract arm,
+  scenario_3). Rule: a bundle for cetus starts at the commit cetus is on
+  (`git -C ~/sensys_wt log -1`), never at an arbitrary later one.
