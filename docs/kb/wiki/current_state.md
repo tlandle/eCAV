@@ -6459,3 +6459,13 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   that fails G1 there is taken out the same way. Atlas chain is stopped
   for it; cetus runs its SCP physics sweep meanwhile (relaunch waiter2
   will use whatever driver is merged when the sweep ends, about 12:45).
+- 09:45: recompute_metrics never imported math, so _ego_headings raised and
+  returned {} and the corridor rule used the +y default at every tick (since
+  the Oct 14 rule). Fixed (c076b898, plus the beacon-row pose source
+  3a8fc75f). Effect: post-turn trailing echoes at 700 ms that had been
+  "beside_lane" false brakes are self-ghosts (naive f 3 -> 0, ETSI 1 -> 0);
+  at 1,000 ms 5 and 7 runs still carry other_fp labels under the
+  self-ghosts (P unchanged there; to be read in the reductions, likely the
+  stale conflict-actor brake labelled non-hazard from the obs-tick state
+  against the live ego pose). Gate cells (no false brakes) and the April
+  columns are unchanged.
