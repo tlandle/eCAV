@@ -32,22 +32,26 @@ GATE_KV="assoc_metric=m_dis assoc_threshold=3.75"
 # therefore carries the horizon and its gate pairs in one flag below.
 PRED_STEPS="${PRED_STEPS:-60}"
 EKV="--edge-kv prediction_steps=$PRED_STEPS"
-COMMON="--latency-distribution hybrid --self-id-radius 1.0 --per-tick-age-log --carla-port $PORT --stamp $STAMP --repetitions 10 $EXTRA"
+# Seeds: 10 for the arms with perception and timing noise; the oracle is
+# deterministic (three seeds of stallfix_t1 identical to the digit), so
+# ORACLE_REPS (default 3) verify it without 7 identical copies per cell.
+DEF_REPS="${DEF_REPS:-10}"; OREPS="${ORACLE_REPS:-3}"
+COMMON="--latency-distribution hybrid --self-id-radius 1.0 --per-tick-age-log --carla-port $PORT --stamp $STAMP $EXTRA"
 TTA_S3="${TTA_S3:-}"; TTA_SCP="${TTA_SCP:-}"
 tta_for() { case "$1" in openscenario_3*) echo "$TTA_S3" ;; scp_*) echo "$TTA_SCP" ;; esac; }
-run() {   # run -t <scenario> ... ; appends the geometry's crossing trigger when set
-  local sc="$2" tta; tta="$(tta_for "$sc")"
-  if [[ -n "$tta" ]]; then "$PY" test_runner.py "$@" $COMMON --scenario-env "CROSS_TRIGGER_TTA=$tta"
-  else "$PY" test_runner.py "$@" $COMMON; fi
+run() {   # run -t <scenario> ... ; appends seeds (unless given) and the geometry's crossing trigger
+  local sc="$2" tta reps="$DEF_REPS"; tta="$(tta_for "$sc")"
+  case " $* " in *" --repetitions "*) reps="" ;; esac
+  "$PY" test_runner.py "$@" $COMMON ${reps:+--repetitions $reps} ${tta:+--scenario-env CROSS_TRIGGER_TTA=$tta}
 }
-echo "$(date +%T) $ROLE stamp $STAMP extra [$EXTRA] pred_steps [$PRED_STEPS] tta_s3 [$TTA_S3] tta_scp [$TTA_SCP]"
+echo "$(date +%T) $ROLE stamp $STAMP extra [$EXTRA] pred_steps [$PRED_STEPS] seeds [$DEF_REPS/oracle $OREPS] tta_s3 [$TTA_S3] tta_scp [$TTA_SCP]"
 # 1. gate on scenario_3 at 70 km/h (both hosts run it: 20 seeds pooled)
 run -t openscenario_3_edge_late_fusion --manager-types late_fusion --anchoring both --latencies $LATS6 --speeds 70 $EKV
-run -t openscenario_3_edge_late_fusion --manager-types oracle --anchoring on --latencies $LATS6 --speeds 70 $EKV
+run -t openscenario_3_edge_late_fusion --manager-types oracle --anchoring on --latencies $LATS6 --speeds 70 --repetitions $OREPS $EKV
 run -t openscenario_3_edge_late_fusion --manager-types "$ETSI" --anchoring off --latencies $LATS6 --speeds 70 $EKV
 "$PY" scripts/sensys_analysis/campaign_check.py "$STAMP" || { echo "$(date +%T) gate FAILED, stopping"; exit 1; }
 # 2. physics: oracle, this host's speeds, both geometries
-for sc in $GEOMS; do run -t "$sc" --manager-types oracle --anchoring on --latencies $LATS --speeds $SPEEDS $EKV; done
+for sc in $GEOMS; do run -t "$sc" --manager-types oracle --anchoring on --latencies $LATS --speeds $SPEEDS --repetitions $OREPS $EKV; done
 # 3. speed landing: naive, contract, ETSI at this host's speeds, both geometries
 for sc in $GEOMS; do
   run -t "$sc" --manager-types late_fusion --anchoring both --latencies $LATS6 --speeds $SPEEDS $EKV
