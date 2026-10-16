@@ -24,7 +24,7 @@ from ecav.scenario_testing.utils.yaml_utils import add_current_time
 
 import ecloud_pb2 as ecloud
 
-MAX_STEP = 600
+MAX_STEP = 900  # 45 s: the focal holds 4.5 s, waits out three oncoming cars and overtakes from the standoff; a safe run took 26 s (ovfix_t4 run 1, 2026-10-16)
 SCENARIO_NAME = 'blind_overtake_edge_late_fusion_2ego'
 scenario_runner = None
 

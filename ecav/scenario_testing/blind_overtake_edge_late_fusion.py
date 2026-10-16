@@ -17,7 +17,7 @@ from ecav.scenario_testing.utils.yaml_utils import add_current_time
 from ecav.scenario_testing.utils.edge_fusion_client import EdgeFusionClient
 from ecav.scenario_testing.utils.edge_registration_server import EdgeRegistrationServer
 
-MAX_STEP = 600
+MAX_STEP = 900  # 45 s: the focal holds 4.5 s, waits out three oncoming cars and overtakes from the standoff; a safe run took 26 s (ovfix_t4 run 1, 2026-10-16)
 SCENARIO_NAME = 'blind_overtake_edge_late_fusion'
 scenario_runner = None
 
