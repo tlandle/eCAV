@@ -111,6 +111,9 @@ ap.add_argument("--keep-visualize", action="store_true", default=False,
 ap.add_argument("--per-tick-age-log", action="store_true", default=False,
                 help="Enable the per-tick, per-object age-at-use CSV "
                      "(edge.per_tick_age_log.enabled) for every edge in every run.")
+ap.add_argument("--scenario-env", nargs="*", type=str, default=[],
+                help="KEY=VALUE pairs exported to the run's scenario process (e.g. ONCOMING_SPEED=12 "
+                     "TRIGGER_DIST=300 for the overtake scenario); recorded as config_scenario_env")
 ap.add_argument("--no-output-timeout", type=float, default=300.0,
                 help="Seconds without a line from the run before its process group is killed and the run "
                      "retried once on a fresh simulator (a simulator that dies mid-run otherwise hangs the runner)")
@@ -598,6 +601,10 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     _env = dict(os.environ)
     if args.cross_trigger_dist is not None:
         _env["CROSS_TRIGGER_DIST"] = str(args.cross_trigger_dist)
+    for kv in args.scenario_env:
+        k, _, v = kv.partition("=")
+        if k:
+            _env[k] = v
     if os.environ.get("ECAV_PROFILE"):
         # ECAV_PROFILE=1: cProfile the main process; profile.pstats lands in the run dir
         cmd = [sys.executable, "-m", "cProfile", "-o", str(run_dir / "profile.pstats")] + cmd[1:]
@@ -670,6 +677,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if BEHAVIOR_KV: metrics["config_behavior_kv"] = dict(BEHAVIOR_KV)
     if args.see_v2x_replay: metrics["config_see_v2x_replay"] = args.see_v2x_replay
     if args.cross_trigger_dist is not None: metrics["config_cross_trigger_dist"] = args.cross_trigger_dist
+    if args.scenario_env: metrics["config_scenario_env"] = dict(kv.partition("=")[::2] for kv in args.scenario_env if "=" in kv)
     try:  # the scenario file's step cap, so the reduction knows what "completed" means
         import re as _re
         _m = _re.search(r"^MAX_STEP\s*=\s*(\d+)", (Path("ecav/scenario_testing") / f"{scenario_name}.py").read_text(), _re.M)
