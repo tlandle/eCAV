@@ -6378,3 +6378,24 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   host; campaign_check per stamp; conflict_track_quality.py for the
   crossing car; envelope_measured.py and envelope_predict.py once the
   physics stage has its oracle cells.
+
+## 2026-10-16 06:30: physics stage, first reading: no oracle boundary below 1 s on scenario_3
+- Oracle cells complete at 38, 53, 70 km/h (atlas) and through 500 ms at
+  50, 63, 88 km/h (cetus): P(S_op) = 1.00 in every cell, no collision, at
+  every configured delay to 1,000 ms (measured windowed p99 to about
+  1,225 ms). On this maneuver, at these speeds, the physical boundary lies
+  past the sweep; E5 (tau falls with speed) cannot be resolved inside it.
+  The crossing car clears the hero's path 0.2 s before to 2.9 s after the
+  hero would arrive unbraked (hz12), so a state up to a second old still
+  lets the hero brake in time in nearly every seed; the gate's contract
+  collision at 500 ms is therefore a tracking failure, not the physical
+  limit. SCP and the overtake (the physics stage's next geometries) may
+  bracket within the sweep; read them when the stage ends (atlas about
+  13:00). scripts/sensys_physics_ext.sh (new file; the running driver is
+  never edited) adds 1.5, 2 and 3 s for the oracle at the six speeds, 180
+  runs per host, to run when a host has no simulation (after its chain, or
+  between stages if a gap is taken). Operational rule: never edit
+  sensys_campaign.sh while a driver runs it (bash reads the script as it
+  executes).
+- Atlas: 498 physics runs by 06:13, one watchdog kill (simulator crash),
+  three short-run retries, all recovered in place. Cetus: 235, none.
