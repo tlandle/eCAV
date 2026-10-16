@@ -61,7 +61,11 @@ case "$ROLE" in
   # VIPS runs last on cetus: at zero delay its own-vehicle track published at rest 1.8 m behind the
   # vehicle and the planner braked on it (hz16, Oct 16); the arm is being brought onto the
   # late-fusion pipeline plus rectification before its landing runs start.
-  cetus) ARMS=("infra_only both" "late_fusion both $GATE_KV" "vips both"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV"); PHYS_SPEEDS="50 63 88" ;;
+  # "infra_only on" has no receiver-side contract behind it: InfraOnlyEdge forces anchoring off (no
+  # beacons) while the planner, told anchoring is on, stops identifying itself spatially and brakes on
+  # its own roadside track from the first tick (hz16, 0 of 3 at zero delay, 46 ghost episodes). Until a
+  # receiver contract exists in code, I2V runs without one.
+  cetus) ARMS=("infra_only off" "late_fusion both $GATE_KV" "vips both"); SCALE_ARMS=("infra_only off" "late_fusion both $GATE_KV"); PHYS_SPEEDS="50 63 88" ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
 # blind_overtake_edge_late_fusion is out until its geometry works: with the oracle at zero delay the
