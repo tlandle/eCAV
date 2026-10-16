@@ -6527,3 +6527,26 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   Cetus relaunches with the revised driver when its SCP physics sweep ends
   (about 14:00): landing on both geometries with I2V-off, Mahalanobis
   gate, VIPS, then scaling and mixed.
+
+## 2026-10-16 11:50: SCP landing: V2X arms collide at low delay while the oracle holds
+- SCP, 70 km/h, 10 seeds (atlas): contract 0.90/0.80/0.70/0.80/1.00/0.90/
+  0.80/1.00/0.60/0.80 at 0/50/100/150/200/300/400/500/700/1000 ms, every
+  failure a collision (plus 3 stalls at 700 ms), no self-ghost, no false
+  brake; naive 0.90/0.90/... (one collision each at 0 and 50 ms so far).
+  Oracle 1.00 at every delay on SCP at all speeds.
+- Not acquisition or warm-up: in every V2X run the crossing car is
+  consumed from tick 31 (its spawn is 26) and published moving by tick
+  35 to 40; the brake, when it comes, is at tick 91 to 96 with TTC 1.1 s and
+  the hero at 15.6 m/s, 17 m from the junction, which is at the stop
+  policy's braking limit. The hero goes straight at 70 km/h (on scenario_3
+  it turns at 8 to 9 m/s), the predictor's horizon is 1.25 s, so the
+  hazard is seen 17 to 20 m out; the V2X arms' consumed positions lag the
+  oracle's exact ones by the pipeline's 100 to 200 ms, the hazard fires
+  two to four ticks later, and the marginal seeds end in a collision. On
+  the measured-age axis this is the same age as the oracle's (p99 180 to
+  300 ms at zero delay) with a different outcome: inaccurate information,
+  the third failure class, visible here because the maneuver's budget is
+  tight. Expect the predicted-versus-observed reduction to show the SCP
+  V2X cells below the envelope at low age; the TTC-graded controller
+  (control stage) is the experiment that tests whether a controller with
+  more lead removes it. No code change.
