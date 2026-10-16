@@ -220,7 +220,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 num_output_steps=25)
             print(f"[WorldFusion Edge] Using SMART predictor")
         else:
-            self.predictor = LinearPredictorManager(num_future_steps=25)
+            self.predictor = LinearPredictorManager(num_future_steps=getattr(self, '_pred_steps', 25))
             print(f"[WorldFusion Edge] Using linear predictor")
         self.lin_pred = self.predictor  # alias for existing call sites
 

@@ -254,7 +254,7 @@ class VIPSTemporalEdge(_BaseEdgeManager):
         self.dt = world_dt
 
         # managers
-        self.lin_pred = LinearPredictorManager(num_future_steps=25)
+        self.lin_pred = LinearPredictorManager(num_future_steps=getattr(self, '_pred_steps', 25))
 
         # AB3DMOT tracker config.
         # When anchoring=True (VIPS + our ego-uniqueness invariant):

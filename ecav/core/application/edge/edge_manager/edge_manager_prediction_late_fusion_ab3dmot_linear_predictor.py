@@ -362,9 +362,9 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             except FileNotFoundError:
                 print(f"[LateFusion Edge] SMART checkpoint not found "
                       f"({smart_cfg['checkpoint']}); falling back to linear predictor")
-                self.predictor = LinearPredictorManager(num_future_steps=25)
+                self.predictor = LinearPredictorManager(num_future_steps=getattr(self, '_pred_steps', 25))
         else:
-            self.predictor = LinearPredictorManager(num_future_steps=25)
+            self.predictor = LinearPredictorManager(num_future_steps=getattr(self, '_pred_steps', 25))
             print(f"[LateFusion Edge] Using linear predictor")
         self.lin_pred = self.predictor  # alias for existing call sites
 

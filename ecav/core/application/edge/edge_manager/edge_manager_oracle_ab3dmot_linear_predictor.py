@@ -145,7 +145,7 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self.dt = world_dt
 
         # managers
-        self.lin_pred = LinearPredictorManager(num_future_steps=25)
+        self.lin_pred = LinearPredictorManager(num_future_steps=getattr(self, '_pred_steps', 25))
 
         # AB3DMOT tracker — persistent across ticks (jitter-buffer arch)
         self.anchoring = cfg.get("anchoring", True)

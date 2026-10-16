@@ -113,8 +113,15 @@ class _BaseEdgeManager:
             cfg.get("aoi_freshness_threshold_ticks", 20)
         )
 
+        # Prediction horizon in 50 ms steps for every linear predictor the
+        # managers build. 25 (1.25 s) was the hard-coded value until
+        # 2026-10-16; it is below the stopping time from 70 km/h, so the
+        # planner's time-synchronised collision check could not flag a
+        # crossing earlier than 1.2 s out. test_runner --edge-kv
+        # prediction_steps=60 sets 3 s.
+        self._pred_steps = int(cfg.get("prediction_steps", 25))
         # shared predictor helper (used by some back-ends)
-        self.lin_pred = LinearPredictorManager(num_future_steps=25) if not is_proxy else None
+        self.lin_pred = LinearPredictorManager(num_future_steps=self._pred_steps) if not is_proxy else None
 
         # Ego-consistency gate violation tracking (publish-boundary invariant)
         self._ego_gate_violations_total = 0
