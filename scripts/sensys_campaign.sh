@@ -59,7 +59,9 @@ case "$ROLE" in
   cetus) ARMS=("vips both" "infra_only both" "late_fusion both $GATE_KV"); SCALE_ARMS=("infra_only on" "late_fusion both $GATE_KV"); PHYS_SPEEDS="50 63 88" ;;
   *) echo "unknown role $ROLE"; exit 2 ;;
 esac
-GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion blind_overtake_edge_late_fusion"
+# blind_overtake_edge_late_fusion is out until its geometry works: with the oracle at zero delay the
+# hero rear-ends the slow lead car in 29 of 30 runs (Oct 16), so every run on it is void.
+GEOMS="openscenario_3_edge_late_fusion scp_edge_late_fusion"
 
 mkdir -p experiment_results/campaign_meta
 { echo "stamp=$STAMP role=$ROLE port=$PORT reps=$REPS"; git rev-parse HEAD; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_${ROLE}.txt"
@@ -122,8 +124,8 @@ if want mixed && [[ "$ROLE" == "cetus" ]]; then
   run -t openscenario_3_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
   run -t scp_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
   run -t scp_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 4 --repetitions $MIX_REPS $COMMON
-  run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $MIX_REPS $COMMON
-  run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $MIX_REPS $COMMON
+  # run -t blind_overtake_edge_late_fusion_mixed --manager-types late_fusion --anchoring both --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $MIX_REPS $COMMON   # overtake geometry out (see GEOMS)
+  # run -t blind_overtake_edge_late_fusion_mixed --manager-types "$ETSI" --anchoring off --latencies $SCALE_LATS --speeds $SPEEDS --ego-counts 2 --repetitions $MIX_REPS $COMMON   # overtake geometry out (see GEOMS)
 fi
 
 # 5. Beacon faults: V2X2V Naive / ETSI / SBA, one knob at a time via --edge-kv
