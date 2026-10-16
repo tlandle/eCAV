@@ -264,6 +264,8 @@ class Scenario_3(BasicScenario):
         # later, closer to the ego's arrival (phasing knob for the collision-
         # boundary scenario). Env-overridable so boundary sweeps need no edit.
         import os
+        # scenario_params is a list of "key=value" strings
+        kv = dict(p.split("=", 1) for p in (scenario_params or []))
         self._trigger_distance = float(os.environ.get("CROSS_TRIGGER_DIST", 80))
         # CROSS_TRIGGER_TTA (seconds): when set, the crossing car launches
         # when the ego's time to arrival at the conflict point (distance over
@@ -272,8 +274,25 @@ class Scenario_3(BasicScenario):
         # at a fixed ego position, so the crossing car's arrival relative to
         # the ego's depends on the ego's speed; the time trigger phases the
         # crossing to the ego's arrival at every approach speed.
+        # A single value, or a map by the ego's commanded speed in km/h
+        # ("38:6.5,53:6.2,70:6.0": nearest key wins), since the trigger
+        # fires while the ego is still accelerating and the phasing it
+        # produces drifts with the commanded speed.
         _tta = os.environ.get("CROSS_TRIGGER_TTA")
-        self._trigger_tta = float(_tta) if _tta else None
+        self._trigger_tta = None
+        if _tta:
+            if ":" in _tta:
+                _table = {}
+                for _item in _tta.replace(";", ",").split(","):
+                    _k, _, _v = _item.strip().partition(":")
+                    if _k and _v:
+                        _table[float(_k)] = float(_v)
+                _spd = float(kv.get("ego_vehicle_max_speed", 70))
+                _key = min(_table, key=lambda _x: abs(_x - _spd))
+                self._trigger_tta = _table[_key]
+                print(f"[SCENARIO_3] trigger_tta table {_table} -> {self._trigger_tta} for {_spd} km/h", flush=True)
+            else:
+                self._trigger_tta = float(_tta)
         self._conflict_location = carla.Location(x=-84.8, y=127.9, z=0.5)
         print(f"[SCENARIO_3] trigger_distance={self._trigger_distance} "
               f"(CROSS_TRIGGER_DIST env={os.environ.get('CROSS_TRIGGER_DIST')}) "
@@ -281,8 +300,6 @@ class Scenario_3(BasicScenario):
               flush=True)
         self.agents = []
 
-        # scenario_params is now **a list of "key=value" strings**
-        kv = dict(p.split("=", 1) for p in (scenario_params or []))
 
         self.ego_max_speed_kmh = float(kv.get("ego_vehicle_max_speed", 70))
         self.oncoming_speed_mps = float(kv.get("oncoming_vehicle_speed", 13.4))
