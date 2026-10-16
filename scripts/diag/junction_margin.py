@@ -12,7 +12,8 @@ tick at which the hero's front reaches the crossing car's lane minus the tick
 at which the crossing car leaves it: positive means the hero arrived after the
 car had cleared, negative means the hero entered the lane while the car was in
 it (a collision unless the hero stopped short). Also printed: the hero's
-minimum speed over the window, whether it stopped, and the run's outcome.
+minimum speed over the window and the run's collision count (success is
+read from campaign_check, which recomputes the metrics).
 """
 import argparse, csv, glob, os, re, sys
 
@@ -65,7 +66,7 @@ def main():
     base = os.path.join(a.root, a.geom, a.stamp)
     paths = sorted(glob.glob(os.path.join(base, "**", "per_tick_age.csv"), recursive=True))
     print(f"{len(paths)} runs under {base}")
-    print(f"{'mgr':>12} {'lat':>5} {'run':>4} {'car in lane':>13} {'hero reach':>10} {'margin':>7} {'vmin':>5} {'coll':>4} {'s_op':>4}")
+    print(f"{'mgr':>12} {'lat':>5} {'run':>4} {'car in lane':>13} {'hero reach':>10} {'margin':>7} {'vmin':>5} {'coll':>4}")
     import json
     out = []
     for p in paths:
@@ -80,17 +81,16 @@ def main():
         if r is None:
             continue
         mj = os.path.join(rd, "simulation_metrics.json")
-        coll = sop = "?"
+        coll = "?"
         if os.path.exists(mj):
             try:
-                mm = json.load(open(mj))
-                coll = mm.get("focal_collisions", "?"); sop = mm.get("s_op", "?")
+                coll = json.load(open(mj)).get("focal_collisions", "?")
             except Exception:
                 pass
         il = r["in_lane"]
         margin = (r["reach"] - il[1]) if (il and r["reach"] is not None) else None
-        print(f"{mgr:>12} {lat:>5} {run:>4} {str(il):>13} {str(r['reach']):>10} {str(margin):>7} {r['vmin']:5.1f} {str(coll):>4} {str(sop):>4}")
-        out.append((mgr, lat, run, il, r["reach"], margin, r["vmin"], coll, sop))
+        print(f"{mgr:>12} {lat:>5} {run:>4} {str(il):>13} {str(r['reach']):>10} {str(margin):>7} {r['vmin']:5.1f} {str(coll):>4}")
+        out.append((mgr, lat, run, il, r["reach"], margin, r["vmin"], coll))
     return 0
 
 
