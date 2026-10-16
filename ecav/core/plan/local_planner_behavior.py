@@ -98,6 +98,7 @@ class LocalPlanner(object):
 
     def __init__(self, agent, carla_map, config_yaml):
         self._vehicle = agent.vehicle
+        self._agent = agent
         self._map = carla_map
 
         self._ego_pos = None
@@ -462,7 +463,8 @@ class LocalPlanner(object):
         mean_k = max(_ks) if _ks else 0.0001
 
         # v^2 <= a_lat_max / curvature
-        curv_limit_kmh = np.sqrt(A_LAT_MAX / (mean_k + 10e-6)) * 3.6
+        _a_lat = float(getattr(self._agent, 'curv_lat_accel', A_LAT_MAX))
+        curv_limit_kmh = np.sqrt(_a_lat / (mean_k + 10e-6)) * 3.6
         old_target = target_speed
         target_speed = min(target_speed, curv_limit_kmh)
         logger.info(f"[TRAJ] mean_k={mean_k:.6f}  curv_limit={curv_limit_kmh:.1f} km/h  "

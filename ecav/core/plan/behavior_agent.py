@@ -253,6 +253,10 @@ class BehaviorAgent(object):
         self.ignore_traffic_light = config_yaml['ignore_traffic_light']
         self.overtake_allowed = config_yaml['overtake_allowed']
         self.overtake_allowed_origin = config_yaml['overtake_allowed']
+        # Lateral acceleration the local planner allows in the sharpest bend
+        # ahead (m/s^2); 5 caps a 13 m junction turn at about 8 m/s, 8 at
+        # about 10 m/s (the April behaviour). Set per run with --behavior-kv.
+        self.curv_lat_accel = float(config_yaml.get('curv_lat_accel', 5.0))
         self.overtake_counter = 0
         self.overtake_other_direction = False
         self.overtake_end_wpts = []
