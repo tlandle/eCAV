@@ -6327,3 +6327,26 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   continues through physics, landing, trace, control, scaling, mixed,
   faults. Earlier stamps kept: gate5_de7c6d9e, gate6_1dc9eeb3 (both hosts),
   gate7_435fbb12 (cetus, 3 runs).
+
+## 2026-10-15 23:10: gate on 3ff9d06f reads as the paper states; one void run; campaign chain automated
+- Atlas gate (218 of 240 at 23:10, no watchdog fires): naive 1.00/1.00/1.00/
+  0.50/0.10/0.00 at 0 to 500 ms with self-ghosts as the only failure (5, 13,
+  12 episodes), contract 1.00 to 400 ms and 0.90 at 500 (one collision),
+  oracle 1.00 at every delay, ETSI 1.00/1.00/0.90(1 ghost)/... ; no false
+  brake anywhere. April for comparison: naive 1.00/0.75/0.10/0.00, contract
+  1.00/1.00/0.90/0.75/0.00, oracle 1.00/1.00/1.00/0.90/0.10/0.00. The
+  physical boundary on this route is past 500 ms (physics stage sweeps to
+  1,000). Effect gate E1 warns (WARN, not FAIL): naive no longer fails at
+  100 ms, so ETSI and naive cannot separate there, and ETSI tracks the
+  contract through 300 ms; per expected_effects.md this moves the ETSI
+  argument to the wrong-match mode, measured by the omission log.
+- Integrity FAIL: ETSI 200 ms run_1 ended after four ticks (simulator
+  timed out right after the runner's periodic restart) and still wrote a
+  metrics file reading success. f6584f00: a run under 100 edge frames is
+  void in the runner (retry once on a fresh simulator; redone on resume).
+  454687f4: scripts/sensys_gate_redo.sh waits for the gate driver and
+  watcher; if the watcher did not launch the stages it resumes the gate
+  (void runs redone) and restarts the watcher. Running on both hosts, so
+  the chain gate -> redo -> all needs no hand. Cetus merged to 454687f4
+  while its gate runs (the running runner has the old file loaded; the
+  resume uses the new one).
