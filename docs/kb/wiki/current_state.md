@@ -6621,3 +6621,16 @@ tonight by pgrep patterns in the same command as the kill; list, then kill.
   the April turn speed and the V2X arms at all six speeds; else the margin
   probe. Cetus continues its landing (curvature 5; its runs belong to the
   configuration that will be superseded if the knob changes).
+- 15:30: curv8_probe (oracle, 70 km/h, curv_lat_accel=8): 0 ms 10 of 10, no
+  off-road, no brake in any run (the hero still arrives after the crossing
+  car), 300 and 500 ms running. So the April turn speed alone does not
+  restore the conflict; the trigger distance must. The 13 m junction turn
+  caps the turn speed physically (10 m/s at 8 m/s^2), so on the left turn
+  nominal speed acts only on the approach; SCP carries the speed
+  dependence through the junction. Margin probes launched: atlas (after the
+  curv8 probe and the overtake gate finish) scenario_3 at trigger 60/45/30
+  m; cetus (its landing stopped at I2V-off run 98 of 100, YAML clean,
+  merged to 006f2d51) SCP at the same distances; both with
+  curv_lat_accel=8, oracle at 0/300/500 ms, 10 seeds. Then
+  scripts/sensys_junction.sh (STAMP, EXTRA) reruns gate, physics at six
+  speeds, and the V2X arms at six speeds on both hosts.
