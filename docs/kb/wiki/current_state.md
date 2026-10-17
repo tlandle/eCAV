@@ -6773,3 +6773,7 @@ Oracle, 3 seeds, P(S_op) by configured delay (0 50 100 150 200 300 400 500 700 1
 ## 2026-10-17 04:35: cetus oracle physics on scenario_3; extension queued on cetus too
 
 Oracle, 3 seeds: scenario_3 at 50 and 63 km/h 1.00 at every delay to 1,000 ms; at 88 km/h 1.00 to 200 and 0.00 from 300 (the gate's 70 km/h cell: 1.00 to 300, 0.00 from 400). With atlas: the left-turn budget is past 1 s at 38, 50, 53 and 63 km/h, 300 to 400 ms at 70, 200 to 300 ms at 88. SCP on cetus in progress. The 1.5 to 3 s extension is queued on cetus for 50 and 63 km/h after its stage (chain on the driver PID, log logs/physics_ext_cetus.log; the rewritten extension script shipped, cetus at the current develop). Atlas landing at run 158 of 360 on scenario_3.
+
+## 2026-10-17 05:10: contract arm per speed on scenario_3 (atlas landing, 10 seeds)
+
+Contract (late_fusion on): 38 km/h 1.00 at 0 to 400 ms, 0.80 at 500; 53 km/h 1.00, 0.90, 1.00, 0.80, 0.80, 0.80 at 0 to 500; 70 km/h (gate, 20 seeds) 0.80, 0.90, 0.90, 0.90, 0.10, 0.60. The contract arm's useful-age budget widens as approach speed falls, like the oracle's; the residual 0.8 to 0.9 cells at low delay are false brakes and state error, not identity. Naive cells at 38 and 53 are running next (0.90 at 0 ms so far at both). Atlas landing at run 212 of 360 (05:05).
