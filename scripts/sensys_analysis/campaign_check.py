@@ -98,19 +98,26 @@ def load_runs(root, stamp):
 
 
 def per_tick_ages(rd):
+    """(p50 of every consumed edge row, decision-window p99 of the conflict
+    actor's consumed states) from the run's per-tick log, through the paper's
+    reduction (safety_envelope_paper/reduce_per_tick_age.py). The full-range
+    p99 used until Oct 17 was dominated by the planner's hold of the crossing
+    car's last state after the crossing (the oracle at configured 0 ms read
+    1,050 ms); the decision window ends at the first consumption of the
+    actor's last fresh observation."""
     for p in (os.path.join(rd, "per_tick_age.csv"), os.path.join(rd, "evaluation_output", "per_tick_age.csv")):
         if os.path.exists(p):
-            ages = []
-            with open(p) as fh:
-                for r in csv.DictReader(fh):
-                    if r.get("source") == "edge" and r.get("age_at_use_ms") not in ("", None):
-                        try:
-                            ages.append(float(r["age_at_use_ms"]))
-                        except ValueError:
-                            pass
-            if ages:
-                ages.sort()
-                return ages[len(ages) // 2], ages[min(len(ages) - 1, int(0.99 * len(ages)))]
+            try:
+                sys.path.insert(0, os.path.join(ROOT, "safety_envelope_paper"))
+                from reduce_per_tick_age import reduce_run
+                m = reduce_run(p)
+                p50 = m.get("p50_age_ms", float("nan"))
+                p99 = m.get("critical_object_p99_ms", float("nan"))
+                if p99 != p99:
+                    p99 = m.get("global_p99_age_ms", float("nan"))
+                return p50, p99
+            except Exception:
+                return float("nan"), float("nan")
     return float("nan"), float("nan")
 
 
