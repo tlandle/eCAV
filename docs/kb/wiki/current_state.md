@@ -6855,3 +6855,7 @@ Oracle, 3 seeds, S_op with failure class: scenario_3 38 km/h 1.00 at 700, 1,000,
 ## 2026-10-17 16:55: cetus ETSI through 200 ms; atlas top-up running
 
 ETSI at the cetus speeds (10 seeds): 50 km/h 1.00, 1.00, 0.70 (3 ghost episodes at 200); 63 km/h 1.00, 1.00, 0.00 (20 episodes at 200); 88 km/h 1.00, 1.00 then 200 ms running (first run collided). ETSI follows the naive arm at these speeds too (naive at 50: 1.00 at 200; at 63: 0.00 at 200). Atlas top-up: cell 1 of 34 (naive 38 km/h 0 ms, runs 11 to 20), no voids; cetus ETSI at run 82 of 180.
+
+## 2026-10-17 17:55: first top-up cells at 20 seeds; cetus ETSI to 300 ms
+
+Top-up (atlas, 20 seeds): naive 38 km/h 0.95 at 0 and 200 ms (one other_fp brake each, interval [0.76, 0.99]), 0.75 at 300 (6 ghost episodes); contract 38 km/h 0.90 at 500 (2 other brakes); ETSI 38 km/h 0.95 at 0, 0.55 at 300 (9 episodes); naive 53 km/h 0.90 at 0 (2 other brakes). The extra seeds tighten the intervals without moving the cliffs. Cetus ETSI at 300 ms: 50 km/h 1.00 (after 0.70 at 200), 63 km/h 0.00 (18 episodes), 88 km/h 0.00 (8 collisions). Atlas top-up 6 of 34 cells; cetus ETSI run 119 of 180.
