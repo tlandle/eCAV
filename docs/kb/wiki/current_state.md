@@ -6835,3 +6835,7 @@ SCP ETSI (atlas, 10 seeds): 1.00 at 0, 100 and 200 ms at 38 and 53 km/h; 70 km/h
 ## 2026-10-17 15:25: SCP ETSI per speed (atlas) through 300 to 400 ms
 
 ETSI on SCP, 10 seeds: 38 km/h 1.00, 1.00, 1.00, 0.70 (3 ghost episodes), 0.00 (5 of 5 so far at 400); 53 km/h 1.00, 1.00, 1.00, 0.70 (3), 400 running; 70 km/h 1.00, 1.00, 0.00 (11 episodes, 5 other brakes), 0.00 (12). The ETSI identity cliff on SCP matches the naive arm's on both geometries: 300 to 400 ms at 38 and 53, 100 to 200 at 70. Atlas at run 125 of 180 of the SCP ETSI sweep, then its stage ends and the queued extension runs; cetus at run 16 of 180 of its ETSI sweep.
+
+## 2026-10-17 15:30: top-up rule for the straddling cells
+
+campaign_check lists 122 cells of sensys_nov27_j2 whose Wilson interval contains 0.8, including every cell at 1.00 with 10 seeds ([0.72, 1.00]) and every oracle cell with 3 seeds; ten more seeds each would be 1,220 runs, two days per host. The plan's clause ("add 10 only where the interval straddles 0.8") was written for a handful of transition cells. Rule to apply after the stage: top up to 20 seeds only the V2X cells whose point estimate lies in [0.2, 0.9] (the transition cells, where the extra seeds move tau_max), leave 1.00 and 0.00 cells at 10, and leave the deterministic oracle at 3. Expected size: 25 to 35 cells, 250 to 350 runs, split by host speed. Stated in the validation report when run.
