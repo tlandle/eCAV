@@ -7,8 +7,8 @@
 #   scripts/sensys_junction_launch.sh atlas|cetus [STAMP]
 set -euo pipefail
 ROLE="${1:?atlas|cetus}"; STAMP="${2:-sensys_nov27_j1}"
-export TTA_S3="${TTA_S3:-38:5.25,50:5.0,53:5.0,63:5.5,70:6.0,88:9.0}"
-export TTA_SCP="${TTA_SCP:-38:5.0,50:5.3,53:5.4,63:6.5,70:7.0,88:10.0}"
+export TTA_S3="${TTA_S3:-38:5.25,50:5.0,53:5.0,63:5.5,70:7.0,88:9.0}"
+export TTA_SCP="${TTA_SCP:-38:5.55,50:5.4,53:5.3,63:6.5,70:8.0,88:10.17}"
 export EXTRA="${EXTRA:---behavior-kv curv_lat_accel=8}"
 export PRED_STEPS="${PRED_STEPS:-60}"
 export STAMP CARLA_PORT="${CARLA_PORT:-2000}"
