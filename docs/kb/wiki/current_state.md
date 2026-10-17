@@ -6822,3 +6822,7 @@ SCP naive (atlas, 10 seeds): 38 km/h 1.00, 1.00, 0.90, 0.90 at 0 to 300 (one gho
 ## 2026-10-17 13:25: naive identity cliffs complete to 400 ms on both geometries
 
 SCP naive (atlas): 38 km/h 1.00, 1.00, 0.90, 0.90, 0.00 (15 ghost episodes at 400); 53 km/h 1.00, 1.00, 0.90, 0.60, 0.00 (21 at 400); 70 km/h 1.00, 1.00, 0.00, 0.00, 0.00 (11, 8, 20). scenario_3 naive at the cetus speeds: 50 km/h 0.90, 1.00, 1.00, 0.90 at 0 to 300 (2 episodes at 300; 400 running); 63 km/h 1.00, 0.90, 0.00, 0.00 (21, 20); 88 km/h 1.00, 1.00, 0.00, 0.00 (200: 4 episodes and 8 collisions; 300: 7 collisions of 7). Identity cliff by speed on both geometries: 38 km/h 300 to 400 ms, 50 at or past 300 (pending 400), 53 300 to 400, 63 100 to 200, 70 100 to 200, 88 100 to 200 (coincident with physics). Displacement at the cliff 3 to 4 m throughout.
+
+## 2026-10-17 13:55: naive cliffs, last cells
+
+scenario_3 naive at 50 km/h: 0.00 at 400 ms (24 ghost episodes), so its cliff is 300 to 400 like 38 and 53; 63 km/h 0.00 at 400 (19). SCP naive at 500 ms: 38 km/h 0.40 (14 episodes; the stale echo is there but 4 of 10 runs survive it), 53 km/h 0.00 (5 episodes, 8 collisions), 70 km/h 0.00 (10 episodes, 5 collisions). Final identity-cliff table (naive, both geometries): 38 and 50 and 53 km/h 300 to 400 ms; 63, 70 and 88 km/h 100 to 200 ms. Atlas is on the SCP ETSI sweep (run 12 of 180); cetus finishing its naive sweep (317 of 360) before ETSI and the 70 km/h landing of I2V, gate and VIPS.
