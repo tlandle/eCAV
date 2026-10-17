@@ -6784,3 +6784,10 @@ Naive (late_fusion off), atlas landing, 10 seeds: 38 km/h 0.90, 1.00, 0.90 at 0,
 
 campaign_check's "age p50/p99" column shows the oracle at configured 0 ms with p99 near 1,050 ms: the hold rows after the crossing (ticks 240 to 279, car at x -138 to -140, last observation at tick 235, planner hold-over) dominate the full-range p99; the V2X arms show 50/250 at 0 ms. The reduction's decision-window value (critical_object_p99_ms) is what envelope_measured.py uses; verified below. Edge frame time WARN (median 100 ms against April's 25 to 37) is wall-clock per frame under the 60-step predictor; the simulation is synchronous, so it lengthens runs, not ages.
 Verified: reduce_run on the oracle 70 km/h 0 ms run gives critical_object_p99_ms 191 (decision window) against critical_object_p99_full_ms 1,179; envelope_measured.py uses the former, so the measured-axis figure is unaffected. To do at the analysis stage: campaign_check's per_tick_ages column and its transition-bracketing list use the full-range p99 (line 95, 376); switch them to the decision-window value so the oracle is not listed as older than it is.
+
+## 2026-10-17 06:10: oracle physics complete on both hosts (E5 measured)
+
+Oracle, 3 seeds, configured delays 0 50 100 150 200 300 400 500 700 1000 ms; boundary = last delay at 1.00 to first at 0.00.
+- scenario_3 (left turn): 38, 50, 53, 63 km/h 1.00 at every delay to 1,000 ms; 70 km/h 300 to 400 ms; 88 km/h 200 to 300 ms.
+- SCP (straight crossing): 38 km/h 1.00 to 1,000 ms (0.67 at 500); 50 km/h 700 to 1,000 ms; 53 km/h 500 to 700 ms (0.33 at 700 and 1,000); 63 km/h 500 to 700 ms; 70 km/h 400 to 500 ms (0.67 at 400); 88 km/h 200 to 300 ms.
+The useful-age budget falls monotonically with approach speed on SCP across all six speeds and on the left turn between 63 and 88; below 70 km/h the left turn's curvature braking (the hero enters the junction at about 8 m/s whatever its approach speed) makes the budget exceed the sweep. The 1.5 to 3 s extension queued on both hosts (atlas 38 and 53, cetus 50 and 63) brackets those. Cetus started its speed landing at 06:05 (run 3 of 360); atlas at run 304 of 360.
