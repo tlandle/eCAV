@@ -9,6 +9,7 @@
 #   CARLA_PORT=2000 nohup scripts/sensys_tta_probe.sh atlas "3.0 3.5 4.0" > logs/tta_probe_atlas.log 2>&1 &
 set -euo pipefail
 ROLE="${1:?atlas|cetus}"; TTAS="${2:-3.0 3.5 4.0 4.5}"
+STAMP_PREFIX="${STAMP_PREFIX:-tta_probe_}"
 EXTRA="${EXTRA:---behavior-kv curv_lat_accel=8}"
 LATS="${LATS:-0 300 500}"
 REPS="${REPS:-5}"
@@ -22,9 +23,9 @@ for v in $TTAS; do
     "$PY" test_runner.py -t "$sc" --manager-types oracle --anchoring on --latencies $LATS \
         --speeds 70 --repetitions "$REPS" --scenario-env "CROSS_TRIGGER_TTA=$v" $EXTRA \
         --latency-distribution hybrid --self-id-radius 1.0 --per-tick-age-log --carla-port "$PORT" \
-        --stamp "tta_probe_${v}"
-    "$PY" scripts/diag/junction_margin.py "tta_probe_${v}" --geom "$sc" || true
+        --stamp "${STAMP_PREFIX}${v}"
+    "$PY" scripts/diag/junction_margin.py "${STAMP_PREFIX}${v}" --geom "$sc" || true
   done
-  "$PY" scripts/sensys_analysis/campaign_check.py "tta_probe_${v}" 2>&1 | grep -E "^== |^[a-z_0-9]+ +70 +oracle" || true
+  "$PY" scripts/sensys_analysis/campaign_check.py "${STAMP_PREFIX}${v}" 2>&1 | grep -E "^== |^[a-z_0-9]+ +70 +oracle" || true
 done
 echo "tta probe done"
