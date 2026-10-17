@@ -6831,3 +6831,7 @@ Run-time labeller fix prepared on branch labeller-fix (commit bde9ebd3, worktree
 ## 2026-10-17 14:55: SCP ETSI through 200 ms; cetus naive complete
 
 SCP ETSI (atlas, 10 seeds): 1.00 at 0, 100 and 200 ms at 38 and 53 km/h; 70 km/h 1.00, 1.00, 0.00 at 200 (8 ghost episodes, 5 other brakes; 7 of 10 runs so far). scenario_3 naive at 500 ms on cetus: 50 km/h 0.00 (10 episodes), 63 km/h 0.00 (10), 88 km/h 0.00 (6 episodes, 8 other brakes, 5 collisions of 5 so far). The cetus naive sweep is complete; its ETSI sweep and the 70 km/h landing of I2V, gate and VIPS follow (about 12 h). Atlas SCP ETSI at run 88 of 180.
+
+## 2026-10-17 15:25: SCP ETSI per speed (atlas) through 300 to 400 ms
+
+ETSI on SCP, 10 seeds: 38 km/h 1.00, 1.00, 1.00, 0.70 (3 ghost episodes), 0.00 (5 of 5 so far at 400); 53 km/h 1.00, 1.00, 1.00, 0.70 (3), 400 running; 70 km/h 1.00, 1.00, 0.00 (11 episodes, 5 other brakes), 0.00 (12). The ETSI identity cliff on SCP matches the naive arm's on both geometries: 300 to 400 ms at 38 and 53, 100 to 200 at 70. Atlas at run 125 of 180 of the SCP ETSI sweep, then its stage ends and the queued extension runs; cetus at run 16 of 180 of its ETSI sweep.
