@@ -100,10 +100,14 @@ def _count_episodes(brake_attributions, gap=2):
     return ghost, fp, tp
 
 
-def _conflict_actor_id(run_dir):
+def _conflict_actor_id(d):
     """The run's conflict actor id from its per-tick age log (first non-empty
-    conflict_actor_id), or None when the run has no log."""
+    conflict_actor_id), or None when the run has no log. d is the metrics
+    dict; its _run_dir key locates the log."""
     import csv as _csv
+    run_dir = d.get("_run_dir") if isinstance(d, dict) else d
+    if not run_dir:
+        return None
     for p in (os.path.join(run_dir, "per_tick_age.csv"),
               os.path.join(run_dir, "evaluation_output", "per_tick_age.csv")):
         if os.path.exists(p):
