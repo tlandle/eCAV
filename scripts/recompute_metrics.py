@@ -100,6 +100,24 @@ def _count_episodes(brake_attributions, gap=2):
     return ghost, fp, tp
 
 
+def _conflict_actor_id(run_dir):
+    """The run's conflict actor id from its per-tick age log (first non-empty
+    conflict_actor_id), or None when the run has no log."""
+    import csv as _csv
+    for p in (os.path.join(run_dir, "per_tick_age.csv"),
+              os.path.join(run_dir, "evaluation_output", "per_tick_age.csv")):
+        if os.path.exists(p):
+            try:
+                with open(p) as fh:
+                    for r in _csv.DictReader(fh):
+                        v = r.get("conflict_actor_id")
+                        if v not in (None, "", "nan", "-1"):
+                            return int(float(v))
+            except Exception:
+                return None
+    return None
+
+
 def _ego_headings(d):
     """Unit heading of the focal vehicle per tick from the run's per-tick log
     (positions two ticks apart), keyed by tick; empty when the log is absent."""
@@ -197,7 +215,27 @@ def compute_run_metrics(d):
     # The ego heading at the trigger tick comes from the per-tick log when the
     # run has one; otherwise +y (the scenario_3 approach).
     _hdg = _ego_headings(d)
+    # The run-time labeller tags a track's provenance 'ego' whenever the
+    # nearest actor in the edge's range-limited ground-truth snapshot is a
+    # managed CAV; a crossing car first seen beyond that range has no entry,
+    # so its track is tagged 'ego' and its brakes are classed self_ghost
+    # although the labeller's own full-world match found the car within a
+    # couple of metres (contract 88 km/h 0 ms, Oct 17: five of ten brakes).
+    # Post hoc, a self_ghost label with a non-ego match inside the match
+    # radius is relabelled by the match: the run's conflict actor gives
+    # true_positive, any other actor other_fp.
+    _conflict_id = _conflict_actor_id(d)
     for attr in ba:
+        _raw0 = attr.get("gt_brake_class")
+        _mid = attr.get("gt_matched_actor_id")
+        _mdist = attr.get("gt_match_dist_m")
+        if (_raw0 == "self_ghost" and _mid is not None and int(_mid) != ego_actor_id
+                and _mdist is not None and float(_mdist) < 3.0):
+            if _conflict_id is not None and int(_mid) == int(_conflict_id):
+                attr["gt_brake_class"] = "true_positive"; attr["gt_provenance"] = "conflict_actor_match"
+            else:
+                attr["gt_brake_class"] = "other_fp"; attr["gt_provenance"] = "non_ego_match"
+            reclassified += 1
         ox, oy, ex, ey = attr.get("obs_x"), attr.get("obs_y"), attr.get("ego_x"), attr.get("ego_y")
         lateral = None
         if None not in (ox, oy, ex, ey):
