@@ -6859,3 +6859,7 @@ ETSI at the cetus speeds (10 seeds): 50 km/h 1.00, 1.00, 0.70 (3 ghost episodes 
 ## 2026-10-17 17:55: first top-up cells at 20 seeds; cetus ETSI to 300 ms
 
 Top-up (atlas, 20 seeds): naive 38 km/h 0.95 at 0 and 200 ms (one other_fp brake each, interval [0.76, 0.99]), 0.75 at 300 (6 ghost episodes); contract 38 km/h 0.90 at 500 (2 other brakes); ETSI 38 km/h 0.95 at 0, 0.55 at 300 (9 episodes); naive 53 km/h 0.90 at 0 (2 other brakes). The extra seeds tighten the intervals without moving the cliffs. Cetus ETSI at 300 ms: 50 km/h 1.00 (after 0.70 at 200), 63 km/h 0.00 (18 episodes), 88 km/h 0.00 (8 collisions). Atlas top-up 6 of 34 cells; cetus ETSI run 119 of 180.
+
+## 2026-10-17 18:25: top-up at 10 of 34 cells; cetus ETSI at 400 ms
+
+Topped-up cells (20 seeds): naive 53 km/h 0.90, 0.95, 0.85, 0.80 at 0 to 300 ms (ghost episodes 0, 0, 2, 5), so its cliff stays at 300 to 400; contract 53 km/h 0.93 at 100 (14 seeds so far). Cetus ETSI at 400 ms: 50 km/h 0.00 (22 episodes; after 1.00 at 300), 63 km/h 0.00 (21). ETSI's cliff at 50 km/h is 300 to 400 like the naive arm's at 38, 50 and 53. Cetus ETSI run 139 of 180, then the 70 km/h landing of I2V, gate and VIPS (600 runs).
