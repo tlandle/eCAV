@@ -6871,3 +6871,7 @@ ETSI at the cetus speeds: 50 km/h 1.00, 1.00, 0.70, 1.00, 0.00 (22 episodes at 4
 ## 2026-10-17 19:25: top-up at 17 of 34 cells
 
 At 20 seeds: contract 53 km/h on scenario_3 0.95 at 100, 0.85 at 300, 400 and 500 ms (4, 4, 3 other_fp brakes, no collision, no ghost), so its budget on the left turn at 53 is past 500 ms with a 0.85 plateau of unnecessary brakes on the parked column; naive 53 km/h 0.90, 0.95, 0.85, 0.80 at 0 to 300 (ghost episodes 0, 0, 2, 5); ETSI 53 km/h 0.75 at 200 (2 episodes, 3 other brakes), 0.85 at 300 (4 episodes); contract 70 km/h 0.85 at 200 (3 other brakes). The residual 0.85 to 0.95 plateaus of the V2X arms at low delay are other_fp brakes (the parked column's camera-lidar tracks), the state-error class, not age. Cetus ETSI at run 177 of 180.
+
+## 2026-10-17 19:55: cetus scenario_3 landing complete; SCP landing started
+
+Cetus ETSI at 500 ms: 50 km/h 0.00 (10 ghost episodes), 63 km/h 0.00 (10), 88 km/h 0.00 (2 episodes, 10 other brakes, 10 collisions). The scenario_3 landing is complete on cetus (naive, contract, ETSI at 50, 63, 88). Cetus started its SCP landing at 19:50 (naive and contract at 50, 63, 88: 360 runs), then SCP ETSI (180) and the 70 km/h landing of I2V, gate and VIPS (600): about 20 h at its pace (1.1 min per run). Atlas top-up at 20 of 34 cells, no voids.
