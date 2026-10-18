@@ -6931,3 +6931,8 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 - dbg_ov_fix2 (contract, planner at 582afd3f): 0 ms 4 of 4 valid seeds clean (seed 2 void, simulator time-out), 300 ms 5 of 5 clean. Gate behaviour identical across seeds: need 76 m, WAIT on the visible oncoming car at 35 to 55 m, GO only once no oncoming track remains, route reset from (249.2, 195.2) after the merge-back. The chain's gate passed (10 metrics files, none collided, off-road or capped) and launched the landing at 00:18:49 log clock.
 - Landing v2 running on atlas, stamp sensys_nov27_ov2: oracle 3 seeds x 10 delays (30 runs), then late_fusion anchoring both (naive, contract) 10 seeds x 6 delays (120), then ETSI (60); about 6 h. Log logs/ov2_atlas.log. Code: sandbox develop 26fbc53f (planner 582afd3f).
 - Supersedes sensys_nov27_ov1 entirely (old RSU layout, pre-fix planner); ov1 stays on disk as the defect record only.
+
+### 2026-10-18 02:50: overtake landing v2, oracle block
+
+- Oracle (sensys_nov27_ov2, 43 km/h, 3 seeds x 10 delays): P = 1.00 at every delay from 0 to 1000 ms, 30 runs, 0 unusable, no brake of any class. Two first attempts were void (one map load without metrics, one 7-frame short run); both retries completed. Identical to the ov1 oracle, as the planner changes leave an unlapsing track set unchanged.
+- Contract (anchoring on) stage running, 60 runs, then naive 60, then ETSI 60.
