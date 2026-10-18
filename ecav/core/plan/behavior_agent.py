@@ -2460,13 +2460,16 @@ class BehaviorAgent(object):
                             _ov = 7.0         # m/s, reduced overtake speed
                             _clear, _onc = self._nearest_oncoming_ahead()
                             # Closing speed comes from the migrated/edge
-                            # prediction (small floor only guards numerical
-                            # zero). A full-latent migration recovers the true
-                            # (accelerating) speed and widens the need; a
-                            # snapshot under-predicts it, shrinks the need, and
-                            # the ego commits into the closing gap. _ov already
-                            # sets a ~28 m maneuver-footprint minimum.
-                            _onc = max(_onc, 2.0)
+                            # prediction, floored at the ego's own road speed:
+                            # an oncoming vehicle is assumed to close at no
+                            # less than that. The edge tracker's velocity on a
+                            # track that has just (re)started is far below the
+                            # true speed (3.8 against 12 m/s, blind overtake
+                            # 2026-10-18), and a need sized from it let the
+                            # ego commit into a car 49 m away. A full-latent
+                            # migration recovers an accelerating speed above
+                            # the floor and widens the need further.
+                            _onc = max(_onc, self.max_speed / 3.6)
                             _need = _t_man * (_ov + _onc)
                             if os.environ.get('BEHAVIOR_DEBUG'):
                                 print(f"[OT SIGHT] oncoming_ahead={_clear:.0f}m "
