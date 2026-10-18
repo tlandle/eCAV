@@ -6875,3 +6875,7 @@ At 20 seeds: contract 53 km/h on scenario_3 0.95 at 100, 0.85 at 300, 400 and 50
 ## 2026-10-17 19:55: cetus scenario_3 landing complete; SCP landing started
 
 Cetus ETSI at 500 ms: 50 km/h 0.00 (10 ghost episodes), 63 km/h 0.00 (10), 88 km/h 0.00 (2 episodes, 10 other brakes, 10 collisions). The scenario_3 landing is complete on cetus (naive, contract, ETSI at 50, 63, 88). Cetus started its SCP landing at 19:50 (naive and contract at 50, 63, 88: 360 runs), then SCP ETSI (180) and the 70 km/h landing of I2V, gate and VIPS (600): about 20 h at its pace (1.1 min per run). Atlas top-up at 20 of 34 cells, no voids.
+
+## 2026-10-17 21:05: atlas queue after the top-up
+
+Top-up at 27 of 34 cells; one void (SCP contract 38 km/h 400 ms run 15, error-path metrics left after the retry) is redone by a chained re-invocation of that cell's command (resume, log logs/redo_atlas.log). After the redo, atlas runs the overtake identity landing (stamp sensys_nov27_ov1: naive and contract at 43 km/h, 6 delays to 500 ms, 10 seeds; then ETSI; start_hold_ticks 90, prediction_steps 60, 12 m/s oncoming; about 180 runs, 10 to 12 h; log logs/ovland_atlas.log) under the same code version as every recorded run of this campaign. The labeller-fix branch stays unmerged for the campaign's recorded runs; recompute's relabelling (3b9b299c) is the authoritative class. Cetus SCP landing at run 71 of 360.
