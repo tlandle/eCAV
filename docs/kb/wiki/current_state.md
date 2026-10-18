@@ -7002,3 +7002,8 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 ### 2026-10-18 15:10: top-up list builder
 
 - scripts/sensys_topup_list.py turns campaign_check output into the top-up commands (V2X cells with 0.2 <= P <= 0.9 and n < 20, same stamp, 20 seeds, the geometry's TTA map, the campaign knobs). Dry run on the cetus j2 table: 12 cells today (left turn 50 naive 0 and 300, contract 400 and 500, ETSI 200; 63 naive 100; 70 contract 500; SCP 50 naive 200, contract 400; 88 naive 0, contract 0, ETSI 0). It runs after the cetus driver (ETSI at 145 of 180, then the 70 km/h stages) and the extension chain.
+
+### 2026-10-18 06:05 (system clock): heading times corrected; landing v3 timing
+
+- The times in today's earlier headings (01:50 through 15:10) were estimates that ran ahead of the system clock by up to nine hours; their order is right, their values are not. From here headings carry the system clock.
+- Landing v3 timing (system clock): launched 02:36; oracle stage to about 04:05; contract stage 04:05 to 05:30 (about 2 min per run); naive stage from 05:33 (2.5 min per run, every run to the 900-tick cap) ending about 07:45; ETSI 60 runs ending about 10:15. Four startup retries so far, all succeeded, 100 runs, 0 unusable.
