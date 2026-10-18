@@ -7130,3 +7130,8 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 ### 2026-10-18 13:13: old-layout multi-vehicle cells quarantined
 
 - The 44 old-layout N=2 and N=4 runs recorded under sensys_nov27_j2 (left turn, 70 km/h) are moved to experiment_results/_discarded/sensys_nov27_j2_oldlayout/ with a README; the stamp holds no N>1 cells, so the restarted stage cannot resume over them. The runner's --stamp resume skips any completed run directory, which is why quarantine, not relabelling, was needed.
+
+### 2026-10-18 13:19: relocated-layout smoke; stages queued as chain 5
+
+- dbg_scale4 (contract, 200 ms, 70 km/h, 1 seed): N=4 1.00 (298 frames, 68.8 m, edge 247 ms), N=8 1.00 (274 frames, 69.8 m, 10.3 m/s average, edge 472 ms); N=2 one collision at 58 m (the 200 ms collision class the N=1 contract cell carries at 0.80). Chain 4's gate asks for more than 60 m and will refuse on the N=2 seed; chain 5 waits for chain 4 to exit and runs the scaling (LT N 2 4 8, SCP N 4) and faults stages without re-smoking (log logs/scale5_atlas.log). The SCP N=4 and the ungated N=16 smoke runs still complete under chain 4.
+- Cetus: the 70 km/h gate stage ended; VIPS stage (200 runs) started.
