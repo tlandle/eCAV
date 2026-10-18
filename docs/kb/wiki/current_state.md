@@ -7012,3 +7012,9 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 
 - SCP ETSI (10 seeds): 50 km/h 1.00 / 1.00 / 1.00 / 1.00 / 0.00 / 0.00 at 0 to 500 ms (20 ghost episodes at 400); 63 km/h 1.00 / 1.00 / 0.00 / 0.00 / 0.00 / 0.00 (21 at 200); 88 km/h 0.90 (one collision) / 1.00 / 0.00 / 0.00 / 0.00 / 0.00. Cell for cell the naive arm's numbers: the self-announcement rule's 2-tick beacon window does not cover the stale echo at any speed, as at the left turn. 1458 runs, 0 unusable.
 - Cetus driver now on the 70 km/h stages (infra_only 100 runs first, then gate and VIPS); the extension chain and the top-up follow.
+
+### 2026-10-18 08:35: ov3 naive block complete; ETSI stage started
+
+- Naive (10 seeds x 6 delays): 0.00 at 0, 100, 200, 300, 400 and 500 ms; every one of the 60 seeds a self-ghost stall to the 900-tick cap (one collision at 100 ms besides). Ghost episodes per cell 8, 7, 8, 18, 10, 24. The overtake's naive curve is flat at zero: the stopped hero deadlocks on its own beacon track republished under a rotated temporary identifier at any age (mechanism in the 14:30-labelled block above). 150 runs, 0 unusable, ten startup retries all succeeded.
+- ETSI stage (late_fusion_etsi_self_announcement, 10 seeds x 6 delays) started 08:33, ends about 11:15. Open question it answers: whether omitting detections that match a beacon also removes the beacon's own track at standstill.
+- Cetus: 70 km/h infra_only at run 86 of 100, then gate and VIPS.
