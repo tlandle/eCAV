@@ -7135,3 +7135,13 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 
 - dbg_scale4 (contract, 200 ms, 70 km/h, 1 seed): N=4 1.00 (298 frames, 68.8 m, edge 247 ms), N=8 1.00 (274 frames, 69.8 m, 10.3 m/s average, edge 472 ms); N=2 one collision at 58 m (the 200 ms collision class the N=1 contract cell carries at 0.80). Chain 4's gate asks for more than 60 m and will refuse on the N=2 seed; chain 5 waits for chain 4 to exit and runs the scaling (LT N 2 4 8, SCP N 4) and faults stages without re-smoking (log logs/scale5_atlas.log). The SCP N=4 and the ungated N=16 smoke runs still complete under chain 4.
 - Cetus: the 70 km/h gate stage ended; VIPS stage (200 runs) started.
+
+### 2026-10-18 13:22: cetus 70 km/h Mahalanobis gate block (left turn, assoc_metric m_dis, threshold 3.75, 10 seeds)
+
+| arm | 0 | 50 | 100 | 150 | 200 | 300 | 400 | 500 | 700 | 1000 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| gate, no contract | 0.30 (7 coll) | 1.00 | 0.50 (5 coll) | 0.00 (7 ghost, 3 coll) | 0.10 (9 ghost) | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| gate with contract | 0.50 (5 coll) | 1.00 | 0.00 (10 coll) | 0.20 (8 coll) | 1.00 | 1.00 | 0.00 (10 coll) | 0.70 (3 coll) | 1.00 | 0.00 (10 coll) |
+
+- Mechanism (gate with contract, 100 ms, every seed): the crossing car's track is consumed from tick about 40 while it waits, then disappears from the consumed set between ticks 98 and 160 (3 s) as the car accelerates from 4 to 12 m/s through the conflict point, and returns only after the collision; the hero records no brake at all. In the atlas contract cell without the gate the same car's track is continuous through the crossing (ages 100 to 200 ms) and the hero brakes (true positives from tick 116). The chi-square gate on the 7-D innovation rejects the accelerating car's updates, the track coasts and dies, and the planner never sees a hazard; the outcome is then the crossing phase alone, which is why the cells are non-monotonic in delay (1.00 at 200, 300 and 700 ms, 0.00 at 100, 400 and 1000). Effect E2 ("gate equals naive; gate with contract equals contract") is refuted in the worse direction: association gating with this threshold breaks the tracking of a fast-accelerating object and is not an identity mechanism.
+- 1762 runs on cetus, 0 unusable. Cetus now on the VIPS stage (200 runs).
