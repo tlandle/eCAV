@@ -7103,3 +7103,7 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 ### 2026-10-18 12:14: N=8 smoke deferred; scaling runs at N 2 and 4
 
 - 8-ego smoke (contract, 200 ms, 1 seed): no collision, but the run ended at 328 ticks with the hero 73.7 m along at 7.4 m/s average (N=1 runs cover about 100 m to the far side of the junction) and the edge at 468 ms per frame (10 agents). The chain's gate (more than 100 m, under the cap) deferred N=8 with N=16; the scaling stage runs LT N 2 and 4 and SCP N 4 (162 runs), then faults at N=4 (640 runs). The early end at N=8 (before the cap, short of the junction) and the edge frame time at 10 to 18 agents are the open items for the larger layouts.
+
+### 2026-10-18 12:14: edge frame time grows about 50 ms per agent
+
+- Contract, 70 km/h, 200 ms, mean edge frame time by agents per frame (CAVs plus the two RSUs): N=1 102 ms (3 agents), N=4 244 ms (6), N=8 468 ms (10), N=16 934 ms (18). Linear, about 50 ms per uploading agent, against April's 25 to 37 ms at N=16. Candidates: the 60-step linear predictor per published object, the per-tick age logger, per-agent work in the late-fusion ingest. The sim is synchronous, so this is wall time, not age, but it sets the run time (N=16: 10 min per run) and ended the N=8 run early (328 ticks, hero 74 m along, cause not in the log's termination lines). To examine before the N=8 and 16 cells (Tyler).
