@@ -7187,3 +7187,8 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 
 - Contract N=8 400 ms: 0.00 (5 false-brake episodes, 2 collisions), completing the block: N=2 0.60 / 0.00 / 1.00, N=4 0.00 / 0.60 / 0.00, N=8 0.40 / 1.00 / 0.00 at 100 / 200 / 400 ms.
 - Naive: N=2 100 ms 0.80 (one collision); N=4 100 ms 0.00 (4 of 4 seeds, all false-brake episodes), the same phantom brakes as the contract at N=4. At N=4 every V2X arm reads 0.00 at 100 ms by S_fp, so the aggregate S_op cannot show the identity effect at scale; the scaling figure needs S_ghost (and the other components) per N and arm, and the text has to say that brakes on static false positives beside the lane are counted as false brakes under the 3 s horizon. Whether S_fp should keep that class in the aggregate is a metric decision for Tyler.
+
+### 2026-10-18 15:27: VIPS with contract block near complete; naive N=8 at 100 ms
+
+- Cetus VIPS with contract (left turn, 70 km/h): 1.00 / 1.00 / 1.00 / 1.00 / 0.70 / 0.60 / 0.90 / 1.00 / 0.70 / 0.00 at 0 / 50 / 100 / 150 / 200 / 300 / 400 / 500 / 700 / 1000 ms (1000 at 8 seeds, all collisions). Its physics boundary lies between 700 and 1000 ms, against the oracle's 300 to 400: the rectification's reach. The sub-1.00 cells below 1000 are false-brake episodes only. The VIPS arm without the contract (100 runs) follows.
+- Atlas naive N=8 at 100 ms: 0.00 in the first three seeds (2 false-brake episodes, 3 collisions with crossing CAVs, 3 stalls to the cap), hero average 2.2 m/s.
