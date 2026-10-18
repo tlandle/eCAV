@@ -1273,9 +1273,14 @@ class BehaviorAgent(object):
                  + (loc[1] - ey) * math.sin(eyaw))
         return ahead < -margin_m
 
-    def _nearest_oncoming_ahead(self):
+    def _scan_oncoming_live(self):
         """(distance_m, closing_speed_mps) of the nearest oncoming vehicle in
-        the opposing (adjacent) lane ahead of the ego; (+inf, 0.0) if none.
+        the opposing (adjacent) lane ahead of the ego among the live
+        predictions; (+inf, 0.0) if none. Refreshes the oncoming hold when a
+        vehicle qualifies. Runs every planning step (run_step), not only at
+        the gate's evaluations, which can be seconds apart: a car tracked
+        with speed on the steps in between must arm the hold (blind
+        overtake 2026-10-18, dbg_ov_fix3 200 ms seed 1).
 
         The overtake go/no-go criterion: an overtake into opposing traffic
         must not start unless this clearance exceeds the overtaking sight
@@ -1349,17 +1354,23 @@ class BehaviorAgent(object):
                     round(getattr(obs, 'kf_speed_mps', float('nan')), 2),
                     int(getattr(obs, 'carla_id', -1)),
                 )
-        # Hold the last observed oncoming vehicle while its track lapses. The
-        # edge tracker drops a car for 0.5 to 1.2 s where the view hands over
-        # from a roadside unit behind it to one ahead of it (detections
-        # continue; the 2 m association gate and min_hits restart the track),
-        # and an absent track read as a clear lane committed the overtake into
-        # the car (blind overtake 2026-10-17, three of ten seeds at zero
-        # delay). The held vehicle advances at its last speed plus the ego's;
-        # the hold expires after ONC_HOLD_S or once the vehicle would have
-        # passed.
         if best != float('inf'):
             self._onc_hold = (self._step_count, best, best_speed)
+        return best, best_speed
+
+    def _nearest_oncoming_ahead(self):
+        """Gate view of the oncoming lane: the live nearest oncoming vehicle,
+        else the held one. The edge tracker drops a car for 0.5 to 1.2 s
+        where the view hands over from a roadside unit behind it to one
+        ahead of it (detections continue; the 2 m association gate and
+        min_hits restart the track), and an absent track read as a clear
+        lane committed the overtake into the car (blind overtake
+        2026-10-17, three of ten seeds at zero delay). The held vehicle
+        advances at its last speed (floored at the road speed) plus the
+        ego's; the hold expires after ONC_HOLD_S or once the vehicle would
+        have passed."""
+        best, best_speed = self._scan_oncoming_live()
+        if best != float('inf'):
             return best, best_speed
         hold = getattr(self, '_onc_hold', None)
         if hold is not None:
@@ -1976,6 +1987,9 @@ class BehaviorAgent(object):
             if self._step_count == 1:
                 logger.info("[HOLD] start hold for %d ticks", self.start_hold_ticks)
             return 0, None
+        if self.overtake_allowed_origin:
+            # every step, so the oncoming hold follows the live tracks
+            self._scan_oncoming_live()
         # retrieve ego location
         ego_vehicle_loc = self._ego_pos.location
         if len(self.ego_location_buffer) == 10:
@@ -2490,18 +2504,37 @@ class BehaviorAgent(object):
                                       f"{'GO' if _clear >= _need else 'WAIT'} "
                                       f"dbg={getattr(self, '_nearest_onc_dbg', None)} "
                                       f"npreds={len(self.generated_predictions)}")
+                                _ex, _ey = self._ego_pos.location.x, self._ego_pos.location.y
+                                _ey_rad = math.radians(self._ego_pos.rotation.yaw)
+                                _c, _s = math.cos(_ey_rad), math.sin(_ey_rad)
                                 for _p in self.generated_predictions:
                                     _o = _p.obstacle_trajectory.obstacle
                                     _t = _p.predicted_trajectory
                                     if _t:
+                                        _dx, _dy = _t[0].location.x - _ex, _t[0].location.y - _ey
+                                        _ah = _dx * _c + _dy * _s
+                                        _lat = -_dx * _s + _dy * _c
+                                        _adv = ((_t[1].location.x - _t[0].location.x) * _c
+                                                + (_t[1].location.y - _t[0].location.y) * _s) \
+                                            if len(_t) >= 2 else 0.0
                                         print(f"[OT PREDS] cid="
                                               f"{getattr(_o, 'carla_id', '?')} "
                                               f"pos=({_t[0].location.x:.1f},"
                                               f"{_t[0].location.y:.1f}) "
-                                              f"spd={getattr(_o, 'kf_speed_mps', 0.0):.1f}")
+                                              f"spd={getattr(_o, 'kf_speed_mps', 0.0):.1f} "
+                                              f"ahead={_ah:.1f} lat={_lat:.1f} adv={_adv:.2f} "
+                                              f"n={len(_t)} ego=({_ex:.1f},{_ey:.1f},"
+                                              f"{self._ego_pos.rotation.yaw:.0f})")
                             if _clear >= _need:
-                                self._ot_go_streak = getattr(
+                                # consecutive means within 1 s: the gate's
+                                # evaluations can be seconds apart, and two
+                                # clear readings 4.5 s apart each caught a
+                                # lapse (dbg_ov_fix3 200 ms seed 1)
+                                _last = getattr(self, '_ot_go_tick', -10**6)
+                                self._ot_go_streak = (getattr(
                                     self, '_ot_go_streak', 0) + 1
+                                    if self._step_count - _last <= 20 else 1)
+                                self._ot_go_tick = self._step_count
                             else:
                                 self._ot_go_streak = 0
                             if _clear < _need or self._ot_go_streak < 2:
