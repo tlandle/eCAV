@@ -1366,7 +1366,10 @@ class BehaviorAgent(object):
             t0, d0, v0 = hold
             dt = (self._step_count - t0) * self._onc_hold_dt
             if 0.0 <= dt <= self.ONC_HOLD_S:
-                d = d0 - (v0 + max(self._ego_speed, 0.0) / 3.6) * dt
+                # the held vehicle closes at no less than the road speed, as
+                # the gate assumes for a live one
+                v_close = max(v0, self.max_speed / 3.6) + max(self._ego_speed, 0.0) / 3.6
+                d = d0 - v_close * dt
                 if d > 0.5:
                     return d, v0
             self._onc_hold = None
@@ -2456,8 +2459,18 @@ class BehaviorAgent(object):
                             # the planner lacked; it is what a short-horizon
                             # path collision check misses on a far but closing
                             # oncoming vehicle (root cause of the head-ons).
-                            _t_man = 4.0      # s in the opposing lane
-                            _ov = 7.0         # m/s, reduced overtake speed
+                            # Maneuver time measured at 43 km/h on
+                            # sensys_nov27_ov2: from the wait position behind
+                            # the subject to the merge-back point (53 m) the
+                            # oracle takes 6.5 s and the V2X arm 7.2 to 8.1 s
+                            # (it slows for a roadside false detection), past
+                            # the subject at 4.2 to 5.4 s, peak 11.8 m/s.
+                            # The earlier 4 s / 7 m/s sized the need at 76 m,
+                            # and a car first seen at 79 to 89 m, then
+                            # untracked for one evaluation, met the ego
+                            # beside the subject (ov2 contract 200 ms seed 1).
+                            _t_man = 7.5      # s from the wait position to the merge-back point
+                            _ov = 8.2         # m/s, mean ego speed over the maneuver (53 m / 6.5 s)
                             _clear, _onc = self._nearest_oncoming_ahead()
                             # Closing speed comes from the migrated/edge
                             # prediction, floored at the ego's own road speed:
