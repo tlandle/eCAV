@@ -6983,3 +6983,7 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 - The edge log's Ego-Uniqueness counts (75 to 163 ego ghosts, 15 to 23 percent of ticks, in every contract overtake seed; 3 to 6 in the junction) do not measure this: in a clean seed every anonymous track within 8 m of the hero's beacon sits more than 2 m cross-track (roadside statics at y 189.5 to 190 beside the waiting position, objects in the adjacent lane); in seed 9 only track 420 lies inside the box. The monitor's radius criterion counts clutter near the hero; the brake-level S_ghost is the paper's measure.
 - Decision: no tracker change mid-campaign (the junction stages ran on this tracker; a change would split the contract arm across geometries). Recorded as a measured residual; the 20-seed top-up of the cell follows the landing. If Tyler wants it closed: suppress an anonymous birth whose centre lies inside the identified vehicle's own footprint regardless of box size, and rerun every contract arm.
 - Landing v3 at run 14 of 120 of the contract and naive stage.
+
+### 2026-10-18 11:15: ov3 contract 0 to 300 ms
+
+- Contract (10 seeds): 0.90 / 1.00 / 1.00 / 1.00 at 0 / 100 / 200 / 300 ms (ov1 had 0.60 / 0.90 / 0.80 / 0.50; the zero-delay seed is the near-field self-ghost analysed above). No collision, no off-road, no false brake in 40 seeds. 70 runs, 0 unusable; three startup retries (Town01 load time-out after teardown), all succeeded. Pace about 3.3 min per run: contract and naive stage ends about 16:00, ETSI about 19:30.
