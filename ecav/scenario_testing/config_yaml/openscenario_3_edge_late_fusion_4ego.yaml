@@ -432,7 +432,7 @@ scenario:
       name: cav2
       spawn_position:
       - -88.1
-      - 40.0
+      - -14.0
       - 1.0
       - 0
       - 90
