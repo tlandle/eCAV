@@ -49,6 +49,20 @@ def wilson(k, n, z=1.96):
     return p, c - h, c + h
 
 
+SIM_TIMEOUT_SIG = b"time-out of 10000ms while waiting for the simulator"
+
+
+def _log_has_sim_timeout(log_path):
+    """True when the run's stdout tail carries the simulator time-out."""
+    try:
+        with open(log_path, "rb") as fh:
+            fh.seek(0, 2)
+            fh.seek(max(0, fh.tell() - 262144))
+            return SIM_TIMEOUT_SIG in fh.read()
+    except OSError:
+        return False
+
+
 def load_runs(root, stamp):
     runs = []
     for f in glob.glob(os.path.join(root, "*", stamp, "**", "simulation_metrics.json"), recursive=True):
@@ -66,6 +80,12 @@ def load_runs(root, stamp):
         row = dict(path=f, geom=geom, speed=spd, mgr=mgr, anch=anch, cfg=cfg, rep=int(rep))
         if "error" in d or not d.get("vehicles"):
             row["bad"] = "error-path metrics"
+            runs.append(row)
+            continue
+        if _log_has_sim_timeout(os.path.join(os.path.dirname(f), "runner_stdout.txt")):
+            # the simulator stopped answering mid-run; the metrics describe a
+            # truncated run (test_runner voids and redoes these on resume)
+            row["bad"] = "simulator time-out"
             runs.append(row)
             continue
         d["_run_dir"] = os.path.dirname(f)

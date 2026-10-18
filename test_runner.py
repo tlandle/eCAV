@@ -520,6 +520,20 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
 
 # ───────────────────── single run helper ─────────────────────────────────
 MIN_EDGE_FRAMES = 100   # a run shorter than this never reached the conflict: void
+# The simulator stopped answering mid-run: the metrics file then describes a
+# truncated run and reads as a success (2026-10-18, blind overtake smoke: 274
+# edge frames, hero 9 m from its start). Such a run is void.
+SIM_TIMEOUT_SIG = "time-out of 10000ms while waiting for the simulator"
+
+
+def _log_has_sim_timeout(log_path: Path) -> bool:
+    try:
+        with log_path.open("rb") as fh:
+            fh.seek(0, 2)
+            fh.seek(max(0, fh.tell() - 262144))
+            return SIM_TIMEOUT_SIG.encode() in fh.read()
+    except OSError:
+        return False
 
 
 def _edge_frames(metrics) -> int:
@@ -544,6 +558,8 @@ def _run_completed(run_dir: Path) -> bool:
     try:
         m = json.loads(p.read_text())
     except (OSError, ValueError):
+        return False
+    if _log_has_sim_timeout(run_dir / "runner_stdout.txt"):
         return False
     return "error" not in m and bool(m.get("vehicles")) and (
         "edges" not in m or _edge_frames(m) >= MIN_EDGE_FRAMES)
@@ -645,6 +661,8 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
             # the simulator answered too late for the run to happen; same
             # handling as a run with no metrics (restart the simulator, retry once)
             raise RuntimeError(f"short run: {_edge_frames(metrics)} edge frames")
+        if _log_has_sim_timeout(run_log):
+            raise RuntimeError(f"simulator time-out mid-run after {_edge_frames(metrics)} edge frames")
     except Exception as e:
         # One retry for a run that produced no metrics (a map load that timed
         # out while the simulator was still tearing the previous run down is
