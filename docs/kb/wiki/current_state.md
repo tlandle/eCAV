@@ -6987,3 +6987,7 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 ### 2026-10-18 11:15: ov3 contract 0 to 300 ms
 
 - Contract (10 seeds): 0.90 / 1.00 / 1.00 / 1.00 at 0 / 100 / 200 / 300 ms (ov1 had 0.60 / 0.90 / 0.80 / 0.50; the zero-delay seed is the near-field self-ghost analysed above). No collision, no off-road, no false brake in 40 seeds. 70 runs, 0 unusable; three startup retries (Town01 load time-out after teardown), all succeeded. Pace about 3.3 min per run: contract and naive stage ends about 16:00, ETSI about 19:30.
+
+### 2026-10-18 13:05: ov3 contract block complete
+
+- Contract (10 seeds x 6 delays): 0.90 / 1.00 / 1.00 / 1.00 / 1.00 / 1.00 at 0 / 100 / 200 / 300 / 400 / 500 ms; 60 runs, 0 unusable; the only failure is the zero-delay near-field self-ghost. The contract tracks the oracle (1.00 to 1000 ms) across the sweep, so the overtake's useful-age budget for the contract is beyond 500 ms at 43 km/h, like the oracle's, and the identity landing's content is the naive arm's cliff (running now, runs 61 to 120) and ETSI (121 to 180).
