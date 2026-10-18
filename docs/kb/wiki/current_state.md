@@ -6894,3 +6894,7 @@ The cetus SCP contract cell at 63 km/h and 200 ms read 0.00 with ten "false brak
 - SCP contract: 38 0.95, 1.00, 1.00, 1.00, 0.95, 1.00; 53 1.00 x4, 0.10 (c18), 0.45 (c11); 70 1.00 x4, 0.60 (c7), 0.70 (c6).
 - SCP ETSI: 38 1.00, 1.00, 1.00, 0.85, 0.00, 0.10; 53 1.00, 1.00, 1.00, 0.75, 0.00, 0.00; 70 1.00, 1.00, 0.00, 0.00, 0.00, 0.00.
 The contract arm's 0.85 plateau at 53 km/h and 300 to 500 ms on the left turn is three to four unnecessary brakes per 20 runs on the car's stale state after it has crossed (the hero arrives after the car at 53), the age-induced unnecessary-brake class also seen for the oracle at 2 s. Overtake identity landing started on atlas at 21:45 (run 1 of 120).
+
+## 2026-10-17 22:30: overtake identity landing, first cells (atlas, 43 km/h, 10 seeds)
+
+Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 collision), 0.83 at 200 (6 of 10 so far). The oracle was 1.00 at every delay on this geometry, so the contract's collisions at zero delay are state error: the camera-lidar pipeline's positions and speeds for the oncoming cars at 50 to 100 m misjudge the clearance the launch rule needs (76 m), and the hero commits into a closing gap. Naive and ETSI follow. Cetus SCP landing at run 141 of 360.
