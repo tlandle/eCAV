@@ -6972,3 +6972,7 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 - Identity cliff (naive) is displacement-bounded as at the left turn: 300 to 400 ms at 50 km/h, 100 to 200 ms at 63 and 88. Oracle physics boundary: 700 to 1000 ms at 50, 500 to 700 at 63, 200 to 300 at 88 (low speed fails by collision too here; SCP has no unnecessary-brake class at 50 and 63 in the oracle).
 - Contract tracks the oracle at 50 and 63 km/h (one 0.70 cell at 50 / 400 ms from three false brakes). At 88 km/h it fails one step before the oracle (0.10 at 200 ms by collision against the oracle's 1.00) and 2 of 10 seeds collide at zero delay (naive 1 of 10): the inaccurate-information class at the physics limit, as recorded for 70 km/h.
 - Top-up candidates (0.2 <= P <= 0.9, n = 10): 50 naive 200 (0.80), 50 contract 400 (0.70), 88 naive 0 (0.90), 88 contract 0 (0.80). Cetus driver continues with SCP ETSI (180 runs) and the 70 km/h I2V / gate / VIPS stages; the extension chain (50 and 63 oracle to 1000 ms is already in the table; the ext covers the left turn) waits on the driver; the top-up follows both. campaign_check on cetus: 1278 runs, 0 unusable, PASS.
+
+### 2026-10-18 07:20: v3 oracle block
+
+- sensys_nov27_ov3 oracle (3 seeds x 10 delays): 1.00 at every delay 0 to 1000 ms, 30 runs, 0 unusable, no retries. Runs take about 3.3 min each with three roadside units, so the contract and naive stage (120 runs) ends around 14:00 and ETSI (60) around 17:30.
