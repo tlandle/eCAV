@@ -233,9 +233,14 @@ def compute_run_metrics(d):
         _raw0 = attr.get("gt_brake_class")
         _mid = attr.get("gt_matched_actor_id")
         _mdist = attr.get("gt_match_dist_m")
+        # Match radius: 6 m when the match is the run's conflict actor (its
+        # published state carries the pipeline's position error plus up to two
+        # edge frames of lag at the crossing: 3.3 to 4 m at 63 km/h and 200 ms,
+        # Oct 17), 3 m for any other actor.
+        _is_conf = (_conflict_id is not None and _mid is not None and int(_mid) == int(_conflict_id))
         if (_raw0 == "self_ghost" and _mid is not None and int(_mid) != ego_actor_id
-                and _mdist is not None and float(_mdist) < 3.0):
-            if _conflict_id is not None and int(_mid) == int(_conflict_id):
+                and _mdist is not None and float(_mdist) < (6.0 if _is_conf else 3.0)):
+            if _is_conf:
                 attr["gt_brake_class"] = "true_positive"; attr["gt_provenance"] = "conflict_actor_match"
             else:
                 attr["gt_brake_class"] = "other_fp"; attr["gt_provenance"] = "non_ego_match"
