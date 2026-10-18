@@ -7045,3 +7045,19 @@ tau_max at P = 0.8 on the measured axis (ms), naive / contract / ETSI / oracle:
 
 - The measured p99 age exceeds the configured delay by the planner's hold of unrefreshed tracks (median per-run p99 350 to 580 ms across arms), so these values sit above the configured cliffs. The V2X arms were swept to 500 ms configured (top bin about 825 ms) and the oracle to 1000 ms, so a V2X tau_max of 775 to 825 is the sweep's ceiling, not a measured boundary; the figure must say so or the V2X sweep must be extended where the contract has not failed by 500 ms (left turn 38 and 53, SCP 38).
 - At 70 km/h the contract's measured budget equals the oracle's (SCP 525 vs 525; left turn 575 vs 475) and the naive/ETSI budgets are 250 ms shorter. Table and PNGs under safety_envelope_paper/analysis/sensys_nov27_j2/.
+
+### 2026-10-18 10:08: measured-age envelope, cetus junction stamp (sensys_nov27_j2, 50 / 63 / 88 km/h; 70 km/h I2V)
+
+tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ETSI / oracle:
+
+| geometry | km/h | naive | contract | ETSI | oracle |
+|---|---|---|---|---|---|
+| left turn | 50 | 525 | 575 | 275 | 1175 |
+| left turn | 63 | 225 | 775 | 225 | 1175 |
+| left turn | 88 | 375 | 375 | 375 | 325 |
+| SCP | 50 | 425 | 575 | 425 | 825 |
+| SCP | 63 | 325 | 725 | 375 | 625 |
+| SCP | 88 | 375 | 375 | 375 | 375 |
+| left turn | 70 (I2V) | 575 | | | 475 |
+
+- Same caveats as the atlas table: the V2X sweep ends at 500 ms configured (top measured bin about 775 to 825), the oracle's at 1000; at 88 km/h every arm sits at the physics boundary (375 vs oracle 325 to 375). Where the contract reads above the oracle (SCP 63: 725 vs 625) the two arms are not at the same configured delay on this axis: the contract at 500 ms configured carries a p99 of about 725 and passes, the oracle fails at 700 configured. Table and PNGs under cetus ~/sensys_wt/safety_envelope_paper/analysis/sensys_nov27_j2/.
