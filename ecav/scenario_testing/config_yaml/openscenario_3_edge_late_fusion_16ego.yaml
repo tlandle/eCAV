@@ -120,12 +120,12 @@ vehicle_base: &vehicle_base
     safety_time: 4
     emergency_param: .4
     ignore_traffic_light: true
-    overtake_allowed: true
-    collision_time_ahead: 2
+    overtake_allowed: false
+    collision_time_ahead: 3
     overtake_counter_recover: 35
     sample_resolution: 4.5
     local_planner: &base_local_planner
-      buffer_size: 12
+      buffer_size: 16
       trajectory_update_freq: 15
       waypoint_update_freq: 9
       min_dist: 3
