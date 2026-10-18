@@ -6954,3 +6954,21 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 
 - dbg_ov_fix4 (planner 9b2bccb6): 0 ms 3 of 3, 200 ms 3 of 3 clean. Every seed: WAIT on the live oncoming car at 43 to 120 m against the 151 m need, GO only after the last car has passed (the enriched print shows every remaining candidate as a static roadside detection with speed 0), route reset from (249.2, 195.2) after the merge-back. Moving cars are accepted with advance toward the ego (adv -0.4 to -0.5); the dbg_ov_fix3 reject at tick 180 is attributed to the stale-copy speed of 0 at that instant, the case the per-step scan now covers.
 - Landing v3 launched 02:35:51 log clock, stamp sensys_nov27_ov3, log logs/ov3b_atlas.log, planner 9b2bccb6, about 6 h (oracle 30, contract and naive 120, ETSI 60). ov1 and ov2 superseded.
+
+### 2026-10-18 06:30: cetus SCP landing complete (sensys_nov27_j2, 50 / 63 / 88 km/h, 10 seeds, oracle 3)
+
+| km/h | arm | 0 | 100 | 200 | 300 | 400 | 500 | 700 | 1000 |
+|---|---|---|---|---|---|---|---|---|---|
+| 50 | naive | 1.00 | 1.00 | 0.80 (2 ghost) | 1.00 | 0.00 (20 ghost, 8 fp) | 0.00 (10 ghost) | | |
+| 50 | contract | 1.00 | 1.00 | 1.00 | 1.00 | 0.70 (3 fp) | 1.00 | | |
+| 50 | oracle | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 (coll) |
+| 63 | naive | 1.00 | 1.00 | 0.00 (21 ghost) | 0.00 | 0.00 | 0.00 | | |
+| 63 | contract | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | | |
+| 63 | oracle | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 (coll) | 0.00 |
+| 88 | naive | 0.90 (1 coll) | 1.00 | 0.00 (11 ghost, 7 coll) | 0.00 | 0.00 | 0.00 | | |
+| 88 | contract | 0.80 (2 coll) | 1.00 | 0.10 (9 coll) | 0.00 (10 coll) | 0.00 | 0.00 | | |
+| 88 | oracle | 1.00 | 1.00 | 1.00 | 0.00 (3 coll) | 0.00 | 0.00 | 0.00 | 0.00 |
+
+- Identity cliff (naive) is displacement-bounded as at the left turn: 300 to 400 ms at 50 km/h, 100 to 200 ms at 63 and 88. Oracle physics boundary: 700 to 1000 ms at 50, 500 to 700 at 63, 200 to 300 at 88 (low speed fails by collision too here; SCP has no unnecessary-brake class at 50 and 63 in the oracle).
+- Contract tracks the oracle at 50 and 63 km/h (one 0.70 cell at 50 / 400 ms from three false brakes). At 88 km/h it fails one step before the oracle (0.10 at 200 ms by collision against the oracle's 1.00) and 2 of 10 seeds collide at zero delay (naive 1 of 10): the inaccurate-information class at the physics limit, as recorded for 70 km/h.
+- Top-up candidates (0.2 <= P <= 0.9, n = 10): 50 naive 200 (0.80), 50 contract 400 (0.70), 88 naive 0 (0.90), 88 contract 0 (0.80). Cetus driver continues with SCP ETSI (180 runs) and the 70 km/h I2V / gate / VIPS stages; the extension chain (50 and 63 oracle to 1000 ms is already in the table; the ext covers the left turn) waits on the driver; the top-up follows both. campaign_check on cetus: 1278 runs, 0 unusable, PASS.
