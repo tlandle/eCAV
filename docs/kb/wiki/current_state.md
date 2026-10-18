@@ -7061,3 +7061,25 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 | left turn | 70 (I2V) | 575 | | | 475 |
 
 - Same caveats as the atlas table: the V2X sweep ends at 500 ms configured (top measured bin about 775 to 825), the oracle's at 1000; at 88 km/h every arm sits at the physics boundary (375 vs oracle 325 to 375). Where the contract reads above the oracle (SCP 63: 725 vs 625) the two arms are not at the same configured delay on this axis: the contract at 500 ms configured carries a p99 of about 725 and passes, the oracle fails at 700 configured. Table and PNGs under cetus ~/sensys_wt/safety_envelope_paper/analysis/sensys_nov27_j2/.
+
+### 2026-10-18 11:42: overtake landing v3 complete (sensys_nov27_ov3, 43 km/h, 210 runs, 0 unusable)
+
+| arm | 0 | 100 | 200 | 300 | 400 | 500 |
+|---|---|---|---|---|---|---|
+| oracle (3 seeds; also 50, 150, 700, 1000) | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| contract | 0.90 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 |
+| naive | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| ETSI | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+
+- Naive and ETSI: every seed a progress failure at the step cap (naive with self-ghost brakes, 8 to 24 episodes per cell; ETSI by creeping behind its own beacon track with no brake). Contract: one zero-delay near-field self-ghost, otherwise clean; no collision in any contract or oracle seed. The oracle completed 1.00 to 1000 ms.
+- Measured-age envelope (critical p99 axis): contract tau_max 825 ms (the sweep's top bin, not a boundary), oracle 1125, naive and ETSI below the first bin; figure and table under safety_envelope_paper/analysis/sensys_nov27_ov3/.
+- campaign_check gates (written for the junction's expected shapes) report FAIL on three gates; the overtake's naive and ETSI curves are flat at zero by the standstill self-echo mechanism, so the junction-shaped gates do not apply here. Gate lines:
+    == shape gates
+    FAIL G1 blind_overtake_edge_late_fusion 43 km/h N=1 {"behavior.start_hold_ticks": 90, "prediction_steps": 60} late_fusion/off: P(S_op) at 0 ms is 0.00 [-0.00,0.28], expected near 1
+    FAIL G2 blind_overtake_edge_late_fusion 43 km/h N=1 {"behavior.start_hold_ticks": 90, "prediction_steps": 60} late_fusion/on: 2 self-ghost episodes at 0 ms with the contract on
+    FAIL G1 blind_overtake_edge_late_fusion 43 km/h N=1 {"behavior.start_hold_ticks": 90, "prediction_steps": 60} late_fusion_etsi_self_announcement/off: P(S_op) at 0 ms is 0.00 [-0.00,0.28], expected nea
+    
+    == effect gates (reviews/expected_effects.md)
+    no new-evaluation cells yet
+- Landing timeline (system clock): launched 02:36, done 11:38, 13 startup retries all succeeded. A CarlaUE4 process (PID 2526110) is idle on port 2000; the next runner restarts it.
+- Open: Tyler's baseline decision (as built vs 1 m vehicle-side self-filter with a naive/ETSI rerun everywhere); the 20-seed top-up of the contract 0 ms cell; the scaling, mixed and faults stages (junction, planned on atlas next).
