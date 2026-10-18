@@ -9,7 +9,7 @@ Reads every run_*/simulation_metrics.json under experiment_results/*/<stamp>/,
 reduces each run with scripts/recompute_metrics.compute_run_metrics, and prints:
 
   1. integrity gates per run set (error-path files, short runs, missing focal,
-     per-tick CSV present when the run asked for it, edge frame time);
+     per-tick CSV present when the run asked for it, edge compute time, the sum of the profiled stages);
   2. per-cell P(S_op) with Wilson 95% intervals, ghost and false-brake episode
      counts, collisions, S_prog failures, mean focal speed;
   3. shape gates that every arm must satisfy before the campaign continues
@@ -99,6 +99,13 @@ def load_runs(root, stamp):
         row.update(r)
         row["frames"] = e.get("total_frames", 0)
         row["edge_ms"] = e.get("timing_avg_ms", float("nan"))
+        # The profiler frame wraps the whole in-process step (vehicle and RSU
+        # perception, planning, control, ground-truth logging) when the sim runs
+        # in one process: timing_avg_ms is the step, not the edge. The edge's own
+        # work is the sum of its profiled stages.
+        stages = ("feature_collection_avg_ms", "fusion_avg_ms", "detection_avg_ms",
+                  "tracking_avg_ms", "prediction_avg_ms", "distribution_avg_ms")
+        row["edge_compute_ms"] = sum(e.get(k, 0.0) or 0.0 for k in stages) if e else float("nan")
         row["N"] = d.get("config_ego_count", 1)
         row["lat"] = int(d.get("config_latency_ms", 0) or 0)
         _kv = dict(d.get("config_edge_kv") or {})
@@ -351,7 +358,7 @@ def main(argv=None):
     ap.add_argument("--april", default=os.path.join(ROOT, "safety_envelope_paper", "experiment_results", "20260419_120000"))
     ap.add_argument("--threshold", type=float, default=0.8)
     ap.add_argument("--stage2", type=int, default=10, help="seeds to add to cells whose interval straddles the threshold")
-    ap.add_argument("--max-edge-ms", type=float, default=80.0, help="edge frame time above which a run set is flagged")
+    ap.add_argument("--max-edge-ms", type=float, default=80.0, help="edge compute time (sum of profiled stages) above which a run set is flagged")
     a = ap.parse_args(argv)
 
     runs = load_runs(a.root, a.stamp)
@@ -376,13 +383,16 @@ def main(argv=None):
         fails += 1
     by_set = collections.defaultdict(list)
     for r in good:
-        by_set[(r["geom"], r["mgr"], r["N"])].append(r["edge_ms"])
+        by_set[(r["geom"], r["mgr"], r["N"])].append((r["edge_compute_ms"], r["edge_ms"]))
     for k, v in sorted(by_set.items()):
-        v = [x for x in v if x == x]
-        if v:
-            med = sorted(v)[len(v) // 2]
+        comp = sorted(x for x, _ in v if x == x)
+        step = sorted(y for _, y in v if y == y)
+        if comp:
+            med = comp[len(comp) // 2]
+            med_step = step[len(step) // 2] if step else float("nan")
             flag = "WARN" if med > a.max_edge_ms else "ok  "
-            print(f"{flag} edge frame time {k[0]} {k[1]} N={k[2]}: median {med:.0f} ms over {len(v)} runs (April: 25 to 37 ms)")
+            print(f"{flag} edge compute {k[0]} {k[1]} N={k[2]}: median {med:.0f} ms over {len(comp)} runs "
+                  f"(whole in-process step incl. vehicle/RSU perception and planning: {med_step:.0f} ms; April: 25 to 37 ms)")
 
     # 2. cells
     cells = cells_of(good)
