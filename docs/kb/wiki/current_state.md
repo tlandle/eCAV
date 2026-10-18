@@ -7029,3 +7029,19 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 - ETSI (late_fusion_etsi_self_announcement) at 0 ms: 0.00 in the 7 seeds landed, no self-ghost brake, no collision: the hero creeps at 0.4 to 1.4 m/s from x 317 to 284 over the 900 ticks behind its own beacon track (722 ticks with that track 0.0 m from the beacon, speed 0, under the rotating temporary identifiers), never commits the overtake, and fails on progress. The self-announcement rule omits sensor detections that match a beacon; the beacon's own track is published as in the naive arm (the manager's docstring: "beacons still reach the edge as rows, exactly as in the no-contract late-fusion arm").
 - What the non-contract arms do about their own echo, as built: nothing spatial. The vehicle drops edge objects whose identifier equals its CARLA id (behavior_agent, edge_preds_ego_filtered); the edge-side proximity, footprint and swept-path suppression is inside the anchoring branch; no planner-side radius exists. The contract maps temporary identifiers back to the CARLA id at the edge, so the contract hero filters its own track. At the junction the own-track echo is harmless because the hero is always moving (echo at or behind it); the overtake's standstill exposes it at every age.
 - Paper text to reconcile (Tyler's call): system_architecture lists "proximity filters (r-gates) ... and planner-side self-filtering" as heuristics that reduce but do not eliminate duplicates, and evaluation3 speaks of "spatial self-identification" without SBA (the GNSS-noise study). The as-built naive and ETSI arms have no such filter. Two options: (a) report the as-built arms (overtake naive and ETSI flat at 0.00 at every age; text states the identifier-rotation mechanism and that a vehicle-side 1 m filter would only move the failure to the displaced echo at age, per the paper's own argument); (b) define the non-contract baselines with a 1 m vehicle-side spatial self-filter, which is a code change to the baseline and, under one code version per stage, a rerun of every naive and ETSI cell in all three geometries (about 1,440 runs across both hosts, 2 to 3 days). The junction cells would most likely repeat (the echo sits within 1 m only at ages below the cliff, where those cells are already 1.00); the overtake naive curve would then show an age cliff near 100 ms instead of zero. No change is made without the decision; the ETSI stage completes as built (ends about 11:15).
+
+### 2026-10-18 10:08: measured-age envelope, atlas junction stamp (sensys_nov27_j2, critical p99 age at use, 50 ms bins)
+
+tau_max at P = 0.8 on the measured axis (ms), naive / contract / ETSI / oracle:
+
+| geometry | km/h | naive | contract | ETSI | oracle |
+|---|---|---|---|---|---|
+| left turn | 38 | 425 | 825 | 425 | 1625 |
+| left turn | 53 | 425 | 825 | 275 | 2175 |
+| left turn | 70 | 325 | 575 | 325 | 475 |
+| SCP | 38 | 475 | 775 | 475 | 1125 |
+| SCP | 53 | 475 | 575 | 575 | 625 |
+| SCP | 70 | 275 | 525 | 275 | 525 |
+
+- The measured p99 age exceeds the configured delay by the planner's hold of unrefreshed tracks (median per-run p99 350 to 580 ms across arms), so these values sit above the configured cliffs. The V2X arms were swept to 500 ms configured (top bin about 825 ms) and the oracle to 1000 ms, so a V2X tau_max of 775 to 825 is the sweep's ceiling, not a measured boundary; the figure must say so or the V2X sweep must be extended where the contract has not failed by 500 ms (left turn 38 and 53, SCP 38).
+- At 70 km/h the contract's measured budget equals the oracle's (SCP 525 vs 525; left turn 575 vs 475) and the naive/ETSI budgets are 250 ms shorter. Table and PNGs under safety_envelope_paper/analysis/sensys_nov27_j2/.
