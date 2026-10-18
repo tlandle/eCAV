@@ -229,6 +229,21 @@ def compute_run_metrics(d):
     # radius is relabelled by the match: the run's conflict actor gives
     # true_positive, any other actor other_fp.
     _conflict_id = _conflict_actor_id(d)
+    # The other managed CAVs of a multi-vehicle run cross the junction on
+    # their own routes; the run-time labeller tags a track near any managed
+    # CAV 'ego' (the same range-limited snapshot defect), so the focal's
+    # brakes for a crossing CAV are classed self_ghost while the labeller's
+    # full-world match names that CAV (N=4 smoke, Oct 18: eleven brakes on
+    # cav3 at 0.1 to 1.8 m). A match to another managed CAV is a brake for a
+    # real vehicle: true_positive, as the labeller's own 'cross_ego' class
+    # says when the match lies beyond its 3 m gate. At N=1 the managed set is
+    # the focal alone, so the N=1 stages are unchanged.
+    _managed = set()
+    for _k in (d.get("vehicles") or {}).keys():
+        try:
+            _managed.add(int(_k))
+        except (TypeError, ValueError):
+            pass
     for attr in ba:
         _raw0 = attr.get("gt_brake_class")
         _mid = attr.get("gt_matched_actor_id")
@@ -238,10 +253,13 @@ def compute_run_metrics(d):
         # edge frames of lag at the crossing: 3.3 to 4 m at 63 km/h and 200 ms,
         # Oct 17), 3 m for any other actor.
         _is_conf = (_conflict_id is not None and _mid is not None and int(_mid) == int(_conflict_id))
+        _is_cav = (_mid is not None and int(_mid) in _managed and int(_mid) != ego_actor_id)
         if (_raw0 == "self_ghost" and _mid is not None and int(_mid) != ego_actor_id
                 and _mdist is not None and float(_mdist) < (6.0 if _is_conf else 3.0)):
             if _is_conf:
                 attr["gt_brake_class"] = "true_positive"; attr["gt_provenance"] = "conflict_actor_match"
+            elif _is_cav:
+                attr["gt_brake_class"] = "true_positive"; attr["gt_provenance"] = "cross_ego_match"
             else:
                 attr["gt_brake_class"] = "other_fp"; attr["gt_provenance"] = "non_ego_match"
             reclassified += 1
