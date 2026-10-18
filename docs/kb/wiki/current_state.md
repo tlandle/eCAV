@@ -7018,3 +7018,8 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 - Naive (10 seeds x 6 delays): 0.00 at 0, 100, 200, 300, 400 and 500 ms; every one of the 60 seeds a self-ghost stall to the 900-tick cap (one collision at 100 ms besides). Ghost episodes per cell 8, 7, 8, 18, 10, 24. The overtake's naive curve is flat at zero: the stopped hero deadlocks on its own beacon track republished under a rotated temporary identifier at any age (mechanism in the 14:30-labelled block above). 150 runs, 0 unusable, ten startup retries all succeeded.
 - ETSI stage (late_fusion_etsi_self_announcement, 10 seeds x 6 delays) started 08:33, ends about 11:15. Open question it answers: whether omitting detections that match a beacon also removes the beacon's own track at standstill.
 - Cetus: 70 km/h infra_only at run 86 of 100, then gate and VIPS.
+
+### 2026-10-18 08:56: cetus 70 km/h I2V block (left turn, infra_only, 10 seeds x 10 delays)
+
+- I2V object sharing at 70 km/h: 1.00 / 0.80 / 1.00 / 0.90 / 1.00 / 0.90 / 0.00 / 0.30 / 0.00 / 0.00 at 0 / 50 / 100 / 150 / 200 / 300 / 400 / 500 / 700 / 1000 ms. The boundary is the oracle's (oracle 1.00 to 300, 0.00 at 400 by collision; I2V 10 collisions at 400). The sub-1.00 cells below the boundary are single self-ghost episodes (2, 1, 1 seeds at 50, 150, 300 ms), the arm's own launch-time duplicate recorded at the gate. Top-up band: 50, 150, 300, 500 ms.
+- Cetus driver now on the 70 km/h gate stage (late_fusion with the Mahalanobis gate, with and without the contract, 200 runs), then VIPS. 1558 runs, 0 unusable.
