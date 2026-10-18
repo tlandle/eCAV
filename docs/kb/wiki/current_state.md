@@ -6883,3 +6883,14 @@ Top-up at 27 of 34 cells; one void (SCP contract 38 km/h 400 ms run 15, error-pa
 ## 2026-10-17 21:45: atlas top-up complete (34 transition cells at 20 seeds); campaign_check PASS
 
 Cells that moved most with ten more seeds: SCP contract 53 km/h 400 ms 0.20 to 0.10 (18 collisions of 20) and 500 ms 0.50 to 0.45 (11); SCP contract 70 km/h 400 ms 0.40 to 0.60 (7 collisions) and 500 ms 0.60 to 0.70 (6); SCP naive 38 km/h 500 ms 0.40 to 0.20 (34 ghost episodes); scenario_3 contract 70 km/h 500 ms 0.60 to 0.70 (6 collisions). The 400 to 500 ms partial recovery of the contract arm persists at 20 seeds on both geometries at 53 and 70 km/h. Identity cliffs unchanged: naive 38 and 53 0.75 to 0.80 at 300 then 0.00 at 400; ETSI 38 0.55 at 300 (9 episodes), 53 0.75 and 0.85 at 200 and 300. Low-delay plateaus of 0.85 to 0.95 are one to four other_fp brakes per 20 runs. One void (SCP contract 38 400 ms run 15) is redone now by resume; the overtake identity landing follows on atlas.
+
+## 2026-10-17 21:50: relabel radius 6 m for the conflict actor (0970476f); atlas tables final under the rule
+
+The cetus SCP contract cell at 63 km/h and 200 ms read 0.00 with ten "false brakes": all three attributions per run matched the crossing car at 3.3 to 4.0 m (the pipeline's position error plus up to two edge frames of lag at the crossing), outside the 3 m relabel radius, so they stayed self_ghost and became other_fp. The radius is now 6 m when the match is the run's conflict actor (3 m otherwise); the cell reads 1.00. The atlas-speed V2X table under the rule (P, with other_fp brakes f and collisions c; n 10 or 20):
+- scenario_3 naive: 38 0.95, 1.00, 0.95, 0.75, 0.00, 0.00; 53 0.90, 0.95, 0.85, 0.80, 0.00, 0.00; 70 1.00, 1.00, 0.00, 0.00, 0.00, 0.00.
+- scenario_3 contract: 38 1.00 x5, 0.90 (f2); 53 1.00, 0.95, 1.00, 0.85 (f4), 0.85 (f4), 0.85 (f3); 70 1.00, 1.00, 1.00, 0.95, 0.10 (c8), 0.70 (c6).
+- scenario_3 ETSI: 38 0.95, 1.00, 1.00, 0.55, 0.00, 0.00; 53 1.00, 1.00, 0.75 (f3), 0.85, 0.00, 0.00; 70 1.00, 0.95, 0.00, 0.00, 0.00, 0.00.
+- SCP naive: 38 1.00, 1.00, 0.95, 0.80, 0.00, 0.20; 53 1.00, 1.00, 0.95, 0.65, 0.00, 0.00; 70 1.00, 1.00, 0.00, 0.00, 0.00, 0.00.
+- SCP contract: 38 0.95, 1.00, 1.00, 1.00, 0.95, 1.00; 53 1.00 x4, 0.10 (c18), 0.45 (c11); 70 1.00 x4, 0.60 (c7), 0.70 (c6).
+- SCP ETSI: 38 1.00, 1.00, 1.00, 0.85, 0.00, 0.10; 53 1.00, 1.00, 1.00, 0.75, 0.00, 0.00; 70 1.00, 1.00, 0.00, 0.00, 0.00, 0.00.
+The contract arm's 0.85 plateau at 53 km/h and 300 to 500 ms on the left turn is three to four unnecessary brakes per 20 runs on the car's stale state after it has crossed (the hero arrives after the car at 53), the age-induced unnecessary-brake class also seen for the oracle at 2 s. Overtake identity landing started on atlas at 21:45 (run 1 of 120).
