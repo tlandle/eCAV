@@ -83,6 +83,20 @@ def route_start_waypoint(carla_map, location, ego_yaw, route_waypoints):
                          "starting from route waypoint %d/%d", nearest.road_id,
                          nearest.lane_id, wpt.road_id, wpt.lane_id)
             return wpt
+    # No aligned route waypoint ahead either: take an adjacent driving lane
+    # of the nearest one that points the way the vehicle is heading. The
+    # global-route reset can fire while the vehicle is still in the opposing
+    # lane of an overtake (its short overtake path is consumed before the
+    # subject is passed); a route traced from that lane runs back behind the
+    # vehicle, the planner steers a U-turn into it and leaves the road
+    # (blind overtake, 2026-10-17: five of ten seeds at 300 ms, one at zero).
+    for adj in (nearest.get_left_lane(), nearest.get_right_lane()):
+        if adj is not None and adj.lane_type == carla.LaneType.Driving \
+                and aligned(adj):
+            logger.warning("route start: nearest lane %d/%d points against the "
+                           "heading; starting from adjacent lane %d/%d",
+                           nearest.road_id, nearest.lane_id, adj.road_id, adj.lane_id)
+            return adj
     return nearest
 
 def will_prediction_collide_with_ego(
@@ -1239,6 +1253,11 @@ class BehaviorAgent(object):
     # the linear predictor both emit at this step; used to turn a per-step
     # displacement into a closing speed for the overtake ETA.
     _PRED_STEP_S = 0.2
+    # Seconds the overtake gate keeps a lost oncoming vehicle (see
+    # _nearest_oncoming_ahead); longer than the edge tracker's max_age
+    # (6 ticks) by design, shorter than the sight window (6 s at 12 m/s).
+    ONC_HOLD_S = 2.0
+    _onc_hold_dt = 0.05   # planner step period (s)
 
     def _subject_passed(self, margin_m: float = 3.0) -> bool:
         """True when the committed overtake subject is behind the ego by
@@ -1330,6 +1349,27 @@ class BehaviorAgent(object):
                     round(getattr(obs, 'kf_speed_mps', float('nan')), 2),
                     int(getattr(obs, 'carla_id', -1)),
                 )
+        # Hold the last observed oncoming vehicle while its track lapses. The
+        # edge tracker drops a car for 0.5 to 1.2 s where the view hands over
+        # from a roadside unit behind it to one ahead of it (detections
+        # continue; the 2 m association gate and min_hits restart the track),
+        # and an absent track read as a clear lane committed the overtake into
+        # the car (blind overtake 2026-10-17, three of ten seeds at zero
+        # delay). The held vehicle advances at its last speed plus the ego's;
+        # the hold expires after ONC_HOLD_S or once the vehicle would have
+        # passed.
+        if best != float('inf'):
+            self._onc_hold = (self._step_count, best, best_speed)
+            return best, best_speed
+        hold = getattr(self, '_onc_hold', None)
+        if hold is not None:
+            t0, d0, v0 = hold
+            dt = (self._step_count - t0) * self._onc_hold_dt
+            if 0.0 <= dt <= self.ONC_HOLD_S:
+                d = d0 - (v0 + max(self._ego_speed, 0.0) / 3.6) * dt
+                if d > 0.5:
+                    return d, v0
+            self._onc_hold = None
         return best, best_speed
 
     def overtake_management(self, obstacle_vehicle, set_destination=True):
