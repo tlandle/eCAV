@@ -6925,3 +6925,9 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 
 - dbg_ov_fix2 0 ms seed 2 died at 274 edge frames with "time-out of 10000ms while waiting for the simulator" in its stdout and still wrote a metrics file that read as a success (9 m travelled, no overtake). MIN_EDGE_FRAMES (100) did not catch it. No recorded run in any campaign stamp on atlas or cetus carries that signature (grep over every runner_stdout.txt), so the stage results stand.
 - test_runner.py: a run whose stdout tail carries the signature is void (retry once with a simulator restart; not completed for --stamp resume). campaign_check.py marks such runs unusable ("simulator time-out"). The smoke-2 runner process predates the edit, so its seed 2 stays void in the smoke stamp; the landing's runner invocations load the new rule. Ship the commit to cetus before its top-up and extension resume.
+
+### 2026-10-18 01:50: smoke 2 passed; overtake landing v2 launched
+
+- dbg_ov_fix2 (contract, planner at 582afd3f): 0 ms 4 of 4 valid seeds clean (seed 2 void, simulator time-out), 300 ms 5 of 5 clean. Gate behaviour identical across seeds: need 76 m, WAIT on the visible oncoming car at 35 to 55 m, GO only once no oncoming track remains, route reset from (249.2, 195.2) after the merge-back. The chain's gate passed (10 metrics files, none collided, off-road or capped) and launched the landing at 00:18:49 log clock.
+- Landing v2 running on atlas, stamp sensys_nov27_ov2: oracle 3 seeds x 10 delays (30 runs), then late_fusion anchoring both (naive, contract) 10 seeds x 6 delays (120), then ETSI (60); about 6 h. Log logs/ov2_atlas.log. Code: sandbox develop 26fbc53f (planner 582afd3f).
+- Supersedes sensys_nov27_ov1 entirely (old RSU layout, pre-fix planner); ov1 stays on disk as the defect record only.
