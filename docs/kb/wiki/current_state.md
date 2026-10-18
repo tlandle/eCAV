@@ -7083,3 +7083,8 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
     no new-evaluation cells yet
 - Landing timeline (system clock): launched 02:36, done 11:38, 13 startup retries all succeeded. A CarlaUE4 process (PID 2526110) is idle on port 2000; the next runner restarts it.
 - Open: Tyler's baseline decision (as built vs 1 m vehicle-side self-filter with a naive/ETSI rerun everywhere); the 20-seed top-up of the contract 0 ms cell; the scaling, mixed and faults stages (junction, planned on atlas next).
+
+### 2026-10-18 11:46: multi-ego YAMLs aligned; scaling and faults chain launched on atlas
+
+- The 2/4/8/16-ego and mixed junction YAML variants carried the pre-fix planner block (overtake_allowed true in some CAV blocks, collision_time_ahead 2, buffer_size 16 -> 12). Commit 1d0adcc4 sets them to the base's values (false / 3 / 16). The variants' cav1 has no spawn_position (the hero comes from scenario_3_occluded.xml at y=30 like the base); the extra CAVs spawn from the YAML. The old driver scripts/sensys_campaign.sh lacks the per-speed trigger map and the campaign knobs, so the stages run from an explicit chain (job tmp atlas_chain_scale.sh, log logs/scale_atlas.log).
+- Chain: smoke dbg_scale (LT 4-ego x2, SCP 4-ego x2, LT 16-ego x1; contract, 200 ms) -> gate (all five complete) -> scaling (stamp sensys_nov27_j2: LT N 2 4 8 16, SCP N 4; contract and naive 5 seeds, ETSI 5, oracle 3; 100 / 200 / 400 ms; 270 runs) -> faults (both geometries at N=4, 200 ms, 5 seeds; 16 fault levels x naive, contract, ETSI, plus ValidBeacon on for the contract; 640 runs). Same flags as the landing (TTA 7.0 / 8.0 at 70 km/h, prediction_steps 60, curv_lat_accel 8).
