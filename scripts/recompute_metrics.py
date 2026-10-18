@@ -248,6 +248,24 @@ def compute_run_metrics(d):
         _raw0 = attr.get("gt_brake_class")
         _mid = attr.get("gt_matched_actor_id")
         _mdist = attr.get("gt_match_dist_m")
+        # The run-time labeller's closest-approach test is undefined while
+        # the focal stands (gt_dca_m inf, gt_t_ca_s -1), and it then classes
+        # a brake other_fp whatever the match. A focal holding at a lane edge
+        # for another managed CAV passing within 3 m is braking for a real
+        # vehicle (oracle N=8, Oct 18: 7 to 96 such brakes per seed on the
+        # westbound follower; the V2X arms' brakes on the same vehicle arrive
+        # as raw self_ghost and are relabelled true_positive by the cross-ego
+        # rule below, so without this the oracle alone is scored false).
+        # Same 3 m radius as the cross-ego rule; the conflict actor is left
+        # out so the physics boundary (stale state of the conflict car) is
+        # untouched.
+        _dca = attr.get("gt_dca_m")
+        _stopped = _dca is None or _dca == "inf" or (isinstance(_dca, float) and _dca == float("inf"))
+        if (_raw0 == "other_fp" and _stopped and _mid is not None and int(_mid) != ego_actor_id
+                and int(_mid) in _managed and _mdist is not None and float(_mdist) < 3.0):
+            attr["gt_brake_class"] = "true_positive"; attr["gt_provenance"] = "held_for_cav"
+            reclassified += 1
+            _raw0 = "true_positive"
         # Match radius: 6 m when the match is the run's conflict actor (its
         # published state carries the pipeline's position error plus up to two
         # edge frames of lag at the crossing: 3.3 to 4 m at 63 km/h and 200 ms,
