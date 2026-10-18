@@ -7007,3 +7007,8 @@ Contract (late_fusion on): 0.60 at 0 ms (4 collisions, 1 stall), 0.90 at 100 (1 
 
 - The times in today's earlier headings (01:50 through 15:10) were estimates that ran ahead of the system clock by up to nine hours; their order is right, their values are not. From here headings carry the system clock.
 - Landing v3 timing (system clock): launched 02:36; oracle stage to about 04:05; contract stage 04:05 to 05:30 (about 2 min per run); naive stage from 05:33 (2.5 min per run, every run to the 900-tick cap) ending about 07:45; ETSI 60 runs ending about 10:15. Four startup retries so far, all succeeded, 100 runs, 0 unusable.
+
+### 2026-10-18 06:45: cetus SCP ETSI complete; cetus moves to the 70 km/h I2V, gate and VIPS stages
+
+- SCP ETSI (10 seeds): 50 km/h 1.00 / 1.00 / 1.00 / 1.00 / 0.00 / 0.00 at 0 to 500 ms (20 ghost episodes at 400); 63 km/h 1.00 / 1.00 / 0.00 / 0.00 / 0.00 / 0.00 (21 at 200); 88 km/h 0.90 (one collision) / 1.00 / 0.00 / 0.00 / 0.00 / 0.00. Cell for cell the naive arm's numbers: the self-announcement rule's 2-tick beacon window does not cover the stale echo at any speed, as at the left turn. 1458 runs, 0 unusable.
+- Cetus driver now on the 70 km/h stages (infra_only 100 runs first, then gate and VIPS); the extension chain and the top-up follow.
