@@ -7192,3 +7192,15 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 
 - Cetus VIPS with contract (left turn, 70 km/h): 1.00 / 1.00 / 1.00 / 1.00 / 0.70 / 0.60 / 0.90 / 1.00 / 0.70 / 0.00 at 0 / 50 / 100 / 150 / 200 / 300 / 400 / 500 / 700 / 1000 ms (1000 at 8 seeds, all collisions). Its physics boundary lies between 700 and 1000 ms, against the oracle's 300 to 400: the rectification's reach. The sub-1.00 cells below 1000 are false-brake episodes only. The VIPS arm without the contract (100 runs) follows.
 - Atlas naive N=8 at 100 ms: 0.00 in the first three seeds (2 false-brake episodes, 3 collisions with crossing CAVs, 3 stalls to the cap), hero average 2.2 m/s.
+
+### 2026-10-18 16:28: scaling naive block (left turn, 70 km/h, 5 seeds) and the VIPS arms on cetus
+
+| N | 100 ms | 200 ms | 400 ms |
+|---|---|---|---|
+| 2 | 0.80 (1 coll) | 0.00 (8 ghost) | 0.00 (9 ghost) |
+| 4 | 0.00 (5 fp) | 0.00 (4 ghost, 5 fp) | 0.00 (5 ghost, 5 fp) |
+| 8 | 0.00 (3 fp, 5 coll, 4 stalls) | 0.60 (2 ghost, 1 stall) | 0.00 (2 seeds so far) |
+
+- The naive arm's identity cliff holds at 200 ms at every N (self-ghost episodes from 200 ms on), as at N=1; at N=4 the phantom false brakes add to it from 100 ms, and at N=8 the hero also collides with crossing CAVs and stalls at 100 ms. Contract versus naive at N=2 and 400 ms: 1.00 against 0.00 by self-ghosts, the identity effect visible at scale once the false-brake class is read separately.
+- Cetus VIPS with contract complete: 1000 ms 0.00 (10 collisions). VIPS without contract: 1.00 at 0, 50, 100, 150 ms and 3 of 3 at 200 so far; the comparison with the plain naive arm (1.00 at 0 to 100, 0.10 at 200 at N=1 on atlas) comes with its 200 to 300 ms cells.
+- Atlas: ETSI block (45 runs) starts after run 90, then oracle (27) and SCP N=4 (54).
