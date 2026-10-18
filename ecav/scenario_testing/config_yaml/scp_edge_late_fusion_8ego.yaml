@@ -298,7 +298,7 @@ scenario:
         # NHTSA: SCP-with-NS
         - <<: *vehicle_base
           name: cav2
-          spawn_position: [-88.1, 72.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), behind the hero
+          spawn_position: [-88.1, -14.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), behind the hero
           destination: [-88.6, 155.0, 0.5]  # Road 69 lane 3, straight north
           sensing:
             <<: *base_sensing
@@ -409,7 +409,7 @@ scenario:
         # Road 4 lane -2 NB, same y as hero
         - <<: *vehicle_base
           name: cav5
-          spawn_position: [-88.1, 80.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB, adjacent to hero
+          spawn_position: [-88.1, 30.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB, adjacent to hero
           destination: [-84.8, 200.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -447,7 +447,7 @@ scenario:
         # Road 23 lane -1 EB inner (Driving), 6m behind cav2
         - <<: *vehicle_base
           name: cav6
-          spawn_position: [-88.1, 64.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), behind the hero
+          spawn_position: [-88.1, -22.0, 1.0, 0, 90, 0]  # Road 4 lane -2 NB (second northbound lane), behind the hero
           destination: [-88.6, 155.0, 0.5]  # Road 69 lane 3, straight north
           sensing:
             <<: *base_sensing
