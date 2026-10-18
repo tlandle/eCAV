@@ -7111,3 +7111,7 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 ### 2026-10-18 12:15: where the edge frame time goes (N=4 contract run)
 
 - Profiled stages at N=4 sum to about 26 ms (detection ingest 4.1, distribution 5.5, feature collection 0.8, fusion 0.0, prediction 1.3, tracking 13.9) against a 243 ms frame: about 217 ms per frame lies outside the profiled stages. Candidates in the edge tick: the per-tick age logger, the ego-gate and duplicate-track monitors (a loop over every prediction for every managed vehicle and every live actor), the ground-truth snapshot and nearest-actor checks in the publish-time suppression. These scale with agents x predictions x actors, which matches the 50 ms per agent. They are campaign instrumentation, not the pipeline, and cost wall time only; the fix is to profile that path once and gate the monitors on a flag before the N=8 and 16 cells.
+
+### 2026-10-18 12:16: N=8 deferral was a threshold error; N=8 cells queued
+
+- The single-vehicle junction runs end at about 290 frames with 72 to 73 m travelled (the hero's route to its destination), so the 8-ego smoke (328 frames, 73.7 m, no collision, 7.4 m/s average against 9.8) was a normal completion; the chain's gate asked for more than 100 m and deferred it wrongly. Only N=16 stays deferred (column in the hero's lane, 0.9 s per edge frame). Chain atlas_chain_n8.sh waits for chain 3 (scaling N 2 and 4, then faults) and then runs the N=8 left-turn cells (54 runs, about 4 h, stamp sensys_nov27_j2; log logs/n8_atlas.log).
