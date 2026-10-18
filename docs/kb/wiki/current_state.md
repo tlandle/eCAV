@@ -7167,3 +7167,13 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 
 - Left turn, 70 km/h, contract, 200 ms, tick-by-tick: both RSUs detect the crossing car every tick (1 to 2 m apart), yet the edge's AB3DMOT track of it stops updating once during the crossing (generation tick frozen, published speed 0, age climbing 250 to 450 ms over five ticks), is dropped for six to ten ticks, and is reborn as a new track with a low speed estimate for several ticks. At N=1 the freeze starts at edge tick 114 (car at x=-59), after the hero's hazard decision at tick 115 on the live track (TTC 2.1 s), and the hero clears. At N=2 the freeze starts at tick 106 (x=-55), inside the decision window; the hero sees a stationary car until 121 and a 7 to 9 m/s reborn track until 128, decides at 135 with TTC 1.2 s, and collides. Paired seeds give identical brake ticks and TTCs: the runs are deterministic per configuration, so the five seeds of a cell are one trajectory with sensor noise only, and the N=1 cell's 0.80 is two deterministic variants, not a rate.
 - Mechanism: the two masts' discordant faces of the car at a 2 m association gate (thres 2.0, max_age 6) restart its track, the same handover restart measured in the overtake; the restart's timing shifts with any change to the edge's input (here cav2's beacon and uploads), which is why N=2 flips the 200 ms cell and why the cells are not monotone in N. The contract does not address track continuity. Recorded as measured; a tracker change (gate or max_age) would be a campaign-wide rerun and is Tyler's call.
+
+### 2026-10-18 14:40: scaling contract block (left turn, 70 km/h, relocated layouts, 5 seeds)
+
+| N | 100 ms | 200 ms | 400 ms |
+|---|---|---|---|
+| 2 | 0.60 (2 coll) | 0.00 (5 coll) | 1.00 |
+| 4 | 0.00 (5 fp) | 0.60 (2 fp) | 0.00 (4 fp, 3 seeds so far) |
+| 8 | 0.40 (1 fp, 3 coll, 3 stalls) | 1.00 | pending |
+
+- Not monotone in N or in delay, as the two mechanisms above predict: collisions when the crossing car's track restart overlaps the decision window (deterministic per configuration), false brakes on static false positives uploaded by the added vehicles under the 3 s horizon, and at N=8 contact with crossing CAVs at the junction. The N=1 contract reads 1.00 / 0.80 / 0.10 at the same delays. Naive, ETSI and oracle blocks at N 2, 4, 8 and the SCP N=4 cells follow in the stage.
