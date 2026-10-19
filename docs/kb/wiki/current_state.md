@@ -7322,3 +7322,31 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
   - Blind overtake 43 km/h: >1125 / >825 (censored; the overtake sweep ends at 1,000 ms configured).
 - Reading. With the extension no junction oracle point is censored. SCP is monotone in speed (1125 to 375 ms). The left turn is not monotone below 70 km/h (50 and 38 below 53 and 63): three seeds per configured delay spread over 50 ms bins at 1.5 to 2.2 s measured age, and the 50 km/h interval [875, 2125] spans the whole band; the four low-speed points share a budget of 1.2 to 2.2 s and the figure should say so rather than draw a trend through them. The two-regime shape stands: budgets above 1 s at 63 km/h and below on the left turn, 625 to 1125 ms on SCP, and 325 to 525 ms at 70 and 88 km/h on both. The contract arm needs the sweep beyond 1 s at the low speeds to be measured rather than censored (five cells); that is a top-up question for Tyler (contract at 38, 53, 63 km/h left turn and 38, 63 SCP at 1.5 to 3 s, ten seeds each, about 250 runs).
 - Outputs refreshed in safety_envelope_paper/analysis/fig_situation/ (fig_situation.pdf/png, fig_situation_tau.csv, thr_0.9/, thr_0.95/).
+
+### 2026-10-19 14:00: faults stage complete on atlas (chain 5 done 13:52); N=16 chain started with the current layout
+
+- Faults stage: LT and SCP, N=4, 200 ms, five seeds; naive, ETSI, contract without and with ValidBeacon (vb); knobs beacon_fault_clock_offset_ms 50/100/200/400, beacon_fault_delay_ticks 1/2/4/8, beacon_fault_loss_rate 0.1/0.3/0.5/0.7, beacon_fault_pos_noise_m 0.5/1/2/4. No-fault references (scaling stage, N=4 200 ms): LT contract 0.60, naive 0.00, ETSI 0.40; SCP contract 0.80, naive 0.00, ETSI 0.00. campaign_check: 2,491 runs, 1 unusable (the OOM seed), E3 PASS on every ValidBeacon rejection check (rejections > 0 in every run at every noise level, both geometries).
+- P(S_op), contract off / contract vb (ghosts g, false brakes fp, collisions c where they decide the cell):
+
+  | knob | level | LT contract off / vb | LT naive | LT ETSI | SCP contract off / vb | SCP naive | SCP ETSI |
+  |---|---|---|---|---|---|---|---|
+  | clock offset ms | 50 | 0.20 / 0.80 | 0.20 | 0.00 | 0.60 / 0.80 | 0.20 | 0.00 |
+  | | 100 | 0.60 / 0.40 | 0.00 | 0.20 | 0.80 / 1.00 | 0.20 | 0.20 |
+  | | 200 | 0.20 / 0.80 | 0.00 | 0.00 | 0.80 / 0.60 | 0.20 | 0.00 |
+  | | 400 | 0.40 / 0.40 | 0.00 | 0.20 | 0.40 / 0.80 | 0.20 | 0.20 |
+  | delay ticks | 1 | 0.40 / 0.00 (vb 5 c) | 0.00 (13 g) | 0.00 (14 g) | 1.00 / 0.80 | 0.00 (16 g) | 0.00 (12 g) |
+  | | 2 | 0.60 / 0.00 (vb 5 c) | 0.00 (11 g) | 0.00 | 0.80 / 0.20 (vb 4 c) | 0.00 (12 g) | 0.00 (13 g) |
+  | | 4 | 0.40 / 0.00 | 0.00 | 0.00 | 1.00 / 0.00 (vb 5 c) | 0.00 | 0.00 |
+  | | 8 | 0.00 (14 g) / 0.00 (12 g, 22 fp) | 0.00 (11 g) | 0.00 (13 g) | 0.00 (14 g) / 0.00 (22 g) | 0.00 (18 g) | 0.00 (10 g) |
+  | loss rate | 0.1 | 0.00 (5 fp) / 0.60 | 0.00 | 0.00 | 0.40 / 0.60 | 0.40 | 0.20 |
+  | | 0.3 | 0.40 / 0.20 | 0.00 | 0.00 | 0.40 / 1.00 | 0.00 (9 g) | 0.20 |
+  | | 0.5 | 0.00 (5 c) / 0.00 (4 c) | 0.00 | 0.00 | 0.40 / 0.80 | 0.00 | 0.00 |
+  | | 0.7 | 0.00 (5 c) / 0.00 (17 g, 75 fp, 4 c) | 0.00 | 0.00 (5 c) | 0.60 / 0.00 (8 g, 4 c) | 0.00 (9 g) | 0.80 |
+  | position noise m | 0.5 | 0.00 (5 c) / 0.00 (5 c) | 0.00 | 0.00 | 0.40 / 0.00 (4 c) | 0.00 | 0.00 |
+  | | 1.0 | 0.00 (5 c) / 0.00 (5 c) | 0.00 (5 c) | 0.00 (5 c) | 0.80 / 0.40 | 0.80 | 0.60 |
+  | | 2.0 | 0.00 (5 c) / 0.00 (7 fp) | 0.00 (5 c) | 0.00 (5 c) | 0.00 (5 c) / 0.00 (3 c, 3 stalls) | 0.00 (5 c) | 0.00 (5 c) |
+  | | 4.0 | 0.00 (5 c) / 0.00 (23 g, 25 fp) | 0.00 (5 c) | 0.00 (5 c) | 0.20 (4 c) / 0.00 (15 g) | 0.20 (4 c) | 0.00 (4 c) |
+
+- Against the E3 predictions. Delay without ValidBeacon behaves as predicted: the contract holds through 4 ticks (LT 0.40 to 0.60, SCP 0.80 to 1.00 against the no-fault 0.60 and 0.80) and fails at 8 ticks by self-ghosts (14 episodes), the window's edge; naive and ETSI ghost at every delay. ValidBeacon does the opposite of its purpose under delay: with the checks on, the contract collides in 5 of 5 LT seeds at 1 and 2 ticks and 5 of 5 SCP seeds at 4 ticks, and at 8 ticks it adds false brakes (22) to the ghosts. Position noise is not absorbed at 0.5 m on the left turn: every V2X arm collides in 5 of 5 seeds from 0.5 m (contract) or 1 m (naive, ETSI), with or without ValidBeacon, while SCP tolerates 1 m (contract 0.80). Loss: the contract degrades from 0.5 on LT by collisions, holds on SCP without the checks (0.40 to 0.60) and collapses with them at 0.7 (8 ghosts, 4 collisions). Clock offset: no monotone effect at five seeds on either geometry.
+- Two mechanisms to trace before the faults figure is written: (1) why a 0.5 m beacon position noise turns the LT contract cell from 0.60 into five collisions (which actor is struck, and whether the crossing car's track was present at the decision); (2) why rejected beacons (ValidBeacon) lead to collisions rather than ghosts at delays of 1 to 4 ticks. Both are N=4 200 ms left-turn cells with five seeds each; the brake and collision records of those runs are on disk.
+- Chain 5 ended 13:52 ("6 failing gates" are the known G6 false-brake lines at N=4). The N=16 chain started at 13:53 with the current layout (contract and naive 30 runs, then ETSI 15, oracle 9); the fix chain (ETSI N=2 200 ms seed 1) follows. Cetus top-up at 46 of 56 cells at 13:42.
