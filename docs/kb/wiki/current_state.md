@@ -7270,3 +7270,23 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 - SCP, 70 km/h, N=4, five seeds, P(S_op) at 100 / 200 / 400 ms with (ghost episodes, false-brake episodes, collisions, stalls): contract 1.00 / 0.80 (1 c) / 0.20 (1 g, 4 c, 1 stall); naive 0.60 (2 c) / 0.00 (2 g, 1 fp, 3 c) / 0.00 (9 g, 2 fp, 3 c, 1 stall).
 - Reading. On SCP at N=4 the identity effect is visible in the aggregate: 0.80 against 0.00 at 200 ms and no false-brake episode in any contract cell, unlike the left turn at N=4 where the added vehicles' static false positive beside the lane puts every V2X arm at 0.00 by false brakes at 100 ms. The naive arm collides at every delay (2, 3, 3 of 5) where the contract collides once at 200 ms; the naive ghosts rise from 0 to 9 episodes with delay as at N=1. At 400 ms both arms collide (4 and 3 of 5): the SCP physics boundary at 70 km/h and N=4 (the N=1 oracle budget on SCP at 70 is 525 ms measured, about 400 ms configured).
 - Chain 5 continues with SCP ETSI N=4 (15 runs, started 20:00), SCP oracle N=4 (9), then the faults stage.
+
+### 2026-10-18 20:50: scaling stage complete on atlas (chain 5); faults stage started 20:40
+
+- SCP N=4, five seeds (oracle three), P(S_op) at 100 / 200 / 400 ms with (ghosts, false brakes, collisions): ETSI 1.00 / 0.00 (5 g, 3 c) / 0.00 (10 g, 2 fp, 5 c); oracle 1.00 / 1.00 / 0.33 (1 fp, 2 c).
+- Scaling stage, all cells, P(S_op) at 100 / 200 / 400 ms (N=1 from the landing, ten seeds, oracle three; N>1 five seeds, oracle three):
+
+  | geometry | arm | N=1 | N=2 | N=4 | N=8 |
+  |---|---|---|---|---|---|
+  | left turn | oracle | 1.00 / 1.00 / 0.00 | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 | 0.33 / 0.67 / 0.67 |
+  | left turn | contract | 1.00 / 1.00 / 0.10 | 0.60 / 0.00 / 1.00 | 0.00 / 0.60 / 0.00 | 0.40 / 1.00 / 0.00 |
+  | left turn | naive | 1.00 / 0.00 / 0.00 | 0.80 / 0.00 / 0.00 | 0.00 / 0.00 / 0.00 | 0.00 / 0.60 / 0.00 |
+  | left turn | ETSI | 0.95 / 0.00 / 0.00 | 1.00 / 0.00 / 0.00 | 0.20 / 0.40 / 0.00 | 0.20 / 0.40 / 0.00 |
+  | SCP | oracle | 1.00 / 1.00 / 0.67 | | 1.00 / 1.00 / 0.33 | |
+  | SCP | contract | 1.00 / 1.00 / 0.60 | | 1.00 / 0.80 / 0.20 | |
+  | SCP | naive | 1.00 / 0.00 / 0.00 | | 0.60 / 0.00 / 0.00 | |
+  | SCP | ETSI | 1.00 / 0.00 / 0.00 | | 1.00 / 0.00 / 0.00 | |
+
+- Reading, by geometry. SCP: the identity effect holds in the aggregate at N=4 (contract 1.00 / 0.80 / 0.20 against naive 0.60 / 0.00 / 0.00 and ETSI 1.00 / 0.00 / 0.00; naive and ETSI ghost at 200 ms at every N, 5 to 11 episodes per cell; no contract cell has a false-brake episode). Left turn: the aggregate is masked twice, by the beside-lane static false positive at N=4 (every V2X arm 0.00 at 100 ms by false brakes, G6 FAIL lines, 12:xx and 13:12 blocks) and by the second westbound CAV at N=8 (the oracle itself 0.33 / 0.67 / 0.67 by collision, 19:17 block); where neither masks, the contract beats naive by ghosts: N=2 at 400 ms 1.00 against 0.00 (9 to 10 ghost episodes per five naive and ETSI runs), N=4 at 200 ms 0.60 against 0.00, N=8 at 200 ms 1.00 against 0.60 and 0.40.
+- The oracle's own column is not constant in N: left turn 400 ms reads 0.00 at N=1 (3 collisions) but 1.00 at N=2 and N=4; the added vehicles change the hero's approach (mean speed 10.1 m/s at N=2, 8.8 at N=4 against 9.8 at N=1), so the hero's arrival at the conflict moves relative to the crossing car and the N columns are not the same situation at the same delay. The scaling figure needs the oracle row at every N as its baseline and the S_op components, whichever layout decision Tyler takes for N=8 and N=16.
+- Integrity: 1,851 runs, one unusable (the OOM-killed ETSI N=2 200 ms seed, fix chain queued), no simulator time-out, no short run. Faults stage running (blocks of 10 and 5 runs; LT and SCP, N=4, 200 ms, five seeds; naive, contract, ETSI; loss, delay, clock offset, position noise, ValidBeacon on for the contract).
