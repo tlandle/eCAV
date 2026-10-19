@@ -7373,7 +7373,7 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 
 - Mirror re-synced (3,054 cetus metrics). The oracle points are unchanged (no oracle top-up); the contract arm moves only at the left turn 50 km/h (575 to 525 ms, interval [525, 775]); every other contract and naive tau is the same as the 04:12 rebuild. The censored contract points (left turn 38, 53, 63 km/h; SCP 38, 63) remain censored by the 1 s sweep. Outputs refreshed in safety_envelope_paper/analysis/fig_situation/ with thr_0.9 and thr_0.95.
 
-### 2026-10-19 16:45: N=16 contract and naive cells (current layout, atlas)
+### 2026-10-19 16:47: N=16 contract and naive cells (current layout, atlas)
 
 - Left turn, 70 km/h, N=16, five seeds, P(S_op) at 100 / 200 / 400 ms with (ghosts, collisions): contract 1.00 / 1.00 / 0.00 (5 c); naive 1.00 / 0.00 (5 g) / 0.00 (10 g, 5 c). Hero mean speed 9.5 to 10.6 m/s, as at N=1.
 - Reading. On the current 16-vehicle layout the hero meets neither the beside-lane static false positive that masks N=4 at 100 ms nor a crossing follower at its crossing time as at N=8: the column of eight sits 44 to 68 m behind, and the three westbound followers and four southbound crossers pass before or after the hero. The N=16 column is therefore the clean one: the identity effect reads 1.00 against 0.00 at 200 ms (five ghost episodes in five naive runs, none for the contract) and both arms collide at 400 ms, the N=1 physics boundary (contract 0.10, naive 0.00 at N=1). The ETSI block (15 runs) started 16:35; the oracle block (9) follows, then the fix chain.
