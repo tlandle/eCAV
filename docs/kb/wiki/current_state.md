@@ -7314,7 +7314,7 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 - Top-up: 56 cells with 0.2 <= P <= 0.9 and n < 20 at 50, 63, 88 and 70 km/h (I2V 8, gate 16, naive 5, contract 5, ETSI 2, VIPS 20), ten extra seeds each, 560 runs; chain /tmp/cetus_chain_topup.sh (pid 3538907), log ~/sensys_wt/logs/topup_cetus.log, campaign_check at the end (logs/campaign_check_after_topup.txt). Started 04:08; at 1.5 to 5 min per run, 15 to 45 h.
 - Atlas: faults stage running (chain 5), then the N=16 chain (current layout, Tyler's decision pending), then the fix chain (ETSI N=2 200 ms seed 1).
 
-### 2026-10-19 04:15: Figure 7 rebuilt with the extension and the SCP landing (4,598 runs); sent to Tyler
+### 2026-10-19 04:12: Figure 7 rebuilt with the extension and the SCP landing (4,598 runs); sent to Tyler
 
 - tau_max at 0.8 on the measured axis, oracle / contract, with the oracle's bootstrap interval:
   - Left turn: 38 km/h 1625 [1125, 1625] / >825; 50 1175 [875, 2125] / 575; 53 2175 [1675, 2175] / >825; 63 1675 [1175, 1675] / >775; 70 475 [375, 475] / 575; 88 325 [275, 325] / 375.
