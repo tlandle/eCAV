@@ -45,10 +45,19 @@ def main(argv=None):
         if d["N"] != "1" or (d["kv"] and "prediction_steps" not in d["kv"]):
             continue
         cells.append(d)
+    import json
     for d in cells:
         anch = "" if d["anch"] == "default" else f" --anchoring {d['anch']}"
+        # The cell's own knobs, as campaign_check prints them (json, sorted keys):
+        # behavior.* keys go to --behavior-kv, the rest to --edge-kv. The gate
+        # arm (assoc_metric, assoc_threshold) lands in its own cell directory
+        # only when its knobs are carried; without them the command would top
+        # up the plain late-fusion cell instead.
+        kv = json.loads(d["kv"]) if d["kv"] else {"behavior.curv_lat_accel": 8, "prediction_steps": 60}
+        bkv = " ".join(f"{k[len('behavior.'):]}={v}" for k, v in kv.items() if k.startswith("behavior."))
+        ekv = " ".join(f"{k}={v}" for k, v in kv.items() if not k.startswith("behavior."))
         print(f"{a.py} test_runner.py -t {d['geom']} --manager-types {d['mgr']}{anch} --latencies {d['lat']} "
-              f"--speeds {d['spd']} --repetitions {a.reps} --behavior-kv curv_lat_accel=8 --edge-kv prediction_steps=60 "
+              f"--speeds {d['spd']} --repetitions {a.reps} --behavior-kv {bkv} --edge-kv {ekv} "
               f"--latency-distribution hybrid --self-id-radius 1.0 --per-tick-age-log --carla-port {a.port} "
               f"--stamp {a.stamp} --scenario-env CROSS_TRIGGER_TTA={TTA[d['geom']]}")
     print(f"# {len(cells)} cells in [{a.lo}, {a.hi}] with n < {a.reps}", file=sys.stderr)
