@@ -7407,3 +7407,8 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 ### 2026-10-19 18:14: N=16 ETSI cells (atlas); oracle block started
 
 - Left turn, 70 km/h, N=16, five seeds: ETSI 1.00 / 0.00 (5 ghost episodes) / 0.00 (9 g, 5 collisions) at 100 / 200 / 400 ms, the naive shape exactly (naive 1.00 / 0.00 / 0.00 with 5 and 10 ghosts). With the contract at 1.00 / 1.00 / 0.00, the N=16 column separates identity from physics at 200 ms for all three V2X arms. The oracle N=16 block (9 runs) started 18:16; then the fix chain, the overtake extension and the oncoming-speed sweep.
+
+### 2026-10-19 19:12: N=16 column complete (atlas); N=16 chain done 19:09
+
+- Left turn, 70 km/h, N=16 at 100 / 200 / 400 ms: oracle 1.00 / 1.00 / 1.00 (three seeds); contract 1.00 / 1.00 / 0.00 (5 collisions); naive 1.00 / 0.00 (5 g) / 0.00 (10 g, 5 c); ETSI 1.00 / 0.00 (5 g) / 0.00 (9 g, 5 c).
+- Reading. The oracle passes at 400 ms at N=16 where it fails at N=1 (0.00, three collisions): the column behind the hero changes its approach (10.7 m/s at 400 ms against 9.8 at N=1) and the hero clears the crossing car with exact state. The contract's five collisions at 400 ms with no ghost and no false brake are therefore the inaccurate-information class (perception error on top of 400 ms of age), not the physics boundary; at 200 ms the contract holds (1.00) where naive and ETSI ghost. The N=16 column is the scaling figure's clean column: identity separates at 200 ms, inaccuracy at 400 ms, and the oracle row stays at 1.00.
