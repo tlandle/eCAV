@@ -7271,7 +7271,7 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 - Reading. On SCP at N=4 the identity effect is visible in the aggregate: 0.80 against 0.00 at 200 ms and no false-brake episode in any contract cell, unlike the left turn at N=4 where the added vehicles' static false positive beside the lane puts every V2X arm at 0.00 by false brakes at 100 ms. The naive arm collides at every delay (2, 3, 3 of 5) where the contract collides once at 200 ms; the naive ghosts rise from 0 to 9 episodes with delay as at N=1. At 400 ms both arms collide (4 and 3 of 5): the SCP physics boundary at 70 km/h and N=4 (the N=1 oracle budget on SCP at 70 is 525 ms measured, about 400 ms configured).
 - Chain 5 continues with SCP ETSI N=4 (15 runs, started 20:00), SCP oracle N=4 (9), then the faults stage.
 
-### 2026-10-18 20:50: scaling stage complete on atlas (chain 5); faults stage started 20:40
+### 2026-10-18 20:43: scaling stage complete on atlas (chain 5); faults stage started 20:40
 
 - SCP N=4, five seeds (oracle three), P(S_op) at 100 / 200 / 400 ms with (ghosts, false brakes, collisions): ETSI 1.00 / 0.00 (5 g, 3 c) / 0.00 (10 g, 2 fp, 5 c); oracle 1.00 / 1.00 / 0.33 (1 fp, 2 c).
 - Scaling stage, all cells, P(S_op) at 100 / 200 / 400 ms (N=1 from the landing, ten seeds, oracle three; N>1 five seeds, oracle three):
