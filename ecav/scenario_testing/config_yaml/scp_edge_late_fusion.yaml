@@ -199,18 +199,18 @@ rsu_base: &rsu_base
     perception:
       activate: true # when not activated, objects positions will be retrieved from server directly
       backend: default
-      camera:
-        visualize: 4 # how many camera images need to be visualized. 0 means no visualization for camera
-        num: 4 # how many cameras are mounted on the vehicle. Maximum 3(frontal, left and right cameras)
+      camera: &rsu_camera
+        visualize: 0
+        num: 3 # three 90-degree cameras 60 degrees apart facing the road: 30-degree overlaps, so a car leaving one image is whole in the next
+        fov: 90
         image_width: 640
         image_height: 480
-        # relative positions (x,y,z,yaw) of the camera. len(positions) should be equal to camera num
+        # relative positions (x,y,z,yaw) of the camera; pitch is the roadside default (-15) in perception_manager
         positions:
-          - [2.5, 0, 1.0, 0]
-          - [0.0, 0.3, 1.8, 100]
-          - [0.0, -0.3, 1.8, -100]
-          - [-2.0, 0.0, 1.5, 180]
-      lidar: # lidar sensor configuration, check CARLA sensor reference for more details
+          - [0.0, 0.0, 1.8, -150]
+          - [0.0, 0.0, 1.8, -90]
+          - [0.0, 0.0, 1.8, -30]
+      lidar: &rsu_lidar
         visualize: false
         channels: 32
         range: 120
@@ -276,11 +276,11 @@ scenario:
         - <<: *rsu_base
           name: rsu1
           # RSU spawn position: at intersection center
-          spawn_position: [-82.0, 126.0, 7.0]
+          spawn_position: [-55.0, 142.6, 7.0]  # south sidewalk 30 m east of the conflict point, 14.6 m from the crossing lane (2026-10-20)
           id: -1
         - <<: *rsu_base
           name: rsu2
-          spawn_position: [-76.0, 140.0, 7.0]  # moved 2026-10-19: junction east edge, same side as rsu1, both see the crossing car's front
+          spawn_position: [-115.0, 144.0, 7.0]  # south sidewalk 30 m west of the conflict point, 16 m from the crossing lane (2026-10-20)
           id: -2
       vehicles:
         - <<: *vehicle_base

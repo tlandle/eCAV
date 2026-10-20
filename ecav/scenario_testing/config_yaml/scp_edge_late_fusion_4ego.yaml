@@ -268,27 +268,47 @@ scenario:
     - sensing:
         perception:
           activate: true
-          camera: *id002
-          lidar: *id003
+          camera: &rsu_camera
+            visualize: 0
+            num: 3 # three 90-degree cameras 60 degrees apart facing the road: 30-degree overlaps, so a car leaving one image is whole in the next
+            fov: 90
+            image_width: 640
+            image_height: 480
+            positions:
+            - [0.0, 0.0, 1.8, -150]
+            - [0.0, 0.0, 1.8, -90]
+            - [0.0, 0.0, 1.8, -30]
+          lidar: &rsu_lidar
+            visualize: false
+            channels: 32
+            range: 120
+            points_per_second: 1000000
+            rotation_frequency: 20
+            upper_fov: 10.0
+            lower_fov: -70.0
+            dropoff_general_rate: 0.0
+            dropoff_intensity_limit: 1.0
+            dropoff_zero_intensity: 0.0
+            noise_stddev: 0.0
           backend: default
         localization: *id004
       name: rsu1
-      spawn_position:
-      - -82.0
-      - 126.0
+      spawn_position:  # south sidewalk 30 m east of the conflict point, 14.6 m from the crossing lane (2026-10-20)
+      - -55.0
+      - 142.6
       - 7.0
       id: -1
     - sensing:
         perception:
           activate: true
-          camera: *id002
-          lidar: *id003
+          camera: *rsu_camera
+          lidar: *rsu_lidar
           backend: default
         localization: *id004
       name: rsu2
-      spawn_position:  # rsu2 moved 2026-10-19: junction east edge, same side as rsu1, both see the crossing car's front
-      - -76.0
-      - 140.0
+      spawn_position:  # south sidewalk 30 m west of the conflict point, 16 m from the crossing lane (2026-10-20)
+      - -115.0
+      - 144.0
       - 7.0
       id: -2
     vehicles:
