@@ -169,6 +169,13 @@ class ClientMetrics(PlanningMetrics):
             'control_time_avg_ms': ctrl_avg,
             'control_time_std_ms': ctrl_std,
             'collision_count': len(self.collisions_event_list),
+            # one dict per collision: the other actor's type and id, the focal's position and
+            # the sim tick, from the TrafficEvent the collision sensor callback built
+            # (2026-10-19: partners were being inferred post hoc from brake records)
+            'collision_events': [
+                dict(e.get_dict() or {}, event=getattr(e.get_type(), 'name', str(e.get_type())))
+                for e in self.collisions_event_list if hasattr(e, 'get_dict')
+            ],
             'lane_invasion_count': len(self.lane_invasions_list),
         }
 

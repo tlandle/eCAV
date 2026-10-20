@@ -540,11 +540,13 @@ class EvaluationManager(object):
         lprint(log_file, "***********Collision Module***********")
 
         per_vehicle = {}          # vid → count
+        per_vehicle_events = {}   # vid → [collision event dicts]
         for vid, vm in self.cav_world.get_vehicle_managers().items():
             # Use get_client_metrics() for collision count
             client_metrics = vm.client_metrics.get_client_metrics()
             count = client_metrics.get('collision_count', 0)
             per_vehicle[str(vm.vehicle.id)] = count   # JSON needs str keys
+            per_vehicle_events[str(vm.vehicle.id)] = client_metrics.get('collision_events', [])
 
         # ---------- store into global metrics -------------------------------
         self.global_metrics["collision_count"] = sum(per_vehicle.values())
@@ -553,6 +555,7 @@ class EvaluationManager(object):
              # merge without clobbering existing metrics
             veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(vid, {})
             veh_dict["collisions"] = n
+            veh_dict["collision_events"] = per_vehicle_events.get(vid, [])
 
         
 
