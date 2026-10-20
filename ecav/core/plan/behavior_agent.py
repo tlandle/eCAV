@@ -933,7 +933,7 @@ class BehaviorAgent(object):
         ego_speed_mps = self._ego_speed / 3.6
         ego_loc = self.vehicle.get_location()
         time_step = 0.05
-        world = self.vehicle.get_world()
+        world = self._draw_world   # the second-pass drawing below, debug only
 
         # Detailed prediction inventory logging
         n_total = len(self.generated_predictions)
