@@ -673,18 +673,19 @@ class PerceptionManager:
             tracking_start_time = time.time()
             # DET_TRACE on a roadside unit: the raw YOLO boxes and the 2D
             # tracker's output per camera, so a per-source dropout can be
-            # placed at the detector, the 2D tracker or the lidar fusion.
+            # placed at the detector, the 2D tracker or the lidar fusion. A
+            # separate logger, since cloud_config silences this module.
             _trace = bool(os.environ.get('DET_TRACE')) and self.vehicle is None
             if _trace:
                 _yb = yolo_detection.xyxy[i]
                 _yb = _yb.cpu().numpy() if hasattr(_yb, 'cpu') else np.asarray(_yb)
-                logger.warning("[YOLO] rsu_x=%.0f cam=%d tick=%s boxes=%s", float(self.global_position[0]), i,
+                logging.getLogger("DetTrace").warning("[YOLO] rsu_x=%.0f cam=%d tick=%s boxes=%s", float(self.global_position[0]), i,
                                getattr(self.cav_world, 'tick_id', '?'),
                                [tuple(round(float(v), 2) for v in b[:6]) for b in _yb])
             tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
             if _trace:
                 _tb = np.asarray(tracking_detection)
-                logger.warning("[TRK2D] rsu_x=%.0f cam=%d boxes=%s", float(self.global_position[0]), i,
+                logging.getLogger("DetTrace").warning("[TRK2D] rsu_x=%.0f cam=%d boxes=%s", float(self.global_position[0]), i,
                                [tuple(round(float(v), 1) for v in b[:5]) for b in _tb] if _tb.size else [])
             tracking_end_time = time.time()
             total_tracking_time += tracking_end_time - tracking_start_time
