@@ -399,10 +399,11 @@ class CollisionChecker:
             debug_tmp.append(carla.Transform(carla.Location(ix, iy, 0)))
 
         #draw yellow line for overtaking, white line for lane change
-        draw_trajetory_points(
-             world, debug_tmp, color=carla.Color(
-                 255, 255, 0) if overtake else carla.Color(
-                 255, 255, 255), size=0.05, lt=0.2)
+        if world is not None:
+            draw_trajetory_points(
+                 world, debug_tmp, color=carla.Color(
+                     255, 255, 0) if overtake else carla.Color(
+                     255, 255, 255), size=0.05, lt=0.2)
     
         #world.tick()
         #input()
