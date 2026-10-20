@@ -237,6 +237,12 @@ class BehaviorAgent(object):
             config_yaml.get('speed_adapt_target_kmh', 15.0))
         self.ttc_graded_horizon_s = float(
             config_yaml.get('ttc_graded_horizon_s', 3.0))
+        # Vehicle-side self exclusion (2026-10-19, Tyler): a prediction whose first point lies
+        # within this radius of the ego centre is dropped whatever its id, so the hero's own
+        # beacon republished under a rotating temporary id (blind overtake landing v3) is not
+        # consumed as a foreign vehicle. 0 keeps the id-only filter of the campaign so far;
+        # the rerun sets it through --behavior-kv self_exclusion_m=1.0 (inside the ego's body).
+        self.self_exclusion_m = float(config_yaml.get('self_exclusion_m', 0.0))
         self._speed_adapt_hold = False
         # How many prediction modes (by score) the collision check sweeps
         # for multimodal predictors; 1 = argmax-only, 6 = full mode set.
@@ -512,6 +518,13 @@ class BehaviorAgent(object):
                        for ex, ey in edge_anchors):
                     continue
                 merged.append(lp)
+        if self.self_exclusion_m > 0 and self._ego_pos is not None:
+            _exl = self._ego_pos.location
+            _r2 = self.self_exclusion_m ** 2
+            merged = [p for p in merged
+                      if not (p.predicted_trajectory
+                              and (p.predicted_trajectory[0].location.x - _exl.x) ** 2
+                              + (p.predicted_trajectory[0].location.y - _exl.y) ** 2 < _r2)]
         self.generated_predictions = merged
 
         # current version only consider about vehicles
