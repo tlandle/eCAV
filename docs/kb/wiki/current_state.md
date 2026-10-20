@@ -7418,7 +7418,7 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 
 - Blind overtake, 43 km/h hero, 12 m/s oncoming, oracle three seeds: 1.00 at 1,500 ms, 0.00 at 2,000 ms (23 false-brake episodes, 3 collisions, 3 stalls over three runs) and 0.00 at 3,000 ms (19 fp, 3 c, 2 stalls). The boundary lies between 1.5 and 2 s configured, where the 17:50 estimate from the gate margin (about 1.7 s at 12 m/s) put it. The contract extension block (ten seeds at 1.5, 2, 3 s) is running; the oncoming-speed sweep (20 and 28 m/s) follows.
 
-### 2026-10-19 20:30: controller stage, left-turn block complete (cetus); SCP block started
+### 2026-10-19 20:32: controller stage, left-turn block complete (cetus); SCP block started
 
 - Oracle, left turn, ten seeds per cell, TTC-graded deceleration (hazard_response=ttc_graded, horizon 3 s) against the emergency-stop cells of the physics stage (three seeds), P(S_op) at 0 / 100 / 200 / 300 / 500 / 700 ms:
   - 70 km/h: graded 0.20 (8 false-brake episodes) / 1.00 / 1.00 / 1.00 / 0.10 (9 collisions) / 0.30 (7 c); stop 1.00 / 1.00 / 1.00 / 1.00 / 0.00 (3 c) / 0.00 (physics stage 400 ms 0.00, 700 ms 0.00).
