@@ -201,8 +201,14 @@ def _collect_ab3d_detections(edge,
                     src = getattr(obj_list[obj_idx], '_det_source', '?')
                 else:
                     src = '?'
-            logger.info("[DET] tick=%d src=%s x=%.1f y=%.1f conf=%.2f cid=%d",
-                        frame_idx, src, d[3], d[5], d[7], inf[2])
+            # hwl and the measured edges (xmin,xmax,ymin,ymax) ride along so the
+            # offline replay (scripts/diag/replay_edge_tracker.py) rebuilds the
+            # bundle the tracker saw, edge velocity and young-track gate included.
+            _e = bundle.get('edges')
+            _es = ("%.2f,%.2f,%.2f,%.2f" % tuple(float(v) for v in _e[idx][:4])
+                   if _e is not None and idx < len(_e) else "-")
+            logger.info("[DET] tick=%d src=%s x=%.1f y=%.1f conf=%.2f cid=%d hwl=%.2f,%.2f,%.2f e=%s",
+                        frame_idx, src, d[3], d[5], d[7], inf[2], d[0], d[1], d[2], _es)
     out = {'dets': dets_arr, 'info': info_arr}
     if 'edges' in bundle:
         out['edges'] = bundle['edges']
