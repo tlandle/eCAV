@@ -675,6 +675,16 @@ class ScenarioManager:
         if not self.world:
             sys.exit('World loading failed')
 
+        # HIDE_ENV_OBJECTS: comma-separated environment-object ids (world.get_environment_objects())
+        # hidden before any sensor runs. Set by the runner's --scenario-env for the junction
+        # scenario to remove the overhead traffic-signal assembly over the exit lane that the
+        # added CAVs' detectors report as a stationary vehicle (2026-10-19). Unset: no effect.
+        _hide = os.environ.get('HIDE_ENV_OBJECTS', '').strip()
+        if _hide:
+            _ids = {int(x) for x in _hide.split(',') if x.strip()}
+            self.world.enable_environment_objects(_ids, False)
+            logger.info("hid %d environment objects: %s", len(_ids), sorted(_ids))
+
         self.origin_settings = self.world.get_settings()
         new_settings = self.world.get_settings()
 

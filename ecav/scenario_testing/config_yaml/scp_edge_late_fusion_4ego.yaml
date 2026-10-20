@@ -286,8 +286,8 @@ scenario:
           backend: default
         localization: *id004
       name: rsu2
-      spawn_position:
-      - -40.0
+      spawn_position:  # rsu2 moved 2026-10-19: junction east edge, same side as rsu1, both see the crossing car's front
+      - -76.0
       - 140.0
       - 7.0
       id: -2

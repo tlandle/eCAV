@@ -253,7 +253,7 @@ scenario:
         # verify it sees the conflict region at smoke test.
         - <<: *rsu_base
           name: rsu2
-          spawn_position: [-40.0, 140.0, 7.0]
+          spawn_position: [-76.0, 140.0, 7.0]  # moved 2026-10-19: junction east edge, same side as rsu1, both see the crossing car's front
           sensing:
             <<: *base_sensing
             perception:
@@ -487,7 +487,7 @@ scenario:
         # Road 24 lane +1 WB inner (Driving), 6m behind cav3
         - <<: *vehicle_base
           name: cav7
-          spawn_position: [-14.0, 130.6, 1.0, 0, 180, 0]  # Road 24/104 WB, 6m behind cav3
+          spawn_position: [-84.6, -30.0, 1.0, 0, 90, 0]  # Road 4 inner NB lane, column behind the hero (was the westbound follower 6 m behind cav3, which reached the junction at the hero's crossing time, 2026-10-19)
           destination: [-139.7, 124.7, 0.5]  # Road 23 lane 1 WB (own lane), before the west junction
           sensing:
             <<: *base_sensing
