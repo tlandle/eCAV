@@ -7447,6 +7447,7 @@ tau_max at P = 0.8 on the measured critical p99 axis (ms), naive / contract / ET
 ### 2026-10-20 06:44: j3 cetus gate PASS (198 runs, 0 unusable); both hosts in the physics stage
 
 - Cetus ETSI (ten seeds) 1.00 / 1.00 / 0.40 / 0.00 / 0.00 / 0.00 at 0 to 500 ms (200 ms 6 ghost episodes; 300 ms and beyond ten collisions); oracle 1.00 to 300 ms, 0.00 at 400 and 500 (three collisions each), identical to atlas. Gate PASS; the cetus physics stage (oracle at 50, 63 and 88 km/h) started 06:41. The pooled 70 km/h gate over both hosts: naive 1.00 / 1.00 / 0.25 / 0.00 / 0.00 / 0.00 (twenty seeds), contract 1.00 / 1.00 / 1.00 / 0.45 / 0.00 / 0.00 (twenty), ETSI 1.00 / 1.00 / 0.35 / 0.00 / 0.00 / 0.00 (twenty), oracle 1.00 x4 then 0.00 (six). Every naive and ETSI failure at 200 ms is a self-ghost episode with no collision; every contract failure is a collision with no ghost or false brake.
+- 07:37: one watchdog hit on atlas (SCP physics block, run 71 of 90: oracle 500 ms at 70 km/h, no output for 300 s, no metrics); the runner restarted CARLA and retried once, and all three seeds of that cell have metrics. Atlas at run 80 of the SCP physics block, cetus at 40 of its left-turn physics block, no other errors.
 
 ### 2026-10-20 05:20: j3 atlas gate PASS (198 runs, 0 unusable); physics stage started
 
