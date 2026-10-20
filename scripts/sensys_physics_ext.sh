@@ -11,6 +11,9 @@
 set -uo pipefail
 ROLE="${1:?atlas|cetus}"
 STAMP="${STAMP:-sensys_nov27_j2}"
+# SCENV: extra KEY=VALUE pairs for the scenario process (e.g. HIDE_ENV_OBJECTS=...), on the same
+# --scenario-env flag as the crossing trigger because a repeated flag keeps only the last one.
+SCENV="${SCENV:-}"
 PORT="${CARLA_PORT:-2000}"
 PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
 export PYTHONPATH="$HOME/carla-0.9.15/PythonAPI/carla:${PYTHONPATH:-}"
@@ -34,7 +37,7 @@ echo "$(date +%T) $ROLE stamp $STAMP speeds [$SPEEDS] lats [$EXT_LATS] tta_s3 [$
 for sc in $SCENARIOS; do
   "$PY" test_runner.py -t "$sc" --manager-types oracle --anchoring on \
       --latencies $EXT_LATS --speeds $SPEEDS --repetitions "$OREPS" $COMMON \
-      --scenario-env "CROSS_TRIGGER_TTA=$(tta_for "$sc")"
+      --scenario-env "CROSS_TRIGGER_TTA=$(tta_for "$sc")" $SCENV
 done
 "$PY" scripts/sensys_analysis/campaign_check.py "$STAMP" || true
 echo "$(date +%T) physics extension done on $ROLE"
