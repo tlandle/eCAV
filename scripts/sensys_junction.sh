@@ -16,6 +16,9 @@
 set -uo pipefail
 ROLE="${1:?atlas|cetus}"
 STAMP="${STAMP:?set STAMP}"
+# SCENV: extra KEY=VALUE pairs for the scenario process (e.g. HIDE_ENV_OBJECTS=...). They ride on the
+# CROSS_TRIGGER_TTA flag because a repeated --scenario-env keeps only the last one (test_runner nargs="*").
+SCENV="${SCENV:-}"
 EXTRA="${EXTRA:-}"
 PORT="${CARLA_PORT:-2000}"
 PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
@@ -42,7 +45,7 @@ tta_for() { case "$1" in openscenario_3*) echo "$TTA_S3" ;; scp_*) echo "$TTA_SC
 run() {   # run -t <scenario> ... ; appends seeds (unless given) and the geometry's crossing trigger
   local sc="$2" tta reps="$DEF_REPS"; tta="$(tta_for "$sc")"
   case " $* " in *" --repetitions "*) reps="" ;; esac
-  "$PY" test_runner.py "$@" $COMMON ${reps:+--repetitions $reps} ${tta:+--scenario-env CROSS_TRIGGER_TTA=$tta}
+  "$PY" test_runner.py "$@" $COMMON ${reps:+--repetitions $reps} ${tta:+--scenario-env CROSS_TRIGGER_TTA=$tta $SCENV}
 }
 echo "$(date +%T) $ROLE stamp $STAMP extra [$EXTRA] pred_steps [$PRED_STEPS] seeds [$DEF_REPS/oracle $OREPS] tta_s3 [$TTA_S3] tta_scp [$TTA_SCP]"
 # 1. gate on scenario_3 at 70 km/h (both hosts run it: 20 seeds pooled)

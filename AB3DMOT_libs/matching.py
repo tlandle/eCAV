@@ -1,4 +1,5 @@
 import logging
+import os
 import numpy as np
 from scipy.optimize import linear_sum_assignment
 from AB3DMOT_libs.dist_metrics import iou, dist3d, dist_ground, m_distance
@@ -42,6 +43,10 @@ CID       = 2          # carla_id (server-side vehicle actor id), –1 if unknow
 # vehicle on one track through an RSU handover in the offline replay
 # (scripts/diag/replay_edge_tracker.py). The association threshold
 # (4 m for dist_2d) still bounds the innovation above this.
+# Gate rejections are debug chatter in a campaign; under DET_TRACE (the smoke
+# runs) they are raised to WARNING so the runner log shows which gate dropped a
+# match on the conflict actor.
+_GATE_LVL            = logging.WARNING if os.environ.get('DET_TRACE') else logging.DEBUG
 _DT                  = 0.05   # tick duration (seconds)
 _D_BASE              = 3.0    # cross-view measurement allowance (m)
 _D_MIN               = 1.5    # minimum gate size (m)
@@ -203,7 +208,7 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 			else:
 				d = -aff_matrix[m[0], m[1]]
 			if d > _D_MIN:
-				logger.debug("[YOUNG GATE] rejected match det=%d trk=%d d=%.2fm > %.2fm (edge frames=%d)",
+				logger.log(_GATE_LVL, "[YOUNG GATE] rejected match det=%d trk=%d d=%.2fm > %.2fm (edge frames=%d)",
 				             m[0], m[1], d, _D_MIN, getattr(trks[m[1]], 'n_edge_frames', 0))
 				unmatched_dets.append(m[0])
 				unmatched_trks.append(m[1])
@@ -222,7 +227,7 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 			max_innov = max(trk_speed * _DT + _D_BASE, _D_MIN)
 
 			if d > max_innov:
-				logger.debug(
+				logger.log(_GATE_LVL, 
 					"[KINEMATIC GATE] rejected match det=%d trk=%d "
 					"d=%.2fm > max_innov=%.2fm (trk_speed=%.1f m/s, "
 					"hits=%d, cid=%s)",
@@ -234,7 +239,7 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 
 			# Extra: stationary tracks get a tighter absolute gate
 			if trk_speed < _V_STATIC and d > _D_STATIC:
-				logger.debug(
+				logger.log(_GATE_LVL, 
 					"[STATIC GATE] rejected match det=%d trk=%d "
 					"d=%.2fm > D_STATIC=%.2fm (trk_speed=%.2f m/s)",
 					m[0], m[1], d, _D_STATIC, trk_speed)

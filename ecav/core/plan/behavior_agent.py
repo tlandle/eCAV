@@ -237,6 +237,12 @@ class BehaviorAgent(object):
             config_yaml.get('speed_adapt_target_kmh', 15.0))
         self.ttc_graded_horizon_s = float(
             config_yaml.get('ttc_graded_horizon_s', 3.0))
+        # Vehicle-side self exclusion (2026-10-19, Tyler): a prediction whose first point lies
+        # within this radius of the ego centre is dropped whatever its id, so the hero's own
+        # beacon republished under a rotating temporary id (blind overtake landing v3) is not
+        # consumed as a foreign vehicle. 0 keeps the id-only filter of the campaign so far;
+        # the rerun sets it through --behavior-kv self_exclusion_m=1.0 (inside the ego's body).
+        self.self_exclusion_m = float(config_yaml.get('self_exclusion_m', 0.0))
         self._speed_adapt_hold = False
         # How many prediction modes (by score) the collision check sweeps
         # for multimodal predictors; 1 = argmax-only, 6 = full mode set.
@@ -341,6 +347,12 @@ class BehaviorAgent(object):
         # logger.debug message in debug mode
         self.debug = False if 'debug' not in \
                               config_yaml else config_yaml['debug']
+        # CARLA debug shapes are rendered into the scene and every camera
+        # sees them: the collision checker's drawn ego path and predicted
+        # obstacle points covered the crossing car in the roadside cameras
+        # and the detector lost it through the junction (2026-10-20). The
+        # world handle that enables that drawing is passed only in debug.
+        self._draw_world = self.vehicle.get_world() if self.debug else None
 
         # Other Car Trajecories Dictionary
         self.other_car_trajectories = {}
@@ -512,6 +524,13 @@ class BehaviorAgent(object):
                        for ex, ey in edge_anchors):
                     continue
                 merged.append(lp)
+        if self.self_exclusion_m > 0 and self._ego_pos is not None:
+            _exl = self._ego_pos.location
+            _r2 = self.self_exclusion_m ** 2
+            merged = [p for p in merged
+                      if not (p.predicted_trajectory
+                              and (p.predicted_trajectory[0].location.x - _exl.x) ** 2
+                              + (p.predicted_trajectory[0].location.y - _exl.y) ** 2 < _r2)]
         self.generated_predictions = merged
 
         # current version only consider about vehicles
@@ -872,7 +891,7 @@ class BehaviorAgent(object):
          
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
-                adjacent_check=adjacent_check, world=self.vehicle.get_world())
+                adjacent_check=adjacent_check, world=self._draw_world)
 
             if not collision_free:
                 vehicle_state = True
@@ -914,7 +933,7 @@ class BehaviorAgent(object):
         ego_speed_mps = self._ego_speed / 3.6
         ego_loc = self.vehicle.get_location()
         time_step = 0.05
-        world = self.vehicle.get_world()
+        world = self._draw_world   # the second-pass drawing below, debug only
 
         # Detailed prediction inventory logging
         n_total = len(self.generated_predictions)
@@ -1450,14 +1469,15 @@ class BehaviorAgent(object):
                 left_wpt is not None and \
                 (left_wpt.lane_type == carla.LaneType.Driving or left_wpt.lane_type == carla.LaneType.Bidirectional):
 
-            self.vehicle.get_world().debug.draw_point(left_wpt.transform.location, size=.1, life_time=2.0)
+            if self._draw_world is not None:
+                self._draw_world.debug.draw_point(left_wpt.transform.location, size=.1, life_time=2.0)
 
             # this not the real plan path, but just a quick path to check
             # collision
             rx, ry, ryaw = self._collision_check.adjacent_lane_collision_check(
                 ego_loc=self._ego_pos.location, target_wpt=left_wpt,
                 carla_map=self._map,
-                overtake=True, world=self.vehicle.get_world(), oncoming_lane=True)
+                overtake=True, world=self._draw_world, oncoming_lane=True)
             vehicle_state, _qv, _qd = self.collision_manager(
                 rx, ry, ryaw, self._map.get_waypoint(
                     self._ego_pos.location), True)
@@ -1590,7 +1610,7 @@ class BehaviorAgent(object):
                         collision, ttc = self._collision_check.waypoint_collision_check(
                                 next_wpt_list, self._ego_pos.location, self._ego_speed / 3.6,
                                 pred.predicted_trajectory, obstacle_speed,
-                                world=self.vehicle.get_world())
+                                world=self._draw_world)
 
                         # Time-synchronized conflicts inside the maneuver
                         # window only: ttc=1000 is the spatial-overlap
@@ -1622,7 +1642,7 @@ class BehaviorAgent(object):
                 target_wpt=right_wpt,
                 overtake=True,
                 carla_map=self._map,
-                world=self.vehicle.get_world())
+                world=self._draw_world)
 
             vehicle_state, _, _ = self.collision_manager(
                 rx, ry, ryaw, self._map.get_waypoint(
@@ -1677,7 +1697,7 @@ class BehaviorAgent(object):
             target_wpt=target_wpt,
             overtake=False,
             carla_map=self._map,
-            world=self.vehicle.get_world())
+            world=self._draw_world)
         vehicle_state, _, _ = self.collision_manager(
             rx, ry, ryaw, self._map.get_waypoint(
                 self._ego_pos.location), adjacent_check=True)

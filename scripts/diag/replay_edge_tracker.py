@@ -71,7 +71,7 @@ HIST_FRAMES = 30        # edge _track_history depth
 MIN_HIST_ANON = 10      # linear_predictor_manager._MIN_HISTORY_ANONYMOUS
 MIN_SPEED_MPS = 1.0     # linear_predictor_manager._MIN_KF_SPEED_MPS
 _DET_RE = re.compile(r'\[DET\] tick=(\d+) src=(\S+) x=(-?[\d.]+) y=(-?[\d.]+) '
-                     r'conf=([\d.]+) cid=(-?\d+)')
+                     r'conf=([\d.]+) cid=(-?\d+)(?: hwl=([-\d.,]+))?(?: e=([-\d.,]+|-))?')
 _TRK_RE = re.compile(r"\((\d+), (-?\d+), '([-\d.]+)', '\((-?[\d.]+),(-?[\d.]+)\)', (\d+)\)")
 
 
@@ -93,8 +93,11 @@ def parse_frames(log_path):
                     if cur_tick is not None:
                         frames.append((cur_tick, cur))
                     cur_tick, cur = t, []
+                hwl = tuple(float(v) for v in m.group(7).split(',')) if m.group(7) else None
+                e = (tuple(float(v) for v in m.group(8).split(','))
+                     if m.group(8) and m.group(8) != '-' else None)
                 cur.append((m.group(2), float(m.group(3)), float(m.group(4)),
-                            float(m.group(5)), int(m.group(6))))
+                            float(m.group(5)), int(m.group(6)), hwl, e))
                 last_tick = t
                 continue
             if '[TRACKS]' in line and last_tick is not None:
@@ -174,13 +177,19 @@ def _heading(prev_xy, xy):
     return math.atan2(dy, dx)
 
 
-def build_dets(frame_dets, tick, ext, beacon_ext, state):
+def build_dets(frame_dets, tick, ext, beacon_ext, state, use_edges=True):
     """Return the AB3DMOT bundle for one frame. ``ext`` = (l, w, h) used for
-    every anonymous sensor detection (the log does not carry extents; the
-    edge clamps them to car bounds anyway). Beacon rows use ``beacon_ext``."""
-    det_rows, info_rows = [], []
-    l, w, h = ext
-    for (src, x, y, conf, cid) in frame_dets:
+    an anonymous sensor detection whose log line carries no hwl (logs before
+    2026-10-20); a logged hwl is used as the edge clamped it. Beacon rows use
+    ``beacon_ext``. Logged measured edges (e=) ride along as 'edges' when every
+    row of the frame has them and ``use_edges`` is set, so the tracker's edge
+    velocity and young-track gate run as they did live."""
+    det_rows, info_rows, edge_rows = [], [], []
+    for (src, x, y, conf, cid, hwl, e) in frame_dets:
+        l, w, h = ext
+        if hwl is not None:
+            h, w, l = hwl
+        edge_rows.append(e)
         if cid > 0:
             prev = state.get('beacon_xy', {}).get(cid)
             yaw = _heading(prev, (x, y))
@@ -199,12 +208,16 @@ def build_dets(frame_dets, tick, ext, beacon_ext, state):
         info_rows.append([tick, state['guid'], cid])
     if not det_rows:
         return {'dets': np.zeros((0, 8), np.float32), 'info': np.zeros((0, 3), np.int64)}
-    return {'dets': np.asarray(det_rows, np.float32), 'info': np.asarray(info_rows, np.int64)}
+    out = {'dets': np.asarray(det_rows, np.float32), 'info': np.asarray(info_rows, np.int64)}
+    if use_edges and all(e is not None for e in edge_rows):
+        out['edges'] = np.asarray(edge_rows, np.float64)
+    return out
 
 
 def cross_source_nms(dets_dict, cdist_thresh):
     """Verbatim copy of the edge's _cross_source_nms (module import pulls carla)."""
     dets, info = dets_dict['dets'], dets_dict['info']
+    edges = dets_dict.get('edges')
     if len(dets) == 0:
         return dets_dict
     cids = info[:, 2]
@@ -213,6 +226,7 @@ def cross_source_nms(dets_dict, cdist_thresh):
     if anon_mask.sum() <= 1:
         return dets_dict
     anon_dets, anon_info = dets[anon_mask], info[anon_mask]
+    anon_edges = edges[anon_mask] if edges is not None else None
     centers = anon_dets[:, [3, 5]]
     scores = anon_dets[:, 7]
     order = np.argsort(-scores)
@@ -230,8 +244,11 @@ def cross_source_nms(dets_dict, cdist_thresh):
             merged[i, 5] = float(np.mean(anon_dets[top, 5]))
         suppressed |= dists < cdist_thresh
     anon_keep = np.array(keep)
-    return {'dets': np.concatenate([dets[beacon_mask], merged[anon_keep]], axis=0),
-            'info': np.concatenate([info[beacon_mask], anon_info[anon_keep]], axis=0)}
+    out = {'dets': np.concatenate([dets[beacon_mask], merged[anon_keep]], axis=0),
+           'info': np.concatenate([info[beacon_mask], anon_info[anon_keep]], axis=0)}
+    if edges is not None:
+        out['edges'] = np.concatenate([edges[beacon_mask], anon_edges[anon_keep]], axis=0)
+    return out
 
 
 def make_tracker(max_age, anchoring=True, dup_x_max=None):
@@ -258,7 +275,8 @@ def replay(frames, gt, args):
     from collections import deque
     hist = deque(maxlen=HIST_FRAMES)   # published frames, as _track_history on the edge
     for tick, fdets in frames:
-        bundle = build_dets(fdets, tick, tuple(args.ext), tuple(args.beacon_ext), state)
+        bundle = build_dets(fdets, tick, tuple(args.ext), tuple(args.beacon_ext), state,
+                            use_edges=not args.no_edges)
         bundle = cross_source_nms(bundle, args.nms_thresh)
         res, _ = tracker.track(bundle, tick)
         rows = res[0] if res and len(res[0]) else np.zeros((0, 16))
@@ -397,6 +415,9 @@ def main():
     ap.add_argument('runs', nargs='*', help='run directories (runner_stdout.txt + evaluation_output/per_tick_age.csv)')
     ap.add_argument('--runs-file', help='text file with one run directory per line')
     ap.add_argument('--d-base', type=float, default=None, help='matching._D_BASE override (m)')
+    ap.add_argument('--d-min', type=float, default=None, help='matching._D_MIN override (m): the young-track gate and the gate floor')
+    ap.add_argument('--d-static', type=float, default=None, help='matching._D_STATIC override (m)')
+    ap.add_argument('--no-edges', action='store_true', help='ignore the logged measured edges (position-displacement velocity, no young-track gate)')
     ap.add_argument('--v-static', type=float, default=None, help='matching._V_STATIC override (m/s)')
     ap.add_argument('--gate-dt', type=float, default=None, help='matching._DT override (s)')
     ap.add_argument('--nms-thresh', type=float, default=5.0,
@@ -414,6 +435,10 @@ def main():
 
     if args.d_base is not None:
         matching._D_BASE = args.d_base
+    if args.d_min is not None:
+        matching._D_MIN = args.d_min
+    if args.d_static is not None:
+        matching._D_STATIC = args.d_static
     if args.v_static is not None:
         matching._V_STATIC = args.v_static
     if args.gate_dt is not None:

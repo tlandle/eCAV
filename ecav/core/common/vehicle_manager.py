@@ -600,7 +600,8 @@ class VehicleManager(object):
             'id': event.other_actor.id,
             'x': actor_location.x,
             'y': actor_location.y,
-            'z': actor_location.z})
+            'z': actor_location.z,
+            'tick': getattr(self, 'step_id', None)})
         collision_event.set_message(
             "Agent collided against object with type={} and id={} at (x={}, y={}, z={})".format(
                 event.other_actor.type_id,

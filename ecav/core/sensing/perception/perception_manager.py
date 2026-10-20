@@ -671,7 +671,36 @@ class PerceptionManager:
             # camera lidar fusion
 
             tracking_start_time = time.time()
+            # DET_TRACE_DUMP="rsu_x,cam,t0,t1,dir": save that roadside camera's
+            # frames for those ticks as PNG, to run the detector on them offline.
+            _dump = os.environ.get('DET_TRACE_DUMP')
+            if _dump and self.vehicle is None:
+                try:
+                    _rx, _cam, _t0, _t1, _dir = _dump.split(',')
+                    _tk = int(getattr(self.cav_world, 'tick_id', -1))
+                    if float(_rx) == float(self.global_position[0]) and int(_cam) == i and int(_t0) <= _tk <= int(_t1):
+                        import cv2 as _cv2
+                        os.makedirs(_dir, exist_ok=True)
+                        _cv2.imwrite(os.path.join(_dir, f"rsu{int(float(_rx))}_cam{i}_t{_tk:03d}.png"),
+                                     _cv2.cvtColor(rgb_images[i], _cv2.COLOR_RGB2BGR))
+                except Exception as _e:   # a dump must never stop a run
+                    logging.getLogger("DetTrace").warning("frame dump failed: %s", _e)
+            # DET_TRACE on a roadside unit: the raw YOLO boxes and the 2D
+            # tracker's output per camera, so a per-source dropout can be
+            # placed at the detector, the 2D tracker or the lidar fusion. A
+            # separate logger, since cloud_config silences this module.
+            _trace = bool(os.environ.get('DET_TRACE')) and self.vehicle is None
+            if _trace:
+                _yb = yolo_detection.xyxy[i]
+                _yb = _yb.cpu().numpy() if hasattr(_yb, 'cpu') else np.asarray(_yb)
+                logging.getLogger("DetTrace").warning("[YOLO] rsu_x=%.0f cam=%d tick=%s boxes=%s", float(self.global_position[0]), i,
+                               getattr(self.cav_world, 'tick_id', '?'),
+                               [tuple(round(float(v), 2) for v in b[:6]) for b in _yb])
             tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            if _trace:
+                _tb = np.asarray(tracking_detection)
+                logging.getLogger("DetTrace").warning("[TRK2D] rsu_x=%.0f cam=%d boxes=%s", float(self.global_position[0]), i,
+                               [tuple(round(float(v), 1) for v in b[:5]) for b in _tb] if _tb.size else [])
             tracking_end_time = time.time()
             total_tracking_time += tracking_end_time - tracking_start_time
 
