@@ -334,7 +334,12 @@ class VIPSTemporalEdge(_BaseEdgeManager):
             'etron', 'tt', 'lincoln', 'dodge', 'chevrolet', 'nissan',
             'bmw', 'audi', 'mercedes', 'tesla', 'ford', 'jeep',
             'mini', 'seat', 'citroen', 'volkswagen', 'low_rider',
-            'patrol', 'mkz_2017', 'model3', 'wrangler', 'carlacola'}
+            'patrol', 'mkz_2017', 'model3', 'wrangler', 'carlacola',
+            # firetruck: the junction scenario's occluder column
+            # (scenario_3_occluded.xml); without it the ground-truth
+            # front end published no track for the column and the
+            # hero's on-board forecasts of it went unmerged (2026-10-21)
+            'firetruck'}
 
         logger.info("VIPSTemporalEdge initialized — anonymous beacons + "
                      "time rectification, anchoring=%s", self.anchoring)

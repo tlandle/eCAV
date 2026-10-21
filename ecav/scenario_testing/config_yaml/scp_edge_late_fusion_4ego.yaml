@@ -1,5 +1,5 @@
-description: 'SCP geometry, 4 CAVs: focal CAV goes straight north; cav2 to cav4 as in
-  openscenario_3_edge_late_fusion_4ego.'
+description: 'SCP geometry, 4 CAVs: focal CAV goes straight north; cav2 and cav4 as in
+  openscenario_3_edge_late_fusion_4ego; cav3 in the column behind the hero (2026-10-21).'
 scenario_name: scp_edge_late_fusion_4ego
 distributed: false
 define: true
@@ -522,16 +522,21 @@ scenario:
       map_manager: *id007
       safety_manager: *id008
       name: cav3
+      # moved 2026-10-21: column slot behind the hero (road 4 inner northbound
+      # lane, the 16ego file's slot), destination straight north. As the westbound
+      # crosser copied from the left-turn 4ego file it stopped for the crossing car
+      # beside the junction and restarted into the straight hero at the conflict
+      # point at tick 201 in every seed and arm.
       spawn_position:
-      - -20.0
-      - 130.9
+      - -84.6
+      - -30.0
       - 1.0
       - 0
-      - 180
+      - 90
       - 0
       destination:
-      - -139.7
-      - 124.7
+      - -85.1
+      - 155.0
       - 0.5
     - sensing:
         perception:
