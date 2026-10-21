@@ -25,7 +25,7 @@ Example:
         --speeds 70 --repetitions 3
 """
 
-import argparse, copy, itertools, json, os, shutil, subprocess, sys, time, yaml, socket
+import argparse, copy, hashlib, itertools, json, os, shutil, subprocess, sys, time, yaml, socket
 from pathlib import Path
 from scripts.proc_watchdog import stream_with_watchdog, kill_session
 from datetime import datetime
@@ -606,7 +606,15 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
         return "skipped"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    eval_dir = OUT_BASE / STAMP / f"{base_str}_{mgr_str}_{anchor_str}_{spd_str}_{config_dir}_rep_{rep}"
+    eval_name = f"{base_str}_{mgr_str}_{anchor_str}_{spd_str}_{config_dir}_rep_{rep}"
+    if len(eval_name.encode()) > 240:
+        # A path component holds at most 255 bytes; two edge kvs plus the
+        # behaviour kvs push this scratch name past it (faults stage, Oct 21).
+        # The run directory keeps the full configuration; this directory
+        # only has to be unique, so the configuration part is hashed.
+        eval_name = (f"{base_str}_{mgr_str}_{anchor_str}_{spd_str}_{lat_str}_"
+                     f"{hashlib.md5(config_dir.encode()).hexdigest()[:12]}_rep_{rep}")
+    eval_dir = OUT_BASE / STAMP / eval_name
     eval_dir.mkdir(parents=True, exist_ok=True)
 
     # Use the baseline-specific scenario name, with ego count suffix
