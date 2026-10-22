@@ -526,12 +526,18 @@ scenario:
       map_manager: *id007
       safety_manager: *id008
       name: cav3
+      # moved 2026-10-22: column slot behind the hero (road 4 inner northbound
+      # lane, the 8ego file's cav7 slot), keeping the westbound exit as its
+      # destination so it follows the hero's left turn. As the westbound crosser
+      # it yielded to the hero's turn and stopped beside the crossing lane as the
+      # crossing car passed, and the roadside fusion lost the car against it in
+      # every N=4 seed (gaps of 15 to 24 ticks through the crossing).
       spawn_position:
-      - -20.0
-      - 130.9
+      - -84.6
+      - -30.0
       - 1.0
       - 0
-      - 180
+      - 90
       - 0
       destination:
       - -139.7

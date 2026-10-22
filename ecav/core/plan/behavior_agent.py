@@ -7,7 +7,9 @@
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 
+import json
 import math
+import os
 import random
 import sys
 import time
@@ -244,6 +246,7 @@ class BehaviorAgent(object):
         # the rerun sets it through --behavior-kv self_exclusion_m=1.0 (inside the ego's body).
         self.self_exclusion_m = float(config_yaml.get('self_exclusion_m', 0.0))
         self._speed_adapt_hold = False
+        self._graded_ttc_held = None   # (ttc, tick) of the last flagged hazard under ttc_graded
         # How many prediction modes (by score) the collision check sweeps
         # for multimodal predictors; 1 = argmax-only, 6 = full mode set.
         self.prediction_mode_top_k = config_yaml.get(
@@ -1067,6 +1070,23 @@ class BehaviorAgent(object):
                     time_step=time_step,
                     world=world)
 
+                if os.environ.get('HAZARD_TRACE'):
+                    # The planner's inputs at a flagged hazard (its path and the
+                    # consumed forecast), for offline replay of the collision check.
+                    try:
+                        _tk = (self._current_global_tick if self._current_global_tick is not None
+                               else self._step_count)
+                        logger.warning("[HAZARD-TRACE] %s", json.dumps({
+                            'tick': _tk, 'ttc': round(float(ttc), 3),
+                            'ego_speed': round(float(ego_speed_mps), 3),
+                            'obs_speed': round(float(obs_speed), 3),
+                            'track': getattr(_o, 'track_id', None), 'cid': getattr(_o, 'carla_id', None),
+                            'ego': [round(float(ego_loc.x), 2), round(float(ego_loc.y), 2)],
+                            'ego_path': [[round(float(x), 2), round(float(y), 2)] for x, y in zip(rx, ry)],
+                            'obs_traj': [[round(float(t.location.x), 2), round(float(t.location.y), 2)]
+                                         for t in (conflict_traj or [])]}))
+                    except Exception as _e:
+                        logger.warning("[HAZARD-TRACE] failed: %s", _e)
                 self.ttc = ttc
                 self.planning_metrics.update(ego_speed_mps, ttc)
                 vehicle_state = True
@@ -1856,9 +1876,29 @@ class BehaviorAgent(object):
         predicted time to collision shrinks. Never above base_kmh when given."""
         if self.hazard_response == 'ttc_graded':
             ttc = getattr(self, 'ttc', None)
+            tick = (self._current_global_tick
+                    if getattr(self, '_current_global_tick', None) is not None
+                    else getattr(self, '_step_count', 0))
             try:
-                frac = min(1.0, max(0.0, float(ttc) / self.ttc_graded_horizon_s))
-            except (TypeError, ValueError, ZeroDivisionError):
+                ttc_f = float(ttc)
+            except (TypeError, ValueError):
+                ttc_f = None
+            if ttc_f is not None and ttc_f < self.ttc_graded_horizon_s:
+                # a hazard flagged this tick: keep it for the ticks between flags
+                self._graded_ttc_held = (ttc_f, tick)
+            elif self._speed_adapt_hold and self._graded_ttc_held is not None:
+                # No flag this tick while the response holds. self.ttc is reset
+                # to 1000 every step and the time-synchronised check flags a
+                # perpendicular crossing only intermittently (the predicted
+                # miss hovers at its threshold), so the target used to revert
+                # to max speed between flags and the hero never slowed
+                # (straight crossing, every seed at 0 to 200 ms, 2026-10-22).
+                # Carry the last flagged TTC forward, less the time elapsed.
+                t0, tick0 = self._graded_ttc_held
+                ttc_f = max(0.0, t0 - (tick - tick0) * 0.05)
+            try:
+                frac = min(1.0, max(0.0, ttc_f / self.ttc_graded_horizon_s))
+            except (TypeError, ZeroDivisionError):
                 frac = 0.0
             target = self.max_speed * frac
         else:
@@ -2299,6 +2339,7 @@ class BehaviorAgent(object):
                 self._committed_brake_ttl = 0
                 self._rss_lateral_growing_ticks = 0
                 self._speed_adapt_hold = False
+                self._graded_ttc_held = None
 
         car_following_flag = False
 
