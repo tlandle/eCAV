@@ -101,10 +101,10 @@ class BeaconIdManager:
         world_dt: float = 0.05,
         reconciliation_tolerance: float = 1.5,
         validity_checks: bool = False,
-        max_accel_mps2: float = 8.0,
+        max_accel_mps2: float = 15.0,
         max_yaw_rate_rps: float = 1.0,
         max_speed_mps: float = 40.0,
-        max_beacon_age_ticks: Optional[int] = None,
+        max_beacon_age_ticks: Optional[int] = 20,
     ):
         self.rotation_interval_ticks = rotation_interval_ticks
         self.rotation_distance_m = rotation_distance_m
@@ -114,10 +114,15 @@ class BeaconIdManager:
         # only if it is recent and its displacement, acceleration, yaw-rate,
         # and speed residuals are physically reachable. Off by default so
         # existing arms are unchanged; the bounds are the paper's defaults:
-        #   max_accel_mps2       8.0  (hard braking / strong launch, about 0.8 g)
+        #   max_accel_mps2      15.0  (above CARLA's measured emergency braking of
+        #                              12 to 13 m/s2; 8.0 rejected the beacons of a
+        #                              hard-braking CAV, SenSys j3 faults, 2026-10-25)
         #   max_yaw_rate_rps     1.0  (tight urban turn at low speed)
         #   max_speed_mps       40.0  (144 km/h, above any urban scenario)
-        #   max_beacon_age_ticks None (recency check off unless set)
+        #   max_beacon_age_ticks  20  (1 s at 50 ms: a beacon older than this is not an
+        #                              anchor update, and a record whose last accepted
+        #                              beacon is older than this expires and re-bootstraps,
+        #                              so a rejected record cannot cascade)
         self.validity_checks = bool(validity_checks)
         self.max_accel_mps2 = float(max_accel_mps2)
         self.max_yaw_rate_rps = float(max_yaw_rate_rps)
@@ -298,6 +303,18 @@ class BeaconIdManager:
             return True, 'off'
         rec = self._records.get(carla_id)
         if rec is None or rec.last_position is None:
+            self._count('accepted')
+            return True, 'bootstrap'
+        # Expiry: a record whose last accepted beacon is older than the recency
+        # bound no longer predicts the vehicle; the next beacon re-bootstraps the
+        # anchor instead of being judged against a stale state (the displacement
+        # gate otherwise rejects every later beacon, 4 m noise, 2026-10-25).
+        if (self.max_beacon_age_ticks is not None
+                and int(tick) - int(rec.last_tick) > self.max_beacon_age_ticks):
+            rec.last_position = None
+            rec.last_meas_velocity = None
+            rec.last_velocity = None
+            rec.last_yaw = None
             self._count('accepted')
             return True, 'bootstrap'
         if (self.max_beacon_age_ticks is not None and stamp_tick is not None

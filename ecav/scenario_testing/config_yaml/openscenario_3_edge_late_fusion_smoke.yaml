@@ -420,10 +420,10 @@ scenario:
     # acceleration, yaw rate, speed, and optional recency. false = today's
     # behaviour (displacement gate at rotation reconcile only).
     beacon_validity_checks: false
-    beacon_valid_max_accel_mps2: 8.0     # about 0.8 g, hard braking or launch
+    beacon_valid_max_accel_mps2: 15.0    # above CARLA emergency braking (12 to 13 m/s2) or launch
     beacon_valid_max_yaw_rate_rps: 1.0   # tight low-speed urban turn
     beacon_valid_max_speed_mps: 40.0     # 144 km/h, above any urban scenario
-    beacon_valid_max_age_ticks: null     # recency check off unless set
+    beacon_valid_max_age_ticks: 20       # 1 s; older beacons are not anchor updates and a stale record expireset
     # Beacon fault injection on the CAV-to-edge beacon path (SenSys A2/C2).
     # All off by default.
     beacon_fault_loss_rate: 0.0          # Bernoulli loss per beacon
