@@ -24,6 +24,8 @@ Writes <out>/predicted_vs_observed.csv, <out>/prediction_error.md and
 <out>/predicted_vs_observed.png.
 """
 import argparse
+import json
+import re
 import collections
 import csv
 import os
@@ -123,6 +125,13 @@ def main(argv=None):
     for r in runs:
         if r["mgr"] == "oracle":
             continue
+        # a replay cell (in-order SEE-V2X trace, cell dir v2x_regime<L|M|H>) is its own cell, not
+        # pooled with the swept cell at the same configured delay
+        _m = re.search(r"v2x_regime([LMH])", r["path"])
+        if _m:
+            _kv = json.loads(r["kv"]) if r["kv"] else {}
+            _kv["replay"] = _m.group(1)
+            r["kv"] = json.dumps(_kv, sort_keys=True)
         cells[(r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"], r["lat"])].append(r)
     for k in sorted(cells, key=str):
         v = cells[k]
