@@ -605,6 +605,28 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         )
 
     # ------------------------------------------------------------------
+    def _apply_pending_rotations(self, tick):
+        """Reconcile every pending temporary-id rotation and remap the tracker's
+        identified track to the new id (BSM pseudonym rotation)."""
+        for evt in self.beacon_id_mgr.pop_pending_rotations():
+            rec = self.beacon_id_mgr.get_record(evt.carla_id)
+            old_pos = evt.position
+            new_pos = (rec.last_position if rec is not None
+                       else evt.position)
+            old_vel = (evt.velocity if evt.velocity is not None
+                       else np.zeros(3, dtype=np.float32))
+            elapsed = max(tick - evt.tick, 1)
+            if self.beacon_id_mgr.reconcile_id_change(
+                    evt.old_temp_id, evt.new_temp_id,
+                    old_pos, new_pos, old_vel, elapsed):
+                BeaconIdManager.remap_tracker_identity(
+                    self.tracker, evt.old_temp_id, evt.new_temp_id)
+            else:
+                logger.warning(
+                    "BSM rotation reconcile FAILED carla=%d "
+                    "%d->%d", evt.carla_id,
+                    evt.old_temp_id, evt.new_temp_id)
+
     def update_information(self, frame_idx:int=0):
         """Collect latest detections from every VM and RSU into history."""
         # Guard against double-update in same tick
@@ -862,6 +884,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         logger.warning("[DETS] src=%d n=%d tesla(x,y,l,w,yaw)=%s",
                                        source_tick, len(_dxy), _tbox)
 
+                    # A rotation issued by get_temp_id while this frame's beacon
+                    # rows were collected must reach the tracker before the frame
+                    # is associated: the beacon row already carries the new id
+                    # and the track still the old one, and the id-first match
+                    # forbids the pair (j5 pilot, left turn 70 km/h, 500 ms,
+                    # 2026-10-26: the ego's identity sat on the parked car beside
+                    # the yield point for 98 publishes and the ego's own copy
+                    # was published back to it).
+                    self._apply_pending_rotations(tick)
                     _t0 = time.perf_counter()
                     _n_trk_before = len(self.tracker.trackers)
                     tracks, _ = self.tracker.track(dets_all, source_tick)
@@ -901,25 +932,11 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     anon_merged=len(_holds), anon_hold_ticks_sum=int(sum(_holds)),
                     anon_hold_ticks_max=int(max(_holds)) if _holds else 0, **_bv)
 
-                # BSM rotation reconciliation (persistent tracker)
-                for evt in self.beacon_id_mgr.pop_pending_rotations():
-                    rec = self.beacon_id_mgr.get_record(evt.carla_id)
-                    old_pos = evt.position
-                    new_pos = (rec.last_position if rec is not None
-                               else evt.position)
-                    old_vel = (evt.velocity if evt.velocity is not None
-                               else np.zeros(3, dtype=np.float32))
-                    elapsed = max(tick - evt.tick, 1)
-                    if self.beacon_id_mgr.reconcile_id_change(
-                            evt.old_temp_id, evt.new_temp_id,
-                            old_pos, new_pos, old_vel, elapsed):
-                        BeaconIdManager.remap_tracker_identity(
-                            self.tracker, evt.old_temp_id, evt.new_temp_id)
-                    else:
-                        logger.warning(
-                            "BSM rotation reconcile FAILED carla=%d "
-                            "%d->%d", evt.carla_id,
-                            evt.old_temp_id, evt.new_temp_id)
+                # BSM rotation reconciliation (persistent tracker): any rotation
+                # issued while this tick's frames were collected is applied per
+                # frame below, before that frame is tracked; this call catches a
+                # rotation issued outside the drain loop.
+                self._apply_pending_rotations(tick)
 
                 tracker_ms = (self.tracker.total_time
                               if hasattr(self.tracker, 'total_time') else 0.0)

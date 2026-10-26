@@ -310,6 +310,28 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         return gt_actors, carla_snapshot, excluded_snapshot
 
     # ------------------------------------------------------------------
+    def _apply_pending_rotations(self, tick):
+        """Reconcile every pending temporary-id rotation and remap the tracker's
+        identified track to the new id (BSM pseudonym rotation)."""
+        for evt in self.beacon_id_mgr.pop_pending_rotations():
+            rec = self.beacon_id_mgr.get_record(evt.carla_id)
+            old_pos = evt.position
+            new_pos = (rec.last_position if rec is not None
+                       else evt.position)
+            old_vel = (evt.velocity if evt.velocity is not None
+                       else np.zeros(3, dtype=np.float32))
+            elapsed = max(tick - evt.tick, 1)
+            if self.beacon_id_mgr.reconcile_id_change(
+                    evt.old_temp_id, evt.new_temp_id,
+                    old_pos, new_pos, old_vel, elapsed):
+                BeaconIdManager.remap_tracker_identity(
+                    self.tracker, evt.old_temp_id, evt.new_temp_id)
+            else:
+                logger.warning(
+                    "BSM rotation reconcile FAILED carla=%d "
+                    "%d->%d", evt.carla_id,
+                    evt.old_temp_id, evt.new_temp_id)
+
     def update_information(self, frame_idx: int = 0):
         """Collect GT detections and beacons, push through jitter buffer."""
         if frame_idx == self._last_update_tick:
@@ -370,6 +392,9 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         num_dets = max(num_dets, len(dets_all['dets']))
 
                     _t0 = time.perf_counter()
+                    # Same-tick rotation race as in the late-fusion manager: remap
+                    # before this frame is associated.
+                    self._apply_pending_rotations(tick)
                     tracks, _ = self.tracker.track(dets_all, source_tick)
                     logger.debug("tracker.track() tick=%d src=%d dets=%d "
                                  "took %.1fms", tick, source_tick,
@@ -380,25 +405,9 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     latest_dets = dets_all
                     latest_source_tick = source_tick
 
-                # BSM rotation reconciliation
-                for evt in self.beacon_id_mgr.pop_pending_rotations():
-                    rec = self.beacon_id_mgr.get_record(evt.carla_id)
-                    old_pos = evt.position
-                    new_pos = (rec.last_position if rec is not None
-                               else evt.position)
-                    old_vel = (evt.velocity if evt.velocity is not None
-                               else np.zeros(3, dtype=np.float32))
-                    elapsed = max(tick - evt.tick, 1)
-                    if self.beacon_id_mgr.reconcile_id_change(
-                            evt.old_temp_id, evt.new_temp_id,
-                            old_pos, new_pos, old_vel, elapsed):
-                        BeaconIdManager.remap_tracker_identity(
-                            self.tracker, evt.old_temp_id, evt.new_temp_id)
-                    else:
-                        logger.warning(
-                            "BSM rotation reconcile FAILED carla=%d "
-                            "%d->%d", evt.carla_id,
-                            evt.old_temp_id, evt.new_temp_id)
+                # BSM rotation reconciliation: rotations issued while a frame was
+                # collected are applied per frame below; this catches the rest.
+                self._apply_pending_rotations(tick)
 
                 tracker_ms = (self.tracker.total_time
                               if hasattr(self.tracker, 'total_time') else 0.0)

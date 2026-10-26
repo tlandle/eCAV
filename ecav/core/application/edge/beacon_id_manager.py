@@ -465,6 +465,17 @@ class BeaconIdManager:
                            'tracked_tracklets', [])
         for kf_track in pool:
             if getattr(kf_track, "carla_id", -1) == old_temp_id:
+                # One active anchored track per identifier: a track that took
+                # the new id before the remap (a beacon row carrying the new
+                # id bound to an anonymous track in the same tick) returns to
+                # the anonymous path.
+                for other in pool:
+                    if other is not kf_track and getattr(other, "carla_id", -1) == new_temp_id:
+                        other.carla_id = -1
+                        other.anchoring_age = 0
+                        logger.warning(
+                            "Tracker remap: track %d also carried %d; made anonymous",
+                            getattr(other, 'id', getattr(other, 'track_id', -1)), new_temp_id)
                 kf_track.carla_id = new_temp_id
                 kf_track.anchoring_age = 0  # reset epoch on successful remap
                 logger.info(

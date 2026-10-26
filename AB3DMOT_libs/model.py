@@ -655,12 +655,15 @@ class AB3DMOT(object):
 		and then stopped is read at rest; under 2 m/s the track is published at
 		rest, as for the position estimate."""
 		def slower(a, b):
-			# Edges moving together within the slope noise (2 m/s at the half-second
-			# window) average, so a rigid vehicle is not read at the lower of two
-			# noisy estimates; edges that disagree beyond it give the slower.
+			# Two edges that both move faster than the rest threshold and agree
+			# within the slope noise (2 m/s at the half-second window) average, so
+			# a rigid vehicle is not read at the lower of two noisy estimates. Any
+			# other pair gives the slower, so a parked vehicle whose box drifts
+			# with the viewpoint stays at rest.
 			if a * b <= 0.0:
 				return 0.0
-			if abs(a - b) <= 2.0 * max(getattr(self, 'dt', 0.05), 1e-3):
+			v_rest = 2.0 * max(getattr(self, 'dt', 0.05), 1e-3)
+			if abs(a) >= v_rest and abs(b) >= v_rest and abs(a - b) <= v_rest:
 				return 0.5 * (a + b)
 			return a if abs(a) < abs(b) else b
 		s = self._history_slopes(eh)
