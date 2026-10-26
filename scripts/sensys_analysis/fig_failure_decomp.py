@@ -80,11 +80,13 @@ def main():
                 ax.bar([x + (i - (len(arms) - 1) / 2) * width for x in range(len(lats))], fr, width, bottom=bottoms,
                        color=color, edgecolor="k", linewidth=0.3, label=clabel if i == 0 else None)
                 bottoms = [b + f for b, f in zip(bottoms, fr)]
-        ax.set_xticks(range(len(lats))); ax.set_xticklabels([str(l) for l in lats], fontsize=8)
+        ax.set_xticks(range(len(lats))); ax.set_xticklabels([str(l) for l in lats], fontsize=7, rotation=45 if len(lats) > 6 else 0)
         ax.set_xlabel("configured delay (ms)", fontsize=8)
-        ax.set_title(title + "; bars left to right: " + ", ".join(dict(ARMS)[ak] for ak in arms), fontsize=7.5)
+        ax.set_title(title, fontsize=9)
+        ax.text(0.01, 0.98, "bars: " + ", ".join(dict(ARMS)[ak] for ak in arms), transform=ax.transAxes,
+                fontsize=6, va="top", ha="left")
         ax.set_ylim(0, 1.05); ax.grid(axis="y", alpha=0.3)
-    axes[0].set_ylabel("fraction of failed runs, by class"); axes[0].legend(fontsize=6.5, loc="upper left")
+    axes[0].set_ylabel("fraction of failed runs, by class"); axes[0].legend(fontsize=6.5, loc="upper left", bbox_to_anchor=(0, 0.92))
     fig.tight_layout(); os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     fig.savefig(a.out); fig.savefig(os.path.splitext(a.out)[0] + ".png", dpi=150)
     with open(os.path.splitext(a.out)[0] + ".csv", "w", newline="") as fh:
