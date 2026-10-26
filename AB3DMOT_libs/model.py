@@ -607,6 +607,39 @@ class AB3DMOT(object):
 		if len(h) > 21:
 			del h[0]
 
+	# Published-velocity window in frames (50 ms each). The slope is fitted over the history
+	# entries of the last VEL_WINDOW frames by frame number, so dropped detections do not stretch
+	# the window: the former 21-entry displacement spanned 1.5 s under a 30% drop rate and read a
+	# car accelerating through 12 m/s at 9.3 m/s (j4 left turn, 70 km/h, 500 ms, 2026-10-26). The
+	# long window serves only when the short one holds too few entries.
+	VEL_WINDOW = 10
+	VEL_WINDOW_LONG = 20
+	VEL_MIN_SAMPLES = 4
+
+	@staticmethod
+	def _window_slopes(hist, f1, window, min_samples):
+		"""Least-squares slope per column, in units per frame, over the entries of hist (a list of
+		(frame, values)) whose frame lies within the last `window` frames of f1. None with fewer
+		than min_samples entries or a span under two frames."""
+		pts = [(f, v) for f, v in hist if f >= f1 - window]
+		if len(pts) < min_samples or pts[-1][0] - pts[0][0] < 2:
+			return None
+		fr = np.array([p[0] for p in pts], dtype=float)
+		vals = np.array([p[1] for p in pts], dtype=float)
+		fr -= fr.mean()
+		den = float((fr * fr).sum())
+		if den <= 0.0:
+			return None
+		return ((vals - vals.mean(axis=0)) * fr[:, None]).sum(axis=0) / den
+
+	def _history_slopes(self, hist):
+		"""Slopes over the last VEL_WINDOW frames of hist, else over VEL_WINDOW_LONG, else None."""
+		f1 = hist[-1][0]
+		s = self._window_slopes(hist, f1, self.VEL_WINDOW, self.VEL_MIN_SAMPLES)
+		if s is None:
+			s = self._window_slopes(hist, f1, self.VEL_WINDOW_LONG, 3)
+		return s
+
 	def _edge_velocity(self, eh, vel):
 		"""Velocity (m per frame, [vx, vy, vz] in the state's axes) from the
 		slower-moving edge of the measured box per ground axis. A rigid vehicle
@@ -615,26 +648,26 @@ class AB3DMOT(object):
 		face along its side, so the mean of its points slid north at 4 to 7 m/s
 		while its rear edge stood still (2026-10-15, scenario_3 column), and a
 		camera box cut by the image edge slides the same way alongside. Edges
-		moving in opposite directions give zero. The last half of the history
-		must agree (the slower of the two estimates), and under 2 m/s over the
-		window the track is published at rest, as for the position estimate."""
+		moving in opposite directions give zero, edges moving together within
+		the slope noise are averaged. Each edge's motion is the
+		least-squares slope over the last half second of matched frames, so an
+		accelerating vehicle is read at its recent speed and a face that slid
+		and then stopped is read at rest; under 2 m/s the track is published at
+		rest, as for the position estimate."""
 		def slower(a, b):
+			# Edges moving together within the slope noise (2 m/s at the half-second
+			# window) average, so a rigid vehicle is not read at the lower of two
+			# noisy estimates; edges that disagree beyond it give the slower.
 			if a * b <= 0.0:
 				return 0.0
+			if abs(a - b) <= 2.0 * max(getattr(self, 'dt', 0.05), 1e-3):
+				return 0.5 * (a + b)
 			return a if abs(a) < abs(b) else b
-		def est(e0, e1, n):
-			return (slower(e1[0] - e0[0], e1[1] - e0[1]) / n,
-			        slower(e1[2] - e0[2], e1[3] - e0[3]) / n)
-		(f0, e0), (f1, e1) = eh[0], eh[-1]
-		n = max(1, f1 - f0)
-		vx, vz = est(e0, e1, n)
-		fh, ehalf = eh[len(eh) // 2]
-		nh = max(1, f1 - fh)
-		hx, hz = est(ehalf, e1, nh)
-		v_long = math.hypot(vx, vz)
-		v_half = math.hypot(hx, hz)
-		if v_long > 1e-6 and v_half < v_long:
-			vx, vz = vx * v_half / v_long, vz * v_half / v_long
+		s = self._history_slopes(eh)
+		if s is None:
+			return np.zeros(3)
+		vx = slower(float(s[0]), float(s[1]))
+		vz = slower(float(s[2]), float(s[3]))
 		if math.hypot(vx, vz) / max(getattr(self, 'dt', 0.05), 1e-3) < 2.0:
 			vx, vz = 0.0, 0.0
 		return np.array([vx, float(vel[1]) if len(vel) > 1 else 0.0, vz])
@@ -689,21 +722,18 @@ class AB3DMOT(object):
 					# wandering reports read as 16 m/s (2026-10-15)
 					vel = self._edge_velocity(_eh, vel) if len(_eh) >= 10 else np.zeros(3)
 				else:
-					(f0, x0, z0), (f1, x1, z1) = _hist[0], _hist[-1]
-					n = max(1, f1 - f0)
-					vel = np.array([(x1 - x0) / n, float(vel[1]) if len(vel) > 1 else 0.0, (z1 - z0) / n])
-					# The last half second must agree: a measured face that
-					# slid along a parked vehicle and then stopped at its end
-					# (the passing CAV's camera box reaching the front corner)
-					# still shows motion over the full second but none over
-					# the last half; the published velocity is the slower of
-					# the two estimates, in the direction of the longer one.
-					(fh, xh, zh) = _hist[len(_hist) // 2]
-					nh = max(1, f1 - fh)
-					v_long = math.hypot(vel[0], vel[2])
-					v_half = math.hypot((x1 - xh) / nh, (z1 - zh) / nh)
-					if v_long > 1e-6 and v_half < v_long:
-						vel = vel * (v_half / v_long)
+					# Least-squares slope of the output position over the last
+					# half second of frames (_history_slopes): a measured face
+					# that slid along a parked vehicle and then stopped at its
+					# end (the passing CAV's camera box reaching the front
+					# corner) reads as rest once it has stood for half a second,
+					# and an accelerating vehicle reads at its recent speed
+					# instead of its average over the whole history.
+					_s = self._history_slopes([(f, (x, z)) for f, x, z in _hist])
+					if _s is None:
+						vel = np.zeros(3)
+					else:
+						vel = np.array([float(_s[0]), float(vel[1]) if len(vel) > 1 else 0.0, float(_s[1])])
 					# Slower than 2 m/s over the last second is published at
 					# rest: a parked vehicle whose measured centroid wanders
 					# between its visible faces (up to 1.9 m across a second)
