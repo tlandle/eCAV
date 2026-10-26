@@ -269,11 +269,20 @@ def compute_run_metrics(d):
         # Match radius: 6 m when the match is the run's conflict actor (its
         # published state carries the pipeline's position error plus up to two
         # edge frames of lag at the crossing: 3.3 to 4 m at 63 km/h and 200 ms,
-        # Oct 17), 3 m for any other actor.
+        # Oct 17), 3 m for any other actor. The conflict actor's stale offset
+        # grows with the configured delay (12 m/s x 0.55 s = 7.2 to 7.9 m at
+        # 500 ms; j4 SCP 70 contract 500 ms, Oct 26: all ten brakes on the
+        # crossing car fell through to other_fp), so above 200 ms the radius
+        # grows at 12.5 m/s with the delay beyond 200 ms.
         _is_conf = (_conflict_id is not None and _mid is not None and int(_mid) == int(_conflict_id))
         _is_cav = (_mid is not None and int(_mid) in _managed and int(_mid) != ego_actor_id)
+        try:
+            _lat_ms = float(d.get("config_latency_ms") or 0.0)
+        except (TypeError, ValueError):
+            _lat_ms = 0.0
+        _conf_radius = 6.0 + 0.0125 * max(0.0, _lat_ms - 200.0)
         if (_raw0 == "self_ghost" and _mid is not None and int(_mid) != ego_actor_id
-                and _mdist is not None and float(_mdist) < (6.0 if _is_conf else 3.0)):
+                and _mdist is not None and float(_mdist) < (_conf_radius if _is_conf else 3.0)):
             if _is_conf:
                 attr["gt_brake_class"] = "true_positive"; attr["gt_provenance"] = "conflict_actor_match"
             elif _is_cav:
