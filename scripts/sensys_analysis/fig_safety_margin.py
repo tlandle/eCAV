@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-GEOM = {"openscenario_3_edge_late_fusion": "Left turn", "scp_edge_late_fusion": "Straight crossing"}
+GEOM = {"openscenario_3_edge_late_fusion": "Left turn", "scp_edge_late_fusion": "Crossing"}
 ARCH = [("oracle", "Reference"), ("object_i2v", "I2V object sharing"), ("coop_pred", "V2X2V prediction"),
         ("coop_planning", "CIP planning"), ("intermediate", "Intermediate fusion")]
 

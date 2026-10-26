@@ -4,7 +4,8 @@ each class (collision; self-ghost brake; other false brake; late completion, S_p
 for the N=4 junction cells of a stamp and for the blind overtake stamps (N=1).
     python scripts/sensys_analysis/fig_failure_decomp.py --stamp sensys_nov27_j3 --root experiment_results \
         --overtake-stamps sensys_nov27_ov4 --out figures/arch_failure_decomp.pdf
-A run can carry more than one class; each class is counted once per run. Writes PDF, PNG, CSV.
+Each failed run is assigned one class, in the order self-ghost brake (logic), collision (physics), other
+false brake, late completion, so the bars of one arm sum to its failure fraction. Writes PDF, PNG, CSV.
 """
 import argparse, collections, csv, glob, json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -41,8 +42,10 @@ def collect(root, stamp, geom, pattern):
             continue
         arm = arm_of(d["config_manager_type"], bool(d["config_anchoring"]))
         lat = int(round(float(d["config_latency_ms"])))
-        cells[(arm, lat)].append(dict(collision=bool(m["focal_collisions"]), self_ghost=not m["s_ghost"],
-                                      false_brake=not m["s_fp"], late=not m["s_prog"]))
+        flags = dict(self_ghost=not m["s_ghost"], collision=bool(m["focal_collisions"]),
+                     false_brake=not m["s_fp"], late=not m["s_prog"])
+        cls = next((k for k in ("self_ghost", "collision", "false_brake", "late") if flags[k]), None)
+        cells[(arm, lat)].append({k: (k == cls) for k in flags})
     return cells
 
 
@@ -78,9 +81,10 @@ def main():
                        color=color, edgecolor="k", linewidth=0.3, label=clabel if i == 0 else None)
                 bottoms = [b + f for b, f in zip(bottoms, fr)]
         ax.set_xticks(range(len(lats))); ax.set_xticklabels([str(l) for l in lats], fontsize=8)
-        ax.set_xlabel("configured delay (ms); bars per arm: " + ", ".join(dict(ARMS)[ak] for ak in arms), fontsize=7)
-        ax.set_title(title, fontsize=9); ax.set_ylim(0, 1.6); ax.grid(axis="y", alpha=0.3)
-    axes[0].set_ylabel("fraction of runs with the failure class"); axes[0].legend(fontsize=6.5, loc="upper left")
+        ax.set_xlabel("configured delay (ms)", fontsize=8)
+        ax.set_title(title + "; bars left to right: " + ", ".join(dict(ARMS)[ak] for ak in arms), fontsize=7.5)
+        ax.set_ylim(0, 1.05); ax.grid(axis="y", alpha=0.3)
+    axes[0].set_ylabel("fraction of failed runs, by class"); axes[0].legend(fontsize=6.5, loc="upper left")
     fig.tight_layout(); os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
     fig.savefig(a.out); fig.savefig(os.path.splitext(a.out)[0] + ".png", dpi=150)
     with open(os.path.splitext(a.out)[0] + ".csv", "w", newline="") as fh:
