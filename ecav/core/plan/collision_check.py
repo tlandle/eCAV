@@ -242,9 +242,16 @@ class CollisionChecker:
         The offset between collision checking circle and the trajectory point.
     """
 
-    def __init__(self, time_ahead=1.2, circle_radius=1.0, circle_offsets=None):
+    def __init__(self, time_ahead=1.2, circle_radius=1.0, circle_offsets=None,
+                 proximity_check_m=2.5):
 
         self.time_ahead = time_ahead
+        # Centre-to-centre distance below which two interpolated paths count
+        # as a collision: half the two vehicles' widths (about 1.9 m for the
+        # campaign's cars) plus a 0.5 m margin. The old hard-coded 2.0 m
+        # missed an exact-state forecast of a crossing car by 0.0 to 0.3 m
+        # (SenSys j3 straight crossing, 70 km/h, 500 ms, 2026-10-24).
+        self._proximity_check_m = float(proximity_check_m)
         self._circle_offsets = [-.8,
                                 0,
                                 .8] \
@@ -655,7 +662,7 @@ class CollisionChecker:
                 length = min(len(ego_x_points), len(obs_x_points))
                 ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
                 obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
-                proximity_check = 2.0  # vehicle width + safety margin
+                proximity_check = self._proximity_check_m
                 is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=proximity_check, dt=time_step)
                 if obstacle_speed > 3.0:
                     time_dists = np.linalg.norm(ego_path - obs_path, axis=1)

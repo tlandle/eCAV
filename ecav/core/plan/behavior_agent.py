@@ -21,6 +21,7 @@ import copy
 
 from ecav.core.common.misc import get_speed, positive, cal_distance_angle
 from ecav.core.plan.collision_check import CollisionChecker
+from ecav.core.plan.forecast_age import reindex_forecast_by_age
 from ecav.core.plan.local_planner_behavior import LocalPlanner, RoadOption
 from ecav.core.plan.global_route_planner import GlobalRoutePlanner
 from ecav.core.plan.global_route_planner_dao import GlobalRoutePlannerDAO
@@ -255,8 +256,14 @@ class BehaviorAgent(object):
         self.ttc = 1000
         # collision checker
         time_ahead = config_yaml['collision_time_ahead']
+        # Proximity margin of the path check (m) and whether consumed edge
+        # forecasts are re-indexed to the present by their age
+        # (ecav/core/plan/forecast_age.py). Both default on for every arm.
+        self.proximity_check_m = float(config_yaml.get('proximity_check_m', 2.5))
+        self.forecast_age_reindex = bool(config_yaml.get('forecast_age_reindex', True))
         self._collision_check = CollisionChecker(
-            time_ahead=time_ahead)
+            time_ahead=time_ahead,
+            proximity_check_m=self.proximity_check_m)
         # Separate TTC threshold for candidate lane-change-path safety checks
         # (overtake_management's dry-run/commit calls, lane_change_management,
         # the return-to-lane check — all call collision_manager with
@@ -512,7 +519,15 @@ class BehaviorAgent(object):
                 _cache.pop(_k, None)
         for _k in [k for k, (tk, _) in _cache.items() if _tick - tk > _HOLD]:
             _cache.pop(_k, None)
-        merged = [pr for (tk, pr) in _cache.values()]
+        # Re-index each edge forecast to the present by its age at use, so
+        # the hazard check compares the obstacle's future with the ego's
+        # future rather than the obstacle's past. Local forecasts (appended
+        # below) have age zero and are left as they are.
+        _now_tick = self._current_global_tick
+        if self.forecast_age_reindex and _now_tick is not None:
+            merged = [reindex_forecast_by_age(pr, _now_tick) for (tk, pr) in _cache.values()]
+        else:
+            merged = [pr for (tk, pr) in _cache.values()]
         self._edge_pred_ids = {id(pr) for pr in merged}
         if getattr(self, 'local_predictions', None):
             def _anchor(p):
@@ -707,7 +722,7 @@ class BehaviorAgent(object):
             last_wp = route_trace[-1][0].transform.location
             # Trigger breakpoint if route goes significantly backwards in Y (potential U-turn)
             if last_wp.y < first_wp.y - 10:
-                print(f"[ROUTE DEBUG] Suspicious route: start=({first_wp.x:.1f}, {first_wp.y:.1f}), end=({last_wp.x:.1f}, {last_wp.y:.1f})")
+                logger.debug(f"[ROUTE DEBUG] Suspicious route: start=({first_wp.x:.1f}, {first_wp.y:.1f}), end=({last_wp.x:.1f}, {last_wp.y:.1f})")
 
         self._local_planner.set_global_plan(route_trace, clean)
 
@@ -1226,7 +1241,7 @@ class BehaviorAgent(object):
             return v
         if not self.generated_predictions:
             if _dbg:
-                print("[LEAD] no-preds=True")
+                logger.debug("[LEAD] no-preds=True")
             return None
         for pred in self.generated_predictions:
             obs = pred.obstacle_trajectory.obstacle
@@ -1241,7 +1256,7 @@ class BehaviorAgent(object):
             lateral = abs(-dx * sin_y + dy * cos_y)
             if not (0.5 < ahead < max_ahead and lateral < max_lateral):
                 if _dbg and abs(ahead) < 25 and lateral < 6:
-                    print(f"[LEAD] reject-geom id={obs.carla_id} ahead={ahead:.1f} lat={lateral:.1f}")
+                    logger.debug(f"[LEAD] reject-geom id={obs.carla_id} ahead={ahead:.1f} lat={lateral:.1f}")
                 continue
             # Stationary judged by TRACK displacement over ~1 s, the only
             # signal that separates detection jitter from motion at this
@@ -1260,7 +1275,7 @@ class BehaviorAgent(object):
                      (tdq[0].location.y - tdq[j].location.y) ** 2) ** 0.5
                 if d > 1.5:
                     if _dbg:
-                        print(f"[LEAD] reject-moving id={obs.carla_id} d1s={d:.1f}")
+                        logger.debug(f"[LEAD] reject-moving id={obs.carla_id} d1s={d:.1f}")
                     continue
             self._lead_cache = (obs, getattr(self, '_tick_counter', 0))
             return obs

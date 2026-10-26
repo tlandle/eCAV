@@ -24,6 +24,11 @@ from .edge_manager_vips_temporal_alignment import _time_rectify_detections
 
 class VIPSLateFusionEdge(PredictionLateFusionEdge):
 
+    def _forecast_origin_tick(self, source_tick, publish_tick):
+        # Rectified detections sit at the ingest tick, so the track state the
+        # forecast starts from refers to the publish tick, not the observation.
+        return publish_tick
+
     def _collect_detections_for_frame(self, objects, beacons, source_tick):
         dets_all = super()._collect_detections_for_frame(objects, beacons, source_tick)
         now = getattr(self, "_drain_tick", None)

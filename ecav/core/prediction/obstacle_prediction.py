@@ -20,7 +20,7 @@ class ObstaclePrediction(object):
     def __init__(self, obstacle_trajectory: ObstacleTrajectory,
                  transform: carla.Transform, probability: float,
                  predicted_trajectory, source_tick=None,
-                 publish_tick=None):
+                 publish_tick=None, origin_tick=None):
         # Trajectory in ego frame of coordinates.
         self.obstacle_trajectory = obstacle_trajectory
         # The transform is in world coordinates.
@@ -32,6 +32,10 @@ class ObstaclePrediction(object):
         self.source_tick = source_tick
         # Simulation tick when the edge pushed this prediction to vehicles.
         self.publish_tick = publish_tick
+        # Simulation tick the first predicted point refers to (minus one
+        # step). None means source_tick. The planner re-indexes the forecast
+        # by (consume tick - origin_tick); see ecav/core/plan/forecast_age.py.
+        self.origin_tick = origin_tick
 
     @property
     def id(self):

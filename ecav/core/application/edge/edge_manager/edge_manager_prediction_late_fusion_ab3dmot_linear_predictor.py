@@ -797,6 +797,12 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._beacon_meta.setdefault(frame_idx, {})[vid] = (yaw, vel, stamp)
 
     # ------------------------------------------------------------------
+    def _forecast_origin_tick(self, source_tick, publish_tick):
+        """Tick the published forecast's first point refers to (minus one
+        step). Object sharing predicts from the track's observed state, so the
+        origin is the observation tick. VIPSLateFusionEdge overrides this."""
+        return source_tick
+
     def _collect_detections_for_frame(self, objects, beacons, source_tick):
         """Build the AB3DMOT detection dict for one drained jitter-buffer frame.
 
@@ -1001,6 +1007,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                             source_tick=(latest_source_tick if latest_source_tick is not None
                                          else getattr(self, '_last_drained_source_tick', None)),
                             publish_tick=tick)
+                # The tick the forecast's first point refers to (minus one
+                # step): the observation tick here, the ingest tick for an
+                # arm that rectifies detections before association. The
+                # planner re-indexes by (consume tick - origin_tick).
+                _origin = self._forecast_origin_tick(
+                    latest_source_tick if latest_source_tick is not None
+                    else getattr(self, '_last_drained_source_tick', None), tick)
+                for _p in preds:
+                    _p.origin_tick = _origin
                 predict_ms = (time.perf_counter() - t0) * 1e3
                 num_predictions = len(preds)
 
