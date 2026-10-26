@@ -45,7 +45,7 @@ def main():
     ap.add_argument("--geom", default="openscenario_3_edge_late_fusion"); ap.add_argument("--speed", type=int, default=70)
     ap.add_argument("--max-age", type=float, default=1100); ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    acc = collections.defaultdict(lambda: [0, 0])
+    acc = collections.defaultdict(list)   # (arm, lat) -> [(axis_ms, s_op)]
     for p in a.csv:
         for r in csv.DictReader(open(p)):
             if r["geom"] != a.geom or int(r["speed"]) != a.speed or int(r["N"]) != 1:
@@ -56,16 +56,23 @@ def main():
             k = arm_key(r["mgr"], r["anch"], kv)
             if k is None:
                 continue
-            n = int(r["n"]); acc[(k, float(r["age_p99_bin_ms"]))][0] += int(round(float(r["p_sop"]) * n)); acc[(k, float(r["age_p99_bin_ms"]))][1] += n
+            acc[(k, int(r["lat"]))].append((float(r["axis_ms"]), int(r["s_op"])))
     fig = plt.figure(figsize=(10.5, 6.2))
     gs = gridspec.GridSpec(3, 4, height_ratios=[1.35, 1, 1], figure=fig)
     ax = fig.add_subplot(gs[0, :])
     for key, label, color, marker in ARMS:
-        pts = sorted((b, kn) for (kk, b), kn in acc.items() if kk == key and b <= a.max_age)
+        pts = []
+        for (kk, lat), v in sorted(acc.items(), key=lambda t: t[0][1]):
+            if kk != key:
+                continue
+            x = sum(x for x, _ in v) / len(v)
+            if x > a.max_age:
+                continue
+            pts.append((x, sum(o for _, o in v), len(v)))
         if not pts:
             continue
-        xs = [b for b, _ in pts]; ps = [k / n for _, (k, n) in pts]
-        lo = [max(0.0, p - wilson(k, n)[1]) for p, (_, (k, n)) in zip(ps, pts)]; hi = [max(0.0, wilson(k, n)[2] - p) for p, (_, (k, n)) in zip(ps, pts)]
+        xs = [x for x, _, _ in pts]; ps = [k / n for _, k, n in pts]
+        lo = [max(0.0, p - wilson(k, n)[1]) for p, (_, k, n) in zip(ps, pts)]; hi = [max(0.0, wilson(k, n)[2] - p) for p, (_, k, n) in zip(ps, pts)]
         ax.errorbar(xs, ps, yerr=[lo, hi], fmt=marker + "-", color=color, ms=4, lw=1, capsize=1.5, label=label, alpha=0.9)
     ax.axhline(0.8, color="gray", lw=0.7, ls="--"); ax.set_ylim(-0.05, 1.05); ax.grid(alpha=0.3)
     ax.set_xlabel("conflict actor's measured p99 age at use (ms)", fontsize=8); ax.set_ylabel("$\\Pr[S_{op}]$")
