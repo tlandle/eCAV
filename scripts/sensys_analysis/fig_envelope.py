@@ -2,7 +2,7 @@
 """Envelope figure (arch_safety_scale): P(S_op) against the conflict actor's measured p99 age at use,
 one panel per junction geometry at one approach speed, one curve per arm, Wilson 95% bars, pooled
 over the hosts' runs.csv files (scripts/sensys_analysis/envelope_measured.py). One point per configured
-delay cell, placed at the cell's mean measured age (x bars: 10th to 90th percentile), Wilson y bars.
+delay cell, placed at the cell's mean measured age, Wilson y bars (the cell's 10th to 90th percentile age is in the CSV).
 Drawn at text width (figstyle.TXT) for a figure* float.
     python scripts/sensys_analysis/fig_envelope.py --csv safety_envelope_paper/analysis/envelope_j3_atlas/runs.csv \
         safety_envelope_paper/analysis/envelope_j3_cetus/runs.csv --speed 70 --out figures/arch_safety_scale.pdf
@@ -66,7 +66,7 @@ def main():
             xs = [x for _, x, _, _, _, _ in pts]; ps = [k / n for _, _, _, _, k, n in pts]
             lo = [max(0.0, p - wilson(k, n)[1]) for p, (_, _, _, _, k, n) in zip(ps, pts)]; hi = [max(0.0, wilson(k, n)[2] - p) for p, (_, _, _, _, k, n) in zip(ps, pts)]
             xl = [max(0.0, x - l) for _, x, l, _, _, _ in pts]; xh = [max(0.0, h - x) for _, x, _, h, _, _ in pts]
-            ax.errorbar(xs, ps, yerr=[lo, hi], xerr=[xl, xh], fmt=marker + "-", color=color, label=label, **figstyle.EB)
+            ax.errorbar(xs, ps, yerr=[lo, hi], fmt=marker + "-", color=color, label=label, **figstyle.EB)
             rows += [dict(geom=geom, arm=label, lat=lat, age_mean_ms=round(x, 1), age_p10=round(l, 1), age_p90=round(h, 1), n=n, k=k) for lat, x, l, h, k, n in pts]
         ax.axhline(0.8, color="gray", lw=0.8, ls="--"); ax.set_title(f"({'ab'[i]}) {title}, {a.speed} km/h")
         ax.set_xlabel("conflict actor's measured p99 age at use (ms)"); ax.set_ylim(-0.05, 1.05); ax.grid(alpha=0.3)

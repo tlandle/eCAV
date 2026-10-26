@@ -5,14 +5,14 @@
         --roots experiment_results experiment_results/_cetus_mirror/experiment_results \
         [--bin 50] [--threshold 0.8] [--boot 500] [--out safety_envelope_paper/analysis/fig_situation]
 
-(a) tau_max against approach speed per geometry for the oracle and the
-    contract arm, with a 95% bootstrap interval of tau_max over runs; a point
-    whose P(S_op) never falls below the threshold inside the sweep is censored
-    (hollow marker, interval open upwards) and reported as "beyond the sweep";
-(b) controller sensitivity: the oracle under each hazard-response policy, one
-    panel per speed with control-stage runs; drawn only when such runs exist.
-fig_situation_ref.pdf (supplementary) carries the old panel (a), the reference
-envelope of each geometry at its reference speed. Drawn at column width.
+fig_situation.pdf: tau_max of the exact-state reference against approach speed
+    per geometry with a 95% bootstrap interval over runs; a cell whose P(S_op)
+    never falls below the threshold at any tested age is a lower bound (hollow
+    triangle at the top). Supplementary: fig_situation_contract.pdf adds the
+    contract arm (dashed, hollow); fig_situation_control.pdf is the reference
+    under each hazard-response policy, one panel per speed with control-stage
+    runs; fig_situation_ref.pdf is the reference envelope of each geometry at
+    its reference speed. All at column width.
 
 Runs from several roots (atlas results and the cetus mirror) are merged; a
 design cell and seed present in more than one root keeps the first root's run.
@@ -204,51 +204,74 @@ def main(argv=None):
     figstyle.save(fig, os.path.join(a.out, "fig_situation_ref.pdf"))
     plt.close(fig)
 
+    from matplotlib.lines import Line2D
+    ytop = 2300.0
+
+    def budget_axes(ax, arms):
+        """tau_max against approach speed per geometry: colour is the geometry, the reference solid with
+        filled markers, the contract arm dashed with hollow markers, bootstrap intervals; a cell that never
+        fell below the threshold at any tested age is a lower bound, drawn as a hollow triangle at the top.
+        A geometry with one speed (the overtake) is one point, named in the legend. Returns True when a lower bound was drawn."""
+        bound = False
+        for geom in geoms:
+            for arm, ls, hollow in arms:
+                pts = sorted((r["speed_kmh"], r["tau_ms"], r["boot_lo_ms"], r["boot_hi_ms"], r["censored"], r["max_bin_ms"])
+                             for r in rows if r["geom"] == geom and r["arm"] == arm)
+                if not pts:
+                    continue
+                ax.plot([p[0] for p in pts], [min(p[1], ytop) for p in pts], ls=ls, lw=1.2, color=colors[geom])
+                for s, t, lo, hi, cens, mx in pts:
+                    if cens:
+                        ax.plot([s], [ytop], marker="^", mfc="white", mec=colors[geom], ms=6, ls="none", clip_on=False)
+                        bound = True
+                    else:
+                        ax.errorbar([s], [t], yerr=[[t - lo], [hi - t]], marker="o", mfc="white" if hollow else colors[geom],
+                                    mec=colors[geom], color=colors[geom], ls="none", **EB)
+        ax.set_xlabel("approach speed (km/h)")
+        ax.set_ylabel(r"$\tau_{\max}$ at $\Pr[S_{op}] \geq %g$ (ms)" % a.threshold)
+        ax.set_ylim(0, ytop)
+        ax.grid(alpha=0.3)
+        return bound
+
+    # main figure: the exact-state reference alone
+    fig, ax = plt.subplots(figsize=(figstyle.COL, 2.0))
+    bound = budget_axes(ax, (("oracle", "-", False),))
+    def geom_handles(lw):
+        out = []
+        for g in geoms:
+            speeds = sorted({r["speed_kmh"] for r in rows if r["geom"] == g and r["arm"] == "oracle"})
+            if len(speeds) > 1:
+                out.append(Line2D([], [], color=colors[g], lw=lw, marker="o" if lw < 1.5 else None, label=gname[g]))
+            elif speeds:
+                out.append(Line2D([], [], color=colors[g], ls="none", marker="o", label=f"{gname[g]}, {speeds[0]} km/h only"))
+        return out
+    handles = geom_handles(1.2)
+    if bound:
+        handles.append(Line2D([], [], color="k", ls="none", marker="^", mfc="white", ms=6, label="lower bound"))
+    ax.legend(handles=handles, loc="upper right")
+    figstyle.save(fig, os.path.join(a.out, "fig_situation.pdf"))
+    plt.close(fig)
+
+    # supplementary: the reference against V2X2V prediction with the contract
+    fig, ax = plt.subplots(figsize=(figstyle.COL, 2.0))
+    bound = budget_axes(ax, (("oracle", "-", False), ("contract", "--", True)))
+    handles = geom_handles(1.5)
+    handles += [Line2D([], [], color="k", lw=1.2, ls="-", marker="o", label="reference"),
+                Line2D([], [], color="k", lw=1.2, ls="--", marker="o", mfc="white", label="V2X2V prediction, +contract")]
+    if bound:
+        handles.append(Line2D([], [], color="k", ls="none", marker="^", mfc="white", ms=6, label="lower bound"))
+    fig.legend(handles=handles, loc="outside upper center", ncol=2)
+    figstyle.save(fig, os.path.join(a.out, "fig_situation_contract.pdf"))
+    plt.close(fig)
+
+    # supplementary: control response, the reference under the emergency stop (solid) and under deceleration
+    # graded by the time to collision (dashed), per geometry colour, one panel per speed; Wilson bars.
     control = [r for r in runs if "hazard_response" in r["kv"] and r["mgr"] == "oracle" and r["N"] == 1]
     cspeeds = sorted({r["speed_kmh"] for r in control})
-    fig = plt.figure(figsize=(figstyle.COL, 3.4 if cspeeds else 2.0))
     if cspeeds:
-        gs = fig.add_gridspec(2, len(cspeeds), height_ratios=[1.3, 1])
-        ax = fig.add_subplot(gs[0, :])
-    else:
-        ax = fig.add_subplot(111)
-
-    # (a) tau_max against approach speed: colour is the geometry, the reference is solid with filled
-    # markers, the contract arm dashed with hollow markers; a cell whose success never fell below the
-    # threshold inside the sweep is drawn as a hollow triangle at the top of the axis.
-    ytop = 2300.0
-    for geom in geoms:
-        for arm, ls, hollow in (("oracle", "-", False), ("contract", "--", True)):
-            pts = sorted((r["speed_kmh"], r["tau_ms"], r["boot_lo_ms"], r["boot_hi_ms"], r["censored"], r["max_bin_ms"])
-                         for r in rows if r["geom"] == geom and r["arm"] == arm)
-            if not pts:
-                continue
-            ax.plot([p[0] for p in pts], [min(p[1], ytop) for p in pts], ls=ls, lw=1.2, color=colors[geom])
-            for s, t, lo, hi, cens, mx in pts:
-                if cens:
-                    ax.plot([s], [ytop], marker="^", mfc="white", mec=colors[geom], ms=6, ls="none", clip_on=False)
-                else:
-                    ax.errorbar([s], [t], yerr=[[t - lo], [hi - t]], marker="o", mfc="white" if hollow else colors[geom],
-                                mec=colors[geom], color=colors[geom], ls="none", **EB)
-    ax.set_xlabel("approach speed (km/h)")
-    ax.set_ylabel(r"$\tau_{\max}$ at $\Pr[S_{op}] \geq %g$ (ms)" % a.threshold)
-    ax.set_ylim(0, ytop)
-    ax.grid(alpha=0.3)
-    ax.set_title("(a) useful-age budget against approach speed")
-    from matplotlib.lines import Line2D
-    handles = [Line2D([], [], color=colors[g], lw=1.5, label=gname[g]) for g in geoms]
-    handles += [Line2D([], [], color="k", lw=1.2, ls="-", marker="o", label="reference"),
-                Line2D([], [], color="k", lw=1.2, ls="--", marker="o", mfc="white", label="V2X2V prediction, +contract"),
-                Line2D([], [], color="k", ls="none", marker="^", mfc="white", ms=6, label="beyond the tested ages")]
-    fig.legend(handles=handles, loc="outside upper center", ncol=2)
-
-    # (b) controller sensitivity: the reference under the emergency stop (solid) and under deceleration
-    # graded by the time to collision (dashed), per geometry colour, one panel per speed; Wilson bars.
-    if cspeeds:
-        axes_b = []
-        for j, spd in enumerate(cspeeds):
-            axb = fig.add_subplot(gs[1, j], sharey=axes_b[0] if axes_b else None)
-            axes_b.append(axb)
+        fig, axes_b = plt.subplots(1, len(cspeeds), figsize=(figstyle.COL, 1.7), sharey=True)
+        axes_b = [axes_b] if len(cspeeds) == 1 else list(axes_b)
+        for j, (axb, spd) in enumerate(zip(axes_b, cspeeds)):
             for geom in geoms:
                 if (geom, spd, "oracle") not in chosen:
                     continue
@@ -266,24 +289,21 @@ def main(argv=None):
                     axb.errorbar(xs, ps, yerr=[[p - l for p, l in zip(ps, los)], [h - p for p, h in zip(ps, his)]],
                                  marker="o", ms=3.5, ls=ls, lw=1.2, color=color, mfc=color if ls == "-" else "white",
                                  capsize=1.5, elinewidth=0.6, capthick=0.6)
-                    print(f"(b) {geom} {spd} km/h {pol}: {len(v)} runs, components {components(v)}")
+                    print(f"(control) {geom} {spd} km/h {pol}: {len(v)} runs, components {components(v)}")
             axb.axhline(a.threshold, color="gray", lw=0.8, ls="--")
             axb.set_xlabel("measured p99 age (ms)")
             axb.set_ylim(-0.05, 1.05)
             axb.grid(alpha=0.3)
-            axb.set_title(f"({'bc'[j]}) {spd} km/h")
-            if j == 0:
-                axb.set_ylabel("$\\Pr[S_{op}]$")
-            else:
-                plt.setp(axb.get_yticklabels(), visible=False)
-        fig.legend(handles=[Line2D([], [], color="k", lw=1.2, ls="-", marker="o", ms=3.5, label="(b, c) emergency stop"),
-                            Line2D([], [], color="k", lw=1.2, ls="--", marker="o", ms=3.5, mfc="white", label="graded by time to collision")],
-                   loc="outside lower center", ncol=2)
+            axb.set_title(f"({'abcd'[j]}) {spd} km/h")
+        axes_b[0].set_ylabel("$\\Pr[S_{op}]$")
+        handles = [Line2D([], [], color=colors[g], lw=1.5, label=gname[g]) for g in geoms if any((g, s, "oracle") in chosen for s in cspeeds)]
+        handles += [Line2D([], [], color="k", lw=1.2, ls="-", marker="o", ms=3.5, label="emergency stop"),
+                    Line2D([], [], color="k", lw=1.2, ls="--", marker="o", ms=3.5, mfc="white", label="graded by time to collision")]
+        fig.legend(handles=handles, loc="outside upper center", ncol=2)
+        figstyle.save(fig, os.path.join(a.out, "fig_situation_control.pdf"))
+        plt.close(fig)
     else:
-        print("(b) no control-stage runs (behavior.hazard_response) in the merged set; panel omitted")
-
-    figstyle.save(fig, os.path.join(a.out, "fig_situation.pdf"))
-    plt.close(fig)
+        print("(control) no control-stage runs (behavior.hazard_response) in the merged set; figure omitted")
     print("wrote", a.out)
     return 0
 

@@ -23,7 +23,7 @@ export PYTHONPATH=.:ecav/protos
 $PY $S/fig_envelope.py --csv $CSV --speed 70 --out "$OUT/arch_safety_scale.pdf"
 $PY $S/fig_situation.py --stamps "$STAMP" sensys_nov27_ov4 --roots $ROOTS --out "$OUT/situation" | tail -60
 $PY $S/fig_safety_margin.py --tau "$OUT/situation/fig_situation_tau.csv" --landing $A/landing_ci.md --out "$OUT/safety_margin.pdf"
-$PY $S/fig_failure_decomp.py --stamp "$STAMP" --roots $ROOTS --overtake-stamps $OV --out "$OUT/arch_failure_decomp.pdf"
+$PY $S/fig_failure_decomp.py --stamp "$STAMP" --roots $ROOTS --overtake-stamps $OV --out "$OUT/arch_failure_decomp.pdf" --sweep "$OUT/arch_failure_sweep.pdf"
 $PY $S/fig_faults.py --stamp "$STAMP" --roots $ROOTS --geom openscenario_3_edge_late_fusion --lat 400 --out "$OUT/faults_lt.pdf"
 $PY $S/fig_faults.py --stamp "$STAMP" --roots $ROOTS --geom scp_edge_late_fusion --lat 200 --out "$OUT/faults_scp.pdf"
 $PY $S/fig_faults.py --csvs "$OUT/faults_lt.csv" "$OUT/faults_scp.csv" --labels "left turn, 400 ms" "straight crossing, 200 ms" \
