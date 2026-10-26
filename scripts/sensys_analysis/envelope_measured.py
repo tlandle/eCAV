@@ -87,11 +87,11 @@ def main(argv=None):
     # Per-run export (configured delay, measured axis value, outcome and classes), so a figure can
     # place each configured cell at its measured age instead of splitting it across bins.
     with open(os.path.join(out, "runs.csv"), "w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=["geom", "speed", "mgr", "anch", "N", "kv", "lat", "rep", "axis_ms", "s_op",
+        w = csv.DictWriter(fh, fieldnames=["geom", "speed", "mgr", "anch", "N", "kv", "cell", "lat", "rep", "axis_ms", "s_op",
                                            "collided", "self_ghost", "false_brake", "stalled"])
         w.writeheader()
         for r in with_age:
-            w.writerow(dict(geom=r["geom"], speed=r["speed"], mgr=r["mgr"], anch=r["anch"], N=r["N"], kv=r["kv"], lat=r["lat"],
+            w.writerow(dict(geom=r["geom"], speed=r["speed"], mgr=r["mgr"], anch=r["anch"], N=r["N"], kv=r["kv"], cell=r.get("cfg", ""), lat=r["lat"],
                             rep=r["rep"], axis_ms=round(r["axis_ms"], 1), s_op=int(bool(r["s_op"])),
                             collided=int(r.get("focal_collisions", 0) > 0), self_ghost=int(r.get("focal_ghost_episodes", 0) > 0),
                             false_brake=int(r.get("focal_fp_episodes", 0) > 0), stalled=int(r.get("s_prog", 1) == 0)))

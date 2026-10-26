@@ -27,6 +27,8 @@ def pool(paths, speed, N=1):
         for r in csv.DictReader(open(p)):
             if int(r["speed"]) != speed or int(r["N"]) != N:
                 continue
+            if "v2x_regime" in r.get("cell", ""):
+                continue
             kv = json.loads(r["kv"]) if r["kv"] else {}
             if any(k.startswith(("assoc_", "beacon_fault", "beacon_validity")) or k == "behavior.hazard_response" for k in kv):
                 continue

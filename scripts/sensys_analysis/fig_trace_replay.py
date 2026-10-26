@@ -57,6 +57,8 @@ def main():
         for r in csv.DictReader(open(p)):
             if r["geom"] != a.geom or int(r["speed"]) != a.speed or int(r["N"]) != 1:
                 continue
+            if "v2x_regime" in r.get("cell", ""):
+                continue
             kv = json.loads(r["kv"]) if r["kv"] else {}
             if any(k.startswith(("assoc_", "beacon_fault", "beacon_validity")) or k == "behavior.hazard_response" for k in kv):
                 continue
