@@ -5,17 +5,14 @@
         --roots experiment_results experiment_results/_cetus_mirror/experiment_results \
         [--bin 50] [--threshold 0.8] [--boot 500] [--out safety_envelope_paper/analysis/fig_situation]
 
-(a) P(S_op) against the measured age at use (the conflict actor's p99 age at
-    use over the decision window, the paper's axis, as in envelope_measured.py)
-    for the oracle arm at each geometry's reference speed (70 km/h at the
-    junction, the overtake's own speed);
-(b) tau_max against approach speed per geometry for the oracle and the
+(a) tau_max against approach speed per geometry for the oracle and the
     contract arm, with a 95% bootstrap interval of tau_max over runs; a point
     whose P(S_op) never falls below the threshold inside the sweep is censored
     (hollow marker, interval open upwards) and reported as "beyond the sweep";
-(c) controller sensitivity: the oracle at 70 km/h under each hazard-response
-    policy, with the S_op components (collision, self-ghost, false brake, stall)
-    per bin; drawn only when runs with behavior.hazard_response exist.
+(b) controller sensitivity: the oracle under each hazard-response policy, one
+    panel per speed with control-stage runs; drawn only when such runs exist.
+fig_situation_ref.pdf (supplementary) carries the old panel (a), the reference
+envelope of each geometry at its reference speed. Drawn at column width.
 
 Runs from several roots (atlas results and the cetus mirror) are merged; a
 design cell and seed present in more than one root keeps the first root's run.
@@ -170,25 +167,23 @@ def main(argv=None):
         note = f"beyond the sweep (P >= {a.threshold} to {r['max_bin_ms']:.0f} ms)" if r["censored"] else ""
         print(f"| {r['geom']} | {r['speed_kmh']} | {r['arm']} | {r['runs']} | {r['tau_ms']:.0f} | [{r['boot_lo_ms']:.0f}, {r['boot_hi_ms']:.0f}] | {note} |")
 
-    # ---- figure --------------------------------------------------------------
+    # ---- figures ---------------------------------------------------------------
+    # Drawn at column width (figstyle.COL). fig_situation.pdf: (a) tau_max against approach speed,
+    # (b) controller sensitivity, one panel per speed with control-stage runs. fig_situation_ref.pdf
+    # (supplementary): the reference envelope of each geometry at its reference speed.
     try:
-        import matplotlib
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
+        import figstyle
+        from figstyle import plt
     except ImportError:
         print("matplotlib missing, no figure")
         return 0
-    control = [r for r in runs if "hazard_response" in r["kv"] and r["mgr"] == "oracle"]
-    npanel = 3 if control else 2
-    fig, axes = plt.subplots(1, npanel, figsize=(3.4 * npanel, 2.9))
+    figstyle.rc()
+    EB = figstyle.EB
     geoms = sorted(set(g for g, _, _ in chosen))
-    short = {"openscenario_3_edge_late_fusion": "left turn across path",
-             "scp_edge_late_fusion": "straight crossing path",
-             "blind_overtake_edge_late_fusion": "blind overtake"}
-    colors = {g: c for g, c in zip(geoms, ("C0", "C1", "C2", "C3"))}
+    gname = {g: figstyle.GEOMS.get(g, (g, "k"))[0] for g in geoms}
+    colors = {g: figstyle.GEOMS.get(g, (g, "k"))[1] for g in geoms}
 
-    # (a) oracle envelope at the reference speed per geometry
-    ax = axes[0]
+    fig, ax = plt.subplots(figsize=(figstyle.COL, 2.0))
     for geom in geoms:
         speeds = sorted(s for (g, s, arm) in chosen if g == geom and arm == "oracle")
         if not speeds:
@@ -199,65 +194,95 @@ def main(argv=None):
         xs = [x for x, _, _ in pts]
         ps, los, his = zip(*[wilson(k, n) for _, k, n in pts])
         ax.errorbar(xs, ps, yerr=[[p - l for p, l in zip(ps, los)], [h - p for p, h in zip(ps, his)]],
-                    marker="o", ms=3, capsize=2, lw=1, color=colors[geom], label=f"{short.get(geom, geom)}, {ref} km/h")
+                    marker="o", color=colors[geom], label=f"{gname[geom]}, {ref} km/h", **EB)
     ax.axhline(a.threshold, color="gray", lw=0.8, ls="--")
-    ax.set_xlabel("measured age at use, conflict actor p99 (ms)")
-    ax.set_ylabel("P(S_op)")
-    ax.set_ylim(-0.02, 1.02)
-    ax.set_title("(a) physics boundary per geometry (oracle)", fontsize=9)
-    ax.legend(fontsize=6)
+    ax.set_xlabel("conflict actor's measured p99 age at use (ms)")
+    ax.set_ylabel("$\\Pr[S_{op}]$")
+    ax.set_ylim(-0.05, 1.05)
+    ax.grid(alpha=0.3)
+    ax.legend(loc="lower left")
+    figstyle.save(fig, os.path.join(a.out, "fig_situation_ref.pdf"))
+    plt.close(fig)
 
-    # (b) tau_max against approach speed, oracle solid and contract dashed
-    ax = axes[1]
+    control = [r for r in runs if "hazard_response" in r["kv"] and r["mgr"] == "oracle" and r["N"] == 1]
+    cspeeds = sorted({r["speed_kmh"] for r in control})
+    fig = plt.figure(figsize=(figstyle.COL, 3.4 if cspeeds else 2.0))
+    if cspeeds:
+        gs = fig.add_gridspec(2, len(cspeeds), height_ratios=[1.3, 1])
+        ax = fig.add_subplot(gs[0, :])
+    else:
+        ax = fig.add_subplot(111)
+
+    # (a) tau_max against approach speed: colour is the geometry, the reference is solid with filled
+    # markers, the contract arm dashed with hollow markers; a cell whose success never fell below the
+    # threshold inside the sweep is drawn as a hollow triangle at the top of the axis.
+    ytop = 2300.0
     for geom in geoms:
-        for arm, ls in (("oracle", "-"), ("contract", "--")):
+        for arm, ls, hollow in (("oracle", "-", False), ("contract", "--", True)):
             pts = sorted((r["speed_kmh"], r["tau_ms"], r["boot_lo_ms"], r["boot_hi_ms"], r["censored"], r["max_bin_ms"])
                          for r in rows if r["geom"] == geom and r["arm"] == arm)
             if not pts:
                 continue
-            xs = [p[0] for p in pts]
-            ys = [p[1] for p in pts]
-            ax.plot(xs, ys, ls=ls, lw=1, color=colors[geom], label=f"{short.get(geom, geom)}, {arm}")
+            ax.plot([p[0] for p in pts], [min(p[1], ytop) for p in pts], ls=ls, lw=1.2, color=colors[geom])
             for s, t, lo, hi, cens, mx in pts:
                 if cens:
-                    ax.plot([s], [t], marker="^", mfc="white", mec=colors[geom], ms=6, ls="none")
+                    ax.plot([s], [ytop], marker="^", mfc="white", mec=colors[geom], ms=6, ls="none", clip_on=False)
                 else:
-                    ax.errorbar([s], [t], yerr=[[t - lo], [hi - t]], marker="o", ms=4, capsize=2, color=colors[geom], ls="none")
+                    ax.errorbar([s], [t], yerr=[[t - lo], [hi - t]], marker="o", mfc="white" if hollow else colors[geom],
+                                mec=colors[geom], color=colors[geom], ls="none", **EB)
     ax.set_xlabel("approach speed (km/h)")
-    ax.set_ylabel(f"tau_max at P(S_op) >= {a.threshold} (ms)")
-    ax.set_title("(b) useful-age budget against speed", fontsize=9)
-    ax.legend(fontsize=6)
+    ax.set_ylabel(r"$\tau_{\max}$ at $\Pr[S_{op}] \geq %g$ (ms)" % a.threshold)
+    ax.set_ylim(0, ytop)
+    ax.grid(alpha=0.3)
+    ax.set_title("(a) useful-age budget against approach speed")
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], color=colors[g], lw=1.5, label=gname[g]) for g in geoms]
+    handles += [Line2D([], [], color="k", lw=1.2, ls="-", marker="o", label="reference"),
+                Line2D([], [], color="k", lw=1.2, ls="--", marker="o", mfc="white", label="V2X2V prediction, +contract"),
+                Line2D([], [], color="k", ls="none", marker="^", mfc="white", ms=6, label="beyond the tested ages")]
+    fig.legend(handles=handles, loc="outside upper center", ncol=2)
 
-    # (c) controller sensitivity, when the control stage exists
-    if control:
-        ax = axes[2]
-        by_pol = collections.defaultdict(list)
-        for r in control:
-            pol = json.loads(r["kv"]).get("behavior.hazard_response", "?")
-            by_pol[(r["geom"], pol)].append(r)
-        base = [r for r in runs if r["mgr"] == "oracle" and r["speed_kmh"] == 70 and "hazard_response" not in r["kv"]
-                and not any(k in r["kv"] for k in EXCLUDE_KV)]
-        for r in base:
-            by_pol[(r["geom"], "stop")].append(r)
-        for (geom, pol), v in sorted(by_pol.items()):
-            pts = bins_of(v, a.bin)
-            xs = [x for x, _, _ in pts]
-            ps = [k / n for _, k, n in pts]
-            ax.plot(xs, ps, marker="o", ms=3, lw=1, color=colors.get(geom, "k"), ls="-" if pol == "stop" else "--",
-                    label=f"{short.get(geom, geom)}, {pol}")
-            print(f"(c) {geom} {pol}: {len(v)} runs, components {components(v)}")
-        ax.axhline(a.threshold, color="gray", lw=0.8, ls="--")
-        ax.set_xlabel("measured age at use, conflict actor p99 (ms)")
-        ax.set_ylabel("P(S_op)")
-        ax.set_ylim(-0.02, 1.02)
-        ax.set_title("(c) controller sensitivity, oracle 70 km/h", fontsize=9)
-        ax.legend(fontsize=6)
+    # (b) controller sensitivity: the reference under the emergency stop (solid) and under deceleration
+    # graded by the time to collision (dashed), per geometry colour, one panel per speed; Wilson bars.
+    if cspeeds:
+        axes_b = []
+        for j, spd in enumerate(cspeeds):
+            axb = fig.add_subplot(gs[1, j], sharey=axes_b[0] if axes_b else None)
+            axes_b.append(axb)
+            for geom in geoms:
+                if (geom, spd, "oracle") not in chosen:
+                    continue
+                series = [("stop", chosen[(geom, spd, "oracle")][1], "-", colors[geom])]
+                by_pol = collections.defaultdict(list)
+                for r in control:
+                    if r["geom"] == geom and r["speed_kmh"] == spd:
+                        by_pol[json.loads(r["kv"]).get("behavior.hazard_response", "?")].append(r)
+                for pol, v in sorted(by_pol.items()):
+                    series.append((pol, v, "--", colors[geom]))
+                for pol, v, ls, color in series:
+                    pts = bins_of(v, a.bin)
+                    xs = [x for x, _, _ in pts]
+                    ps, los, his = zip(*[wilson(k, n) for _, k, n in pts])
+                    axb.errorbar(xs, ps, yerr=[[p - l for p, l in zip(ps, los)], [h - p for p, h in zip(ps, his)]],
+                                 marker="o", ms=3.5, ls=ls, lw=1.2, color=color, mfc=color if ls == "-" else "white",
+                                 capsize=1.5, elinewidth=0.6, capthick=0.6)
+                    print(f"(b) {geom} {spd} km/h {pol}: {len(v)} runs, components {components(v)}")
+            axb.axhline(a.threshold, color="gray", lw=0.8, ls="--")
+            axb.set_xlabel("measured p99 age (ms)")
+            axb.set_ylim(-0.05, 1.05)
+            axb.grid(alpha=0.3)
+            axb.set_title(f"({'bc'[j]}) {spd} km/h")
+            if j == 0:
+                axb.set_ylabel("$\\Pr[S_{op}]$")
+            else:
+                plt.setp(axb.get_yticklabels(), visible=False)
+        fig.legend(handles=[Line2D([], [], color="k", lw=1.2, ls="-", marker="o", ms=3.5, label="(b, c) emergency stop"),
+                            Line2D([], [], color="k", lw=1.2, ls="--", marker="o", ms=3.5, mfc="white", label="graded by time to collision")],
+                   loc="outside lower center", ncol=2)
     else:
-        print("(c) no control-stage runs (behavior.hazard_response) in the merged set; panel omitted")
+        print("(b) no control-stage runs (behavior.hazard_response) in the merged set; panel omitted")
 
-    fig.tight_layout()
-    for ext in ("pdf", "png"):
-        fig.savefig(os.path.join(a.out, f"fig_situation.{ext}"), dpi=180)
+    figstyle.save(fig, os.path.join(a.out, "fig_situation.pdf"))
     plt.close(fig)
     print("wrote", a.out)
     return 0

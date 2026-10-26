@@ -3,6 +3,7 @@
 one panel per junction geometry at one approach speed, one curve per arm, Wilson 95% bars, pooled
 over the hosts' runs.csv files (scripts/sensys_analysis/envelope_measured.py). One point per configured
 delay cell, placed at the cell's mean measured age (x bars: 10th to 90th percentile), Wilson y bars.
+Drawn at text width (figstyle.TXT) for a figure* float.
     python scripts/sensys_analysis/fig_envelope.py --csv safety_envelope_paper/analysis/envelope_j3_atlas/runs.csv \
         safety_envelope_paper/analysis/envelope_j3_cetus/runs.csv --speed 70 --out figures/arch_safety_scale.pdf
 Arms: reference (oracle), V2X2V prediction with the contract (late_fusion on), without (late_fusion off),
@@ -11,13 +12,12 @@ I2V object sharing (infra_only off); knob-keyed arms (gate kv) are excluded here
 import argparse, collections, csv, json, math, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 from campaign_check import wilson  # noqa: E402
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import figstyle  # noqa: E402
+from figstyle import plt  # noqa: E402
 
 GEOMS = [("openscenario_3_edge_late_fusion", "Occluded left turn"), ("scp_edge_late_fusion", "Straight crossing")]
-ARMS = [(("oracle", "on"), "Exact-state reference", "k", "o"), (("late_fusion", "on"), "V2X2V prediction, +contract", "#1f77b4", "s"),
-        (("late_fusion", "off"), "V2X2V prediction, no contract", "#d62728", "^"), (("infra_only", "off"), "I2V object sharing", "#2ca02c", "D")]
+ARMS = [(("oracle", "on"), "reference"), (("late_fusion", "on"), "contract"), (("late_fusion", "off"), "naive"),
+        (("infra_only", "off"), "i2v")]
 
 
 def pool(paths, speed, N=1):
@@ -47,10 +47,12 @@ def main():
     ap.add_argument("--max-age", type=float, default=1100); ap.add_argument("--out", required=True)
     a = ap.parse_args()
     acc = pool(a.csv, a.speed)
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 2.6), sharey=True)
+    figstyle.rc()
+    fig, axes = plt.subplots(1, 2, figsize=(figstyle.TXT, 1.75), sharey=True)
     rows = []
-    for ax, (geom, title) in zip(axes, GEOMS):
-        for (mgr, anch), label, color, marker in ARMS:
+    for i, (ax, (geom, title)) in enumerate(zip(axes, GEOMS)):
+        for (mgr, anch), key in ARMS:
+            label, color, marker = figstyle.ARMS[key]
             cells = sorted((lat, v) for (g, m, an, lat), v in acc.items() if g == geom and m == mgr and an == anch)
             pts = []
             for lat, v in cells:
@@ -64,13 +66,14 @@ def main():
             xs = [x for _, x, _, _, _, _ in pts]; ps = [k / n for _, _, _, _, k, n in pts]
             lo = [max(0.0, p - wilson(k, n)[1]) for p, (_, _, _, _, k, n) in zip(ps, pts)]; hi = [max(0.0, wilson(k, n)[2] - p) for p, (_, _, _, _, k, n) in zip(ps, pts)]
             xl = [max(0.0, x - l) for _, x, l, _, _, _ in pts]; xh = [max(0.0, h - x) for _, x, _, h, _, _ in pts]
-            ax.errorbar(xs, ps, yerr=[lo, hi], xerr=[xl, xh], fmt=marker + "-", color=color, ms=3.5, lw=1, capsize=1.5, elinewidth=0.7, label=label)
+            ax.errorbar(xs, ps, yerr=[lo, hi], xerr=[xl, xh], fmt=marker + "-", color=color, label=label, **figstyle.EB)
             rows += [dict(geom=geom, arm=label, lat=lat, age_mean_ms=round(x, 1), age_p10=round(l, 1), age_p90=round(h, 1), n=n, k=k) for lat, x, l, h, k, n in pts]
-        ax.axhline(0.8, color="gray", lw=0.7, ls="--"); ax.set_title(f"{title}, {a.speed} km/h", fontsize=9)
-        ax.set_xlabel("conflict actor's measured p99 age at use (ms)", fontsize=8); ax.set_ylim(-0.05, 1.05); ax.grid(alpha=0.3)
-    axes[0].set_ylabel("$\\Pr[S_{op}]$"); axes[1].legend(fontsize=6.5, loc="lower left")
-    fig.tight_layout(); os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    fig.savefig(a.out); fig.savefig(os.path.splitext(a.out)[0] + ".png", dpi=150)
+        ax.axhline(0.8, color="gray", lw=0.8, ls="--"); ax.set_title(f"({'ab'[i]}) {title}, {a.speed} km/h")
+        ax.set_xlabel("conflict actor's measured p99 age at use (ms)"); ax.set_ylim(-0.05, 1.05); ax.grid(alpha=0.3)
+    axes[0].set_ylabel("$\\Pr[S_{op}]$")
+    h, l = axes[0].get_legend_handles_labels()
+    fig.legend(h, l, loc="outside upper center", ncol=4)
+    figstyle.save(fig, a.out)
     with open(os.path.splitext(a.out)[0] + ".csv", "w", newline="") as fh:
         w = csv.DictWriter(fh, fieldnames=list(rows[0].keys())); w.writeheader(); w.writerows(rows)
     print("wrote", a.out, len(rows), "bins")

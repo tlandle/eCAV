@@ -15,12 +15,11 @@ sys.path.insert(0, HERE); sys.path.insert(0, os.path.join(ROOT, "scripts")); sys
 from campaign_check import wilson  # noqa: E402
 from recompute_metrics import compute_run_metrics  # noqa: E402
 from reduce_per_tick_age import reduce_run  # noqa: E402
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import figstyle  # noqa: E402
+from figstyle import plt  # noqa: E402
 
-ARMS = [(("oracle", "on"), "Exact-state reference", "k", "o"), (("late_fusion", "on"), "V2X2V prediction, +contract", "#1f77b4", "s"),
-        (("late_fusion", "off"), "V2X2V prediction, no contract", "#d62728", "^")]
+ARMS = [(("oracle", "on"),) + figstyle.ARMS["reference"], (("late_fusion", "on"),) + figstyle.ARMS["contract"],
+        (("late_fusion", "off"),) + figstyle.ARMS["naive"]]
 SEG = {"L": "intersection 3 (lowest delay)", "M": "intersection 4", "H": "intersection 5 (highest delay)"}
 
 
@@ -83,7 +82,8 @@ def main():
                 break
         if age == age:
             rep[(d["config_manager_type"], "on" if d["config_anchoring"] else "off", seg)].append((age, int(bool(m["s_op"]))))
-    fig, ax = plt.subplots(figsize=(3.6, 2.7))
+    figstyle.rc()
+    fig, ax = plt.subplots(figsize=(figstyle.COL, 2.2))  # column width, printed at scale 1
     rows = []
     for (mgr, anch), label, color, marker in ARMS:
         cells = sorted((lat, v) for (m, an, lat), v in env.items() if m == mgr and an == anch)
@@ -92,7 +92,7 @@ def main():
         if pts:
             xs = [x for x, _, _ in pts]; ps = [k / n for _, k, n in pts]
             lo = [max(0.0, p - wilson(k, n)[1]) for p, (_, k, n) in zip(ps, pts)]; hi = [max(0.0, wilson(k, n)[2] - p) for p, (_, k, n) in zip(ps, pts)]
-            ax.errorbar(xs, ps, yerr=[lo, hi], fmt=marker + "-", color=color, ms=3, lw=1, capsize=1.5, elinewidth=0.6, label=label)
+            ax.errorbar(xs, ps, yerr=[lo, hi], fmt=marker + "-", color=color, label=label, **figstyle.EB)
         fit = pav([(x, k, n) for x, k, n in pts]) if pts else []
         for seg in ("L", "M", "H"):
             v = rep.get((mgr, anch, seg), [])
@@ -101,15 +101,14 @@ def main():
             k = sum(o for _, o in v); n = len(v); x = sum(x for x, _ in v) / n; p = k / n
             pred = sum(predict(fit, xa) for xa, _ in v) / n if fit else float("nan")
             w = wilson(k, n)
-            ax.errorbar([x], [p], yerr=[[max(0.0, p - w[1])], [max(0.0, w[2] - p)]], fmt=marker, color=color, mfc="white", ms=7, mew=1.5, capsize=2)
-            ax.annotate(seg, (x, p), textcoords="offset points", xytext=(5, 4), fontsize=7, color=color)
+            ax.errorbar([x], [p], yerr=[[max(0.0, p - w[1])], [max(0.0, w[2] - p)]], fmt=marker, color=color, mfc="white", ms=8, mew=1.5, **figstyle.EB)
+            ax.annotate(seg, (x, p), textcoords="offset points", xytext=(6, 4), fontsize=7, color=color)
             rows.append(dict(arm=label, segment=SEG[seg], n=n, age_mean_ms=round(x, 1), observed=round(p, 3),
                              wilson_lo=round(w[1], 3), wilson_hi=round(w[2], 3), predicted=round(pred, 3), inside_interval=int(w[1] <= pred <= w[2])))
     ax.axhline(0.8, color="gray", lw=0.7, ls="--"); ax.set_ylim(-0.05, 1.05); ax.grid(alpha=0.3)
-    ax.set_xlabel("conflict actor's measured p99 age at use (ms)", fontsize=8); ax.set_ylabel("$\\Pr[S_{op}]$")
-    ax.legend(fontsize=6, loc="lower left"); fig.tight_layout()
-    os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
-    fig.savefig(a.out); fig.savefig(os.path.splitext(a.out)[0] + ".png", dpi=150)
+    ax.set_xlabel("conflict actor's measured p99 age at use (ms)"); ax.set_ylabel("$\\Pr[S_{op}]$")
+    h, l = ax.get_legend_handles_labels(); fig.legend(h, l, loc="outside upper center", ncol=2, handlelength=1.2, columnspacing=0.8)
+    figstyle.save(fig, a.out)
     base = os.path.splitext(a.out)[0]
     if rows:
         with open(base + ".csv", "w", newline="") as fh:
