@@ -11,7 +11,14 @@ PY=/home/atlas/anaconda3/envs/opencda310/bin/python
 A=safety_envelope_paper/analysis
 S=scripts/sensys_analysis
 ROOTS="experiment_results experiment_results/_cetus_mirror/experiment_results"
-OV="sensys_nov27_ov4 sensys_nov27_ov4_onc20 sensys_nov27_ov4_onc28"   # blind overtake, three oncoming speeds
+# blind overtake, three oncoming speeds: j3 ran them under the ov4 stamps; from j5 on, the oncoming
+# 20 and 28 m/s cells run under <stamp>_onc20 and <stamp>_onc28 (the oncoming speed is not part of
+# the run directory, so they need their own stamps; the 12 m/s cells sit under the stamp itself).
+if [ "$STAMP" = sensys_nov27_j3 ]; then
+  OV="sensys_nov27_ov4 sensys_nov27_ov4_onc20 sensys_nov27_ov4_onc28"; SIT_OV=sensys_nov27_ov4
+else
+  OV="$STAMP ${STAMP}_onc20 ${STAMP}_onc28"; SIT_OV="$STAMP"
+fi
 CSV="$A/envelope_${TAG}_atlas/runs.csv $A/envelope_${TAG}_cetus/runs.csv"
 mkdir -p "$OUT/situation"
 # reuse a previous per-run axis cache (keys are path@mtime, so stale entries are ignored)
@@ -21,7 +28,7 @@ if [ ! -f "$OUT/situation/axis_cache.json" ]; then
 fi
 export PYTHONPATH=.:ecav/protos
 $PY $S/fig_envelope.py --csv $CSV --speed 70 --out "$OUT/arch_safety_scale.pdf"
-$PY $S/fig_situation.py --stamps "$STAMP" sensys_nov27_ov4 --roots $ROOTS --out "$OUT/situation" | tail -60
+$PY $S/fig_situation.py --stamps "$STAMP" $SIT_OV --roots $ROOTS --out "$OUT/situation" | tail -60
 $PY $S/fig_safety_margin.py --tau "$OUT/situation/fig_situation_tau.csv" --landing $A/landing_ci.md --out "$OUT/safety_margin.pdf"
 $PY $S/fig_failure_decomp.py --stamp "$STAMP" --roots $ROOTS --overtake-stamps $OV --out "$OUT/arch_failure_decomp.pdf" --sweep "$OUT/arch_failure_sweep.pdf"
 $PY $S/fig_faults.py --stamp "$STAMP" --roots $ROOTS --geom openscenario_3_edge_late_fusion --lat 400 --out "$OUT/faults_lt.pdf"

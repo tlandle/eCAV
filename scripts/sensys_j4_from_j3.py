@@ -70,6 +70,13 @@ def main():
                f"--latencies {lats} --speeds {spd} --ego-counts {ego} --repetitions {v['reps']}",
                "--latency-distribution hybrid --per-tick-age-log --self-id-radius %g" % sidr,
                '--stamp "$STAMP" --carla-port "$PORT"']
+        # The scenario env is not part of the run directory, so cells that differ only in the
+        # oncoming speed collide under one stamp and --stamp resume skips the later ones as done
+        # (j5 blind overtake, 2026-10-28). The 20 and 28 m/s cells get their own stamp suffix, as
+        # the j3 ov4_onc20 and ov4_onc28 roots had.
+        m_onc = re.search(r"ONCOMING_SPEED=(\S+)", senv or "")
+        if m_onc and m_onc.group(1) != "12":
+            cmd[3] = '--stamp "${STAMP}_onc%s" --carla-port "$PORT"' % m_onc.group(1)
         if ekv:
             cmd.append(f"--edge-kv {ekv}")
         if bkv:
