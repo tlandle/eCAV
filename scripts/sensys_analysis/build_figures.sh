@@ -29,6 +29,11 @@ fi
 export PYTHONPATH=.:ecav/protos
 $PY $S/fig_envelope.py --csv $CSV --speed 70 --out "$OUT/arch_safety_scale.pdf"
 $PY $S/fig_situation.py --stamps "$STAMP" $SIT_OV --roots $ROOTS --out "$OUT/situation" | tail -60
+# budget at the 0.9 and 0.95 thresholds for the supplementary table (same cells and axis cache)
+for TH in 0.9 0.95; do mkdir -p "$OUT/situation_$TH"; cp "$OUT/situation/axis_cache.json" "$OUT/situation_$TH/";
+  $PY $S/fig_situation.py --stamps "$STAMP" $SIT_OV --roots $ROOTS --threshold $TH --out "$OUT/situation_$TH" | tail -1; done
+$PY $S/tbl_budget_thresholds.py --csv 0.8="$OUT/situation/fig_situation_tau.csv" 0.9="$OUT/situation_0.9/fig_situation_tau.csv" \
+    0.95="$OUT/situation_0.95/fig_situation_tau.csv" --out "$OUT/tbl_budget_thresholds.tex" | tail -2
 $PY $S/fig_safety_margin.py --tau "$OUT/situation/fig_situation_tau.csv" --landing $A/landing_ci.md --out "$OUT/safety_margin.pdf"
 $PY $S/fig_failure_decomp.py --stamp "$STAMP" --roots $ROOTS --overtake-stamps $OV --out "$OUT/arch_failure_decomp.pdf" --sweep "$OUT/arch_failure_sweep.pdf"
 $PY $S/fig_faults.py --stamp "$STAMP" --roots $ROOTS --geom openscenario_3_edge_late_fusion --lat 400 --out "$OUT/faults_lt.pdf"
