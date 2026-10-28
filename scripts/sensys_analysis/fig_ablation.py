@@ -2,8 +2,10 @@
 """Object sharing ablation figure (sba_ablation): the merge-point arms against the conflict actor's
 measured p99 age at use on one geometry and speed (naive, ETSI self-announcement, Mahalanobis gate
 with and without the contract, VIPS with and without the contract, contract, reference), Wilson bars,
-pooled over the hosts' runs.csv files: (a) the arms without the contract, (b) the same with the contract
-and the reference. Points are the measured cells at their mean measured age, no connecting lines.
+pooled over the hosts' runs.csv files: (a) the arms without SBA, (b) the same with SBA and the
+reference. The association method has one colour and marker in both panels (geometric, ETSI,
+Mahalanobis, VIPS, reference in black) and the panel title says whether SBA is on, so the shared
+legend has five entries. Points are the measured cells at their mean measured age, no connecting lines.
 Drawn at text width (figstyle.TXT) for a figure* float. The fault study is fig_faults.py.
     python scripts/sensys_analysis/fig_ablation.py --csv <envelope csvs...> \
         --geom openscenario_3_edge_late_fusion --speed 70 --out figures/sba_ablation.pdf
@@ -14,9 +16,15 @@ from campaign_check import wilson  # noqa: E402
 import figstyle  # noqa: E402
 from figstyle import plt  # noqa: E402
 
-PANELS = [("(a) without the contract", ["naive", "etsi", "gate", "vips"]),
-          ("(b) with the contract, and the reference", ["contract", "gate+c", "vips+c", "reference"])]
-SHORT = {"naive": "no contract", "contract": "contract"}   # every arm but the reference is V2X2V prediction here
+PANELS = [("(a) without SBA", ["naive", "etsi", "gate", "vips"]),
+          ("(b) with SBA", ["contract", "gate+c", "vips+c", "reference"])]
+METHOD = {  # arm key -> (association method label, colour, marker); the same in both panels
+    "naive": ("Geometric association", figstyle.ARMS["contract"][1], "s"), "contract": ("Geometric association", figstyle.ARMS["contract"][1], "s"),
+    "etsi": ("ETSI suppression", figstyle.ARMS["etsi"][1], figstyle.ARMS["etsi"][2]),
+    "gate": ("Mahalanobis association", figstyle.ARMS["gate"][1], "P"), "gate+c": ("Mahalanobis association", figstyle.ARMS["gate"][1], "P"),
+    "vips": ("VIPS rectification", figstyle.ARMS["vips"][1], "D"), "vips+c": ("VIPS rectification", figstyle.ARMS["vips"][1], "D"),
+    "reference": ("Exact-state reference", "k", "o"),
+}
 
 
 def arm_key(mgr, anch, kv):
@@ -59,7 +67,7 @@ def main():
     handles, labels = [], []
     for ax, (title, keys) in zip(axes, PANELS):
         for key in keys:
-            label, color, marker = figstyle.ARMS[key]; label = SHORT.get(key, label)
+            label, color, marker = METHOD[key]
             pts = []
             for (kk, lat), v in sorted(acc.items(), key=lambda t: t[0][1]):
                 if kk != key:
@@ -73,11 +81,12 @@ def main():
             xs = [x for x, _, _ in pts]; ps = [k / n for _, k, n in pts]
             lo = [max(0.0, p - wilson(k, n)[1]) for p, (_, k, n) in zip(ps, pts)]; hi = [max(0.0, wilson(k, n)[2] - p) for p, (_, k, n) in zip(ps, pts)]
             h = ax.errorbar(xs, ps, yerr=[lo, hi], fmt=marker, color=color, ls="none", ms=5.5, label=label, **figstyle.EB)
-            handles.append(h); labels.append(label)
+            if label not in labels:
+                handles.append(h); labels.append(label)
         ax.axhline(0.8, color="gray", lw=0.8, ls="--"); ax.set_ylim(-0.05, 1.05); ax.grid(alpha=0.3)
         ax.set_xlabel("conflict actor's measured p99 age at use (ms)"); ax.set_title(title)
     axes[0].set_ylabel("$\\Pr[S_{op}]$")
-    fig.legend(handles, labels, loc="outside upper center", ncol=4, columnspacing=1.0)
+    fig.legend(handles, labels, loc="outside upper center", ncol=5, columnspacing=1.0)
     figstyle.save(fig, a.out)
     print("wrote", a.out, "arms:", sorted({k for (k, _) in acc}))
 

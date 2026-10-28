@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Failure decomposition figures: per arm, the fraction of runs that fail by each class (collision;
 self-ghost brake; other false brake; late completion, S_prog) as stacked bars, for the N=4 junction
-cells of a stamp and for the blind overtake stamps (N=1). --out (column width): one configured delay
-per scenario, the largest at which every arm has runs and the reference fails in no run, x is the arm.
---sweep (text width): every configured delay, arms as hatches (reference plain, no contract diagonal,
+cells of a stamp and for the blind overtake stamps (N=1). --out (column width): one grouped plot, a
+group per scenario at one configured delay, the largest at which every arm has runs and the reference
+fails in no run, with the no-contract, ETSI and contract bars in each group (hatched as below), the
+failed-run count over each bar, and only the classes that occur at those delays in the legend. The
+reference has no bar there (it fails in no run by construction of the chosen delay). --sweep (text
+width): every configured delay and every arm, arms as hatches (reference plain, no contract diagonal,
 ETSI crossed, contract dotted).
     python scripts/sensys_analysis/fig_failure_decomp.py --stamp sensys_nov27_j3 --roots experiment_results \
         --overtake-stamps sensys_nov27_ov4 sensys_nov27_ov4_onc20 sensys_nov27_ov4_onc28 \
@@ -22,6 +25,7 @@ from matplotlib.patches import Patch  # noqa: E402
 PANELS = [("openscenario_3_edge_late_fusion", "(a) Left turn, $N{=}4$", "*_ego_4_*"), ("scp_edge_late_fusion", "(b) Straight crossing, $N{=}4$", "*_ego_4_*"),
           ("blind_overtake_edge_late_fusion", "(c) Blind overtake, $N{=}1$", "*")]
 SHORT = {"openscenario_3_edge_late_fusion": "(a) Left turn", "scp_edge_late_fusion": "(b) Crossing", "blind_overtake_edge_late_fusion": "(c) Overtake"}
+GROUP = {"openscenario_3_edge_late_fusion": "Left turn", "scp_edge_late_fusion": "Straight crossing", "blind_overtake_edge_late_fusion": "Blind overtake"}
 ARMS = [("oracle", "reference", ""), ("naive", "no contract", "//////"), ("etsi", "ETSI", "xxxxxx"), ("contract", "contract", "......")]
 CLASSES = [("collision", "collision (physics)", "#b22222"), ("self_ghost", "self-ghost brake (logic)", "#ff8c00"),
            ("false_brake", "other false brake", "#daa520"), ("late", "late completion", "#4682b4")]
@@ -82,29 +86,42 @@ def main():
         for (ak, lat), ms in sorted(cells.items(), key=lambda t: (t[0][1], t[0][0])):
             rows.append(dict(panel=title, arm=ak, lat=lat, n=len(ms), **{c: sum(1 for m in ms if m[c]) for c, _, _ in CLASSES}))
 
-    # main figure: one configured delay per scenario, the largest at which every arm has runs and the
-    # reference fails in no run, so the logic failures show without the physics ones; x is the arm.
-    fig, axes = plt.subplots(1, 3, figsize=(figstyle.COL, 1.9), sharey=True)
+    # main figure: one grouped plot, a group per scenario at one configured delay, the largest at which
+    # every arm has runs and the reference fails in no run, so the logic failures show without the physics
+    # ones. Bars are the no-contract, ETSI and contract arms (the reference has no failure there).
+    fig, ax = plt.subplots(figsize=(figstyle.COL, 1.9))
     chosen = {}
-    for ax, (geom, title, cells) in zip(axes, panels):
+    shown = [ak for ak, _, _ in ARMS if ak != "oracle"]
+    width = 0.26
+    present = set()
+    for gi, (geom, title, cells) in enumerate(panels):
         lats = sorted({lat for (_, lat) in cells})
         arms = [ak for ak, _, _ in ARMS if any((ak, lat) in cells for lat in lats)]
         ok = [lat for lat in lats if all((ak, lat) in cells for ak in arms)
               and not any(any(m.values()) for m in cells.get(("oracle", lat), []))]
         lat = max(ok) if ok else max(lat for lat in lats if all((ak, lat) in cells for ak in arms))
         chosen[geom] = lat
-        bottoms = [0.0] * len(arms)
-        for ck, clabel, color in CLASSES:
-            fr = [fractions(cells[(ak, lat)])[ck] for ak in arms]
-            ax.bar(range(len(arms)), fr, 0.7, bottom=bottoms, color=color, edgecolor="k", linewidth=0.3)
-            bottoms = [b + f for b, f in zip(bottoms, fr)]
-        ax.set_xticks(range(len(arms))); ax.set_xticklabels([name_of[ak] for ak in arms], rotation=40, ha="right")
-        ax.set_title(f"{SHORT[geom]}\n{lat} ms")
-        ax.set_ylim(0, 1.05); ax.grid(axis="y", alpha=0.3)
-    axes[0].set_ylabel("fraction of runs failed")
-    fig.legend(handles=[Patch(facecolor=c, edgecolor="k", linewidth=0.3, label=l) for _, l, c in CLASSES], loc="outside upper center", ncol=2)
+        for i, ak in enumerate(shown):
+            ms = cells.get((ak, lat), [])
+            x = gi + (i - (len(shown) - 1) / 2) * (width + 0.02)
+            bottom = 0.0
+            for ck, clabel, color in CLASSES:
+                fr = fractions(ms)[ck]
+                if fr > 0:
+                    present.add(ck)
+                    ax.bar(x, fr, width, bottom=bottom, color=color, edgecolor="k", linewidth=0.3, hatch=hatch_of[ak])
+                    bottom += fr
+            k = sum(1 for m in ms if any(m.values()))
+            ax.text(x, bottom + 0.03, f"{k}/{len(ms)}", ha="center", va="bottom", fontsize=7)
+    ax.set_xticks(range(len(panels)))
+    ax.set_xticklabels([f"{GROUP[geom]}\n{chosen[geom]} ms" for geom, _, _ in panels])
+    ax.set_xlim(-0.5, len(panels) - 0.5); ax.set_ylim(0, 1.18); ax.grid(axis="y", alpha=0.3)
+    ax.set_ylabel("fraction of runs failed")
+    cls_h = [Patch(facecolor=c, edgecolor="k", linewidth=0.3, label=l) for ck, l, c in CLASSES if ck in present]
+    arm_h = [Patch(facecolor="white", edgecolor="k", linewidth=0.3, hatch=hatch_of[ak], label=f"{name_of[ak]} (bars)") for ak in shown]
+    fig.legend(handles=cls_h + arm_h, loc="outside upper center", ncol=2)
     figstyle.save(fig, a.out)
-    print("representative delays:", chosen)
+    print("representative delays:", chosen, "classes present:", sorted(present))
 
     # supplementary: the full delay sweep, arms by hatch
     if a.sweep:
