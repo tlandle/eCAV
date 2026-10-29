@@ -50,6 +50,19 @@ def focal_ego(d):
     return vehicles[focal_vid], focal_vid
 
 
+def _is_local_track(attr):
+    """True when the brake was triggered by the CAV's own on-board forecast.
+
+    The planner forecasts its local perception 0.5 s ahead (10 steps) and the
+    edge publishes 3 s (60 steps), so the attribution's prediction horizon
+    tells the two apart. A brake on a local track never crossed the network:
+    it is neither a self-ghost nor a false positive of the shared state, and
+    S_ghost and S_fp count shared tracks only (Oct 28, Tyler). Local-track
+    brakes are reported in focal_local_episodes."""
+    h = attr.get("prediction_horizon_s")
+    return h is not None and float(h) < 1.0
+
+
 def _count_episodes(brake_attributions, gap=2):
     """
     Count brake episodes by GT class.
@@ -305,18 +318,27 @@ def compute_run_metrics(d):
         elif looks_like_echo and not in_corridor and raw == "self_ghost":
             attr["gt_brake_class"] = "other_fp"; attr["gt_provenance"] = "beside_lane"; reclassified += 1
 
+    # Shared tracks only: a brake on the CAV's own local forecast is counted
+    # apart (focal_local_*) and enters neither S_ghost nor S_fp.
+    local = [a for a in ba if _is_local_track(a)]
+    shared = [a for a in ba if not _is_local_track(a)]
+
     # Recount tick totals after reclassification
-    ghost_ticks = sum(1 for a in ba if a.get("gt_brake_class") == "self_ghost")
-    fp_ticks = sum(1 for a in ba if a.get("gt_brake_class") == "other_fp")
-    tp_ticks = sum(1 for a in ba if a.get("gt_brake_class") == "true_positive")
+    ghost_ticks = sum(1 for a in shared if a.get("gt_brake_class") == "self_ghost")
+    fp_ticks = sum(1 for a in shared if a.get("gt_brake_class") == "other_fp")
+    tp_ticks = sum(1 for a in shared if a.get("gt_brake_class") == "true_positive")
     result["focal_ghost_ticks"] = ghost_ticks
     result["focal_fp_ticks"] = fp_ticks
     result["focal_tp_ticks"] = tp_ticks
+    result["focal_local_ticks"] = len(local)
     result["focal_total_brake_ticks"] = fv.get("total_brake_events", 0)
 
     # Episode counting: consecutive ticks with same track_id = 1 episode
     # Gap of >2 ticks or different track_id starts a new episode
-    ghost_eps, fp_eps, tp_eps = _count_episodes(ba)
+    ghost_eps, fp_eps, tp_eps = _count_episodes(shared)
+    local_ghost_eps, local_fp_eps, local_tp_eps = _count_episodes(local)
+    result["focal_local_episodes"] = local_ghost_eps + local_fp_eps
+    result["focal_local_tp_episodes"] = local_tp_eps
     result["focal_ghost_episodes"] = ghost_eps
     result["focal_fp_episodes"] = fp_eps
     result["focal_tp_episodes"] = tp_eps
@@ -382,7 +404,7 @@ def compute_run_metrics(d):
     for v in d.get("vehicles", {}).values():
         cls = "connected" if v.get("connected", True) else "non_connected"
         vs = v.get("safety", {})
-        g, fp, _ = _count_episodes(v.get("brake_attributions", []))
+        g, fp, _ = _count_episodes([a for a in v.get("brake_attributions", []) if not _is_local_track(a)])
         result[f"{cls}_n"] += 1
         result[f"{cls}_collided"] += 1 if vs.get("collision_count", 0) > 0 else 0
         result[f"{cls}_stuck"] += 1 if vs.get("stuck", False) else 0
