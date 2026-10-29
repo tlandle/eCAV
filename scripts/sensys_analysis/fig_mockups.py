@@ -41,6 +41,10 @@ BUDGET = {  # geom: {speed: (reference, contract)}
     SCP: {38: (3000, 2950), 50: (2125, 2075), 53: (1900, 1850), 63: (1500, 1450), 70: (1200, 1150), 88: (825, 775)},
 }
 OVERTAKE = {12: (1625, 1625), 20: (1200, 1150), 28: (800, 750)}  # oncoming m/s: (reference, contract)
+URGENCY = {7.0: (1500, 1450), 4.0: (900, 850), 3.5: (500, 450), 3.0: (250, 200)}  # launch lead s: (reference, contract) at LT 70
+LANDING_N24 = [("Exact-state reference", 164, "k"), ("I2V object sharing", 200, figstyle.ARMS["i2v"][1]), ("V2X2V prediction", 202, figstyle.ARMS["v2x2v"][1]),
+               ("Cooperative planning (CIP)", 203, figstyle.ARMS["cip"][1]), ("Intermediate feature fusion", 326, figstyle.ARMS["intermediate"][1])]
+MARGIN_SITUATIONS = [("left turn 70 km/h\n7.0 s lead", 1500), ("crossing 88 km/h", 825), ("left turn 70 km/h\n3.0 s lead", 250)]
 MEASURED_BUDGET = {(LT, 88), (SCP, 88), (SCP, 50), (OV, 12)}
 
 # ---- Fig. 10: failures at the representative delay (N=4 junctions at 1000 ms, overtake N=1 at 500 ms) ----
@@ -99,7 +103,7 @@ def fig6(a, out):
 def budget_panels(a, out):
     figstyle.rc()
     # Fig. 7: (a) ego speed and maneuver, (b) oncoming speed on the overtake
-    fig, (ax, axb) = plt.subplots(1, 2, figsize=(figstyle.COL, 2.1), gridspec_kw=dict(width_ratios=[3, 2]))
+    fig, (ax, axb, axc) = plt.subplots(1, 3, figsize=(figstyle.TXT, 2.0), gridspec_kw=dict(width_ratios=[3, 2, 2.4]))
     SHORT = {LT: "left turn", SCP: "crossing", OV: "overtake"}
     for geom in (LT, SCP):
         label, color = figstyle.GEOMS[geom]
@@ -116,8 +120,15 @@ def budget_panels(a, out):
     axb.errorbar(onc, ref, yerr=[[60] * 3, [60] * 3], fmt="o-", color=color, label=f"{SHORT[OV]}, reference", **figstyle.EB)
     axb.errorbar(onc, con, yerr=[[60] * 3, [60] * 3], fmt="s--", color=color, mfc="white", label=f"{SHORT[OV]}, +contract", **figstyle.EB)
     axb.set_xlabel("oncoming (m/s)"); axb.set_title("(b) overtake", fontsize=7); axb.set_ylim(0, 3300); axb.set_xticks(onc); axb.grid(alpha=0.3)
+    # (c) urgency: the crossing car launches when the ego's time to arrival drops below the lead (left turn, 70 km/h)
+    lead = sorted(URGENCY); color = figstyle.GEOMS[LT][1]
+    axc.errorbar(lead, [URGENCY[t][0] for t in lead], yerr=[[60] * len(lead), [60] * len(lead)], fmt="o-", color=color, **figstyle.EB)
+    axc.errorbar(lead, [URGENCY[t][1] for t in lead], yerr=[[60] * len(lead), [60] * len(lead)], fmt="s--", color=color, mfc="white", **figstyle.EB)
+    axc.axhspan(150, 330, color="0.85", lw=0, zorder=0)
+    axc.text(6.9, 240, "architecture\nages, N=24", fontsize=6, color="0.35", ha="right", va="center")
+    axc.set_xlabel("time to conflict at launch (s)"); axc.set_title("(c) left turn, 70 km/h, urgency", fontsize=7); axc.set_ylim(0, 3300); axc.set_xticks(lead); axc.grid(alpha=0.3)
     h1, l1 = ax.get_legend_handles_labels(); h2, l2 = axb.get_legend_handles_labels()
-    fig.legend(h1 + h2, l1 + l2, loc="outside upper center", ncol=3, handlelength=1.2, columnspacing=0.6, fontsize=6.5)
+    fig.legend(h1 + h2, l1 + l2, loc="outside upper center", ncol=6, handlelength=1.2, columnspacing=0.6, fontsize=6.5)
     figstyle.save(fig, os.path.join(out, "situation_sensitivity.pdf"))
     # Fig. 15: reference vs contract budget per situation, with the difference
     fig, ax = plt.subplots(figsize=(figstyle.COL, 1.8))
@@ -142,8 +153,17 @@ def margin(a, out):
                     w.writerow(dict(geom=geom, speed_kmh=s, arm="oracle" if arm == "reference" else arm, kv=KV, runs=100, bins=10, max_bin_ms=3125, tau_ms=t, censored=0, boot_lo_ms=t - 75, boot_hi_ms=t + 75, collided=0, self_ghost=0, false_brake=0, stalled=0))
         for o, (ref, con) in OVERTAKE.items():
             w.writerow(dict(geom=OV, speed_kmh=43, arm="oracle", kv=KV, runs=100, bins=10, max_bin_ms=3125, tau_ms=ref, censored=0, boot_lo_ms=ref - 75, boot_hi_ms=ref + 75, collided=0, self_ghost=0, false_brake=0, stalled=0))
-    env = dict(os.environ, PYTHONPATH=os.environ.get("PYTHONPATH", "."))
-    subprocess.run([PY, os.path.join(HERE, "fig_safety_margin.py"), "--tau", p, "--landing", a.landing, "--out", os.path.join(out, "safety_margin.pdf")], check=True, env=env)
+    figstyle.rc()
+    fig, ax = plt.subplots(figsize=(figstyle.COL, 2.0))
+    n_arch = len(LANDING_N24); width = 0.8 / n_arch
+    for j, (label, age, color) in enumerate(LANDING_N24):
+        xs = [i + (j - (n_arch - 1) / 2) * width for i in range(len(MARGIN_SITUATIONS))]
+        ms = [tau - age for _, tau in MARGIN_SITUATIONS]
+        ax.bar(xs, ms, width, color=color, edgecolor="k", linewidth=0.3, label=label)
+    ax.axhline(0, color="k", lw=0.8); ax.set_xticks(range(len(MARGIN_SITUATIONS))); ax.set_xticklabels([n for n, _ in MARGIN_SITUATIONS], fontsize=6.5)
+    ax.set_ylabel("safety margin at $N{=}24$ (ms)"); ax.grid(axis="y", alpha=0.3)
+    fig.legend(*ax.get_legend_handles_labels(), loc="outside upper center", ncol=2, fontsize=6.5, handlelength=1.2, columnspacing=0.8)
+    figstyle.save(fig, os.path.join(out, "safety_margin.pdf"))
 
 
 def decomp(out):
