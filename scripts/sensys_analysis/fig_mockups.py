@@ -44,7 +44,7 @@ OVERTAKE = {12: (1625, 1625), 20: (1200, 1150), 28: (800, 750)}  # oncoming m/s:
 URGENCY = {7.0: (1500, 1450), 4.0: (900, 850), 3.5: (500, 450), 3.0: (250, 200)}  # launch lead s: (reference, contract) at LT 70
 LANDING_N24 = [("Exact-state reference", 164, "k"), ("I2V object sharing", 200, figstyle.ARMS["i2v"][1]), ("V2X2V prediction", 202, figstyle.ARMS["v2x2v"][1]),
                ("Cooperative planning (CIP)", 203, figstyle.ARMS["cip"][1]), ("Intermediate feature fusion", 326, figstyle.ARMS["intermediate"][1])]
-MARGIN_SITUATIONS = [("left turn 70\n7.0 s lead", 1500), ("crossing 88", 825), ("left turn 70\n3.0 s lead", 250)]
+MARGIN_SITUATIONS = [("LT 70\n7.0 s lead", 1500), ("SCP 88", 825), ("LT 70\n3.0 s lead", 250)]
 MEASURED_BUDGET = {(LT, 88), (SCP, 88), (SCP, 50), (OV, 12)}
 
 # ---- Fig. 10: failures at the representative delay (N=4 junctions at 1000 ms, overtake N=1 at 500 ms) ----
