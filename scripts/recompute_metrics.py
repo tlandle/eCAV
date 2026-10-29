@@ -135,6 +135,62 @@ def _conflict_actor_id(d):
     return None
 
 
+
+def _conflict_live_states(d):
+    """Live state of the run's conflict actor per tick from the per-tick log:
+    {tick: {'x','y','vx','vy','speed'}}, velocity by central finite difference
+    over the logged ticks (50 ms). Empty when the run has no log."""
+    import csv as _csv
+    run_dir = d.get("_run_dir") if isinstance(d, dict) else d
+    if not run_dir:
+        return {}
+    pos = {}
+    for p in (os.path.join(run_dir, "per_tick_age.csv"),
+              os.path.join(run_dir, "evaluation_output", "per_tick_age.csv")):
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p) as fh:
+                for r in _csv.DictReader(fh):
+                    if r.get("conflict_gt_x") in (None, "", "nan"):
+                        continue
+                    try:
+                        pos.setdefault(int(float(r["tick"])), (float(r["conflict_gt_x"]), float(r["conflict_gt_y"])))
+                    except (TypeError, ValueError):
+                        continue
+        except Exception:
+            return {}
+        break
+    ticks = sorted(pos)
+    out = {}
+    for i, t in enumerate(ticks):
+        a = ticks[max(0, i - 1)]; b = ticks[min(len(ticks) - 1, i + 1)]
+        span = (b - a) * 0.05
+        vx = (pos[b][0] - pos[a][0]) / span if span > 0 else 0.0
+        vy = (pos[b][1] - pos[a][1]) / span if span > 0 else 0.0
+        out[t] = {"x": pos[t][0], "y": pos[t][1], "vx": vx, "vy": vy, "speed": (vx * vx + vy * vy) ** 0.5}
+    return out
+
+
+def _gt_hazard(actor, ego_xy, ego_vx, ego_vy, speed_thresh=2.0, dca_thresh=8.0, horizon=5.0):
+    """The run-time labeller's conflict predicate (edge_manager_base._is_gt_hazard):
+    closest approach under relative constant velocity within the horizon."""
+    if actor["speed"] < speed_thresh:
+        return False, float("inf"), -1.0
+    dx = ego_xy[0] - actor["x"]; dy = ego_xy[1] - actor["y"]
+    rvx = actor["vx"] - ego_vx; rvy = actor["vy"] - ego_vy
+    rv2 = rvx * rvx + rvy * rvy
+    if rv2 < 1e-6:
+        return False, float("inf"), -1.0
+    t_ca = (dx * rvx + dy * rvy) / rv2
+    if t_ca < 0 or t_ca > horizon:
+        return False, float("inf"), float(t_ca)
+    ax = actor["x"] + actor["vx"] * t_ca; ay = actor["y"] + actor["vy"] * t_ca
+    ex = ego_xy[0] + ego_vx * t_ca; ey = ego_xy[1] + ego_vy * t_ca
+    dca = ((ax - ex) ** 2 + (ay - ey) ** 2) ** 0.5
+    return dca < dca_thresh, float(dca), float(t_ca)
+
+
 def _ego_headings(d):
     """Unit heading of the focal vehicle per tick from the run's per-tick log
     (positions two ticks apart), keyed by tick; empty when the log is absent."""
@@ -317,6 +373,32 @@ def compute_run_metrics(d):
             attr["gt_brake_class"] = "self_ghost"; attr["gt_provenance"] = "self"; reclassified += 1
         elif looks_like_echo and not in_corridor and raw == "self_ghost":
             attr["gt_brake_class"] = "other_fp"; attr["gt_provenance"] = "beside_lane"; reclassified += 1
+
+    # The run-time labeller between 2026-10-29 12:43 and the live-state fix
+    # (labelfix3) matched the actor at the observation tick and judged the
+    # hazard on that stale state against the live ego, so a brake for the
+    # crossing car consumed 700 ms late read a closest approach of 10 m
+    # (7 m live) and was classed other_fp (reference 70 km/h, 700 and 1,000
+    # ms: 10/10 runs). Judge such brakes again on the conflict actor's live
+    # state from the per-tick log (position at the trigger tick, velocity by
+    # finite difference) with the labeller's own predicate.
+    _conf_live = _conflict_live_states(d) if _conflict_id is not None else {}
+    if _conf_live:
+        for attr in ba:
+            if attr.get("gt_brake_class") != "other_fp" or attr.get("gt_provenance") != "npc_non_hazard":
+                continue
+            _mid = attr.get("gt_matched_actor_id")
+            if _mid is None or int(_mid) != int(_conflict_id):
+                continue
+            st = _conf_live.get(attr.get("trigger_tick"))
+            ex, ey, ev = attr.get("ego_x"), attr.get("ego_y"), attr.get("ego_speed_mps")
+            if st is None or None in (ex, ey, ev):
+                continue
+            hx, hy = _hdg.get(attr.get("trigger_tick"), (0.0, 1.0))
+            ok, dca, t_ca = _gt_hazard(st, (float(ex), float(ey)), float(ev) * hx, float(ev) * hy)
+            if ok:
+                attr["gt_brake_class"] = "true_positive"; attr["gt_provenance"] = "conflict_live_hazard"
+                attr["gt_dca_m"] = dca; attr["gt_t_ca_s"] = t_ca; reclassified += 1
 
     # Shared tracks only: a brake on the CAV's own local forecast is counted
     # apart (focal_local_*) and enters neither S_ghost nor S_fp.
