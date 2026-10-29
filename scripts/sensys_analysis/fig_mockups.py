@@ -184,6 +184,39 @@ def decomp(out):
     figstyle.save(fig, os.path.join(out, "arch_failure_decomp.pdf"))
 
 
+SWEEP = {  # Fig. 17 mock: fraction failed per (arm, delay) and class, consistent with DECOMP at 1000 ms
+    "junction": {"lats": [100, 200, 400, 700, 1000, 1500],
+                 "naive": {"self_ghost": [0, 0, 0, 0.2, 0.8, 1.0]}, "etsi": {"self_ghost": [0, 0, 0, 0.2, 0.8, 1.0]},
+                 "contract": {"collision": [0, 0, 0, 0, 0, 0.2]}, "reference": {"collision": [0, 0, 0, 0, 0, 0.33]}},
+    "overtake": {"lats": [0, 100, 200, 300, 400, 500, 700, 1000, 1500, 2000, 3000],
+                 "naive": {"self_ghost": [0, 0.1, 0.2, 0.1, 0.2, 0.4, 0, 0, 0, 0, 0], "collision": [0] * 9 + [0.9, 0.7]},
+                 "etsi": {"self_ghost": [0, 0, 0, 0, 0.1, 0.6, 0, 0, 0, 0, 0], "collision": [0] * 9 + [0.9, 0.7]},
+                 "contract": {"late": [0] * 8 + [0.1, 0.2, 0.1], "collision": [0] * 9 + [0.9, 0.7]},
+                 "reference": {"collision": [0] * 9 + [1.0, 0.7]}},
+}
+
+
+def sweep(out):
+    figstyle.rc()
+    fig, axes = plt.subplots(1, 3, figsize=(figstyle.TXT, 1.8), sharey=True, gridspec_kw=dict(width_ratios=[3, 3, 8]))
+    arms = ["reference", "naive", "etsi", "contract"]; hatch = {"reference": "", "naive": "//", "etsi": "xx", "contract": ".."}
+    for ax, (title, key) in zip(axes, [("(a) Left turn, $N{=}4$", "junction"), ("(b) Straight crossing, $N{=}4$", "junction"), ("(c) Blind overtake, $N{=}1$", "overtake")]):
+        d = SWEEP[key]; lats = d["lats"]; width = 0.84 / len(arms)
+        for i, ak in enumerate(arms):
+            bottoms = [0.0] * len(lats)
+            for ck, cl, color in CLASSES:
+                fr = d.get(ak, {}).get(ck, [0] * len(lats))
+                ax.bar([x + (i - (len(arms) - 1) / 2) * width for x in range(len(lats))], fr, width, bottom=bottoms, color=color, edgecolor="k", linewidth=0.3, hatch=hatch[ak])
+                bottoms = [b + f for b, f in zip(bottoms, fr)]
+        ax.set_xticks(range(len(lats))); ax.set_xticklabels([str(l) for l in lats], rotation=45 if len(lats) > 6 else 0)
+        ax.set_xlabel("configured delay (ms)"); ax.set_title(title); ax.set_ylim(0, 1.05); ax.grid(axis="y", alpha=0.3)
+    axes[0].set_ylabel("fraction of runs failed, by class")
+    cls_h = [Patch(facecolor=c, edgecolor="k", linewidth=0.3, label=l) for _, l, c in CLASSES]
+    arm_h = [Patch(facecolor="white", edgecolor="k", linewidth=0.3, hatch=hatch[a], label=f"{lbl} (bars)") for a, lbl in zip(arms, ["reference", "no contract", "ETSI", "contract"])]
+    fig.legend(handles=[x for pair in zip(cls_h, arm_h) for x in pair], loc="outside upper center", ncol=4)
+    figstyle.save(fig, os.path.join(out, "arch_failure_sweep.pdf"))
+
+
 def control(out):
     figstyle.rc()
     fig, axes = plt.subplots(1, 2, figsize=(figstyle.COL, 1.8), sharey=True)
@@ -206,7 +239,7 @@ def main():
     ap.add_argument("--runs", nargs="+", required=True); ap.add_argument("--landing", required=True); ap.add_argument("--out", required=True)
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
-    fig6(a, a.out); budget_panels(a, a.out); margin(a, a.out); decomp(a.out); control(a.out)
+    fig6(a, a.out); budget_panels(a, a.out); margin(a, a.out); decomp(a.out); sweep(a.out); control(a.out)
     open(os.path.join(a.out, "README.md"), "w").write("Mock-ups drawn to the v14 review's expected pattern (fig_mockups.py), unmarked. "
                                                       "Replaced by build_figures.sh + place_figures.sh when the measured cells land.\n")
     print("mock-ups under", a.out)
