@@ -660,6 +660,7 @@ class _BaseEdgeManager:
             return
 
         gt_live = gt_actors
+        gt_by_id_live = {a['id']: a for a in gt_live}
 
         ego_id = vm.vehicle.id
         # Set of all managed ego vehicle IDs for provenance tagging
@@ -803,12 +804,18 @@ class _BaseEdgeManager:
                     attr['ego_x'], attr['ego_y'])
                 continue
 
-            # Category 2 or 3: check if matched actor is a GT hazard
+            # Category 2 or 3: check if matched actor is a GT hazard. The
+            # identity was matched at the observation tick; the hazard is
+            # judged on the actor's live state, like the ego's, so a state
+            # consumed late is not scored against a stale closest approach
+            # (reference at 70 km/h, 700 ms: DCA 10 m from the stale position,
+            # 7 m live, Oct 29).
+            matched_live = gt_by_id_live.get(matched_id, matched)
             is_hazard, dca, t_ca = self._is_gt_hazard(
-                matched, ego_xy, ego_vx, ego_vy)
+                matched_live, ego_xy, ego_vx, ego_vy)
 
             attr['ghost_brake_gt'] = False
-            attr['gt_actor_speed'] = matched['speed']
+            attr['gt_actor_speed'] = matched_live['speed']
             attr['gt_dca_m'] = dca
             attr['gt_t_ca_s'] = t_ca
 
