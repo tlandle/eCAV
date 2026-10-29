@@ -47,6 +47,9 @@ def rc():
 
 def save(fig, out, png_dpi=200):
     os.makedirs(os.path.dirname(os.path.abspath(out)) or ".", exist_ok=True)
+    wm = os.environ.get("FIG_WATERMARK")
+    if wm:  # draft mock-ups (fig_mockups.py) carry the mark inside the figure, in every build
+        fig.text(0.01, 0.995, wm, ha="left", va="top", fontsize=6, color="0.4", zorder=100, transform=fig.transFigure)
     fig.savefig(out)
     fig.savefig(os.path.splitext(out)[0] + ".png", dpi=png_dpi)
     print("wrote", out)
