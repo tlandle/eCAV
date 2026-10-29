@@ -227,6 +227,41 @@ class RandomHardBrake(py_trees.behaviour.Behaviour):
 
         return py_trees.common.Status.SUCCESS
 
+class CrossingSpeedChange(py_trees.behaviour.Behaviour):
+    """Change the crossing car's target speed once it is within ``trigger_dist``
+    metres of the conflict point. The car keeps its launch speed until then, so
+    the change happens after the edge has observed it at a steady speed; the
+    follower's local planner then drives to the new speed with its own
+    controller. Returns SUCCESS once the speed is set, RUNNING before, and is
+    inert when ``follower`` has no local planner for the actor yet."""
+
+    def __init__(self, actor, follower, conflict_location, trigger_dist, new_speed_mps,
+                 name="CrossingSpeedChange"):
+        super().__init__(name)
+        self._actor = actor
+        self._follower = follower
+        self._conflict = conflict_location
+        self._trigger_dist = float(trigger_dist)
+        self._new_speed = float(new_speed_mps)
+        self._done = False
+
+    def update(self):
+        if self._done:
+            return py_trees.common.Status.SUCCESS
+        loc = self._actor.get_location()
+        d = ((loc.x - self._conflict.x) ** 2 + (loc.y - self._conflict.y) ** 2) ** 0.5
+        if d > self._trigger_dist:
+            return py_trees.common.Status.RUNNING
+        planner = getattr(self._follower, "_local_planner_dict", {}).get(self._actor)
+        if planner is None or not hasattr(planner, "set_speed"):
+            return py_trees.common.Status.RUNNING
+        planner.set_speed(self._new_speed * 3.6)
+        self._done = True
+        print(f"[SCENARIO_3] crossing car speed change at {d:.1f} m from the conflict: "
+              f"target {self._new_speed:.1f} m/s", flush=True)
+        return py_trees.common.Status.SUCCESS
+
+
 class Scenario_3(BasicScenario):
     """
     The class spawns two background vehicles and two pedestrians in front of the ego vehicle.
@@ -294,6 +329,18 @@ class Scenario_3(BasicScenario):
             else:
                 self._trigger_tta = float(_tta)
         self._conflict_location = carla.Location(x=-84.8, y=127.9, z=0.5)
+        # CROSS_SPEED_CHANGE "<dist_m>:<speed_mps>": once the crossing car is
+        # within dist_m of the conflict point its target speed becomes
+        # speed_mps (above the launch speed: it accelerates; below: it slows),
+        # so a state observed before the change extrapolates to the wrong
+        # arrival. Unset: the launch speed holds to the conflict.
+        self._speed_change = None
+        _sc = os.environ.get("CROSS_SPEED_CHANGE")
+        if _sc:
+            _d, _, _v = _sc.partition(":")
+            self._speed_change = (float(_d), float(_v))
+            print(f"[SCENARIO_3] crossing car speed change: {self._speed_change[1]:.1f} m/s "
+                  f"from {self._speed_change[0]:.1f} m before the conflict", flush=True)
         print(f"[SCENARIO_3] trigger_distance={self._trigger_distance} "
               f"(CROSS_TRIGGER_DIST env={os.environ.get('CROSS_TRIGGER_DIST')}) "
               f"trigger_tta={self._trigger_tta}",
@@ -391,7 +438,17 @@ class Scenario_3(BasicScenario):
                     seq.add_child(InTriggerDistanceToLocation(
                         self.ego_vehicles[0], trigger_location, self._trigger_distance))
                 self.agents.append(drive)
-            seq.add_child(drive)
+            if i == 0 and self._speed_change is not None:
+                both = py_trees.composites.Parallel(
+                    "Vehicle_01_drive_and_speed_change",
+                    policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
+                both.add_child(drive)
+                both.add_child(CrossingSpeedChange(
+                    actor, drive, self._conflict_location,
+                    self._speed_change[0], self._speed_change[1]))
+                seq.add_child(both)
+            else:
+                seq.add_child(drive)
             seq.add_child(Idle())
             sequences.append(seq)
 
