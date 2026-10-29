@@ -140,6 +140,8 @@ def main():
             ax.set_xticks(range(len(lats))); ax.set_xticklabels([str(l) for l in lats], rotation=45 if len(lats) > 6 else 0)
             ax.set_xlabel("configured delay (ms)"); ax.set_title(title)
             ax.set_ylim(0, 1.05); ax.grid(axis="y", alpha=0.3)
+            if not any(fractions(cells.get((ak, lat), []))[ck] for ak in arms for lat in lats for ck, _, _ in CLASSES):
+                ax.text(0.5, 0.5, "no run failed", ha="center", va="center", transform=ax.transAxes, fontsize=7, color="0.4")
         axes[0].set_ylabel("fraction of runs failed, by class")
         cls_h = [Patch(facecolor=c, edgecolor="k", linewidth=0.3, label=l) for _, l, c in CLASSES]
         arm_h = [Patch(facecolor="white", edgecolor="k", linewidth=0.3, hatch=h, label=f"{l} (bars)") for _, l, h in ARMS]
