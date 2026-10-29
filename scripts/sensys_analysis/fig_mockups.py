@@ -44,7 +44,7 @@ OVERTAKE = {12: (1625, 1625), 20: (1200, 1150), 28: (800, 750)}  # oncoming m/s:
 URGENCY = {7.0: (1500, 1450), 4.0: (900, 850), 3.5: (500, 450), 3.0: (250, 200)}  # launch lead s: (reference, contract) at LT 70
 LANDING_N24 = [("Exact-state reference", 164, "k"), ("I2V object sharing", 200, figstyle.ARMS["i2v"][1]), ("V2X2V prediction", 202, figstyle.ARMS["v2x2v"][1]),
                ("Cooperative planning (CIP)", 203, figstyle.ARMS["cip"][1]), ("Intermediate feature fusion", 326, figstyle.ARMS["intermediate"][1])]
-MARGIN_SITUATIONS = [("left turn 70 km/h\n7.0 s lead", 1500), ("crossing 88 km/h", 825), ("left turn 70 km/h\n3.0 s lead", 250)]
+MARGIN_SITUATIONS = [("left turn 70\n7.0 s lead", 1500), ("crossing 88", 825), ("left turn 70\n3.0 s lead", 250)]
 MEASURED_BUDGET = {(LT, 88), (SCP, 88), (SCP, 50), (OV, 12)}
 
 # ---- Fig. 10: failures at the representative delay (N=4 junctions at 1000 ms, overtake N=1 at 500 ms) ----
@@ -153,16 +153,28 @@ def margin(a, out):
                     w.writerow(dict(geom=geom, speed_kmh=s, arm="oracle" if arm == "reference" else arm, kv=KV, runs=100, bins=10, max_bin_ms=3125, tau_ms=t, censored=0, boot_lo_ms=t - 75, boot_hi_ms=t + 75, collided=0, self_ghost=0, false_brake=0, stalled=0))
         for o, (ref, con) in OVERTAKE.items():
             w.writerow(dict(geom=OV, speed_kmh=43, arm="oracle", kv=KV, runs=100, bins=10, max_bin_ms=3125, tau_ms=ref, censored=0, boot_lo_ms=ref - 75, boot_hi_ms=ref + 75, collided=0, self_ghost=0, false_brake=0, stalled=0))
+    # compact dot-and-whisker: N=16 and N=24 side by side, three situations, five architectures (Fig. 8 colours),
+    # margin = budget minus landing p99, interval from the budget's bootstrap (+-75) and the landing's locale CI
+    LANDING = {16: [("Exact-state reference", 157, 142, 163, "k", "o"), ("I2V object sharing", 183, 171, 192, figstyle.ARMS["i2v"][1], "D"),
+                    ("V2X2V prediction", 185, 172, 193, figstyle.ARMS["v2x2v"][1], "s"), ("Cooperative planning (CIP)", 186, 173, 196, figstyle.ARMS["cip"][1], "X"),
+                    ("Intermediate feature fusion", 266, 253, 275, figstyle.ARMS["intermediate"][1], "v")],
+               24: [("Exact-state reference", 164, 138, 170, "k", "o"), ("I2V object sharing", 200, 173, 205, figstyle.ARMS["i2v"][1], "D"),
+                    ("V2X2V prediction", 202, 175, 207, figstyle.ARMS["v2x2v"][1], "s"), ("Cooperative planning (CIP)", 203, 176, 208, figstyle.ARMS["cip"][1], "X"),
+                    ("Intermediate feature fusion", 326, 300, 333, figstyle.ARMS["intermediate"][1], "v")]}
     figstyle.rc()
-    fig, ax = plt.subplots(figsize=(figstyle.COL, 2.0))
-    n_arch = len(LANDING_N24); width = 0.8 / n_arch
-    for j, (label, age, color) in enumerate(LANDING_N24):
-        xs = [i + (j - (n_arch - 1) / 2) * width for i in range(len(MARGIN_SITUATIONS))]
-        ms = [tau - age for _, tau in MARGIN_SITUATIONS]
-        ax.bar(xs, ms, width, color=color, edgecolor="k", linewidth=0.3, label=label)
-    ax.axhline(0, color="k", lw=0.8); ax.set_xticks(range(len(MARGIN_SITUATIONS))); ax.set_xticklabels([n for n, _ in MARGIN_SITUATIONS], fontsize=6.5)
-    ax.set_ylabel("safety margin at $N{=}24$ (ms)"); ax.grid(axis="y", alpha=0.3)
-    fig.legend(*ax.get_legend_handles_labels(), loc="outside upper center", ncol=2, fontsize=6.5, handlelength=1.2, columnspacing=0.8)
+    fig, axes = plt.subplots(1, 2, figsize=(figstyle.COL, 2.0), sharey=True)
+    for ax, N in zip(axes, (16, 24)):
+        archs = LANDING[N]; n_arch = len(archs); width = 0.8 / n_arch
+        for j, (label, age, lo, hi, color, marker) in enumerate(archs):
+            xs = [i + (j - (n_arch - 1) / 2) * width for i in range(len(MARGIN_SITUATIONS))]
+            ms = [tau - age for _, tau in MARGIN_SITUATIONS]
+            err_lo = [m - ((tau - 75) - hi) for m, (_, tau) in zip(ms, MARGIN_SITUATIONS)]
+            err_hi = [((tau + 75) - lo) - m for m, (_, tau) in zip(ms, MARGIN_SITUATIONS)]
+            ax.errorbar(xs, ms, yerr=[err_lo, err_hi], fmt=marker, color=color, ms=4, label=label, **figstyle.EB)
+        ax.axhline(0, color="k", lw=0.8); ax.set_xticks(range(len(MARGIN_SITUATIONS))); ax.set_xticklabels([n for n, _ in MARGIN_SITUATIONS], fontsize=6); ax.set_xlim(-0.6, len(MARGIN_SITUATIONS) - 0.4)
+        ax.set_title(f"$N{{=}}{N}$", fontsize=7); ax.grid(axis="y", alpha=0.3); ax.set_ylim(-200, 1500)
+    axes[0].set_ylabel("safety margin (ms)")
+    fig.legend(*axes[0].get_legend_handles_labels(), loc="outside upper center", ncol=2, fontsize=6.5, handlelength=1.2, columnspacing=0.8)
     figstyle.save(fig, os.path.join(out, "safety_margin.pdf"))
 
 
