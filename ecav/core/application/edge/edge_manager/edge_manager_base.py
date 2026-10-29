@@ -618,6 +618,35 @@ class _BaseEdgeManager:
            - **other FP**: matched actor is NOT a GT hazard (parked,
              stationary, or moving away from ego)
         """
+        # Ground truth per tick, stored on every call so a brake on a state
+        # observed at tick t is matched against the actors where they were at
+        # t, not where they are now: a correctly tracked 13 m/s crossing car
+        # consumed 400 ms late sits 5 m from its live position and was
+        # labelled a false brake on a parked vehicle (2026-10-15). Storing
+        # only on ticks with a pending brake left the history empty at the
+        # observation tick, so the match fell back to the live state (Oct 29).
+        hist = getattr(self, '_gt_actor_hist', None)
+        if hist is None:
+            hist = self._gt_actor_hist = {}
+        if tick is not None and int(tick) in hist:
+            gt_actors = hist[int(tick)]
+        else:
+            vehicles = self.world.get_actors().filter('vehicle.*')
+            gt_actors = []
+            for v in vehicles:
+                loc = v.get_location()
+                vel = v.get_velocity()
+                gt_actors.append({
+                    'id': v.id,
+                    'x': loc.x, 'y': loc.y,
+                    'vx': vel.x, 'vy': vel.y,
+                    'speed': (vel.x**2 + vel.y**2)**0.5,
+                })
+            if tick is not None and gt_actors:
+                hist[int(tick)] = gt_actors
+                for _old in [t for t in hist if t < int(tick) - 100]:
+                    del hist[_old]
+
         attrs = vm.agent.planning_metrics.brake_attributions
         if not attrs:
             return
@@ -627,34 +656,9 @@ class _BaseEdgeManager:
         if not unlabeled:
             return
 
-        # Get current GT state of all CARLA vehicle actors
-        vehicles = self.world.get_actors().filter('vehicle.*')
-        gt_actors = []
-        for v in vehicles:
-            loc = v.get_location()
-            vel = v.get_velocity()
-            gt_actors.append({
-                'id': v.id,
-                'x': loc.x, 'y': loc.y,
-                'vx': vel.x, 'vy': vel.y,
-                'speed': (vel.x**2 + vel.y**2)**0.5,
-            })
-
         if not gt_actors:
             return
 
-        # Ground truth per tick, so a brake on a state observed at tick t is
-        # matched against the actors where they were at t, not where they are
-        # now: a correctly tracked 13 m/s crossing car consumed 400 ms late
-        # sits 5 m from its live position and was labelled a false brake on
-        # a parked vehicle (2026-10-15).
-        hist = getattr(self, '_gt_actor_hist', None)
-        if hist is None:
-            hist = self._gt_actor_hist = {}
-        if tick is not None:
-            hist[int(tick)] = gt_actors
-            for _old in [t for t in hist if t < int(tick) - 100]:
-                del hist[_old]
         gt_live = gt_actors
 
         ego_id = vm.vehicle.id
