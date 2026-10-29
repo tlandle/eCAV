@@ -38,6 +38,23 @@ logger = logging.getLogger("EdgeManager")
 # ──────────────────────────────────────────────────────────────
 #  Minimal shared base-class
 # ──────────────────────────────────────────────────────────────
+def provenance_tags_for(prov_hist, ego_id):
+    """Tag each provenance entry 'ego' when it matched this consumer's own vehicle, else 'nonego'.
+
+    Entries are (tag, matched_actor_id, distance). The stored tag only says that the nearest
+    ground-truth actor was a managed vehicle, so with several egos a track of another CAV
+    carries 'ego' too. A legacy entry without an id keeps its stored tag.
+    """
+    out = []
+    for entry in prov_hist:
+        mid = entry[1] if len(entry) > 1 else None
+        if mid is None:
+            out.append(entry[0])
+        else:
+            out.append('ego' if mid == ego_id else 'nonego')
+    return out
+
+
 class _BaseEdgeManager:
     """
     Functionality identical for every Edge-manager variant:
@@ -728,7 +745,10 @@ class _BaseEdgeManager:
             prov_hist = getattr(self, '_track_provenance', {}).get(
                 attr.get('trigger_track_id'))
             if prov_hist:
-                tags = [t[0] for t in prov_hist]  # 'ego' / 'nonego'
+                # The stored tag says the nearest actor was a managed vehicle,
+                # which with several egos includes the other CAVs. Only this
+                # consumer's own vehicle makes a self-ghost.
+                tags = provenance_tags_for(prov_hist, ego_id)
                 n_ego = tags.count('ego')
                 n_non = tags.count('nonego')
                 if n_ego and n_non:
