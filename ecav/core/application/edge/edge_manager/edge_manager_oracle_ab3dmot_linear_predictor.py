@@ -130,6 +130,29 @@ def _collect_oracle_detections(edge,
 # ──────────────────────────────────────────────────────────────────────
 #  Main edge-manager subclass
 # ──────────────────────────────────────────────────────────────────────
+def exact_velocity_override(tracked_trajectories, gt_snapshot, dt):
+    """Give every identified track the exact velocity its actor had at the source tick.
+
+    The exact-state reference receives each actor's exact pose and velocity. The tracker's
+    filtered velocity is a slope over past exact poses and lags an accelerating actor by about
+    1 m/s, which shortens the published forecast and delays its first crossing by two to three
+    ticks. Velocities are stored in metres per tick, the predictor's unit. Tracks without an
+    actor in the snapshot keep the tracker's estimate. Returns the number of tracks overridden.
+    """
+    if not gt_snapshot:
+        return 0
+    n = 0
+    for traj in tracked_trajectories.values():
+        actor = gt_snapshot.get(getattr(traj.obstacle, 'carla_id', -1))
+        if actor is None:
+            continue
+        traj.obstacle.kf_vx = float(actor['vx']) * dt
+        traj.obstacle.kf_vy = float(actor['vy']) * dt
+        traj.obstacle.kf_speed_mps = float(actor['speed'])
+        n += 1
+    return n
+
+
 class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     """
     Oracle front-end: CARLA ground-truth detections fed through the
@@ -438,6 +461,10 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 gt_snapshot = self._gt_snapshots.get(latest_source_tick)
                 excluded_vehicles = self._excluded_snapshots.get(
                     latest_source_tick)
+                # Exact-state reference: the forecast extrapolates the exact
+                # velocity at the source tick, not the tracker's lagging slope.
+                exact_velocity_override(self.tracked_trajectories,
+                                        gt_snapshot, self.dt)
 
                 # Compute detection metrics (oracle should be near-perfect)
                 managed_positions = [vm.vehicle.get_location()
