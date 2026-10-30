@@ -106,6 +106,8 @@ def main(argv=None):
     ap.add_argument("--measured-speeds", default=None,
                     help="JSON {set point km/h: measured cruise km/h}; the speed axis and the tau CSV then carry the measured speed "
                          "(the recalibrated sweep holds the ego at cruise before the launch; cruise sits under the set point)")
+    ap.add_argument("--speeds", nargs="*", type=int, default=None,
+                    help="set-point speeds (km/h) to plot; cells at other speeds are dropped")
     ap.add_argument("--out", default=os.path.join(ROOT, "safety_envelope_paper", "analysis", "fig_situation"))
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
@@ -121,6 +123,8 @@ def main(argv=None):
         for stamp in a.stamps:
             for r in load_runs(root, stamp):
                 if r.get("bad") or r.get("speed") == "orig":
+                    continue
+                if a.speeds and int(r["speed"]) not in a.speeds:
                     continue
                 key = (r["geom"], r["speed"], r["mgr"], r["anch"], r["N"], r["kv"], r["lat"], r["rep"])
                 if key in seen:
