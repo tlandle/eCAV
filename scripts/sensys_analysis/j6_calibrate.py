@@ -40,14 +40,14 @@ def fmt_map(m):
     return ",".join(f"{int(k)}:{v:.2f}" for k, v in sorted(m.items()))
 
 
-def run_cells(test, stamp, speeds, tta_map, spawn_y, port, log):
+def run_cells(test, stamp, speeds, tta_map, spawn_y, port, log, extra_env=()):
     cmd = [PY, "test_runner.py", "-t", test, "--manager-types", "oracle", "--anchoring", "on", "--latencies", "0",
            "--speeds", *[str(s) for s in speeds], "--ego-counts", "1", "--repetitions", "1",
            "--latency-distribution", "hybrid", "--per-tick-age-log", "--self-id-radius", "1", "--stamp", stamp,
            "--carla-port", str(port), "--edge-kv", "prediction_steps=60",
            "--behavior-kv", "curv_lat_accel=8", "self_exclusion_m=1.0", "hazard_response=none",
            "--scenario-env", f"CROSS_TRIGGER_TTA={fmt_map(tta_map)}", f"HIDE_ENV_OBJECTS={HIDE}",
-           f"EGO_SPAWN_Y={spawn_y}", "EGO_DRIVE_DISTANCE=400", "SCENARIO_MAX_STEP=900"]
+           f"EGO_SPAWN_Y={spawn_y}", "EGO_DRIVE_DISTANCE=400", "SCENARIO_MAX_STEP=900", *extra_env]
     log.write(f"{time.strftime('%F %T')} run: {' '.join(cmd)}\n"); log.flush()
     subprocess.run(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, check=False)
 
@@ -83,31 +83,37 @@ def main(argv=None):
     ap.add_argument("--stamp-prefix", default="sensys_nov27_j6c")
     ap.add_argument("--log", default=os.path.join(ROOT, "logs", "j6_calibrate.log"))
     ap.add_argument("--start-maps", default=None, help="JSON from an earlier run: start from its lt/scp maps")
+    ap.add_argument("--tests", nargs="*", default=list(TESTS), choices=list(TESTS), help="junctions to calibrate")
+    ap.add_argument("--extra-env", nargs="*", default=[], help="extra KEY=VALUE scenario env, e.g. CROSS_SPEED_CHANGE=40:20")
+    ap.add_argument("--want-after-car-in", type=float, default=None,
+                    help="target the ego box entry this many seconds after the measured car entry instead of 4.30 s "
+                         "after the launch (for cells whose car changes speed on the way)")
     a = ap.parse_args(argv)
     # Starting leads: 4.3 s to the box plus the half-lane and half-length offset 4.2 m / v, plus the
     # 0.4 s between the trigger and the car's first visible motion; the left turn adds 0.3 s for the
     # planner's slowdown into the turn (free-flow runs of Oct 29).
+    tests = {k: TESTS[k] for k in a.tests}
     maps = {}
-    for key in TESTS:
+    for key in tests:
         maps[key] = {}
         for s in a.speeds:
             v = s / 3.6
             maps[key][s] = round(WANT + 4.2 / v + 0.4 + (0.3 if key == "lt" else 0.0), 2)
     if a.start_maps and os.path.exists(a.start_maps):
         prev = json.load(open(a.start_maps))
-        for key in TESTS:
+        for key in tests:
             for s in a.speeds:
                 if str(s) in prev.get(key, {}):
                     maps[key][s] = float(prev[key][str(s)])
     log = open(a.log, "a")
     cells = {}
-    pending = {key: list(a.speeds) for key in TESTS}
+    pending = {key: list(a.speeds) for key in tests}
     for it in range(1, a.iters + 1):
-        for key, test in TESTS.items():
+        for key, test in tests.items():
             if not pending[key]:
                 continue
             stamp = f"{a.stamp_prefix}_{key}_i{it}"
-            run_cells(test, stamp, pending[key], maps[key], a.spawn_y, a.port, log)
+            run_cells(test, stamp, pending[key], maps[key], a.spawn_y, a.port, log, a.extra_env)
             still = []
             for s in pending[key]:
                 m = measure(test, stamp, s)
@@ -119,7 +125,9 @@ def main(argv=None):
                 # mean is at least 85 percent of the set point (the measured cruise speed is what the paper reports).
                 m["speed_ok"] = (m["v_launch"] == m["v_launch"] and m["v_cruise"] == m["v_cruise"]
                                  and m["v_launch"] >= 0.9 * m["v_cruise"] and m["v_cruise"] >= 0.85 * target_v)
-                err = m["entry"] - WANT if m["entry"] == m["entry"] else float("nan")
+                want = (m["car_in"] + a.want_after_car_in) if (a.want_after_car_in is not None and m["car_in"] == m["car_in"]) else WANT
+                m["want"] = want
+                err = m["entry"] - want if m["entry"] == m["entry"] else float("nan")
                 m["err"] = err
                 ok = (err == err and abs(err) <= a.tol and m["hit"] == 1)
                 m["ok"] = bool(ok and m["speed_ok"])
@@ -133,15 +141,15 @@ def main(argv=None):
                         maps[key][s] = round(maps[key][s] - err, 2)   # later entry -> shorter lead
                     still.append(s)
             pending[key] = still
-        json.dump(dict(lt=maps["lt"], scp=maps["scp"], ok=not any(pending.values()), pending=pending, cells=cells,
+        json.dump(dict(lt=maps.get("lt", {}), scp=maps.get("scp", {}), ok=not any(pending.values()), pending=pending, cells=cells,
                        spawn_y=a.spawn_y, iteration=it), open(a.out, "w"), indent=1)
         if not any(pending.values()):
             break
     ok = not any(pending.values()) and all(c.get("speed_ok") for c in cells.values())
-    json.dump(dict(lt=maps["lt"], scp=maps["scp"], ok=ok, pending=pending, cells=cells, spawn_y=a.spawn_y), open(a.out, "w"), indent=1)
-    log.write(f"{time.strftime('%F %T')} calibration {'converged' if ok else 'NOT converged'}: lt {fmt_map(maps['lt'])} scp {fmt_map(maps['scp'])}\n")
+    json.dump(dict(lt=maps.get("lt", {}), scp=maps.get("scp", {}), ok=ok, pending=pending, cells=cells, spawn_y=a.spawn_y), open(a.out, "w"), indent=1)
+    log.write(f"{time.strftime('%F %T')} calibration {'converged' if ok else 'NOT converged'}: lt {fmt_map(maps.get('lt', {}))} scp {fmt_map(maps.get('scp', {}))}\n")
     log.close()
-    print(json.dumps(dict(ok=ok, lt=maps["lt"], scp=maps["scp"], pending=pending), indent=1))
+    print(json.dumps(dict(ok=ok, lt=maps.get("lt", {}), scp=maps.get("scp", {}), pending=pending), indent=1))
     return 0 if ok else 1
 
 
