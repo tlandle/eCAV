@@ -32,8 +32,78 @@ from campaign_check import GEOM_RE, ROOT  # noqa: E402
 
 CONFLICT = (-84.8, 127.9)
 CLEAR_M = 5.0      # the car has cleared when it is this far past the conflict point
-EGO_LEN = 4.9      # m, vehicle footprints for the occupancy window
-CAR_LEN = 4.7
+EGO_LEN, EGO_WID = 4.9, 2.1   # m, vehicle footprints (Lincoln MKZ ego, Tesla Model 3 crossing car)
+CAR_LEN, CAR_WID = 4.7, 1.9
+LANE_W = 3.5
+# The conflict region is the crossing of the two lanes: the car's lane (y about 127.7, width 3.5 m)
+# across the ego's lane (x about -84.8, width 3.5 m).
+CONFLICT_BOX = (CONFLICT[0] - LANE_W / 2, 127.7 - LANE_W / 2, CONFLICT[0] + LANE_W / 2, 127.7 + LANE_W / 2)
+
+try:
+    from shapely.geometry import box as _box
+    from shapely import affinity as _aff
+    _HAVE_SHAPELY = True
+except Exception:   # pragma: no cover
+    _HAVE_SHAPELY = False
+
+
+def _footprint(x, y, heading_rad, length, width):
+    b = _box(-length / 2, -width / 2, length / 2, width / 2)
+    return _aff.translate(_aff.rotate(b, math.degrees(heading_rad), origin=(0, 0)), x, y)
+
+
+def _headings(xy, window=2):
+    """Heading per tick from the position change over +/- window ticks; a
+    vehicle at rest keeps its last heading (or the first moving one)."""
+    ticks = sorted(xy)
+    out, last = {}, None
+    pend = []
+    for i, t in enumerate(ticks):
+        a = xy[ticks[max(0, i - window)]]; b = xy[ticks[min(len(ticks) - 1, i + window)]]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        if math.hypot(dx, dy) > 0.2:
+            last = math.atan2(dy, dx)
+            for q in pend:
+                out[q] = last
+            pend = []
+            out[t] = last
+        elif last is not None:
+            out[t] = last
+        else:
+            pend.append(t)
+    for q in pend:
+        out[q] = 0.0
+    return out
+
+
+def footprint_metrics(ego_xy, gt, launch):
+    """Footprint-based geometry: minimum distance between the two vehicle
+    rectangles over the logged ticks (0 when they intersect), whether they
+    ever intersect, and each vehicle's first and last tick inside the
+    conflict box, relative to launch."""
+    nan = float("nan")
+    if not _HAVE_SHAPELY or not ego_xy or not gt:
+        return dict(fp_min_m=nan, fp_hit=None, ego_in=nan, ego_out=nan, car_in=nan, car_out=nan)
+    eh, ch = _headings(ego_xy), _headings(gt)
+    cbox = _box(*CONFLICT_BOX)
+    fp_min, fp_hit = nan, 0
+    ego_t, car_t = [], []
+    for t in sorted(set(ego_xy) | set(gt)):
+        E = _footprint(ego_xy[t][0], ego_xy[t][1], eh[t], EGO_LEN, EGO_WID) if t in ego_xy else None
+        C = _footprint(gt[t][0], gt[t][1], ch[t], CAR_LEN, CAR_WID) if t in gt else None
+        if E is not None and C is not None:
+            d = E.distance(C)
+            if fp_min != fp_min or d < fp_min:
+                fp_min = d
+            if d <= 0.0:
+                fp_hit = 1
+        if E is not None and E.intersects(cbox):
+            ego_t.append(t)
+        if C is not None and C.intersects(cbox):
+            car_t.append(t)
+    rel = lambda L, f: ((f(L) - launch) * 0.05 if L else nan)
+    return dict(fp_min_m=fp_min, fp_hit=fp_hit, ego_in=rel(ego_t, min), ego_out=rel(ego_t, max),
+                car_in=rel(car_t, min), car_out=rel(car_t, max))
 
 
 def fl(x):
@@ -143,6 +213,7 @@ def analyse(f):
     r["collided"] = int((fv.get("safety") or {}).get("collision_count", 0) > 0)
     r["ego_enter_s"], r["ego_leave_s"] = ego_conflict_times(ego_xy, launch)
     r["min_sep_m"] = min_separation(ego_xy, gt)
+    r.update(footprint_metrics(ego_xy, gt, launch))
     r["max_brake_ctrl"] = max((fl(x.get("ctrl_brake")) for x in rows if fl(x.get("ctrl_brake")) == fl(x.get("ctrl_brake"))), default=float("nan"))
     return r
 
@@ -176,17 +247,27 @@ def main(argv=None):
         row["zero_age_outcome"] = "collision" if r["collided"] else ("brake, no collision" if r["brake_s"] == r["brake_s"] else "no brake, no collision")
         f = analyse(ff[key]) if key in ff else None
         if f:
-            row.update(ff_enter_s=f["ego_enter_s"], ff_leave_s=f["ego_leave_s"], ff_min_sep_m=f["min_sep_m"], ff_collided=f["collided"])
-            overlap = (f["ego_enter_s"] == f["ego_enter_s"] and not (f["ego_leave_s"] < r["car_reach_s"] or f["ego_enter_s"] > r["car_clear_s"]))
+            # Footprint geometry from the free-flow run: the ego's and the car's windows inside the
+            # conflict box, whether those windows overlap, the minimum footprint distance and whether
+            # the footprints ever intersect (the collision test), plus the simulator's collision count.
+            row.update(ff_enter_s=f["ego_in"], ff_leave_s=f["ego_out"], ff_car_in_s=f["car_in"], ff_car_out_s=f["car_out"],
+                       ff_min_sep_m=f["fp_min_m"], ff_footprints_hit=f["fp_hit"], ff_collided=f["collided"],
+                       ff_centre_sep_m=f["min_sep_m"])
+            overlap = (f["ego_in"] == f["ego_in"] and f["car_in"] == f["car_in"]
+                       and not (f["ego_out"] < f["car_in"] or f["ego_in"] > f["car_out"]))
             row["overlap"] = int(overlap)
         else:
-            row.update(ff_enter_s=float("nan"), ff_leave_s=float("nan"), ff_min_sep_m=float("nan"), ff_collided="", overlap="")
+            row.update(ff_enter_s=float("nan"), ff_leave_s=float("nan"), ff_car_in_s=float("nan"), ff_car_out_s=float("nan"),
+                       ff_min_sep_m=float("nan"), ff_footprints_hit="", ff_collided="", ff_centre_sep_m=float("nan"), overlap="")
         n = analyse(nc[key]) if key in nc else None
         if n:
-            row["nocoop_outcome"] = "collision" if n["collided"] else ("evasive action" if n["brake_s"] == n["brake_s"] or (n["max_brake_ctrl"] == n["max_brake_ctrl"] and n["max_brake_ctrl"] > 0.3) else "uneventful passage")
-            row["nocoop_min_sep_m"] = n["min_sep_m"]
+            # Evasive action = a brake attribution for a track (the speed controller's own throttle and
+            # brake pulses at a low set point do not count).
+            row["nocoop_outcome"] = "collision" if n["collided"] else ("evasive action" if n["brake_s"] == n["brake_s"] else "uneventful passage")
+            row["nocoop_min_sep_m"] = n["fp_min_m"]
+            row["nocoop_brake_s"] = n["brake_s"]
         else:
-            row["nocoop_outcome"] = ""; row["nocoop_min_sep_m"] = float("nan")
+            row["nocoop_outcome"] = ""; row["nocoop_min_sep_m"] = float("nan"); row["nocoop_brake_s"] = float("nan")
         rows.append(row)
     if not rows:
         print("no rows"); return 2
@@ -201,8 +282,8 @@ def main(argv=None):
              "car reaches and clears the conflict point after launch (s), first useful shared observation (s after launch, age ms), "
              "zero-age outcomes, free-flow ego window at the conflict (s, from the no-evasion runs), occupancy overlap, "
              "free-flow minimum separation (m), no-cooperation outcomes.", "",
-             "| scenario | target | n | v launch | v brake | brake +s | car reach +s | car clear +s | first useful +s / age | zero-age outcomes | free-flow ego window | overlap | min sep | no-coop outcomes |",
-             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+             "| scenario | target | n | v launch | v brake | brake +s | car reach +s | car clear +s | first useful +s / age | zero-age outcomes | free-flow ego window in box | car window in box | overlap | footprint min sep | footprints hit | no-coop outcomes |",
+             "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     med = lambda L: statistics.median([x for x in L if x == x]) if any(x == x for x in L) else float("nan")
     fm = lambda v, p=2: ("%.*f" % (p, v)) if v == v else "-"
     for k in sorted(cells):
@@ -210,13 +291,16 @@ def main(argv=None):
         oc = collections.Counter(r["zero_age_outcome"] for r in rs)
         nco = collections.Counter(r["nocoop_outcome"] for r in rs if r["nocoop_outcome"])
         ov = [r["overlap"] for r in rs if r["overlap"] != ""]
-        lines.append("| %s | %d | %d | %s | %s | %s | %s | %s | %s / %s | %s | %s to %s | %s | %s | %s |" % (
+        hits = [r["ff_footprints_hit"] for r in rs if r["ff_footprints_hit"] != ""]
+        lines.append("| %s | %d | %d | %s | %s | %s | %s | %s | %s / %s | %s | %s to %s | %s to %s | %s | %s | %s | %s |" % (
             k[0], k[1], len(rs), fm(med([r["v_launch"] for r in rs]), 1), fm(med([r["v_brake"] for r in rs]), 1),
             fm(med([r["brake_s"] for r in rs])), fm(med([r["car_reach_s"] for r in rs])), fm(med([r["car_clear_s"] for r in rs])),
             fm(med([r["first_useful_s"] for r in rs])), fm(med([r["first_useful_age_ms"] for r in rs]), 0),
             ", ".join(f"{v} {c}" for c, v in oc.items()),
             fm(med([r["ff_enter_s"] for r in rs])), fm(med([r["ff_leave_s"] for r in rs])),
+            fm(med([r["ff_car_in_s"] for r in rs])), fm(med([r["ff_car_out_s"] for r in rs])),
             (f"{sum(ov)}/{len(ov)}" if ov else "pending"), fm(med([r["ff_min_sep_m"] for r in rs]), 1),
+            (f"{sum(hits)}/{len(hits)}" if hits else "pending"),
             (", ".join(f"{v} {c}" for c, v in nco.items()) if nco else "pending")))
     open(os.path.join(out, "encounter_check.md"), "w").write("\n".join(lines) + "\n")
     print("\n".join(lines))
