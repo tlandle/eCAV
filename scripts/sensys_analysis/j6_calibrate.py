@@ -63,7 +63,12 @@ def measure(test, stamp, spd):
         return None
     fp = footprint_metrics(ego_xy, gt, launch)
     near = lambda t: ego_v.get(t) if t in ego_v else ego_v[min(ego_v, key=lambda k: abs(k - t))]
-    return dict(entry=fp["ego_in"], hit=fp["fp_hit"], gap=fp["fp_min_m"], v_launch=near(launch),
+    # The approach speed is the mean over the 3 s before the launch: the speed controller holds a
+    # steady state a few percent under its set point and pulses at low set points (38 km/h: 8.7 to
+    # 10.5 m/s around 9.5), so the instantaneous speed at the launch is not the cruise speed.
+    before = [v for t, v in ego_v.items() if launch - 60 <= t < launch]
+    v_mean = sum(before) / len(before) if before else float("nan")
+    return dict(entry=fp["ego_in"], hit=fp["fp_hit"], gap=fp["fp_min_m"], v_launch=near(launch), v_cruise=v_mean,
                 car_in=fp["car_in"], car_out=fp["car_out"], run=os.path.dirname(os.path.dirname(fs[-1])))
 
 
@@ -77,6 +82,7 @@ def main(argv=None):
     ap.add_argument("--port", type=int, default=2000)
     ap.add_argument("--stamp-prefix", default="sensys_nov27_j6c")
     ap.add_argument("--log", default=os.path.join(ROOT, "logs", "j6_calibrate.log"))
+    ap.add_argument("--start-maps", default=None, help="JSON from an earlier run: start from its lt/scp maps")
     a = ap.parse_args(argv)
     # Starting leads: 4.3 s to the box plus the half-lane and half-length offset 4.2 m / v, plus the
     # 0.4 s between the trigger and the car's first visible motion; the left turn adds 0.3 s for the
@@ -87,6 +93,12 @@ def main(argv=None):
         for s in a.speeds:
             v = s / 3.6
             maps[key][s] = round(WANT + 4.2 / v + 0.4 + (0.3 if key == "lt" else 0.0), 2)
+    if a.start_maps and os.path.exists(a.start_maps):
+        prev = json.load(open(a.start_maps))
+        for key in TESTS:
+            for s in a.speeds:
+                if str(s) in prev.get(key, {}):
+                    maps[key][s] = float(prev[key][str(s)])
     log = open(a.log, "a")
     cells = {}
     pending = {key: list(a.speeds) for key in TESTS}
@@ -103,7 +115,10 @@ def main(argv=None):
                 if m is None:
                     log.write(f"{key} {s}: no measurable run\n"); still.append(s); continue
                 m["tta"] = maps[key][s]
-                m["speed_ok"] = (m["v_launch"] == m["v_launch"] and m["v_launch"] >= 0.95 * target_v)
+                # At cruise: the launch speed is within the controller's oscillation of the 3 s mean, and that
+                # mean is at least 85 percent of the set point (the measured cruise speed is what the paper reports).
+                m["speed_ok"] = (m["v_launch"] == m["v_launch"] and m["v_cruise"] == m["v_cruise"]
+                                 and m["v_launch"] >= 0.9 * m["v_cruise"] and m["v_cruise"] >= 0.85 * target_v)
                 err = m["entry"] - WANT if m["entry"] == m["entry"] else float("nan")
                 m["err"] = err
                 ok = (err == err and abs(err) <= a.tol and m["hit"] == 1)
@@ -111,7 +126,7 @@ def main(argv=None):
                 cells[f"{key}_{s}"] = m
                 log.write(f"{time.strftime('%F %T')} iter {it} {key} {s} km/h: lead {maps[key][s]:.2f} s -> ego box entry "
                           f"{m['entry']:.2f} s (car {m['car_in']:.2f} to {m['car_out']:.2f}), footprints hit {m['hit']}, "
-                          f"gap {m['gap']:.2f} m, ego at launch {m['v_launch']:.1f} m/s (target {target_v:.1f}) -> "
+                          f"gap {m['gap']:.2f} m, ego at launch {m['v_launch']:.1f} m/s, cruise {m['v_cruise']:.1f} (target {target_v:.1f}) -> "
                           f"{'ok' if m['ok'] else 'adjust'}\n"); log.flush()
                 if not ok:
                     if err == err:
