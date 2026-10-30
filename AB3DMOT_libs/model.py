@@ -746,6 +746,28 @@ class AB3DMOT(object):
 					# predictor already applied at 1 m/s (_MIN_KF_SPEED_MPS).
 					if math.hypot(vel[0], vel[2]) / max(getattr(self, 'dt', 0.05), 1e-3) < 2.0:
 						vel = np.zeros(3)
+				# A track published moving keeps its last published velocity while
+				# the rest rules read zero for under half a second: a change of the
+				# visible box extent at a sensor handover moves the two edges in
+				# opposite directions for a few frames and read a crossing car at
+				# rest (j6s straight crossing 63 km/h, 2026-10-30); the zero went
+				# into the state below, the track froze, lost its association and
+				# the planner held a stationary forecast for 650 ms. Rest needs the
+				# same half second of evidence that motion needs.
+				if len(_hist) >= 10:
+					_dt_s = max(getattr(self, 'dt', 0.05), 1e-3)
+					_prev = getattr(trk, 'pub_vel', None)
+					_rest_now = math.hypot(vel[0], vel[2]) / _dt_s < 2.0
+					if (_rest_now and _prev is not None
+							and math.hypot(_prev[0], _prev[2]) / _dt_s >= 2.0):
+						trk.rest_frames = getattr(trk, 'rest_frames', 0) + 1
+						if trk.rest_frames < 10:
+							vel = np.array(_prev, dtype=float)
+						else:
+							trk.pub_vel = np.array(vel, dtype=float)
+					else:
+						trk.rest_frames = 0
+						trk.pub_vel = np.array(vel, dtype=float)
 				# After half a second the filter's ground-plane velocity state
 				# follows the same estimate: the state velocity is what the
 				# coasting prediction and the velocity-aware association gate
