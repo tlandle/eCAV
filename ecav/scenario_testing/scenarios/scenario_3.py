@@ -329,6 +329,40 @@ class Scenario_3(BasicScenario):
             else:
                 self._trigger_tta = float(_tta)
         self._conflict_location = carla.Location(x=-84.8, y=127.9, z=0.5)
+        # EGO_SPAWN_Y: the ego's start y on its approach lane (x stays the
+        # scenario file's), a single value or a map by commanded speed in
+        # km/h like CROSS_TRIGGER_TTA. The scenario file starts the ego 98 m
+        # from the conflict, from rest; at 70 km/h and above it is still
+        # accelerating when the crossing car launches (encounter check,
+        # Oct 29), so the speed sweep starts it farther south (Town03 road 3,
+        # y -20 to -120, is the same straight lane) and it holds its target
+        # speed before the launch. Applied to ego_vehicles[0] at construction,
+        # before the first tick.
+        _esy = os.environ.get("EGO_SPAWN_Y")
+        self._ego_spawn_y = None
+        if _esy:
+            if ":" in _esy:
+                _tbl = {}
+                for _item in _esy.replace(";", ",").split(","):
+                    _k, _, _v = _item.strip().partition(":")
+                    if _k and _v:
+                        _tbl[float(_k)] = float(_v)
+                _spd = float(kv.get("ego_vehicle_max_speed", 70))
+                self._ego_spawn_y = _tbl[min(_tbl, key=lambda _x: abs(_x - _spd))]
+            else:
+                self._ego_spawn_y = float(_esy)
+            try:
+                _ego = ego_vehicles[0]
+                _tf = _ego.get_transform()
+                _tf.location.y = self._ego_spawn_y
+                _ego.set_transform(_tf)
+                print(f"[SCENARIO_3] ego start moved to y={self._ego_spawn_y:.1f} (EGO_SPAWN_Y={_esy})", flush=True)
+            except Exception as _e:  # the run goes on from the scenario file's start
+                print(f"[SCENARIO_3] EGO_SPAWN_Y not applied: {_e}", flush=True)
+        # EGO_DRIVE_DISTANCE: the scenario ends when the ego has driven this
+        # far (200 m in the scenario file's geometry; a start farther south
+        # needs more).
+        self._ego_drive_distance = float(os.environ.get("EGO_DRIVE_DISTANCE", 200))
         # CROSS_SPEED_CHANGE "<dist_m>:<speed_mps>": once the crossing car is
         # within dist_m of the conflict point its target speed becomes
         # speed_mps (above the launch speed: it accelerates; below: it slows),
@@ -457,7 +491,7 @@ class Scenario_3(BasicScenario):
     def _create_behavior(self):
         if self.distributed and self.vehicle_index >= 0:
             # Ego/RSU containers: minimal tree, just terminate when ego drives 200 m
-            termination = DriveDistance(self.ego_vehicles[self.vehicle_index], 200)
+            termination = DriveDistance(self.ego_vehicles[self.vehicle_index], self._ego_drive_distance)
             root = py_trees.composites.Parallel(
                 "Parallel Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
             root.add_child(termination)
@@ -468,7 +502,7 @@ class Scenario_3(BasicScenario):
         use_trigger = not self.distributed
         sequences = self._build_vehicle_sequences(use_trigger)
 
-        termination = DriveDistance(self.ego_vehicles[0], 200)
+        termination = DriveDistance(self.ego_vehicles[0], self._ego_drive_distance)
         root = py_trees.composites.Parallel(
             "Parallel Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
         for seq in sequences:

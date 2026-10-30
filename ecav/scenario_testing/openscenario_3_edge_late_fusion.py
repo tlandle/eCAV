@@ -3,6 +3,7 @@
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
 import asyncio
+import os
 import time
 from multiprocessing import Process
 
@@ -18,6 +19,8 @@ from ecav.scenario_testing.utils.edge_fusion_client import EdgeFusionClient
 from ecav.scenario_testing.utils.edge_registration_server import EdgeRegistrationServer
 
 MAX_STEP = 600
+# SCENARIO_MAX_STEP overrides the cap for a run (a start farther south needs more ticks); test_runner records it.
+_MAX_STEP_RUN = int(os.environ.get("SCENARIO_MAX_STEP", MAX_STEP))
 SCENARIO_NAME = 'openscenario_3_edge_late_fusion'
 scenario_runner = None
 
@@ -235,7 +238,7 @@ def run_scenario(opt, scenario_params):
                     edge.run_step(step)
 
             step = step + 1
-            if step >= MAX_STEP:
+            if step >= _MAX_STEP_RUN:
                 print("Reached maximum step limit, exiting")
                 break
 

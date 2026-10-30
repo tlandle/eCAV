@@ -708,6 +708,8 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
         import re as _re
         _m = _re.search(r"^MAX_STEP\s*=\s*(\d+)", (Path("ecav/scenario_testing") / f"{scenario_name}.py").read_text(), _re.M)
         if _m: metrics["config_max_step"] = int(_m.group(1))
+        _senv = dict(kv.partition("=")[::2] for kv in (args.scenario_env or []) if "=" in kv)
+        if _senv.get("SCENARIO_MAX_STEP"): metrics["config_max_step"] = int(float(_senv["SCENARIO_MAX_STEP"]))
     except Exception:
         pass
     if timestamp_noise is not None: metrics["config_timestamp_noise_ms"] = timestamp_noise
