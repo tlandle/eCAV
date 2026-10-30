@@ -2373,6 +2373,16 @@ class BehaviorAgent(object):
         self.planning_metrics.update_agent_step_list(5, end_time-start_time)
         logger.debug("step 5 complete")
 
+        # hazard_response 'none': the free-flow arm of the encounter check
+        # (review of Oct 29). The planner follows its route at the target
+        # speed and never responds to a hazard, so the run records the
+        # ego's unbraked arrival at the conflict and the collision that
+        # follows. Every hazard source above is ignored, not only the
+        # shared forecasts.
+        if self.hazard_response == 'none':
+            is_hazard = False
+            obstacle_vehicle = None
+
         if is_hazard and obstacle_vehicle is None:
             # Hazard with no actionable obstacle (detection-gap tick while
             # the RSS hold keeps the hazard raised): every branch below is

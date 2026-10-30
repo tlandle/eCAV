@@ -67,6 +67,7 @@ COLUMNS = [
     "conflict_gt_x", "conflict_gt_y",
     "ego_speed_mps", "ctrl_throttle", "ctrl_brake", "decision",
     "brake_event", "brake_reason", "gt_brake_class", "ttc_s",
+    "ego_x", "ego_y",
 ]
 
 _ANON_GUID_FLOOR = 10000   # planner rule: carla_id > 10000 is an edge guid
@@ -212,6 +213,11 @@ class PerTickAgeLogger:
                 ego_speed = math.hypot(vel.x, vel.y)
             except Exception:
                 ego_speed = float("nan")
+            try:
+                _loc = vm.vehicle.get_location()
+                ego_x, ego_y = float(_loc.x), float(_loc.y)
+            except Exception:
+                ego_x, ego_y = float("nan"), float("nan")
             if not math.isnan(brake) and brake >= 0.5:
                 decision = "brake"
             elif not math.isnan(brake) and brake > 0.0:
@@ -243,6 +249,7 @@ class PerTickAgeLogger:
             common_tail = [
                 _fmt(ego_speed), _fmt(throttle), _fmt(brake), decision,
                 brake_event, brake_reason or "", gt_class or "", _fmt(ttc_s),
+                _fmt(ego_x), _fmt(ego_y),
             ]
 
             preds = list(getattr(agent, "generated_predictions", None) or [])
