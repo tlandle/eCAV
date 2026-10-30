@@ -15,7 +15,7 @@ def gap(ex, ey, cx, cy):
     return math.hypot(dx, dy)
 for s in speeds:
     for lat in lats:
-        for d in sorted(glob.glob(f"{root}/{test}/{stamp}/speed_spd_{s}/baseline_default/mgr_{mgr}/anchoring_on/lat_{lat}_*/run_*"), key=lambda p: int(p.rsplit("_", 1)[1])):
+        for d in sorted(glob.glob(f"{root}/{test}/{stamp}/speed_spd_{s}/baseline_default/mgr_{mgr}/anchoring_{os.environ.get('ANCH', 'on')}/lat_{lat}_*/run_*"), key=lambda p: int(p.rsplit("_", 1)[1])):
             rep = d.rsplit("_", 1)[1]
             if reps and rep not in reps: continue
             f = d + "/per_tick_age.csv"
