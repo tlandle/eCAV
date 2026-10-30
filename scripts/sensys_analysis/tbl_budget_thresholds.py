@@ -36,6 +36,12 @@ def main():
         tabs[th] = load(path)
     ths = sorted(tabs, key=float)
     out = []
+    # The recalibrated sweep (j6) holds the ego at a measured cruise speed under the set point; fig_situation.py
+    # --measured-speeds puts it in the tau CSV, and the header row of floats/tbl-budget.tex must carry it.
+    first = tabs[ths[0]].get((GEOMS[0][0], SPEEDS[0]))
+    if first and "measured_kmh" in first:
+        hdr = " & ".join(fmt(tabs[ths[0]][(GEOMS[0][0], s)]["measured_kmh"]) for s in SPEEDS)
+        out.append(f"% header row, measured approach speeds (km/h) for set points {SPEEDS}: {hdr}")
     for geom, name in GEOMS:
         for th in ths:
             vals = [tabs[th][(geom, s)] for s in SPEEDS]

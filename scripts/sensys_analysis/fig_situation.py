@@ -103,10 +103,14 @@ def main(argv=None):
     ap.add_argument("--threshold", type=float, default=0.8)
     ap.add_argument("--boot", type=int, default=500)
     ap.add_argument("--axis", choices=("critical", "global", "brake"), default="critical")
+    ap.add_argument("--measured-speeds", default=None,
+                    help="JSON {set point km/h: measured cruise km/h}; the speed axis and the tau CSV then carry the measured speed "
+                         "(the recalibrated sweep holds the ego at cruise before the launch; cruise sits under the set point)")
     ap.add_argument("--out", default=os.path.join(ROOT, "safety_envelope_paper", "analysis", "fig_situation"))
     a = ap.parse_args(argv)
     os.makedirs(a.out, exist_ok=True)
     rng = random.Random(0)
+    measured = {str(int(float(k))): float(v) for k, v in json.load(open(a.measured_speeds)).items()} if a.measured_speeds else {}
 
     # ---- load and merge ---------------------------------------------------
     cache_path = os.path.join(a.out, "axis_cache.json")
@@ -155,7 +159,7 @@ def main(argv=None):
         tau, cens = tau_at(pts, a.threshold)
         lo, hi = boot_tau(v, a.bin, a.threshold, a.boot, rng)
         comp = components(v)
-        rows.append(dict(geom=geom, speed_kmh=spd, arm=arm, kv=kv, runs=len(v), bins=len(pts),
+        rows.append(dict(geom=geom, speed_kmh=spd, measured_kmh=measured.get(str(spd), spd), arm=arm, kv=kv, runs=len(v), bins=len(pts),
                          max_bin_ms=pts[-1][0], tau_ms=tau if tau is not None else 0.0,
                          censored=int(cens), boot_lo_ms=lo, boot_hi_ms=hi, **comp))
     with open(os.path.join(a.out, "fig_situation_tau.csv"), "w", newline="") as fh:
@@ -215,7 +219,7 @@ def main(argv=None):
         bound = False
         for geom in geoms:
             for arm, ls, hollow in arms:
-                pts = sorted((r["speed_kmh"], r["tau_ms"], r["boot_lo_ms"], r["boot_hi_ms"], r["censored"], r["max_bin_ms"])
+                pts = sorted((r["measured_kmh"], r["tau_ms"], r["boot_lo_ms"], r["boot_hi_ms"], r["censored"], r["max_bin_ms"])
                              for r in rows if r["geom"] == geom and r["arm"] == arm)
                 if not pts:
                     continue
