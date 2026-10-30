@@ -16,6 +16,25 @@ import sys
 import numpy as np
 from collections import defaultdict
 
+# Post-hoc labelling knobs. The defaults are the paper's rules; the
+# sensitivity sweep (scripts/sensys_analysis/label_sensitivity.py, reviewer
+# check A, Oct 29) sets them from the calling script.
+#
+# A brake's published observation is stale by its age, so matching it to the
+# live ground truth at the trigger tick measures the actor's travel during
+# the age (7 m at 500 ms, 14 m at 1,000 ms, 20 m at 1,500 ms at 12.5 m/s),
+# not the pipeline's error. The paper's rule therefore matches the
+# observation to the conflict actor's ground truth at the observation's own
+# tick (CONFLICT_MATCH_AT_SOURCE_TICK) within a fixed radius. The growing
+# trigger-tick radius below is the fallback for a run without a per-tick log.
+CONFLICT_MATCH_AT_SOURCE_TICK = True   # match at the observation's source tick
+CONFLICT_SOURCE_MATCH_RADIUS_M = 3.0   # fixed radius of that match
+CONFLICT_MATCH_RADIUS_M = 6.0         # fallback: trigger-tick match radius to the conflict actor ...
+CONFLICT_MATCH_GROWTH_MPS = 12.5      # ... growing per second of configured delay ...
+CONFLICT_MATCH_GROWTH_FROM_MS = 200.0  # ... beyond this delay
+COUNT_LOCAL_TRACK_BRAKES = False      # True scores local-track brakes in S_ghost and S_fp
+LIVE_HAZARD_REJUDGE = True            # re-judge conflict-actor other_fp brakes on the live state
+
 
 def load_sweep(base_dir, exclude_ego_counts=None):
     """Load all simulation_metrics.json under base_dir into a list of dicts."""
@@ -170,6 +189,26 @@ def _conflict_live_states(d):
         vy = (pos[b][1] - pos[a][1]) / span if span > 0 else 0.0
         out[t] = {"x": pos[t][0], "y": pos[t][1], "vx": vx, "vy": vy, "speed": (vx * vx + vy * vy) ** 0.5}
     return out
+
+
+def _conflict_state_at(d, tick, max_gap=3):
+    """The conflict actor's live state at tick, or at the nearest logged tick
+    within max_gap ticks (the per-tick log has a row only on ticks with a
+    consumed object). None when the run has no log or no row near tick."""
+    if tick is None:
+        return None
+    live = _conflict_live_states(d)
+    if not live:
+        return None
+    try:
+        t = int(tick)
+    except (TypeError, ValueError):
+        return None
+    for dt in range(0, max_gap + 1):
+        for cand in (t - dt, t + dt):
+            if cand in live:
+                return live[cand]
+    return None
 
 
 def _gt_hazard(actor, ego_xy, ego_vx, ego_vy, speed_thresh=2.0, dca_thresh=8.0, horizon=5.0):
@@ -344,12 +383,25 @@ def compute_run_metrics(d):
         # crossing car fell through to other_fp), so above 200 ms the radius
         # grows at 12.5 m/s with the delay beyond 200 ms.
         _is_conf = (_conflict_id is not None and _mid is not None and int(_mid) == int(_conflict_id))
+        # Source-tick match: the published observation is compared with the
+        # conflict actor's ground truth at the tick it was observed, so the
+        # radius needs no delay term. A match within the radius names the
+        # conflict actor whatever the run-time labeller matched at the
+        # trigger tick.
+        if CONFLICT_MATCH_AT_SOURCE_TICK and _conflict_id is not None and _raw0 == "self_ghost":
+            _src = _conflict_state_at(d, attr.get("source_tick"))
+            _ox, _oy = attr.get("obs_x"), attr.get("obs_y")
+            if _src is not None and None not in (_ox, _oy):
+                _dsrc = math.hypot(float(_ox) - _src["x"], float(_oy) - _src["y"])
+                if _dsrc < CONFLICT_SOURCE_MATCH_RADIUS_M:
+                    _is_conf, _mid, _mdist = True, int(_conflict_id), _dsrc
         _is_cav = (_mid is not None and int(_mid) in _managed and int(_mid) != ego_actor_id)
         try:
             _lat_ms = float(d.get("config_latency_ms") or 0.0)
         except (TypeError, ValueError):
             _lat_ms = 0.0
-        _conf_radius = 6.0 + 0.0125 * max(0.0, _lat_ms - 200.0)
+        _conf_radius = CONFLICT_MATCH_RADIUS_M + CONFLICT_MATCH_GROWTH_MPS / 1000.0 * max(
+            0.0, _lat_ms - CONFLICT_MATCH_GROWTH_FROM_MS)
         if (_raw0 == "self_ghost" and _mid is not None and int(_mid) != ego_actor_id
                 and _mdist is not None and float(_mdist) < (_conf_radius if _is_conf else 3.0)):
             if _is_conf:
@@ -382,7 +434,7 @@ def compute_run_metrics(d):
     # ms: 10/10 runs). Judge such brakes again on the conflict actor's live
     # state from the per-tick log (position at the trigger tick, velocity by
     # finite difference) with the labeller's own predicate.
-    _conf_live = _conflict_live_states(d) if _conflict_id is not None else {}
+    _conf_live = _conflict_live_states(d) if (LIVE_HAZARD_REJUDGE and _conflict_id is not None) else {}
     if _conf_live:
         for attr in ba:
             if attr.get("gt_brake_class") != "other_fp" or attr.get("gt_provenance") != "npc_non_hazard":
@@ -402,8 +454,8 @@ def compute_run_metrics(d):
 
     # Shared tracks only: a brake on the CAV's own local forecast is counted
     # apart (focal_local_*) and enters neither S_ghost nor S_fp.
-    local = [a for a in ba if _is_local_track(a)]
-    shared = [a for a in ba if not _is_local_track(a)]
+    local = [a for a in ba if _is_local_track(a) and not COUNT_LOCAL_TRACK_BRAKES]
+    shared = [a for a in ba if COUNT_LOCAL_TRACK_BRAKES or not _is_local_track(a)]
 
     # Recount tick totals after reclassification
     ghost_ticks = sum(1 for a in shared if a.get("gt_brake_class") == "self_ghost")
