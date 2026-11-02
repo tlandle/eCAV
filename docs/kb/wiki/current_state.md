@@ -7991,3 +7991,6 @@ Second clipboard paste read from the live display (tmp/scratch_nov1/clipboard_pa
 
 ### 2026-11-02 18:12: failure-attribution figure follow-up (paper 71d8b94)
 The padding-only change to the failure-attribution figure (fig11 in the plotter, Fig. 10 in the paper after the Fig. 4 move) broke its layout in the built page (legend over bars, rotated tick labels clipped); fixed with explicit subplots_adjust margins, height 2.3 in. Lesson for the plotter: at these canvas heights tight_layout fails silently, so every figure with a top legend now sets margins explicitly (9, 10, 11, 12, 14). Final: 26 pages, references p15, Fig. 4 on p17 in the appendix. Figures checked in the built pages: Figs. 9, 10, 11, 12 (paper numbering).
+
+### 2026-11-02 18:23: revision-24 space plan (third clipboard paste), Algorithm 1 compacted (paper ca10df6)
+Paste at tmp/scratch_nov1/clipboard_paste3.md. Tyler: don't modify much Section 5 prose yet (Alex wants every figure/table talked to; readability). Figure item already done (71d8b94). Algorithm 1: 49 -> 26 numbered lines, same semantics, old version commented in the float; about 0.4 column freed on p6, total still 26 pages, references p15. Held for Tyler: 5.1/5.2 prose (10 to 15% target in the plan), Section 6/7 repetition, captions, Fig. 8 (stage decomposition) to the appendix as the plan's fallback.
