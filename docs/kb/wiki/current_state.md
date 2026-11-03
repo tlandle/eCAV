@@ -8037,3 +8037,9 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Caption and 5.2.4 sentence reworded: "The replay runs did not log the decision-time age" (the paper no longer says "export"). Old text kept as comments.
 - Overleaf push merged by fast-forward: 5.2.3 "implemented baselines" (flagged to Tyler: the set includes the reference and our arm).
 - Build 26 pages, references 3% down page 15. Open items unchanged (reduction plan 7 to 11; "estimated" wording sites; unused N-scale cells).
+
+### 2026-11-03 13:27: Table 3 replay decision-time ages from eval_run_v10 (paper 382329f)
+
+- eval_run_v10 (~/Downloads/eval_run_v10/eval_run_v10): v9 plus decision_age_ms, state_absent_at_decision and actor_coverage_pct on trace_replay.csv; all other files byte-identical; plotter output identical for all 17 figures. v10 is now the export the paper's Table 3 uses; everything else still traces to v9 = v6 values.
+- Table 3 replay rows: 346 (138), 380 (142), 373 (129); caption parenthetical "runs that brake with that state present" (4 to 6 replay runs per arm have state absent at the decision; 8 of the 14 absent runs still carry a decision age, semantics not re-litigated). 5.2.4 states the replay decision-time findings (12 to 20 ms below p99; failed vs successful medians 37 to 61 ms apart pooled, at most 20 ms within one recording; reference 286/347/416 ms under L/M/H; H holds most reference and contract failures).
+- Layout: references 14% down page 15 (was 3%). figures/ev7 tracks ten stray *_new*-1.png renders (flagged to Tyler, not removed).
