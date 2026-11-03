@@ -8030,3 +8030,10 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Figures: Fig. 6 y label "p99 age at use (ms)" (Tyler: tested, not estimated; the other "estimated" sites are flagged and unchanged); Fig. 7 side by side at 1.95 in; Fig. 11 panel (b) hollow no-contract repeats removed. Plotter ~/Downloads/eval_run_v6/sensys27_plot_v7.py, pre-change copy in the session scratchpad (sensys27_plot_v7.pre_fig9_sidebyside.py).
 - "Age bin" (Tyler's question): one injected-delay level of the sweep at its measured mean p99 age with its success rate over 50 seeds; the body says "cell"; the response appendix now says "delay level".
 - Layout: references start 3% down page 15; the body is a few lines from ending on page 14. Open: items 7 to 11 of the reduction plan; never cut Fig. 12.
+
+### 2026-11-03 11:52: Table 3 replay decision-time age (paper 8922276, Overleaf 8e85790 merged)
+
+- Tyler asked why the replay rows of tab:conflict-diagnostics carry no decision-time age. Verified in eval_run_v9: runs.csv has decision_age_ms and state_absent_at_decision per run; trace_replay.csv has age_ms, s_op, actor_coverage, max_gap_ms, requested_actor_coverage, injected_gap_ms and no decision-time column, and the export has no per-tick logs. The measurement is possible for replay runs (same closed-loop stack); the column was not exported. Filling the cells needs the colleague to re-export trace_replay.csv with decision_age_ms for the same runs (Tyler's channel).
+- Caption and 5.2.4 sentence reworded: "The replay runs did not log the decision-time age" (the paper no longer says "export"). Old text kept as comments.
+- Overleaf push merged by fast-forward: 5.2.3 "implemented baselines" (flagged to Tyler: the set includes the reference and our arm).
+- Build 26 pages, references 3% down page 15. Open items unchanged (reduction plan 7 to 11; "estimated" wording sites; unused N-scale cells).
