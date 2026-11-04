@@ -8081,3 +8081,9 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Paste began mid-list ("eacon robustness"), so its earlier items are not in hand. Flagged to Tyler.
 - Build: 25 pages, 0 undefined, references 32% down page 14 (50% before). Body about 13.3 pages, 1.3 over.
 - Scripts: scratchpad alexprose_edits.py / alexprose_run.sh.
+
+## 2026-11-04 13:22 SenSys: Alex's 25-edit prose pass
+- Paper repo 6b9ae07 (change log 535985b, pushed). Applied E01, E04 to E09, E11 to E25 and the duplicated 5.1.1 label. E02/E03 not applied (retracted by his later note: keep the lists). E10 skipped (4.2 body already equivalent). Deviations recorded in the change log (architecture network model, +contract wording, evaluated CAV, no "V2X2V load study").
+- Sections 3 and 4 touched on reviewer asks only: E07 paragraph, E08 age-gating sentence, E09 Fig. 3 walkthrough commented, E11 cold-start consolidation, E12 first-beacon limitation. Markers kept.
+- Build: 24 pages, 0 undefined, references 62% down page 13 (32% down page 14 before). Body about 12.6 pages, 0.6 over the 12-page limit.
+- Scripts: scratchpad e25_edits.py / e25_run.sh (replace_range helper for list blocks).
