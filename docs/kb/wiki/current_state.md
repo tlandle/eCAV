@@ -8093,3 +8093,8 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Fault-study counts (eval_run_v11, pooled over severities, 64 runs per arm and family): contract 53/54/56/56, contract+checks 53/53/55/49 for loss/delay/clock/position noise.
 - Build: 24 pages, 0 undefined, references 15% down page 13. Body about 12.15 pages.
 - Scripts: scratchpad prec_edits.py / prec_run.sh, ev12 figures.
+
+## 2026-11-04 14:17 SenSys: response corrections and the 12-page limit
+- Paper repo fb40cf1, 57a9a95, 22a5a2b (change log after), pushed. Four Appendix B corrections and the heading applied; B spans page 20 top to 18 lines into page 23 (under four pages). Body now ends on page 12 (references begin at the foot of page 12), 23 pages total. Cuts: Table 3 to Appendix A, duplicated sentences across 5.1 to 5.3, 6 and 7, Fig. 4/6/9 captions, Fig. 7 at 1.9 in, 5.2.1 heading made declarative. Fig. 9 at 2.5 in crowded the row labels, kept at 2.65 in.
+- Plotter v12 final: fig11 1.9 in, fig13 2.65 in.
+- Scripts: scratchpad page_edits.py / page2_edits.py / page3_edits.py with page_run.sh variants.
