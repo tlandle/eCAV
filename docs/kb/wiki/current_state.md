@@ -8104,3 +8104,6 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Data finding: eval_run_v11 runs.csv has I2V conflict-actor coverage (>= 99.9% every cell) and self-ghost flags (4 to 32% up to the reference budget), so the 5.2.1 "coverage loss between the two RSUs' views" explanation was wrong and is replaced by the measured statement. Flagged to Tyler.
 - Build: 23 pages, body ends on the last line of page 12 (no slack), references 13 to 14, Appendix A 15 to 19, B 20 to 23.
 - Scripts: scratchpad app_edits.py / app_run.sh (runner resets the files to HEAD each round), merge_budgets.py.
+
+## 2026-11-04 18:07 SenSys: Alex's I2V consistency check
+- Paper repo: Fig. 1(b) caption, Section 3 placement paragraph and 5.1.3 now say the evaluated I2V arm runs without the contract (would be enforced at the AV tracker if enabled). Pagination lesson: the body has zero slack, so any added line before 5.2.3 can move the page 7 break and flip Fig. 6 to page 10 (eight lines lost); fixed by keeping the 5.1.3 paragraph at its line count and moving Fig. 6's input after Fig. 5's. Body ends on the last line of page 12.
