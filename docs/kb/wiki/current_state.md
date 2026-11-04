@@ -8087,3 +8087,9 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Sections 3 and 4 touched on reviewer asks only: E07 paragraph, E08 age-gating sentence, E09 Fig. 3 walkthrough commented, E11 cold-start consolidation, E12 first-beacon limitation. Markers kept.
 - Build: 24 pages, 0 undefined, references 62% down page 13 (32% down page 14 before). Body about 12.6 pages, 0.6 over the 12-page limit.
 - Scripts: scratchpad e25_edits.py / e25_run.sh (replace_range helper for list blocks).
+
+## 2026-11-04 13:42 SenSys: Alex's precision and readability pass
+- Paper repo 0d954ee (change log 04036df, pushed). All table items, term expansions, the 5.2.4 and margins rewrites, the literal substitutions (5.2.5, 5.2.7 with verified counts, Sections 6 and 7), paragraph breaks (blank lines, since \rev is a plain color macro), Figs. 7 and 9 relabeled with plotter v12 (~/Downloads/eval_run_v6/sensys27_plot_v12.py). "+contract" kept over "SBA" in Fig. 7 per the legend convention.
+- Fault-study counts (eval_run_v11, pooled over severities, 64 runs per arm and family): contract 53/54/56/56, contract+checks 53/53/55/49 for loss/delay/clock/position noise.
+- Build: 24 pages, 0 undefined, references 15% down page 13. Body about 12.15 pages.
+- Scripts: scratchpad prec_edits.py / prec_run.sh, ev12 figures.
