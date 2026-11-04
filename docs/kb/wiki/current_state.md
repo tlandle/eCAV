@@ -8046,3 +8046,8 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 
 ### 2026-11-03 13:32: Table 3 caption and replay sentences compressed (paper 58364d2)
 - Tyler: the 5.2.4 paragraph should not have grown by three lines; caption shortened as well. One replay decision-time sentence remains (12 to 20 ms below p99; within one recording failed vs successful medians at most 20 ms apart). Caption uses "median decision-time age", drops "run-level"/"operational": four lines, was five. References 9% down page 15.
+
+### 2026-11-03 19:44: Table 1 roadmap, Algorithm 1 compaction (paper 4cc59ce, 0f35bc2, fa5a47a, 429fbc4, ac54e0c)
+- Alex's pastes: Table 1 is a six-row Study/Question/Results roadmap without configuration names; four-part prose roadmap commented out, replaced by two sentences plus the two orientation sentences; table input moved to the Section 5 opening; 5.1.3/5.1.5/5.1.6 references adjusted. Flag to Tyler: question cells vs the no-question rule, ported as pasted.
+- Tyler's paste: Algorithm 1 26 -> 15 numbered lines, one row each (comments trimmed, "never across identifiers" moved to the 4.1 sentence, CreateTrack(d, anchored if d in B else anonymous)); cold-start and out-of-order statements added after the algorithm pointer in 4.1 (4.4 already carries the cold-start detail). Lesson applied: each gated pass committed before the next (revert trap).
+- Layout: 25 pages, references 45% down page 14. Body about 1.4 pages over the 12-page target.
