@@ -8066,4 +8066,4 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 
 ### 2026-11-03 22:56: figures resized to Khonsu/Conductor heights (paper c91ac18, 7b7e2ed)
 - Tyler: Khonsu and the cooperative world model paper size their plots better; ours gargantuan. Measured: Khonsu column figs 1.5 to 2.2 in tall (stacked 3.2), full width 1.65 to 2.3; ours were 1.95 to 3.7. Plotter v9 (~/Downloads/eval_run_v6/sensys27_plot_v9.py): all 17 figures regenerated at reduced heights, same width and fonts; Fig. 8 now three side-by-side panels (1.6 in); Fig. 11 one top legend; Fig. 6 top legend with short names; Fig. 10 shared y label. Visual checks on every body figure and the appendix ones.
-- Layout: 26 pages, references 3% down page 15 (47% before). The body is still about 0.9 page over the 12-page target.
+- Layout: 26 pages, references 3% down page 15 (47% before). The body is 14.03 pages, 2.0 pages over the 12-page target (the earlier "0.9 page over" in this block was an arithmetic error, corrected $(date "+%H:%M")).
