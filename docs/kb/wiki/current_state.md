@@ -8075,3 +8075,9 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 ### 2026-11-04 23:59: Alex's second figure review (paper ad87fe2, 6b08d64)
 - Review was written against the resized build; it reverses the two-panel association figure and the Fig. 7 move. Four-panel Fig. 9 restored in the body (titles "Association baselines" / "Contract-enabled variants", axis to 850 ms, 2.7 in, pasted caption); two-panel version and appendix duplicate commented out; Fig. 6 caption "at the receiving vehicle" and interval wording; 5.1.1 mode 3 same wording; Fig. 7 bar label CIP; Fig. 8 x label p99. Plotter v11.
 - Fig. 7 (stage decomposition) left in the appendix, flagged (0.25 page to bring back). Layout: 25 pages, references 50% down page 14; body 13.5 pages, 1.5 over.
+
+## 2026-11-04 12:42 SenSys: Alex's prose review (5.2.3, 5.2.7, 5.3)
+- Paper repo a36c1c8 (change log d6fff02, pushed). 5.2.3: the four wording swaps from the pasted table, the model's limitations consolidated into one paragraph after the threshold-sensitivity findings (CIP footnote moved there), opening sentence and margin paragraph keep findings only. 5.2.7: "stops being reliable" sentence replaced by a direct Fig. 10 introduction, eight-seed qualification kept. 5.3: pasted subsection ported (semicolons split, "architecture-load model" -> paper's "architecture network model", two paragraphs).
+- Paste began mid-list ("eacon robustness"), so its earlier items are not in hand. Flagged to Tyler.
+- Build: 25 pages, 0 undefined, references 32% down page 14 (50% before). Body about 13.3 pages, 1.3 over.
+- Scripts: scratchpad alexprose_edits.py / alexprose_run.sh.
