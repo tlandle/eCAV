@@ -8138,3 +8138,7 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 ### 2026-11-04 21:06 SenSys: Alex's V2X note (paper ef140cf)
 - V2X expanded at first use in the abstract ("Vehicle-to-everything (V2X) systems can help ...") and in the introduction definitions paragraph ("through a vehicle-to-everything (V2X) pipeline"), independently, per Alex's note. Previous lines commented in place. Change log entry added. Layout unchanged: 22 pages, body ends on page 12 at the same line, references at its foot, 0 undefined. main_clean.pdf sent.
 
+
+### 2026-11-04 21:31 SenSys: Alex's ETSI note and Section 3 review (paper abe7e55)
+- ETSI expanded at its first use in 2.4. Section 3: cooperative-planning consumption sentence replaced per Alex (controller follows the delivered trajectory, age at use measured at controller consumption, consistent with 5.1.2), last paragraph shortened (fusion restatements commented), VRF/VI-Eye/CIP sentence reworded, Fig. 1(b) caption ends at the identity enforcement point. Alex's quoted "current" text for two sentences does not match the repo and no Overleaf push is pending; flagged to Tyler. Layout unchanged: 22 pages, body ends on page 12 at the same line, 0 undefined. Change log entry added, main_clean.pdf sent.
+
