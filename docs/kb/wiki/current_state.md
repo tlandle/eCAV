@@ -8130,3 +8130,7 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 
 ## 2026-11-04 19:57 SenSys: Overleaf merge 0055
 - Paper repo 76a40ed (merge, change log after), pushed. Three Overleaf wording edits ported onto the rewritten abstract line and the intro; layout unchanged (22 pages, body ends on page 12). Flag: "feature tensors" in the intro vs "intermediate features" in Section 3 and Fig. 1.
+
+## 2026-11-04 20:06 SenSys: Alex's intro review
+- Paper repo 2cff212 (change log after), pushed. Five intro edits: opening sentence cut, planner role in the MEC sentence, architecture-to-budget link sentence, "particularly when it brakes or turns", RQ4 simplified. 22 pages, body ends on page 12.
+- Scripts: scratchpad intro2_edits.py / intro2_run.sh.
