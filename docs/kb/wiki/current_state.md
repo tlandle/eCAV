@@ -8119,3 +8119,7 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Page limit: the longer names overflowed page 12 by about four lines; three restated sentences in 5.2.3 and 5.2.5 commented out, body now ends on page 12 with the references starting on page 12 (about three lines of slack). Lesson: pdftotext -layout interleaves columns, so "lines before REFERENCES" undercounts an overflow; read the lineno numbers or the render.
 - Figures that render "exact-state reference": Figs. 4, 8, 9 and the merge figures (plotter LABEL/ALABEL/SHORT*).
 - Scripts: scratchpad term_edits.py, term2_edits.py (cuts), term_run.sh.
+
+## 2026-11-04 19:53 SenSys: Alex's intro-order note and the finding sentence
+- Paper repo cf164a4 (change log after), pushed. Intro definitions paragraph first (Alex's wording, exact-state baseline dropped from the definition), prior-work paragraph moved after it and reworded, self-ghosting paragraph opens "We find that fusing delayed state from multiple sources can create separate tracks"; \tlfix appended to Kishore's \UR. 22 pages, body ends on page 12 with about two lines of slack.
+- Scripts: scratchpad intro_edits.py / intro_run.sh.
