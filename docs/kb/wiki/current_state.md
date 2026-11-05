@@ -8123,3 +8123,7 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 ## 2026-11-04 19:53 SenSys: Alex's intro-order note and the finding sentence
 - Paper repo cf164a4 (change log after), pushed. Intro definitions paragraph first (Alex's wording, exact-state baseline dropped from the definition), prior-work paragraph moved after it and reworded, self-ghosting paragraph opens "We find that fusing delayed state from multiple sources can create separate tracks"; \tlfix appended to Kishore's \UR. 22 pages, body ends on page 12 with about two lines of slack.
 - Scripts: scratchpad intro_edits.py / intro_run.sh.
+
+## 2026-11-04 19:54 SenSys: Alex's contributions note
+- Paper repo 1cdbdb0 (change log after), pushed. Intro results paragraph commented out; four contributions in parallel form with their findings (250 to 850 ms budgets, 175 to 425 ms self-ghost ages, SBA below 0.2 ms per edge frame). 22 pages, references start at the foot of page 12 (about five lines of slack).
+- Scripts: scratchpad contrib_edits.py / contrib_run.sh.
