@@ -8113,3 +8113,9 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - The macros were already silent; the removal only drops the double interword spaces TeX set where a marker sat between two spaces (one line reflows in Section 3, 5.1.2 and Section 6). 23 pages, same page ends.
 - Overleaf merge 4f75f1b (abstract: "cooperative AV architectures", "such as when") fast-forwarded before the next pass.
 - Scripts: scratchpad rm_markers.py / rm_run.sh.
+
+## 2026-11-04 19:51 SenSys: Alex's terminology note
+- Paper repo 04f906b (change log after), pushed. "reference safety envelope" / "reference useful-age budget" / "exact-state reference" / "the reference" replaced across abstract, intro, 5.1.3, 5.2.x, Section 7, Appendix A opening, B.2.2 and B.2.3, captions and table rows by operational safety envelope, exact-state baseline and useful-age budget (Alex's three terms). 5.1.3 ties the figure label ("reference" in the figures); plotter labels unchanged (relabel = plotter rerun + shape checks, Tyler's call).
+- Page limit: the longer names overflowed page 12 by about four lines; three restated sentences in 5.2.3 and 5.2.5 commented out, body now ends on page 12 with the references starting on page 12 (about three lines of slack). Lesson: pdftotext -layout interleaves columns, so "lines before REFERENCES" undercounts an overflow; read the lineno numbers or the render.
+- Figures that render "exact-state reference": Figs. 4, 8, 9 and the merge figures (plotter LABEL/ALABEL/SHORT*).
+- Scripts: scratchpad term_edits.py, term2_edits.py (cuts), term_run.sh.
