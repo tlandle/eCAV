@@ -8165,3 +8165,7 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Weak Accept review; four corrections applied: 3.1 contract defined at the fusing tracker for both placements, 5.2.1 I2V budget clarification (baseline's budget named, overlapping bootstrap intervals), experiment list, Fig. 20 caption. Open: 5.1.3 must name the identity information the I2V +contract arm uses at the onboard tracker; the implementation is not in any checkout reachable from here (develop, worktrees, cetus sensys_wt at Oct 29) and the Oct 16 KB says no receiver-side contract existed then; asked Tyler.
 - Page limit: edits spilled the conclusion; seven restatements commented (Section 3 enforcement sentence, two 5.2.1 control sentences, Discussion opening, 5.2.6 anonymous-tracking sentence, 5.3 beacon-traffic caveat, GNSS consequence) and the 5.1.3 I2V clause shortened. Body ends on page 12 with zero slack; references start on page 13, PDF 23 pages, B four pages, Figs. 4 to 6 on page 9.
 
+
+### 2026-11-04 23:56 SenSys: 5.1.3 I2V identity clause (paper 6da53fc)
+- Tyler: the I2V onboard tracker reuses the AB3DMOT implementation with the exact same contract. 5.1.3 now says the onboard tracker anchors the CAV's own self-beacon to a track and withholds it from the planner. Offsets: 5.1.3 N=1 sentence and the 5.2.1 exclusion clause (both restated elsewhere). Back to 22 pages, references at the foot of page 12 with about four lines of slack, B four pages. All four of Alex's Nov 5 corrections are now in.
+
