@@ -8127,3 +8127,6 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 ## 2026-11-04 19:54 SenSys: Alex's contributions note
 - Paper repo 1cdbdb0 (change log after), pushed. Intro results paragraph commented out; four contributions in parallel form with their findings (250 to 850 ms budgets, 175 to 425 ms self-ghost ages, SBA below 0.2 ms per edge frame). 22 pages, references start at the foot of page 12 (about five lines of slack).
 - Scripts: scratchpad contrib_edits.py / contrib_run.sh.
+
+## 2026-11-04 19:57 SenSys: Overleaf merge 0055
+- Paper repo 76a40ed (merge, change log after), pushed. Three Overleaf wording edits ported onto the rewritten abstract line and the intro; layout unchanged (22 pages, body ends on page 12). Flag: "feature tensors" in the intro vs "intermediate features" in Section 3 and Fig. 1.
