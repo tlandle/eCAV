@@ -8190,3 +8190,6 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 ### 2026-11-05 15:00 SenSys: one left-turn abbreviation (paper 1752114)
 - Alexandros's nit: LT vs LTAP/OD. Every LT became LTAP/OD (the NHTSA code of 5.1.5, Table 2 and the envelope panel titles): 5.2.3 prose, Fig. 6/7 captions, and the Fig. 6(b), 7 and 15 labels via /home/atlas/Downloads/eval_run_v6/sensys27_plot_v15.py (v14 plus labels; Fig. 6(b) titles break at the comma, Fig. 15 legend above the axes at 2.15 in). No bare LT left in the clean PDF; layout unchanged (22 pages, references at the foot of page 12).
 
+
+### 2026-11-05 17:17 SenSys: Overleaf pull (paper 9038002)
+- Pulled Overleaf 9038002 (fast-forward) and rebuilt, no edits of ours: intro "line-of-sight constraints" and "$\sim$300", discussion field-validation sentence ("natural next step after our simulation-based proof-of-concept demonstration"), response appendix "extensively rewritten", \tailage and \budget macros in the Figs. 13 to 17 captions, "SBA contract" in three captions, a vspace after Fig. 20, and the Fig. 8 marker pair removed on Overleaf. Build: 22 pages, 0 undefined, same figure pages, references at the foot of page 12, no markers left in main.pdf. Change log committed on top and pushed.
