@@ -8107,3 +8107,9 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 
 ## 2026-11-04 18:07 SenSys: Alex's I2V consistency check
 - Paper repo: Fig. 1(b) caption, Section 3 placement paragraph and 5.1.3 now say the evaluated I2V arm runs without the contract (would be enforced at the AV tracker if enabled). Pagination lesson: the body has zero slack, so any added line before 5.2.3 can move the page 7 break and flip Fig. 6 to page 10 (eight lines lost); fixed by keeping the 5.1.3 paragraph at its line count and moving Fig. 6's input after Fig. 5's. Body ends on the last line of page 12.
+
+## 2026-11-04 19:50 SenSys: old review markers removed
+- Paper repo 2161f07 (change log c88d38c), pushed. Tyler: remove the \ad and \KR notes and their "Fixed" \tl replies, since \UR and \adnew are this round's markers; deleted outright at his instruction, not commented. 20 \ad, 23 \KR and 49 \tl removed from the abstract, intro, related work, Sections 3, 5, 6 and the Fig. 1 captions; \UR, \adnew, \tlfix and the 11 remaining \tl untouched; evaluation4.tex and float-mac-safety.tex (not built) untouched.
+- The macros were already silent; the removal only drops the double interword spaces TeX set where a marker sat between two spaces (one line reflows in Section 3, 5.1.2 and Section 6). 23 pages, same page ends.
+- Overleaf merge 4f75f1b (abstract: "cooperative AV architectures", "such as when") fast-forwarded before the next pass.
+- Scripts: scratchpad rm_markers.py / rm_run.sh.
