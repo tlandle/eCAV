@@ -8134,3 +8134,7 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 ## 2026-11-04 20:06 SenSys: Alex's intro review
 - Paper repo 2cff212 (change log after), pushed. Five intro edits: opening sentence cut, planner role in the MEC sentence, architecture-to-budget link sentence, "particularly when it brakes or turns", RQ4 simplified. 22 pages, body ends on page 12.
 - Scripts: scratchpad intro2_edits.py / intro2_run.sh.
+
+### 2026-11-04 21:06 SenSys: Alex's V2X note (paper ef140cf)
+- V2X expanded at first use in the abstract ("Vehicle-to-everything (V2X) systems can help ...") and in the introduction definitions paragraph ("through a vehicle-to-everything (V2X) pipeline"), independently, per Alex's note. Previous lines commented in place. Change log entry added. Layout unchanged: 22 pages, body ends on page 12 at the same line, references at its foot, 0 undefined. main_clean.pdf sent.
+
