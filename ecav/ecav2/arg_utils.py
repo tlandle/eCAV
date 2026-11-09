@@ -57,5 +57,13 @@ def build_arg_parser(description: str) -> argparse.ArgumentParser:
                              'Each container must bind a unique port when using --network=host.')
     parser.add_argument("--output_dir", default=None,
                         help="Output directory for logs and evaluation results.")
+    parser.add_argument("--timing-mode", dest="timing_mode", choices=["live", "replay"],
+                        default=None,
+                        help="Timing mode for edge logical occupancy: 'live' uses measured "
+                             "wall-clock stamps; 'replay' replays recorded stamps from "
+                             "--timing-trace for bitwise-reproducible closed-loop trajectories.")
+    parser.add_argument("--timing-trace", dest="timing_trace", default=None,
+                        help="Path to JSONL timing trace file (written in 'live' mode or "
+                             "consumed in 'replay' mode).")
 
     return parser

@@ -63,5 +63,38 @@ PY
   RAN=1; break
 done
 [ "$RAN" = "1" ] || echo "$(date '+%F %T') j6m: no design passed its gate; no block run"
+# Slow-downs (Tyler, Oct 30 17:5x): the car slows when it is 40 m before the conflict (to 6 m/s, then to a stop), so a
+# stale forecast keeps an arrival that has moved away and the ego brakes for a conflict that no longer exists. The
+# nominal lead holds (no recalibration: the slowed car must not conflict); gate: no collision without cooperation 2/2
+# and none for the reference at zero age 2/2; block: reference and contract at 0, 500, 1,000 ms, five seeds. The
+# measurement is the brake and stall rate per age (per-tick logs carry the brake and release ticks).
+LEAD0=$("$PY" -c "import json;m=json.load(open('tmp/j6_maps.json'))['lt'];print([v for k,v in m.items() if int(float(k))==70][0])")
+SLOW=("d40v6 CROSS_SPEED_CHANGE=40:6.0" "d40v0 CROSS_SPEED_CHANGE=40:0.0")
+for design in "${SLOW[@]}"; do set -- $design; NAME=$1; CHG=$2
+  ENV="CROSS_TRIGGER_TTA=70:$LEAD0 HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=-90 EGO_DRIVE_DISTANCE=400 SCENARIO_MAX_STEP=900 $CHG"
+  SV=sensys_nov27_j6ov_$NAME
+  echo "$(date '+%F %T') [$NAME] slow-down validation (lead $LEAD0, $CHG)"
+  "$PY" test_runner.py -t $T --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0 --repetitions 2 $COMMON --stamp "$SV" --scenario-env $ENV
+  "$PY" test_runner.py -t $T --manager-types oracle --anchoring on --latencies 0 --repetitions 2 $COMMON --stamp "$SV" --scenario-env $ENV
+  PYTHONPATH=.:ecav/protos "$PY" scripts/sensys_analysis/envelope_measured.py $SV --out safety_envelope_paper/analysis/envelope_$SV 2>&1 | tail -2
+  GATE=$("$PY" - "$SV" <<'PY2'
+import csv, sys
+rows=list(csv.DictReader(open(f"safety_envelope_paper/analysis/envelope_{sys.argv[1]}/runs.csv")))
+nc=[r for r in rows if 'loss_100' in (r.get('cell','')+r.get('path',''))]
+ref0=[r for r in rows if r['mgr']=='oracle' and int(float(r['lat']))==0]
+for name,g in (('no-coop',nc),('ref 0',ref0)):
+    print(f"  {name}: {len(g)} runs, collided {sum(r['collided']!='0' for r in g)}, stalled {sum(r['stalled']!='0' for r in g)}, false brakes {sum(r['false_brake']!='0' for r in g)}", file=sys.stderr)
+good = len(nc)==2 and all(r['collided']=='0' for r in nc) and len(ref0)==2 and all(r['collided']=='0' for r in ref0)
+print(int(good))
+PY2
+)
+  echo "$(date '+%F %T') [$NAME] slow-down gate=$GATE"
+  if [ "$GATE" != "1" ]; then echo "[$NAME] slow-down gate failed; next design"; continue; fi
+  SB=sensys_nov27_j6o_$NAME
+  echo "$(date '+%F %T') [$NAME] slow-down block starts (stamp $SB)"
+  "$PY" test_runner.py -t $T --manager-types oracle --anchoring on --latencies 0 500 1000 --repetitions 5 $COMMON --stamp "$SB" --scenario-env $ENV
+  "$PY" test_runner.py -t $T --manager-types late_fusion --anchoring on --latencies 0 500 1000 --repetitions 5 $COMMON --stamp "$SB" --scenario-env $ENV
+  echo "$(date '+%F %T') [$NAME] slow-down block done"
+done
 echo "$(date '+%F %T') j6m atlas done; starting j6f"
 bash tmp/j6f_atlas.sh >> logs/j6f_atlas.log 2>&1

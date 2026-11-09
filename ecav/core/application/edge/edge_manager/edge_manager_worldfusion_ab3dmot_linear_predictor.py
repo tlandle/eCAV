@@ -246,6 +246,36 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # whose delivery_tick has been reached and discards older entries.
         self._outbound_queue: List[Tuple[int, List]] = []
 
+        # Two-time-base determinism modes:
+        #   - 'live': logical service occupancy uses live wall-clock GPU stamps
+        #             and live LUT/ns-3 radio samples (recording to timing_trace
+        #             when configured).
+        #   - 'replay': replays recorded (ul_ms, compute_ms, dl_ms) stamps from
+        #               timing_trace so logical occupancy and closed-loop
+        #               trajectories are 100% bitwise reproducible across runs.
+        self._timing_mode: str = str(
+            cfg.get("timing_mode", os.environ.get("ECAV_TIMING_MODE", "live"))
+        ).lower()
+        self._timing_trace_path: Optional[str] = cfg.get(
+            "timing_trace", os.environ.get("ECAV_TIMING_TRACE", None)
+        )
+        self._timing_trace_records: Dict[int, Dict[str, Any]] = {}
+        if self._timing_mode == "replay" and self._timing_trace_path:
+            if os.path.isfile(self._timing_trace_path):
+                import json as _json
+                with open(self._timing_trace_path, "r", encoding="utf-8") as _tf:
+                    for _line in _tf:
+                        _line = _line.strip()
+                        if not _line:
+                            continue
+                        _rec = _json.loads(_line)
+                        self._timing_trace_records[int(_rec["tick"])] = _rec
+                print(f"[WorldFusion Edge] Loaded {len(self._timing_trace_records)} "
+                      f"recorded timing stamps from {self._timing_trace_path}")
+            else:
+                logger.warning("Timing trace %s not found for replay mode",
+                               self._timing_trace_path)
+
         # GT snapshots indexed by source tick (for metrics evaluation)
         self._gt_snapshots: Dict[int, Dict] = {}
         self._excluded_snapshots: Dict[int, Dict] = {}
@@ -428,7 +458,13 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # ns-3 LUT path: per-CAV UL packet, take MAX over N samples to
             # model "wait for slowest CAV" semantics.  RSU is not over Uu so
             # only N_cav uplink packets contend.
-            if self._lut_sampler is not None:
+            if (getattr(self, '_timing_mode', 'live') == 'replay'
+                    and frame_idx in getattr(self, '_timing_trace_records', {})):
+                ul_ms = float(self._timing_trace_records[frame_idx].get('ul_ms', 0.0))
+                self._last_ul_ms = ul_ms
+                ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
+                arrival = frame_idx + ul_ticks
+            elif self._lut_sampler is not None:
                 n_cav = max(1, len(feature_dicts) - 1)  # exclude RSU
                 import os as _osn
                 _nover = _osn.environ.get('NS3_LUT_N')
@@ -806,27 +842,52 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # compute_ms + sampled DL multicast latency into sim-tick delay
             # and queue the prediction; subsequent ticks drain the latest
             # ready entry to the planner.
-            compute_ms = (time.perf_counter() - t_compute_start) * 1000.0
-            if self._lut_sampler is not None:
-                n_cav_for_dl = max(1, num_agents - 1)  # exclude RSU
-                import os as _osn2
-                _nover2 = _osn2.environ.get('NS3_LUT_N')
-                if _nover2:
-                    n_cav_for_dl = int(_nover2)  # T12 load sweep override
-                try:
-                    import pickle as _pkl
-                    dl_bytes = (len(_pkl.dumps(predictions))
-                                if predictions else 1000)
-                except Exception:
-                    dl_bytes = 1000
-                dl_ms = self._lut_sampler.sample_ms(
-                    n_cav_for_dl, dl_bytes, 'dl')
+            measured_compute_ms = (time.perf_counter() - t_compute_start) * 1000.0
+            if (getattr(self, '_timing_mode', 'live') == 'replay'
+                    and tick in getattr(self, '_timing_trace_records', {})):
+                _trec = self._timing_trace_records[tick]
+                compute_ms = float(_trec.get('compute_ms', measured_compute_ms))
+                dl_ms = float(_trec.get('dl_ms', 0.0))
             else:
-                dl_ms = 0.0
+                compute_ms = measured_compute_ms
+                if self._lut_sampler is not None:
+                    n_cav_for_dl = max(1, num_agents - 1)  # exclude RSU
+                    import os as _osn2
+                    _nover2 = _osn2.environ.get('NS3_LUT_N')
+                    if _nover2:
+                        n_cav_for_dl = int(_nover2)  # T12 load sweep override
+                    try:
+                        import pickle as _pkl
+                        dl_bytes = (len(_pkl.dumps(predictions))
+                                    if predictions else 1000)
+                    except Exception:
+                        dl_bytes = 1000
+                    dl_ms = self._lut_sampler.sample_ms(
+                        n_cav_for_dl, dl_bytes, 'dl')
+                else:
+                    dl_ms = 0.0
             deliver_tick = tick + int(math.ceil(
                 (compute_ms + dl_ms) / self._sim_dt_ms))
             _src_tick = getattr(self, '_latest_source_tick', tick)
             _net_ms = getattr(self, '_last_ul_ms', 0.0) + dl_ms
+            if (getattr(self, '_timing_mode', 'live') == 'live'
+                    and getattr(self, '_timing_trace_path', None)):
+                import json as _json
+                _trace_row = {
+                    "tick": int(tick),
+                    "source_tick": int(_src_tick),
+                    "ul_ms": float(getattr(self, '_last_ul_ms', 0.0)),
+                    "compute_ms": float(compute_ms),
+                    "measured_compute_ms": float(measured_compute_ms),
+                    "dl_ms": float(dl_ms),
+                    "deliver_tick": int(deliver_tick),
+                }
+                os.makedirs(
+                    os.path.dirname(os.path.abspath(self._timing_trace_path)),
+                    exist_ok=True
+                )
+                with open(self._timing_trace_path, "a", encoding="utf-8") as _tf:
+                    _tf.write(_json.dumps(_trace_row) + "\n")
             self._outbound_queue.append(
                 (deliver_tick, predictions, _src_tick, _net_ms))
             if hasattr(frame, 'set_compute_dl'):

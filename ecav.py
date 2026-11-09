@@ -112,6 +112,11 @@ def main():
     if opt.litserve:
         opt.apply_ml = True
 
+    if getattr(opt, 'timing_mode', None):
+        os.environ['ECAV_TIMING_MODE'] = opt.timing_mode
+    if getattr(opt, 'timing_trace', None):
+        os.environ['ECAV_TIMING_TRACE'] = opt.timing_trace
+
     if opt.verbose:
         logger.setLevel(logging.DEBUG)
     elif opt.quiet:
