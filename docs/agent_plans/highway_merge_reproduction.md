@@ -61,6 +61,36 @@ s_op 1, no collision, no ghost, 51 s wall clock per run. Fixes: second RSU at x 
 `EGO_DRIVE_DISTANCE` default 250 m (the run ends just after the stop), tick counter
 primed at construction.
 
+## Gate, closing speed 10 (2026-11-09, stamp sensys_hm_v1, two seeds per cell)
+
+| arm | delay | s_op | collided | self-ghost | p99 age (ms) |
+|---|---|---|---|---|---|
+| exact state | 0 | 2/2 | 0 | 0 | 168 |
+| exact state | 1000 | 2/2 | 0 | 0 | 1137 |
+| V2X2V +SBA | 0 | 2/2 | 0 | 0 | 589 |
+| V2X2V no SBA | 0 | 0/2 | 0 | 2 | 275 |
+| no cooperation | 0 | 0/2 | 2 | 0 | |
+
+Three of four gate conditions pass; the stale probe does not: the exact-state arm still
+completes at 1000 ms. Two causes, both fixed before the pilot:
+
+1. Braking authority. The emergency stop uses brake 1.0 and the ego sheds 26 m/s in about
+   3 s (8.5 m/s2 average, 20 m/s2 at the onset). The design assumes 6 m/s2, and the
+   kinematic budget (787 ms at 10 m/s) only holds at that deceleration. The controller's
+   emergency path now honours `max_brake` (`ecav/core/actuation/pid_controller.py`, 1.0
+   everywhere else, so no other geometry changes) and the highway YAML sets the value that
+   calibrates to about 6 m/s2 (runs at 0.4 and 0.6 in stamps sensys_hm_cal_*).
+2. Coverage. The exact-state arm publishes ground truth only within 50 m of a managed
+   sensor (`edge_manager_oracle` DETECTION_RANGE), and the camera-lidar arms lose a car at
+   a similar distance. With RSUs 15 m south of the lane the along-road reach is about 48 m
+   each side, so the intruder's track froze 50 m past the last RSU and the held copy aged to
+   1.2 s (the p99 of 950 to 1137 ms above). Three RSUs at x 165, 260 and 355 cover the
+   intruder from its start to the end of the run.
+
+The +SBA p99 of 589 ms also includes early stale anonymous duplicates of the intruder
+(450 to 600 ms at ticks 27 to 58), which is the late-fusion tracker's own behaviour and
+stays.
+
 ## Grid sizing (51 s per run on atlas)
 
 | stage | runs | one host |

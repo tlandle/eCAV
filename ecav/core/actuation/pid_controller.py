@@ -207,11 +207,14 @@ class Controller:
         # control class for carla vehicle
         control = carla.VehicleControl()
 
-        # emergency stop
+        # emergency stop. The brake is capped by the controller's max_brake
+        # (1.0 in every configuration before 2026-11-09, so unchanged there);
+        # the highway merge geometry sets it below 1.0 so the ego's braking
+        # authority matches the encounter design's 6 m/s2.
         if target_speed == 0 or waypoint is None:
             control.steer = 0.0
             control.throttle = 0.0
-            control.brake = 1.0
+            control.brake = min(1.0, float(self.max_brake))
             control.hand_brake = False
             return control
 

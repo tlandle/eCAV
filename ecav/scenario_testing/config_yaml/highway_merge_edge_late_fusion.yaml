@@ -154,7 +154,7 @@ vehicle_base:
         k_i: 0.032
       dynamic: false
       dt: ${world.fixed_delta_seconds}
-      max_brake: 1.0
+      max_brake: 0.5 # highway merge: emergency stop about 6 m/s2 as the encounter design (calibrated 2026-11-09: 0.4 gives 5.4, 0.6 gives 6.8, 1.0 gives 9.5 m/s2 average)
       max_throttle: 1.0
       max_steering: 0.3
   v2x:
@@ -281,20 +281,30 @@ scenario:
       map_cache: null
       device: cuda
     rsus:
+    # South shoulder, 7 m masts, 95 m apart: the exact-state arm publishes ground truth within 50 m of a
+    # managed sensor (edge_manager_oracle DETECTION_RANGE) and the camera-lidar arms lose a car near
+    # that distance too, so the intruder (x 135 to 400 over the sweep) stays covered end to end (2026-11-09).
     - sensing: *id002
       name: rsu1
-      spawn_position:  # south shoulder of the eastbound carriageway at the cut-in zone, 7 m mast (2026-11-09)
-      - 215.0
+      spawn_position:
+      - 165.0
       - 155.0
       - 7.0
       id: -1
     - sensing: *id002
       name: rsu2
-      spawn_position:  # 115 m downstream: the intruder left rsu1's lidar reach near x 350 in the smoke run and the held track aged to 1.2 s
-      - 330.0
+      spawn_position:
+      - 260.0
       - 155.0
       - 7.0
       id: -2
+    - sensing: *id002
+      name: rsu3
+      spawn_position:
+      - 355.0
+      - 155.0
+      - 7.0
+      id: -3
     vehicles:
     - sensing:
         perception:
