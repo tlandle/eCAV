@@ -236,6 +236,17 @@ class LocalPlanner(object):
         """
         return self._history_buffer
 
+    def _refill_waypoint_buffer(self):
+        """Top the waypoint buffer up from the global queue when it has
+        fallen below waypoint_update_freq entries (the run_step rule)."""
+        if len(self._waypoint_buffer) < self.waypoint_update_freq:
+            for _ in range(self._buffer_size - len(self._waypoint_buffer)):
+                if self.waypoints_queue:
+                    self._waypoint_buffer.append(
+                        self.waypoints_queue.popleft())
+                else:
+                    break
+
     def generate_path(self):
         """
         Generate the smooth path using cubic spline.
@@ -265,6 +276,14 @@ class LocalPlanner(object):
 
         # pop out the waypoints that may damage driving performance
         self.buffer_filter()
+        # Refill here as well: the behavior agent's early-return branches
+        # ([STOP] hazard without obstacle, traffic light) call generate_path
+        # but never reach run_step, so a vehicle still rolling under a
+        # committed brake drained the buffer and the [-1] below raised
+        # IndexError every tick, which the vehicle manager answers with a
+        # brake (highway merge, Nov 9 2026: the ego stalled at x 316 with a
+        # 0.5 brake cap, 713 exceptions in one run).
+        self._refill_waypoint_buffer()
 
         # [m] distance of each interpolated points
         ds = 0.1
@@ -636,13 +655,7 @@ class LocalPlanner(object):
         self._target_speed = target_speed
 
         # Buffering the waypoints. Always keep the waypoint buffer alive
-        if len(self._waypoint_buffer) < self.waypoint_update_freq:
-            for i in range(self._buffer_size - len(self._waypoint_buffer)):
-                if self.waypoints_queue:
-                    self._waypoint_buffer.append(
-                        self.waypoints_queue.popleft())
-                else:
-                    break
+        self._refill_waypoint_buffer()
 
         # we will generate the trajectory only if it is not a following vehicle
         # in the platooning

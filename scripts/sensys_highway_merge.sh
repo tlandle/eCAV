@@ -27,7 +27,7 @@ PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
 export PYTHONPATH="$HOME/carla-0.9.15/PythonAPI/carla:${PYTHONPATH:-}"
 T=highway_merge_edge_late_fusion
 CS_ALL="${CS:-4 6 8 10 12 14 16}"   # CS=10 restricts validate/full to one closing speed
-CS_PILOT="4 10 16"
+CS_PILOT="${CS:-4 10 16}"
 LATS_FULL="0 50 100 150 200 250 300 350 400 450 500 550 600 650 700 750 800 850 900 950 1000 1050 1150 1250"
 LATS_PILOT="0 100 200 300 400 600 800 1000"
 COMMON="--ego-counts 1 --speeds 97 --latency-distribution hybrid --per-tick-age-log --self-id-radius 1 --carla-port $PORT --stamp $STAMP"
