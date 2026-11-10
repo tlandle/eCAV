@@ -56,3 +56,14 @@ Quota allows all of them at once. cloud_config.yaml still holds the 256-car addr
 Pay-as-you-go list prices, approximate: D64s v5 3.07 USD/h, D64as v4 3.07, NV12s v3 1.14,
 ND40rs v2 22.03, A10 3.11 (observed). All clients, server and the A10 node without NDm is
 about 20 USD/h. NDm doubles it. Start NDm only for the perception sweep.
+
+## Probe log, 2026-11-10 12:29 (single-host distributed smoke on the A10 node)
+Scenario openscenario_3_edge_late_fusion_4ego, host processes, script ~/dist_smoke.sh on the node.
+Setup defects found and handled on a fresh checkout:
+- scenario_runner is a submodule and is empty in a new worktree. Linked from ~/sensys_wt.
+- PYTHONPATH must include ~/carla-0.9.15/PythonAPI/carla (module agents).
+- ecav.py --build compiled only ecloud.proto. Fixed on develop: compiles every proto.
+- ecav/ecloud_server/ecloud_server in git is an LFS pointer and the node has no gRPC C++ toolchain. The atlas binary runs there (both Ubuntu 24.04).
+- edge_process.py takes no -t. scripts/launch_distributed.sh is stale on that point and on the conda env name.
+State reached: orchestration server up, four vehicles registered, edge process registered actor 0 of 6 and waits ("Waiting for all edges to confirm actors ready"). Vehicle 0's scenario runner exited and dumped core. The two RSU actors were not launched by the smoke script.
+Next: launch the RSU actors the way start_actors.sh does, find why vehicle 0's scenario runner exits, get one full distributed run with ticks, then build scale_town06.
