@@ -8236,3 +8236,11 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Cost: October 660 USD, November 1 to 9 826 USD (VM 672, storage 106, addresses 19). Standing cost with every VM off is about 430 USD per month: storage about 360 (the 2 TB premium NDm disk is most of it), public addresses about 67.
 - Seven network interfaces and three public addresses belong to no VM (vehicle-client-*, car-client-vm-101, cars-vm-101, testvm1001). Not deleted, Tyler's call.
 - Rule: deallocate an Azure VM in the same block that ends its campaign.
+
+### 2026-11-10 12:04 Highway merge pilot landed (FAILS the gate); scale-out probe
+- Pilot sensys_hm_pilot complete: atlas cs 10 and 16 (480 runs, 0 void), cetus cs 4 (240 runs, not yet mirrored or reduced). Table in logs/hm_atlas_chain.log.
+- cs 10: exact state completes 10/10 at every cell but 800 (9/10), so no failure with age up to 1,100 ms. V2X2V +SBA is non-monotone (1.00 at 0, 0.10 at 100, 1.00 at 200, 0.40 at 300 to 600, 0.00 at 1000) with p99 age 690 to 2,470 ms. No SBA: ghost 10/10 from 300 ms.
+- cs 16: every arm collides at every cell, exact state included at zero delay (gap 33 m, ego 25.8, intruder 10.8 to 11.1 m/s). The encounter is not survivable as built at cs 16.
+- Conclusion: the scenario does not reproduce the colleague's highway merge data. Not usable. Needs diagnosis (cs 16 zero-delay collision, cs 10 exact-state insensitivity to age, +SBA non-monotone and age inflation) before any larger launch. The 2-seed gate v3 at cs 10 was not representative.
+- Scale-out: plan docs/agent_plans/ispass_scaleout_run.md. Probe on the A10 node (~/scale_wt): the 2023 ecloud_4lane_* scaling scenarios do not run on the current entry point (YAML alias errors, no scenario_runner section, no run_vehicle). A new scale scenario on the current harness is required. Tyler: A10 node stays up as the edge node.
+- Tyler asked for a README rewrite: supported systems, how to run, scenario families, deprecate non-working scenarios. Inventory agent running.
