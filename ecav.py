@@ -22,6 +22,7 @@ License: MIT
 """
 
 import importlib
+import glob
 import os
 import sys
 import subprocess
@@ -127,13 +128,16 @@ def main():
 
     # Build check comes first — no scenario needed
     if opt.build:
-        subprocess.run([
-            'python', '-m', 'grpc_tools.protoc',
-            '-I./ecav/protos',
-            '--python_out=.',
-            '--grpc_python_out=.',
-            './ecav/protos/ecloud.proto'
-        ])
+        # Every .proto, not only ecloud.proto: a fresh checkout otherwise fails on
+        # `import perception_pb2` (the stubs are gitignored).
+        for proto in sorted(glob.glob('./ecav/protos/*.proto')):
+            subprocess.run([
+                sys.executable, '-m', 'grpc_tools.protoc',
+                '-I./ecav/protos',
+                '--python_out=.',
+                '--grpc_python_out=.',
+                proto
+            ])
         return
 
     scene_dict = None
