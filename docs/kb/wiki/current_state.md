@@ -8229,3 +8229,10 @@ Tyler pasted the revision-28 plan (terminology: retire "reference boundary" for 
 - Build defect: latexmk is not installed on atlas, so earlier ISPASS page and overfull checks read a stale log. Build with pdflatex + bibtex. True state: 10 pages, body ends p9, 0 overfull.
 - ISPASS repos: ecav_ispass master ab0336d, ecav_ispass_overleaf main ed8b181.
 - Open, Tyler's call: multi-host scaling rerun (NDm) for the distribution claim.
+
+### 2026-11-09 20:10 Azure audit
+- Subscription eCloudSim_Tyler_Landle is a sponsorship (quotaId Sponsored_2016-01-01, spending limit off). Balance is not readable through the API. It is shown at microsoftazuresponsorships.com.
+- edge-server (A10, about 3.11 USD/h) has been running since 2026-10-28 22:20 EDT, started by the SenSys campaign session, idle since the j6s campaign with only an orphan CARLA server. Idle cost about 890 USD so far. Deallocation attempted and blocked by the permission system, so the VM is STILL RUNNING. Tyler to run: az vm deallocate -g CARLA-SERVER_GROUP -n edge-server
+- Cost: October 660 USD, November 1 to 9 826 USD (VM 672, storage 106, addresses 19). Standing cost with every VM off is about 430 USD per month: storage about 360 (the 2 TB premium NDm disk is most of it), public addresses about 67.
+- Seven network interfaces and three public addresses belong to no VM (vehicle-client-*, car-client-vm-101, cars-vm-101, testvm1001). Not deleted, Tyler's call.
+- Rule: deallocate an Azure VM in the same block that ends its campaign.
