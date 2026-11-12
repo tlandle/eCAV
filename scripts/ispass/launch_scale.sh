@@ -42,6 +42,10 @@ CARLA=${CARLA:-$ORCH}; EDGE=${EDGE:-$ORCH}; RSUH=${RSUH:-$EDGE}; VLIST=${VLIST:-
 DEF_WT='$HOME/scale_wt'; DEF_CARLA='$HOME/carla-0.9.15'
 DEF_ACT='source $HOME/miniconda3/etc/profile.d/conda.sh 2>/dev/null || source $HOME/anaconda3/etc/profile.d/conda.sh; conda activate opencda310'
 WT=${SCALE_WT:-$DEF_WT}; CARLA_ROOT=${SCALE_CARLA_ROOT:-$DEF_CARLA}; ACT=${SCALE_ACT:-$DEF_ACT}; BATCH=${BATCH:-16}
+# numeric libraries start one thread per core in every process; with one process per actor that
+# oversubscribes the host, so each process gets SCALE_THREADS threads (default 1, 0 leaves the libraries alone)
+TH=${SCALE_THREADS:-1}; THREADS=""
+[[ $TH != 0 ]] && THREADS="OMP_NUM_THREADS=$TH OPENBLAS_NUM_THREADS=$TH MKL_NUM_THREADS=$TH NUMEXPR_NUM_THREADS=$TH"
 TAG=${TAG:-n${N}_r${R}_p${P}_$(date +%m%d_%H%M%S)}
 HERE=$(cd "$(dirname "$0")/../.." && pwd)
 OUT=$HERE/experiment_results/ispass_scale/$TAG; mkdir -p "$OUT"
@@ -52,7 +56,7 @@ SSHO="-o BatchMode=yes -o ConnectTimeout=15 -o ControlMaster=auto -o ControlPath
 SSH="ssh $SSHO"
 log() { echo "$(date '+%T') $*" | tee -a "$OUT/launch.log"; }
 # run a command line in the worktree with the env active
-on() { local h=$1; shift; $SSH "$h" "ulimit -n 65536 2>/dev/null; cd $WT && $ACT && export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla:\${PYTHONPATH:-} && $*"; }
+on() { local h=$1; shift; $SSH "$h" "ulimit -n 65536 2>/dev/null; cd $WT && $ACT && export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla:\${PYTHONPATH:-} $THREADS && $*"; }
 # start a detached process: bg <host> <logname> <command...>
 bg() { local h=$1 n=$2; shift 2; on "$h" "mkdir -p $L && (setsid nohup $* > $L/$n.log 2>&1 < /dev/null &)"; }
 # wait_log <host> <logname> <regex> <timeout_s>
