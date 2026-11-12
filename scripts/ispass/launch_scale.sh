@@ -49,7 +49,7 @@ SSHO="-o BatchMode=yes -o ConnectTimeout=15 -o ControlMaster=auto -o ControlPath
 SSH="ssh $SSHO"
 log() { echo "$(date '+%T') $*" | tee -a "$OUT/launch.log"; }
 # run a command line in the worktree with the env active
-on() { local h=$1; shift; $SSH "$h" "cd $WT && $ACT && export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla:\${PYTHONPATH:-} && $*"; }
+on() { local h=$1; shift; $SSH "$h" "ulimit -n 65536 2>/dev/null; cd $WT && $ACT && export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla:\${PYTHONPATH:-} && $*"; }
 # start a detached process: bg <host> <logname> <command...>
 bg() { local h=$1 n=$2; shift 2; on "$h" "mkdir -p $L && (setsid nohup $* > $L/$n.log 2>&1 < /dev/null &)"; }
 # wait_log <host> <logname> <regex> <timeout_s>
@@ -119,7 +119,8 @@ k=1; while (( k < N )); do
 done
 for j in $(seq 0 $((R - 1))); do bg "$RSUH" "rsu_$j" "python -u ecav/ecav2/ecloud_actor_client.py $ML -v 0.9.15 -i $j"; done
 log "all clients started after $(( $(date +%s) - T0 )) s; waiting for the run"
-wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 " $((600 + 4 * N)) || fail "no first tick"
+wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 |Caught exception" $((600 + 4 * N)) || fail "no first tick"
+$SSH "$ORCH" "cd $WT && grep -q 'Caught exception' $L/orch.log" && fail "orchestrator raised before the first tick: $($SSH "$ORCH" "cd $WT && grep -m1 'Caught exception' $L/orch.log")"
 log "first tick after $(( $(date +%s) - T0 )) s"
 # CPU counters on every host at the first tick and at the end: scale_breakdown.py reports the busy fraction
 for h in $HOSTS; do $SSH "$h" "cd $WT && head -1 /proc/stat > $L/cpu_start.log; cat /proc/loadavg > $L/load_start.log"; done

@@ -214,7 +214,14 @@ class VehicleManager(object):
 
         else: # run_distributed == True
 
-            self.initialize_process() # get world & map info
+            if carla_world is not None:
+                # The orchestrator builds one of these per vehicle and passes its own
+                # world. A CARLA client per vehicle in one process ran out of file
+                # descriptors at the 98th vehicle (epoll: Too many open files).
+                self.world = carla_world
+                self.carla_map = carla_map if carla_map is not None else carla_world.get_map()
+            else:
+                self.initialize_process() # get world & map info
             self.carla_version = carla_version
 
             # if the spawn position is a single scalar, we need to use map
