@@ -905,6 +905,8 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
     #  Evaluation
     # ------------------------------------------------------------------
     def evaluate(self):
+        if self.is_proxy:  # distributed orchestrator: the edge process sent its metrics
+            return None, "", self._proxy_metrics
         fig, txt, metrics = self.profiler.get_evaluation_result()
         metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
         metrics.update(self._get_latency_component_stats())

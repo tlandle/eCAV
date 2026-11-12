@@ -668,9 +668,13 @@ public:
         const int32_t vehicle_index = request->vehicle_index();
         LOG(INFO) << "Client_GetConnectionInfo - request for vehicle_index: " << vehicle_index;
 
-        // Check if this vehicle belongs to an edge
-        auto it = vehicleToEdgeMapping_.find(vehicle_index);
-        if (hasEdges_ && it != vehicleToEdgeMapping_.end()) {
+        // Check if this actor belongs to an edge. Vehicles and RSUs have separate index
+        // spaces, so an RSU is looked up in the RSU mapping (an RSU whose index exceeded the
+        // vehicle count was sent to the orchestrator and never became ready at its edge).
+        const std::map<int32_t, int32_t>& edgeMapping =
+            ( request->actor_type() == ActorType::RSU ) ? rsuToEdgeMapping_ : vehicleToEdgeMapping_;
+        auto it = edgeMapping.find(vehicle_index);
+        if (hasEdges_ && it != edgeMapping.end()) {
             const int32_t edge_index = it->second;
             // Find the edge info
             for (const EdgeInfo& edge : edgeInfos_) {
