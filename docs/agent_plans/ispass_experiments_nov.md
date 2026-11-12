@@ -96,3 +96,42 @@ the same contents and is not the working repo.
   servers), LTE-V2X Mode 4 vs NR-V2X Mode 2 naming, LUT accuracy separated from
   field-trace calibration, and the application papers (Conductor, SBA, Khonsu) framed as
   case studies of the instrument.
+
+## Experiment 2 (architecture by fidelity): intermediate-fusion detector diagnosis (2026-11-12 00:55)
+
+Symptom: the intermediate-fusion arm (plain `worldfusion` manager, `openscenario_3_edge_late_fusion_wf`)
+tracked the crossing car on about 15 % of frames and collided under the full system.
+
+Cause: the generated YAML inherited the object-sharing arms' 7 m RSU masts and used epoch 27 of
+`worldfusion_multiv2x_translaug_finetune`. The configuration on record
+(`openscenario_3_edge_worldfusion_mtr_live.yaml`) is epoch 45 on a 4.3 m mast, the Multi-V2X
+training height. The model's voxel range is z in [-6, 2] m in the lidar frame, so from 7 m the
+ground and all but the roof of a car fall below the range.
+
+Attribution (probe `WF_RECALL_PROBE`, stamp wfdiag1 on cetus, left turn 70 km/h, zero delay, one
+run per variant, fusion ticks with the car moving and within 60 m of the first RSU). Lidar coverage
+is 100 % of ticks in every variant (occupied input cells within 2.5 m of the car), so the loss is
+model output, not coverage, transform or association:
+
+| mast | epoch | fused score at the car, median | ticks >= 0.15 | >= 0.20 | detector TP / FN / FP | conflict-actor tracked ticks |
+|---|---|---|---|---|---|---|
+| 7.0 m | 27 (was) | 0.090 | 30 % | 21 % | 24 / 99 / 1235 | 72 |
+| 7.0 m | 45 | 0.037 | 0 % | 0 % | 0 / 0 / 0 | 8 |
+| 4.3 m | 27 | 0.216 | 67 % | 51 % | 81 / 42 / 2921 | 119 |
+| 4.3 m | 45 (now) | 0.267 | 81 % | 74 % | 70 / 0 / 90 | 200 |
+
+At 4.3 m and epoch 45 the score clears 0.15 on 98 % of ticks at 15 to 30 m and 88 % at 30 to 45 m.
+Past 45 m from the first RSU it is 8 %: that is after the conflict point. Epoch 27 produces 13 to
+32 times the false positives of epoch 45 (the scene-overfit behaviour on record).
+
+Fix: `scripts/ispass/gen_fidelity_wf_yaml.py` defaults to epoch 45 and a 4.3 m mast for the
+intermediate-fusion arm (RSU x, y unchanged). `net_epoch45.pth` is not in git or LFS
+(sha256 aa2563e791b49426...), copy it to each host.
+
+Gate (stamp wfgate, 2 seeds): idealized 2/2, age at first brake 0 ms; full system (149 ms compute,
+32 ms up, 20 ms down) 2/2, age at first brake 250 ms, yields 15 m short of the crossing lane;
+published speed 0.98 to 0.99 of truth; coverage 0.95 to 1.00.
+
+Finding outside this fix: an ego that receives nothing (7 m, epoch 45: no true brake) passes the
+crossing car at 3.9 m centre distance without contact and counts as an operational success at
+this cell. The outcome at zero added delay does not separate a blind arm from a seeing one.
