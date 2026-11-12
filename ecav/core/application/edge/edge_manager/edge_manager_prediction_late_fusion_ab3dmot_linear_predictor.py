@@ -343,6 +343,22 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._lut_sampler = _get_lut_sampler() if self._use_ns3_lut else None
         self._sim_dt_ms = world_dt * 1000.0
 
+        # Delivery composition switches (fidelity comparison across
+        # architectures). Defaults keep the configured delay as the only one.
+        #   compute_delay: 'zero' | 'measured'. With 'measured' the wall-clock
+        #     time of the previous step's detector call, tracker and predictor
+        #     delays the ingestion of each frame, as the configured delay does.
+        #   lut_dl: add an edge-to-vehicle downlink sample from the ns-3 table
+        #     (object payload) to the same stamp.
+        #   lut_n: sender count the table is sampled at (default: managed CAVs).
+        self._compute_delay_mode = str(cfg.get("compute_delay", "zero")).lower()
+        self._lut_dl = bool(cfg.get("lut_dl", False)) if not is_proxy else False
+        self._lut_n = cfg.get("lut_n", None)
+        self._dl_sampler = _get_lut_sampler() if self._lut_dl else None
+        self._cav_world_ref = cav_world
+        self._last_edge_compute_ms = 0.0
+        self._composed_rows: list = []   # (tick, compute_ms, ul_ms, dl_ms)
+
         if is_proxy:
             self.profiler = None
             self.ego_monitor = None
@@ -746,17 +762,46 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             n_cav = max(1, len(self.vehicle_manager_list))
             n_boxes = len(objects.get('vehicles', []))
             ul_bytes = _LF_BEACON_BYTES + n_boxes * _LF_PER_BOX_BYTES
+            n_lut = int(self._lut_n) if self._lut_n else n_cav
             ul_samples = [
-                self._lut_sampler.sample_ms(n_cav, ul_bytes, 'ul')
+                self._lut_sampler.sample_ms(n_lut, ul_bytes, 'ul')
                 for _ in range(n_cav)
             ]
             ul_ms = max(ul_samples) if ul_samples else 0.0
-            ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
+            extra_ms = self._composed_extra_ms(frame_idx, objects, ul_ms)
+            ul_ticks = int(math.ceil((ul_ms + extra_ms) / self._sim_dt_ms))
             arrival = frame_idx + ul_ticks
         else:
             arrival = self.latency_model.stamp(frame_idx)
+            extra_ms = self._composed_extra_ms(frame_idx, objects, 0.0)
+            arrival += int(math.ceil(extra_ms / self._sim_dt_ms))
         self._after_uplink_collect(objects, beacons, frame_idx)
         self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+
+    # ------------------------------------------------------------------
+    def _composed_extra_ms(self, frame_idx, objects, ul_ms):
+        """Measured compute and table downlink added to a frame's stamp
+        (zero unless compute_delay=measured or lut_dl is set)."""
+        compute_ms = 0.0
+        if self._compute_delay_mode == "measured":
+            det_ms = 0.0
+            ml = getattr(self._cav_world_ref, "ml_manager", None)
+            rows = getattr(ml, "_dist_timing_rows", None) if ml is not None else None
+            if rows:
+                # sources run their detectors in parallel on their own
+                # hardware: the slowest of the last call per source
+                n_src = max(1, len(self.vehicle_manager_list) + len(self.rsu_manager_list))
+                det_ms = max(float(r.get("total_e2e_ms", 0.0)) for r in rows[-n_src:])
+            compute_ms = det_ms + self._last_edge_compute_ms
+        dl_ms = 0.0
+        if self._dl_sampler is not None:
+            n_boxes = len(objects.get("vehicles", [])) if isinstance(objects, dict) else 0
+            n_lut = int(self._lut_n) if self._lut_n else max(1, len(self.vehicle_manager_list))
+            dl_ms = self._dl_sampler.sample_ms(
+                n_lut, _LF_BEACON_BYTES + n_boxes * _LF_PER_BOX_BYTES, "dl")
+        if compute_ms or dl_ms or ul_ms:
+            self._composed_rows.append((int(frame_idx), compute_ms, float(ul_ms), dl_ms))
+        return compute_ms + dl_ms
 
     # ------------------------------------------------------------------
     def _after_uplink_collect(self, objects, beacons, frame_idx):
@@ -853,6 +898,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             # ===== 1. Drain jitter buffer → feed persistent tracker ========
             with frame.time("tracking"):
                 self._drain_tick = tick   # the tick a drained frame is ingested at (VIPS rectification)
+                self._step_track_ms = 0.0
                 new_frames = self._jitter_buffer.drain(tick)
                 latest_dets = None
                 latest_source_tick = None
@@ -896,6 +942,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     _t0 = time.perf_counter()
                     _n_trk_before = len(self.tracker.trackers)
                     tracks, _ = self.tracker.track(dets_all, source_tick)
+                    self._step_track_ms += (time.perf_counter() - _t0) * 1000.0
                     if os.environ.get('DET_TRACE'):
                         logger.warning(
                             "[ASSOC] src=%d ntracks=%d birth_attempts=%s "
@@ -1035,6 +1082,9 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     _p.origin_tick = _origin
                 predict_ms = (time.perf_counter() - t0) * 1e3
                 num_predictions = len(preds)
+                # edge-side service time of this step (tracker + predictor),
+                # consumed by the next frame's stamp when compute_delay=measured
+                self._last_edge_compute_ms = float(self._step_track_ms) + float(predict_ms)
 
                 # Compute tracking metrics
                 track_metrics = self._compute_tracking_metrics(
@@ -2010,6 +2060,15 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         metrics['spatial_self_id_failure_rate'] = (
             self._self_id_failures / max(1, self._tick_count))
         metrics.update(self._get_latency_component_stats())
+        if self._composed_rows:
+            _c = np.asarray([r[1:] for r in self._composed_rows], dtype=float)
+            metrics['composed_delay'] = {
+                'mode': self._compute_delay_mode, 'lut_dl': bool(self._lut_dl),
+                'n': int(len(_c)),
+                'compute_ms_mean': float(_c[:, 0].mean()), 'compute_ms_p95': float(np.percentile(_c[:, 0], 95)),
+                'ul_ms_mean': float(_c[:, 1].mean()), 'dl_ms_mean': float(_c[:, 2].mean()),
+                'dl_ms_p95': float(np.percentile(_c[:, 2], 95)),
+            }
         metrics.update(self._get_contract_metrics())
         self.mac_model.metrics.finalize()
         metrics['mac'] = self.mac_model.metrics.get_summary()

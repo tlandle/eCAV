@@ -24,6 +24,7 @@ SBA off.
 """
 from __future__ import annotations
 
+import math
 import logging
 import os
 from typing import Dict, List
@@ -154,6 +155,10 @@ class InfraOnlyEdge(PredictionLateFusionEdge):
         # base latency model. This keeps the architecture honest: I2V has no
         # over-the-air vehicle uplink to contend.
         arrival = self.latency_model.stamp(frame_idx)
+        # compute_delay=measured / lut_dl: the edge-to-vehicle downlink is the
+        # radio hop of this architecture (see the parent's _composed_extra_ms)
+        extra_ms = self._composed_extra_ms(frame_idx, objects, 0.0)
+        arrival += int(math.ceil(extra_ms / self._sim_dt_ms))
         self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
 
     def _collect_detections_for_frame(self, payload, beacons, source_tick):

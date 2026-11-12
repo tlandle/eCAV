@@ -241,6 +241,13 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._use_ns3_lut = bool(cfg.get("use_ns3_lut", True))
         self._lut_sampler = _get_lut_sampler() if self._use_ns3_lut else None
         self._sim_dt_ms = float(self.dt) * 1000.0
+        # Fidelity-comparison switches: compute_delay 'measured' (default) maps
+        # the measured service time into the delivery tick, 'zero' delivers as
+        # if the service took no time. lut_n fixes the sender count the radio
+        # table is sampled at (the NS3_LUT_N environment override still wins).
+        self._compute_delay_mode = str(cfg.get("compute_delay", "measured")).lower()
+        self._lut_n = cfg.get("lut_n", None)
+        self._composed_rows: List[Tuple[int, float, float, float]] = []
         # Outbound delivery queue: list of (deliver_tick, predictions).
         # Latest-wins: _drain_outbound_latest returns the freshest prediction
         # whose delivery_tick has been reached and discards older entries.
@@ -466,6 +473,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 arrival = frame_idx + ul_ticks
             elif self._lut_sampler is not None:
                 n_cav = max(1, len(feature_dicts) - 1)  # exclude RSU
+                if getattr(self, '_lut_n', None):
+                    n_cav = int(self._lut_n)
                 import os as _osn
                 _nover = _osn.environ.get('NS3_LUT_N')
                 if _nover:
@@ -852,6 +861,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 compute_ms = measured_compute_ms
                 if self._lut_sampler is not None:
                     n_cav_for_dl = max(1, num_agents - 1)  # exclude RSU
+                    if getattr(self, '_lut_n', None):
+                        n_cav_for_dl = int(self._lut_n)
                     import os as _osn2
                     _nover2 = _osn2.environ.get('NS3_LUT_N')
                     if _nover2:
@@ -866,6 +877,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         n_cav_for_dl, dl_bytes, 'dl')
                 else:
                     dl_ms = 0.0
+            if getattr(self, '_compute_delay_mode', 'measured') == 'zero':
+                compute_ms = 0.0
+            self._composed_rows.append(
+                (int(tick), float(compute_ms),
+                 float(getattr(self, '_last_ul_ms', 0.0)), float(dl_ms)))
             deliver_tick = tick + int(math.ceil(
                 (compute_ms + dl_ms) / self._sim_dt_ms))
             _src_tick = getattr(self, '_latest_source_tick', tick)
@@ -2413,6 +2429,15 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         metrics['ego_uniqueness'] = self.ego_monitor.get_metrics()
         metrics.update(self._get_latency_component_stats())
         metrics.update(self._get_contract_metrics())
+        if getattr(self, '_composed_rows', None):
+            _c = np.asarray([r[1:] for r in self._composed_rows], dtype=float)
+            metrics['composed_delay'] = {
+                'mode': self._compute_delay_mode, 'lut': bool(self._use_ns3_lut),
+                'n': int(len(_c)),
+                'compute_ms_mean': float(_c[:, 0].mean()), 'compute_ms_p95': float(np.percentile(_c[:, 0], 95)),
+                'ul_ms_mean': float(_c[:, 1].mean()), 'dl_ms_mean': float(_c[:, 2].mean()),
+                'dl_ms_p95': float(np.percentile(_c[:, 2], 95)),
+            }
         if hasattr(self, 'mot_tracker') and self.mot_tracker is not None:
             metrics['birth_gate'] = {
                 # AB3DMOT birth-gate counters; other trackers (mamba)
