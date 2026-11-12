@@ -17,6 +17,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "safety_envelope_paper"))
 from reduce_per_tick_age import reduce_run  # noqa: E402
+sys.path.insert(0, os.path.join(ROOT, "scripts", "sensys_analysis"))
+from campaign_check import load_runs  # noqa: E402  (operational success as the safety-envelope study defines it)
 
 GEOM = {"openscenario_3_edge_late_fusion": "left turn", "scp_edge_late_fusion": "straight crossing"}
 BUDGET_MS = {"left turn": 348.0, "straight crossing": 300.0}   # exact-state useful-age budgets at 70 km/h
@@ -56,22 +58,19 @@ def within_budget(csv_path, budget):
 
 def load(stamp, root):
     rows = []
-    for mp in glob.glob(os.path.join(root, "*", stamp, "**", "simulation_metrics.json"), recursive=True):
-        rel = os.path.relpath(mp, root); scen = rel.split(os.sep)[0]
+    for r in load_runs(root, stamp):
+        if r.get("bad"): continue
+        rel = os.path.relpath(r["path"], root); scen = rel.split(os.sep)[0]
         geom = GEOM.get(re.sub(r"_wf$", "", scen)); arch = arch_of("/" + rel.replace(os.sep, "/"))
         if geom is None or arch is None: continue
-        try: m = json.load(open(mp))
-        except ValueError: continue
-        if "s_op" not in m or "config_edge_kv" not in m: continue   # the copy under evaluation_output carries no config
-        if not os.path.basename(os.path.dirname(mp)).startswith("run_"): continue
-        kv = m.get("config_edge_kv", {}) or {}
-        run_dir = os.path.dirname(mp); pt = os.path.join(run_dir, "evaluation_output", "per_tick_age.csv")
+        m = json.load(open(r["path"])); kv = m.get("config_edge_kv", {}) or {}
+        run_dir = os.path.dirname(r["path"]); pt = os.path.join(run_dir, "evaluation_output", "per_tick_age.csv")
         age = reduce_run(pt) if os.path.exists(pt) else {}
         edges = list((m.get("edges") or {}).values()); comp = (edges[0].get("composed_delay") if edges else None) or {}
         rows.append(dict(
-            geom=geom, arch=arch, cond=cond_of(kv), lut_n=int(kv.get("lut_n", 0) or 0),
-            rep=int(re.findall(r"run_(\d+)", run_dir)[-1]), s_op=int(m["s_op"]),
-            collided=1 - int(m.get("s_coll", 1)), ghost=1 - int(m.get("s_ghost", 1)), fbrake=1 - int(m.get("s_fp", 1)),
+            geom=geom, arch=arch, cond=cond_of(kv), lut_n=int(kv.get("lut_n", 0) or 0), rep=int(r["rep"]), s_op=int(r["s_op"]),
+            collided=int(r.get("focal_collisions", 0) > 0), ghost=int(r.get("focal_ghost_episodes", 0) > 0),
+            fbrake=int(r.get("focal_fp_episodes", 0) > 0),
             p99=age.get("critical_object_p99_ms", float("nan")), brake_age=age.get("conflict_brake_age_ms", float("nan")),
             coverage=age.get("conflict_coverage", float("nan")),
             in_budget=within_budget(pt, BUDGET_MS[geom]) if os.path.exists(pt) else float("nan"),
