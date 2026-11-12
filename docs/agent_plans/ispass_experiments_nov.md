@@ -167,7 +167,7 @@ The table's N 24 and 31 feature cells hold 67 and 50 delivered samples (about 7 
 costs 0.16 to 6 wall s per simulated s at 300 B and 1 KB and 0.5 to 26 at 16.9 KB.
 Closed loop (scripts/ispass/radio_fidelity_closed_loop.sh, left turn, intermediate fusion, 70 km/h,
 measured compute, 16.9 KB both directions, 10 paired seeds): every arm completes 10 of 10 at both loads
-(the encounter passes without detections at zero added delay). p99 age at N 16: table 338, live 305 ms.
+(correction Nov 12: the no-cooperation check ispass_fid5gate collides 3 of 3, so the encounter needs cooperation; the arms do not separate because the encounter tolerates more than 1 s of added delay). p99 age at N 16: table 338, live 305 ms.
 At N 24: table 536, table with loss 766, live 300 ms, because ns-3 serves the managed CAV (sender 0)
 at 48 ms with full delivery while other senders starve. New edge options on the intermediate-fusion
 manager, all default off: radio=live, lut_loss=true, msg_b=<bytes>. No 5G-MOBIX trace replay exists.
