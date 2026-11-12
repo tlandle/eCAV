@@ -68,7 +68,7 @@ def load(stamp, root):
         age = reduce_run(pt) if os.path.exists(pt) else {}
         edges = list((m.get("edges") or {}).values()); comp = (edges[0].get("composed_delay") if edges else None) or {}
         rows.append(dict(
-            geom=geom, arch=arch, cond=cond_of(kv), lut_n=int(kv.get("lut_n", 0) or 0), rep=int(r["rep"]), s_op=int(r["s_op"]),
+            geom=geom, arch=arch, cond=cond_of(kv), lut_n=int(kv.get("lut_n", 0) or 0), lat=int(r.get("lat", 0) or 0), rep=int(r["rep"]), s_op=int(r["s_op"]),
             collided=int(r.get("focal_collisions", 0) > 0), ghost=int(r.get("focal_ghost_episodes", 0) > 0),
             fbrake=int(r.get("focal_fp_episodes", 0) > 0),
             p99=age.get("critical_object_p99_ms", float("nan")), brake_age=age.get("conflict_brake_age_ms", float("nan")),
@@ -85,12 +85,13 @@ def nm(v):
 
 def summarize(rows):
     out = []
-    keys = sorted({(r["geom"], r["arch"], r["cond"], r["lut_n"]) for r in rows},
-                  key=lambda k: (k[0], ARCH_ORDER.index(k[1]), k[3] if k[2] in "CD" else -1, COND_ORDER.index(k[2])))
+    keys = sorted({(r["geom"], r["arch"], r["cond"], r["lut_n"], r["lat"]) for r in rows},
+                  key=lambda k: (k[0], k[4], ARCH_ORDER.index(k[1]), k[3] if k[2] in "CD" else -1, COND_ORDER.index(k[2])))
     rng = np.random.default_rng(0)
-    for g, a, c, n in keys:
-        cell = [r for r in rows if (r["geom"], r["arch"], r["cond"], r["lut_n"]) == (g, a, c, n)]
-        base = {r["rep"]: r["s_op"] for r in rows if (r["geom"], r["arch"], r["cond"]) == (g, a, "A")}
+    for g, a, c, n, lat in keys:
+        cell = [r for r in rows if (r["geom"], r["arch"], r["cond"], r["lut_n"], r["lat"]) == (g, a, c, n, lat)]
+        # paired reference: the idealized condition of the same architecture at the same added delay
+        base = {r["rep"]: r["s_op"] for r in rows if (r["geom"], r["arch"], r["cond"], r["lat"]) == (g, a, "A", lat)}
         k = sum(r["s_op"] for r in cell); lo, hi = wilson(k, len(cell))
         d = np.array([r["s_op"] - base[r["rep"]] for r in cell if r["rep"] in base], dtype=float)
         if len(d) and c != "A":
@@ -98,7 +99,7 @@ def summarize(rows):
             dm, dlo, dhi = d.mean(), *np.percentile(bs, [2.5, 97.5])
         else:
             dm = dlo = dhi = float("nan")
-        out.append(dict(geom=g, arch=a, cond=c, lut_n=n, n=len(cell), s_op=k / len(cell), lo=lo, hi=hi,
+        out.append(dict(geom=g, arch=a, cond=c, lut_n=n, lat=lat, n=len(cell), s_op=k / len(cell), lo=lo, hi=hi,
                         d_vs_A=dm, d_lo=dlo, d_hi=dhi, n_pairs=len(d),
                         collided=nm([r["collided"] for r in cell]), ghost=nm([r["ghost"] for r in cell]), fbrake=nm([r["fbrake"] for r in cell]),
                         p99_age=nm([r["p99"] for r in cell]), brake_age=nm([r["brake_age"] for r in cell]),
@@ -108,16 +109,18 @@ def summarize(rows):
 
 
 def print_table(summ):
-    print(f"{'geometry':<18}{'architecture':<22}{'cond':<12}{'N':>3}{'n':>4}  {'S_op [95% CI]':<20}{'vs A [95% CI]':<24}"
+    print(f"{'geometry':<18}{'architecture':<22}{'cond':<12}{'lat':>4}{'N':>3}{'n':>4}  {'S_op [95% CI]':<20}{'vs A [95% CI]':<24}"
           f"{'coll':>5}{'ghost':>6}{'fbrk':>5}{'p99 age':>8}{'brk age':>8}{'in bud':>7}{'cov':>6}{'comp':>6}{'ul':>6}{'dl':>6}")
     for s in summ:
         dv = "" if s["d_vs_A"] != s["d_vs_A"] else f"{s['d_vs_A']:+.2f} [{s['d_lo']:+.2f},{s['d_hi']:+.2f}]"
-        print(f"{s['geom']:<18}{s['arch']:<22}{s['cond'] + ' ' + COND_NAME[s['cond']]:<12}{s['lut_n'] or '':>3}{s['n']:>4}  "
+        print(f"{s['geom']:<18}{s['arch']:<22}{s['cond'] + ' ' + COND_NAME[s['cond']]:<12}{s['lat']:>4}{s['lut_n'] or '':>3}{s['n']:>4}  "
               f"{s['s_op']:.2f} [{s['lo']:.2f},{s['hi']:.2f}]   {dv:<24}{s['collided']:>5.2f}{s['ghost']:>6.2f}{s['fbrake']:>5.2f}{s['p99_age']:>8.0f}{s['brake_age']:>8.0f}"
               f"{s['in_budget']:>7.2f}{s['coverage']:>6.2f}{s['compute_ms']:>6.0f}{s['ul_ms']:>6.0f}{s['dl_ms']:>6.0f}")
 
 
-def figure(summ, path, lut_n=None):
+def figure(summ, path, lut_n=None, lat=None):
+    if lat is not None:
+        summ = [s for s in summ if s["lat"] == lat]
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -146,10 +149,11 @@ def figure(summ, path, lut_n=None):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("stamp"); ap.add_argument("--root", default=os.path.join(ROOT, "experiment_results"))
     ap.add_argument("--csv"); ap.add_argument("--fig"); ap.add_argument("--fig-n", type=int, default=None)
+    ap.add_argument("--fig-lat", type=int, default=None, help="added delay (ms) of the cells drawn")
     a = ap.parse_args()
     rows = load(a.stamp, a.root); print(f"{len(rows)} runs under stamp {a.stamp}")
     summ = summarize(rows); print_table(summ)
     if a.csv and summ:
         with open(a.csv, "w", newline="") as fh:
             w = csv.DictWriter(fh, fieldnames=list(summ[0].keys())); w.writeheader(); w.writerows(summ)
-    if a.fig and summ: figure(summ, a.fig, a.fig_n)
+    if a.fig and summ: figure(summ, a.fig, a.fig_n, a.fig_lat)
