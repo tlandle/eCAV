@@ -665,10 +665,10 @@ class PerceptionManager:
                     np.ascontiguousarray(np.round(np.asarray(
                         x.detach().cpu() if hasattr(x, 'detach') else x, dtype=np.float64), 2)).tobytes()
                     for x in yolo_detection.xyxy)).hexdigest()[:8]
-                logger.warning("[SENSOR-TRACE] id=%s world_frame=%s cams=%s lidar=%s yolo=%s",
+                logging.getLogger("DetTrace").warning("[SENSOR-TRACE] id=%s world_frame=%s cams=%s lidar=%s yolo=%s",
                                getattr(self, 'id', '?'), _wf, _cams, _lid, _yo)
             except Exception as _e:
-                logger.warning("[SENSOR-TRACE] failed: %s", _e)
+                logging.getLogger("DetTrace").warning("[SENSOR-TRACE] failed: %s", _e)
 
         # rgb_images for drawing
         rgb_draw_images = []

@@ -46,8 +46,10 @@ def main():
     first = {}
     for g, cols in GROUPS.items():
         for t in common:
-            ka = sorted(tuple(r.get(c, "") for c in cols) for r in ta[t])
-            kb = sorted(tuple(r.get(c, "") for c in cols) for r in tb[t])
+            # one value per tick for world, ego and decision columns (every row of a
+            # tick repeats them), one row per consumed track for the other two groups
+            ka = sorted({tuple(r.get(c, "") for c in cols) for r in ta[t]})
+            kb = sorted({tuple(r.get(c, "") for c in cols) for r in tb[t]})
             if ka != kb:
                 first[g] = t
                 break
