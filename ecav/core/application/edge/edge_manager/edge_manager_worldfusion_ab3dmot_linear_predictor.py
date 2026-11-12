@@ -251,6 +251,21 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # not applied. True adds it to the table uplink sample.
         self._lut_plus_configured = bool(cfg.get("lut_plus_configured", False))
         self._lut_n = cfg.get("lut_n", None)
+        # Radio fidelity comparison (ISPASS experiment 4), all default off:
+        #   radio=live        the running ns-3 process resolves each step's
+        #     uplink and downlink from the actors' positions (lut_n senders,
+        #     see latency/ns3_live_sampler.py). A message ns-3 does not
+        #     complete is dropped. Default 'table' samples the stored tables.
+        #   lut_loss=true     table mode also drops messages at the table's
+        #     delivery ratio (the table path otherwise applies delay only).
+        #   msg_b=<int>       uplink and downlink message size for either model,
+        #     in place of the feature tensor's size and the serialized size of
+        #     the predictions (the tables' feature cell is 16896 B).
+        self._radio_model = str(cfg.get("radio", "table")).lower()
+        self._lut_loss = str(cfg.get("lut_loss", "false")).lower() in ("true", "1", "on", "yes")
+        self._dl_bytes_override = int(cfg["msg_b"]) if cfg.get("msg_b", None) else None
+        self._radio_live = None           # built on first use (needs the RSU position)
+        self._radio_drops = {"ul": 0, "dl": 0, "ul_sent": 0, "dl_sent": 0}
         self._composed_rows: List[Tuple[int, float, float, float]] = []
         # Outbound delivery queue: list of (deliver_tick, predictions).
         # Latest-wins: _drain_outbound_latest returns the freshest prediction
@@ -500,20 +515,40 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     ul_bytes = int(first_feat.numel() * first_feat.element_size())
                 else:
                     ul_bytes = 16896  # default WorldFusion compressed feature size
-                ul_samples_ms = [
-                    self._lut_sampler.sample_ms(n_cav, ul_bytes, 'ul')
-                    for _ in range(n_cav)
-                ]
-                ul_ms = max(ul_samples_ms) if ul_samples_ms else 0.0
+                if self._dl_bytes_override:
+                    ul_bytes = self._dl_bytes_override
+                _ul_ok = True
+                self._radio_drops["ul_sent"] += 1
+                if self._radio_model == "live":
+                    # As the table path: the edge waits for the slowest sender.
+                    # The frame is lost when the managed CAV's uplink is lost.
+                    ul_ms, _ul_ok = self._live_radio(n_cav).uplink(
+                        frame_idx, self._managed_xy(), ul_bytes)
+                    self._last_ul_bytes = ul_bytes
+                elif self._lut_loss:
+                    _s = [self._lut_sampler.sample_with_loss(n_cav, ul_bytes, 'ul')
+                          for _ in range(n_cav)]
+                    ul_ms = max(x[0] for x in _s)
+                    _ul_ok = _s[0][1]
+                else:
+                    ul_samples_ms = [
+                        self._lut_sampler.sample_ms(n_cav, ul_bytes, 'ul')
+                        for _ in range(n_cav)
+                    ]
+                    ul_ms = max(ul_samples_ms) if ul_samples_ms else 0.0
                 self._last_ul_ms = ul_ms  # for network_age_ms (T12)
                 cfg_ms = ((self.latency_model.stamp(frame_idx) - frame_idx) * self._sim_dt_ms
                           if self._lut_plus_configured else 0.0)
                 ul_ticks = int(math.ceil((ul_ms + cfg_ms) / self._sim_dt_ms))
                 arrival = frame_idx + ul_ticks
+                if not _ul_ok:
+                    arrival = None        # the uplink did not complete: the frame is lost
+                    self._radio_drops["ul"] += 1
             else:
                 arrival = self.latency_model.stamp(frame_idx)
             payload = (feature_dicts, poses, carla_vehicles_snapshot, excluded_vehicles_snapshot)
-            self._jitter_buffer.push(frame_idx, arrival, payload)
+            if arrival is not None:
+                self._jitter_buffer.push(frame_idx, arrival, payload)
             # Store GT snapshots by source tick for metrics evaluation
             self._gt_snapshots[frame_idx] = carla_vehicles_snapshot
             self._excluded_snapshots[frame_idx] = excluded_vehicles_snapshot
@@ -523,6 +558,38 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 self._excluded_snapshots.pop(old, None)
         else:
             print(f"[WorldFusion Edge] WARNING: No feature_dicts collected!")
+
+    def _managed_xy(self):
+        """World (x, y) of the managed CAVs, the senders ns-3 places from the
+        simulation."""
+        out = []
+        for vm in self.vehicle_manager_list:
+            loc = vm.vehicle.get_location()
+            out.append((float(loc.x), float(loc.y)))
+        return out
+
+    def _live_radio(self, n_ue):
+        """The live ns-3 radio of this edge (radio_model=live), started on
+        first use with the gNB at the first RSU."""
+        if self._radio_live is None:
+            import atexit
+            from ecav.core.application.edge.latency.ns3_live_sampler import Ns3LiveSampler
+            if self.rsu_manager_list:
+                o = self.rsu_manager_list[0].localizer.get_ego_pos().location
+                origin = (float(o.x), float(o.y))
+            else:
+                xy = self._managed_xy()
+                origin = xy[0] if xy else (0.0, 0.0)
+            # ns-3 random stream: ECAV_RADIO_SEED, else the repetition index
+            # of the run directory (.../run_<k>), so paired seeds differ.
+            import re as _re, sys as _sys
+            _m = _re.search(r"run_(\d+)", " ".join(_sys.argv))
+            _seed = int(os.environ.get("ECAV_RADIO_SEED", _m.group(1) if _m else "0"))
+            self._radio_live = Ns3LiveSampler(
+                n_ue, self._dl_bytes_override or 16896, origin, dt_s=float(self.dt),
+                seed=_seed, tag=f"edge{os.getpid()}")
+            atexit.register(self._radio_live.shutdown)
+        return self._radio_live
 
     def _format_dets_for_tracker(self, det_results):
         """Hook: adapt the detection dict to the tracker's expected axis
@@ -883,7 +950,9 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 _trec = self._timing_trace_records[tick]
                 compute_ms = float(_trec.get('compute_ms', measured_compute_ms))
                 dl_ms = float(_trec.get('dl_ms', 0.0))
+                _dl_ok = True
             else:
+                _dl_ok = True
                 compute_ms = measured_compute_ms
                 if self._lut_sampler is not None:
                     n_cav_for_dl = max(1, num_agents - 1)  # exclude RSU
@@ -899,8 +968,19 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                                     if predictions else 1000)
                     except Exception:
                         dl_bytes = 1000
-                    dl_ms = self._lut_sampler.sample_ms(
-                        n_cav_for_dl, dl_bytes, 'dl')
+                    if self._dl_bytes_override:
+                        dl_bytes = self._dl_bytes_override
+                    self._radio_drops["dl_sent"] += 1
+                    if self._radio_model == "live":
+                        dl_ms, _dl_ok = self._live_radio(n_cav_for_dl).downlink(
+                            tick, self._managed_xy(),
+                            getattr(self, '_last_ul_bytes', 16896))
+                    elif self._lut_loss:
+                        dl_ms, _dl_ok = self._lut_sampler.sample_with_loss(
+                            n_cav_for_dl, dl_bytes, 'dl')
+                    else:
+                        dl_ms = self._lut_sampler.sample_ms(
+                            n_cav_for_dl, dl_bytes, 'dl')
                 else:
                     dl_ms = 0.0
             if getattr(self, '_compute_delay_mode', 'measured') == 'zero':
@@ -932,8 +1012,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 )
                 with open(self._timing_trace_path, "a", encoding="utf-8") as _tf:
                     _tf.write(_json.dumps(_trace_row) + "\n")
-            self._outbound_queue.append(
-                (deliver_tick, predictions, _src_tick, _net_ms))
+            if _dl_ok:
+                self._outbound_queue.append(
+                    (deliver_tick, predictions, _src_tick, _net_ms))
+            else:
+                self._radio_drops["dl"] += 1   # the downlink did not complete
             if hasattr(frame, 'set_compute_dl'):
                 frame.set_compute_dl(compute_ms=compute_ms, dl_ms=dl_ms,
                                     deliver_tick=deliver_tick)
@@ -2552,6 +2635,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             }
         if getattr(self, '_occupancy', None) is not None:
             metrics['service_occupancy'] = self._occupancy.metrics()
+        if self._radio_model != "table" or self._lut_loss or self._dl_bytes_override:
+            metrics['radio_model'] = {
+                'model': self._radio_model, 'lut_loss': bool(self._lut_loss),
+                'dl_bytes': self._dl_bytes_override, **self._radio_drops,
+                'live': self._radio_live.metrics() if self._radio_live is not None else None}
         if hasattr(self, 'mot_tracker') and self.mot_tracker is not None:
             metrics['birth_gate'] = {
                 # AB3DMOT birth-gate counters; other trackers (mamba)

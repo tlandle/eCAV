@@ -276,11 +276,11 @@ class NS3Bridge:
             # First tick does RRC/bearer bring-up for all UEs. With
             # max_vehicles=32 this takes ~75 s wall on the dev box;
             # scale generously.
-            timeout = 180.0
+            timeout = float(getattr(self, 'first_tick_timeout_s', 180.0))  # attribute: override for heavy loads
         else:
             # Subsequent ticks still scale with UE count via NR control
             # plane events. Give 30 s headroom for N~=31 at 17 KB payload.
-            timeout = 30.0
+            timeout = float(getattr(self, 'tick_timeout_s', 30.0))
         self._first_tick_done = True
         t0 = time.time()
         while time.time() - t0 < timeout:
