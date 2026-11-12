@@ -135,3 +135,22 @@ published speed 0.98 to 0.99 of truth; coverage 0.95 to 1.00.
 Finding outside this fix: an ego that receives nothing (7 m, epoch 45: no true brake) passes the
 crossing car at 3.9 m centre distance without contact and counts as an operational success at
 this cell. The outcome at zero added delay does not separate a blind arm from a seeing one.
+
+### Added-delay axis and campaign launch (2026-11-12 02:27)
+
+Gate 1 (stamp ispass_fid2_gate, conditions A and D, both geometries, added delay 0 and 200 ms, one
+seed) showed the 200 ms added delay was not applied under table delivery for V2X2V and intermediate
+fusion (age at brake 50 to 100 ms and 250 ms, the same as at 0 ms). With `use_ns3_lut` on, both
+managers stamp arrival from the table sample only. New option `lut_plus_configured` (default off, so
+existing campaigns are unchanged) adds the configured delay. Conditions C and D pass it.
+
+Gate 2 (stamp ispass_fid3_gate, conditions C and D): age at brake at 200 ms added delay is 250 ms
+(I2V), 250 to 300 ms (V2X2V), 300 ms (intermediate fusion, network only) and 450 ms (intermediate
+fusion, full system: 145 ms compute, 32 ms up, 20 ms down). Every cell 1/1.
+
+Campaign: stamp ispass_fid3 on cetus (`~/exp2_wt` at 1394d117), three architectures, conditions A to
+D, left turn and straight crossing, added delay 0 and 200 ms, table at N=16, 10 seeds per cell then
+30 (same stamp). 1,440 runs at 30 seeds. Started 02:27.
+- status: `ssh tlandle@143.215.184.49 'cd ~/exp2_wt && scripts/ispass/fidelity_status.sh ispass_fid3 logs/fid3_full.log'`
+- land: rsync `exp2_wt/experiment_results/{openscenario_3_edge_late_fusion,scp_edge_late_fusion}/ispass_fid3` (simulation_metrics.json, per_tick_age.csv, runner_stdout.txt), then
+  `PYTHONPATH=.:ecav/protos python scripts/ispass/fidelity_reduce.py ispass_fid3 --csv paper_ispass/fidelity.csv --fig paper_ispass/fig_fidelity.pdf --fig-n 16 --fig-lat 200`
