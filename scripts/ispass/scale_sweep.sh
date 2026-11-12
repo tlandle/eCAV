@@ -22,10 +22,11 @@ for part in $PARTS; do case $part in
   percep) # shared YOLO inference service on the GPU host, restarted per run so its log covers one run;
           # GPU utilisation and memory sampled once per second
     for n in 8 16 32; do
-      ssh $HOST 'cd $HOME/scale_wt && source $HOME/miniconda3/etc/profile.d/conda.sh && conda activate opencda310 && (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True setsid nohup python -u ecav/ml_manager/yolo_grpc_server.py > /tmp/yolo_grpc_scale.log 2>&1 < /dev/null &); timeout 180 bash -c "until ss -ltn | grep -q :18001; do sleep 2; done"' || echo "YOLO service did not start"
+      # the service command line must not start with "python -u ecav": the launcher kills those at the start of a run
+      ssh $HOST 'cd $HOME/scale_wt && source $HOME/miniconda3/etc/profile.d/conda.sh && conda activate opencda310 && (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True PYTHONUNBUFFERED=1 setsid nohup python ecav/ml_manager/yolo_grpc_server.py > /tmp/yolo_grpc_scale.log 2>&1 < /dev/null &); timeout 180 bash -c "until ss -ltn | grep -q :18001; do sleep 2; done"' || echo "YOLO service did not start"
       ssh $HOST '(setsid nohup nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits -l 1 > /tmp/gpu_scale.csv 2>/dev/null < /dev/null &)'
       one ${STAMP}_pdense_n$n -n $n -r 2 -p shared -s 300
-      ssh $HOST 'for p in $(pgrep -f "^nvidia-smi --query-gpu=utilization.gpu,memory.used"); do kill $p; done; for p in $(pgrep -f "^python -u ecav/ml_manager/yolo_grpc_server.py"); do kill -9 $p; done'
+      ssh $HOST 'for p in $(pgrep -f "^nvidia-smi --query-gpu=utilization.gpu,memory.used"); do kill $p; done; for p in $(pgrep -f "^python ecav/ml_manager/yolo_grpc_server.py"); do kill -9 $p; done'
       scp -q $HOST:/tmp/gpu_scale.csv experiment_results/ispass_scale/${STAMP}_pdense_n$n/gpu.csv
       scp -q $HOST:/tmp/yolo_grpc_scale.log experiment_results/ispass_scale/${STAMP}_pdense_n$n/yolo_grpc.log
     done ;;
