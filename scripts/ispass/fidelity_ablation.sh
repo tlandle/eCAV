@@ -11,7 +11,7 @@
 # One live connected vehicle and two roadside units in every run; LUT_N is modelled radio load.
 # Every switch is an --edge-kv pair, so it is part of the run directory and of the reducer's kv.
 #
-#   scripts/ispass/fidelity_ablation.sh smoke|gate|full [--dry-run]
+#   scripts/ispass/fidelity_ablation.sh smoke|gate|nocoop|full [--dry-run]
 #   STAMP=ispass_fid REPS=30 LUT_NS="16" GEOMS="lt scp" LATS="0 200" scripts/ispass/fidelity_ablation.sh full
 set -uo pipefail
 STAGE="${1:?smoke|gate|full}"; DRY="${2:-}"
@@ -29,6 +29,12 @@ arch_args() { case "$1" in
   i2v)   echo "--manager-types infra_only --anchoring off" ;;
   v2x2v) echo "--manager-types late_fusion --anchoring on" ;;
   inter) echo "--baselines wf --anchoring on" ;; esac; }
+# Intermediate fusion only: the feature message size on both links (MSG_B, bytes) in the
+# network-aware conditions, and service occupancy (OCC=on|off) in the compute-aware conditions.
+arch_cond_kv() { [[ "$1" == inter ]] || return 0; case "$2" in
+  B) echo "service_occupancy=${OCC:-off}" ;;
+  C) echo "msg_b=${MSG_B:-16896}" ;;
+  D) echo "service_occupancy=${OCC:-off} msg_b=${MSG_B:-16896}" ;; esac; }
 cond_kv() { local n="$2"; case "$1" in
   A) echo "compute_delay=zero use_ns3_lut=false lut_dl=false" ;;
   B) echo "compute_delay=measured use_ns3_lut=false lut_dl=false" ;;
@@ -38,7 +44,7 @@ run_cell() {  # geom arch cond lut_n reps
   set -- "$@"; local g a; read -r g a <<< "$(geom_args "$1")"
   local cmd=(test_runner.py -t "$g" $(arch_args "$2") --latencies $LATS --latency-distribution fixed --speeds $SPEED
              --ego-counts 1 --repetitions "$5" --per-tick-age-log --self-id-radius 1 --carla-port "$PORT" --stamp "$STAMP"
-             --edge-kv prediction_steps=60 $(cond_kv "$3" "$4") --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
+             --edge-kv prediction_steps=60 $(cond_kv "$3" "$4") $(arch_cond_kv "$2" "$3") --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
              --scenario-env "$a" HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=-90 EGO_DRIVE_DISTANCE=400 SCENARIO_MAX_STEP=900)
   echo "$(date '+%F %T') $1 $2 $3 n=$4 reps=$5 lats=$LATS"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; else "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3; fi
@@ -52,7 +58,15 @@ if [[ "$DRY" != "--dry-run" ]]; then
 fi
 case "$STAGE" in
   smoke) for a in $ARCHS; do run_cell lt "$a" D 16 1; done ;;
-  gate)  for g in ${GATE_GEOMS:-lt}; do for a in $ARCHS; do for c in $CONDS; do run_cell "$g" "$a" "$c" 16 "${GATE_REPS:-2}"; done; done; done ;;
+  gate)  for g in ${GATE_GEOMS:-lt}; do for a in $ARCHS; do for c in $CONDS; do run_cell "$g" "$a" "$c" "${GATE_N:-16}" "${GATE_REPS:-2}"; done; done; done ;;
+  nocoop)  # encounter check: with every shared message dropped the connected vehicle must collide
+    for g in $GEOMS; do read -r sc tta <<< "$(geom_args "$g")"
+      echo "$(date '+%F %T') $g no cooperation reps=${GATE_REPS:-3}"
+      "$PY" test_runner.py -t "$sc" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0 --latency-distribution fixed --speeds $SPEED \
+        --ego-counts 1 --repetitions "${GATE_REPS:-3}" --per-tick-age-log --self-id-radius 1 --carla-port "$PORT" --stamp "$STAMP" \
+        --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0 \
+        --scenario-env "$tta" HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=-90 EGO_DRIVE_DISTANCE=400 SCENARIO_MAX_STEP=900 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3
+    done ;;
   full)  # conditions A and B do not depend on the radio load: run them once
     for g in $GEOMS; do for a in $ARCHS; do
       for c in A B; do [[ " $CONDS " == *" $c "* ]] && run_cell "$g" "$a" "$c" 0 "$REPS"; done
