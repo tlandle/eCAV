@@ -287,6 +287,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._gt_snapshots: Dict[int, Dict] = {}
         self._excluded_snapshots: Dict[int, Dict] = {}
         self._latest_source_tick = None
+        # Seconds between the source ticks of consecutive tracker steps,
+        # measured in run_step. The tracker's velocity is per step.
+        self._trk_prev_frame_id = None
+        self._trk_step_s = None
 
         # Track history for AB3DMOT replay (following late fusion pattern)
         self.track_history: Deque[Dict] = deque(maxlen=30)
@@ -709,6 +713,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 _n_in = len(det_results.get('dets', []))
                 _has_internals = hasattr(self.tracker, 'trackers')
                 _n_trks_before = len(self.tracker.trackers) if _has_internals else -1
+                if (self._trk_prev_frame_id is not None
+                        and frame_id > self._trk_prev_frame_id):
+                    self._trk_step_s = (frame_id - self._trk_prev_frame_id) * float(self.dt)
+                self._trk_prev_frame_id = frame_id
                 tracks, _ = self.tracker.track(det_results, frame_id)
                 _n_out = len(tracks[0]) if tracks and len(tracks) > 0 and len(tracks[0]) > 0 else 0
                 _n_trks_after = len(self.tracker.trackers) if _has_internals else -1
@@ -1766,12 +1774,15 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy
                 if len(trk) > 12:
                     kf_vx, kf_vy = float(trk[10]), float(trk[12])
-                    _step_s = float(self.cfg.get('edge_dt', 0.2))                         if hasattr(self, 'cfg') else 0.2
+                    _step_s = self._tracker_step_s()
                     # Col 13 flags the unit: Mamba rows carry m/s directly
                     # (cadence-independent, measured from the source-tick
                     # stride in the wrapper). AB3DMOT rows are per TRACKER
-                    # STEP; the tracker is fed once per edge cycle (edge_dt),
-                    # not per world tick or a hard-coded 0.1 s.
+                    # STEP, and the step is the measured stride between the
+                    # source ticks the tracker was fed (_tracker_step_s). The
+                    # configured edge_dt (0.2 s) read a car at a quarter of
+                    # its speed when the edge fused every 50 ms tick
+                    # (left turn, 2026-11-11: at most 2.2 m/s for 5 to 19 m/s).
                     if len(trk) > 13 and float(trk[13]) == 1.0:
                         traj.obstacle.kf_speed_mps = (
                             kf_vx**2 + kf_vy**2)**0.5
@@ -1841,6 +1852,13 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                         vm.vehicle.id
                     self.track_to_carla[best_tid] = vm.vehicle.id
 
+    def _tracker_step_s(self) -> float:
+        """Seconds per tracker step: the measured source-tick stride, or the
+        configured edge_dt before two steps have run."""
+        if self._trk_step_s:
+            return float(self._trk_step_s)
+        return float(self.cfg.get('edge_dt', 0.2)) if hasattr(self, 'cfg') else 0.2
+
     def _filter_ghost_tracks(self, min_speed_mps: float = 0.5, static_frames_to_remove: int = 4):
         """
         Filter out ghost/static tracks that the predictor would otherwise
@@ -1863,8 +1881,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         for trk in getattr(self.tracker, 'trackers', []):
             kfx = trk.kf.x.reshape(-1)
             # State layout (AB3DMOT): pos[0..2], theta[3], dim[4..6], vel[7..9]
+            # The state velocity is in m per tracker step; min_speed_mps is
+            # in m/s. Compared without the conversion, a car under 10 m/s at
+            # a 50 ms step (2.5 m/s at 200 ms) was removed as static.
             vx, vy = float(kfx[7]), float(kfx[9])
-            kf_vel_by_tid[int(trk.id)] = float(np.hypot(vx, vy))
+            kf_vel_by_tid[int(trk.id)] = float(np.hypot(vx, vy)) / self._tracker_step_s()
 
         for tid, traj in self.tracked_trajectories.items():
             # Initialize velocity history for this track if needed

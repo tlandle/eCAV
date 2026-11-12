@@ -428,6 +428,12 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self.mot_cfg.assoc_metric = _assoc_metric or None
         self.mot_cfg.assoc_threshold = None if _assoc_thres is None else float(_assoc_thres)
         self.mot_cfg.assoc_algorithm = cfg.get('assoc_algorithm', None) or None
+        # Published-velocity options of the tracker (AB3DMOT_libs/model.py).
+        # Unset keys keep the defaults (box edges, 10 frames).
+        if cfg.get('vel_from_edges', None) is not None:
+            self.mot_cfg.vel_from_edges = cfg.get('vel_from_edges')
+        if cfg.get('vel_window', None) is not None:
+            self.mot_cfg.vel_window = cfg.get('vel_window')
         self.mot_category = 'Car'
         self.tracker = AB3DMOT(self.mot_cfg, self.mot_category)
 

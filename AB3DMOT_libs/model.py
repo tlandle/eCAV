@@ -57,6 +57,21 @@ class AB3DMOT(object):
 				or getattr(cfg, 'assoc_threshold', None) is not None):
 			self._apply_assoc_override(cfg)
 
+		# Published-velocity options. The defaults are the junction behaviour
+		# (slower measured box edge over half a second, see _edge_velocity).
+		# vel_from_edges False publishes the slope of the track's own output
+		# positions; vel_window sets the slope window in frames. On a
+		# multi-lane road at highway speed the edges of a lidar box seen from
+		# behind move by 1 to 2 m between frames and sensors: the slower-edge
+		# rule read a 17 m/s car at 11 to 23 m/s and its lateral velocity at
+		# zero or at 1.5 m/s of noise (highway merge, 2026-11-11).
+		_vfe = getattr(cfg, 'vel_from_edges', True)
+		self.vel_from_edges = str(_vfe).strip().lower() not in ('0', 'false', 'no', 'off')
+		_vw = getattr(cfg, 'vel_window', None)
+		if _vw not in (None, ''):
+			self.VEL_WINDOW = int(float(_vw))
+			self.VEL_WINDOW_LONG = 2 * self.VEL_WINDOW
+
 		# Identity exclusion zone: anisotropic heading-aligned gate
 		# prevents birth of anonymous tracks that are depth-error
 		# duplicates of beacon-identified participants.
@@ -708,9 +723,9 @@ class AB3DMOT(object):
 				if _hist is None:
 					_hist = trk.pos_hist = []
 				_hist.append((self.frame_count, float(trk.kf.x[0]), float(trk.kf.x[2])))
-				if len(_hist) > 21:
+				if len(_hist) > max(21, self.VEL_WINDOW_LONG + 1):
 					del _hist[0]
-				_eh = getattr(trk, 'edge_hist', None)
+				_eh = getattr(trk, 'edge_hist', None) if self.vel_from_edges else None
 				if len(_hist) < 10:
 					# under half a second of history the displacement is
 					# dominated by the measured centroid settling (a track
