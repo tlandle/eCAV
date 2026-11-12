@@ -433,6 +433,10 @@ class PerceptionManager:
 
         #print(config_yaml)
         self.activate = config_yaml['activate']
+        # Range of the ground-truth object list used when perception is not
+        # active (deactivate_mode), metres. Unset keeps the earlier behaviour,
+        # every vehicle in the world.
+        self.deactivate_range_m = float(config_yaml.get('deactivate_range_m', 100000))
         in_docker = os.environ.get('IS_DOCKER', '0') == '1'
         self.camera_visualize = 0 if in_docker else config_yaml['camera']['visualize']
         self.camera_num = config_yaml['camera']['num']
@@ -958,8 +962,7 @@ class PerceptionManager:
         world = self.carla_world
 
         vehicle_list = world.get_actors().filter("*vehicle*")
-        # todo: hard coded
-        thresh = 100000 if not self.data_dump else 100000
+        thresh = self.deactivate_range_m
 
         vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and
                         v.id != self.id and v.id != call_id]

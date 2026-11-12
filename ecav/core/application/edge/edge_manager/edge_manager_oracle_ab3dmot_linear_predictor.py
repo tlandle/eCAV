@@ -26,6 +26,7 @@ from typing import Dict, List, Deque
 
 import numpy as np
 import carla
+from ecav.ecav2 import pred_blobs
 
 from easydict import EasyDict as edict
 from AB3DMOT_libs.model import AB3DMOT
@@ -169,6 +170,13 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         # managers
         self.lin_pred = LinearPredictorManager(num_future_steps=getattr(self, '_pred_steps', 25))
+
+        # Optional recipient range gate (edge config recipient_range_m, metres;
+        # unset: every recipient receives every forecast, as before). With N
+        # recipients and N forecasts the unset form serialises N*(N-1)
+        # forecasts per tick, which was half of the edge step at 32 vehicles.
+        _rr = cfg.get("recipient_range_m", None)
+        self.recipient_range_m = float(_rr) if _rr is not None else None
 
         # AB3DMOT tracker — persistent across ticks (jitter-buffer arch)
         self.anchoring = cfg.get("anchoring", True)
@@ -566,6 +574,23 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 cumulative_ms = 0.0
                 contended_ids: list[int] = []
 
+                # every forecast is serialised once; a recipient's buffer is the
+                # concatenation of the ones it receives (ecav/ecav2/pred_blobs.py)
+                try:
+                    _blobs = [pickle.dumps(p, protocol=pickle.HIGHEST_PROTOCOL) for p in preds]
+                    _blob_of = {id(p): b for p, b in zip(preds, _blobs)}
+                except Exception as e:
+                    logging.warning("Error serializing predictions one by one: %s", e)
+                    _blob_of = None
+                _gate = self.recipient_range_m
+                if _gate is not None and preds:
+                    _pxy = np.array([
+                        (p.obstacle_trajectory.obstacle.location.x,
+                         p.obstacle_trajectory.obstacle.location.y)
+                        for p in preds], dtype=float).reshape(-1, 2)
+                    _pcid = [getattr(p.obstacle_trajectory.obstacle,
+                                     'carla_id', -1) for p in preds]
+
                 for index, vm in enumerate(self.vehicle_manager_list):
                     cumulative_ms += per_veh
                     is_contended = (budget is not None
@@ -575,13 +600,24 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
                     # Oracle knows every track's identity: always
                     # suppress the ego's own track before publishing.
-                    ego_preds = [
-                        p for p in preds
-                        if getattr(p.obstacle_trajectory.obstacle,
-                                   'carla_id', -1) != vm.vehicle.id
-                    ]
+                    if _gate is not None and preds:
+                        _vl = vm.vehicle.get_location()
+                        _near = np.nonzero(
+                            (_pxy[:, 0] - _vl.x) ** 2 + (_pxy[:, 1] - _vl.y) ** 2
+                            <= _gate * _gate)[0]
+                        ego_preds = [preds[i] for i in _near
+                                     if _pcid[i] != vm.vehicle.id]
+                    else:
+                        ego_preds = [
+                            p for p in preds
+                            if getattr(p.obstacle_trajectory.obstacle,
+                                       'carla_id', -1) != vm.vehicle.id
+                        ]
                     try:
-                        ego_pickled = pickle.dumps(ego_preds)
+                        if _blob_of is not None:
+                            ego_pickled = pred_blobs.pack([_blob_of[id(p)] for p in ego_preds])
+                        else:
+                            ego_pickled = pickle.dumps(ego_preds)
                     except Exception:
                         ego_pickled = pickled_fresh
 

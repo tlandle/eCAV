@@ -130,10 +130,36 @@ def main():
             rows[k].append(v)
         walls.append(w)
     busy = cpu_busy(d)
+    sequential = not srv and not cli
+    if sequential:
+        # single process: the orchestrator line is all there is. "clients" is the world tick and
+        # "world" is the edge step with every vehicle's update and planning inside it.
+        walls = [wall[k][0] for k in steps if k >= skip]
+        rows["world tick"] = [wall[k][1] for k in steps if k >= skip]
+        rows["edge step"] = [wall[k][2] for k in steps if k >= skip]
     wm, w50, w99 = stats(walls)
     launch = open(f"{d}/launch.log", errors="ignore").read() if os.path.exists(f"{d}/launch.log") else ""
     m = re.search(r"first tick after (\d+) s", launch)
     first = int(m.group(1)) if m else float("nan")
+    if "--json" in sys.argv:
+        import json
+        gen = re.search(r"layout (\w+): mean vehicles within ([\d.]+) m of a vehicle ([\d.]+), within ([\d.]+) m ([\d.]+); "
+                        r"vehicles within [\d.]+ m of an RSU: mean ([\d.]+), max (\d+)", launch)
+        nveh = re.search(r"scale_town06 N=(\d+) R=(\d+) perception=(\w+)", launch)
+        print(json.dumps(dict(
+            dir=d, n=int(nveh.group(1)) if nveh else nv, rsus=nr, perception=nveh.group(3) if nveh else "",
+            mode="sequential" if sequential else "distributed", ticks=len(walls),
+            wall_mean=wm, wall_p50=w50, wall_p99=w99, dt_ms=50.0,
+            sim_s_per_wall_s=(50.0 / wm) if walls else None,
+            rows={n: (st.mean(rows[n]) if rows[n] else None) for n in names},
+            client_compute_all_mean=st.mean(comp) if comp else None,
+            client_compute_all_p99=pct(comp, .99) if comp else None,
+            first_tick_s=first, cpu_busy=busy,
+            layout=gen.group(1) if gen else None,
+            neighbours_sense=float(gen.group(3)) if gen else None,
+            neighbours_recipient=float(gen.group(5)) if gen else None,
+            per_rsu_mean=float(gen.group(6)) if gen else None, per_rsu_max=int(gen.group(7)) if gen else None)))
+        return
     if "--row" in sys.argv:
         cells = [f"{nv}", f"{wm:.0f} / {w50:.0f} / {w99:.0f}"] + [f"{st.mean(rows[n]):.0f}" if rows[n] else "-" for n in names]
         cells += [f"{st.mean(comp):.0f}" if comp else "-", f"{first}",

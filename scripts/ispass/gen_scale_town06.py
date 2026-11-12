@@ -13,6 +13,19 @@ one platoon block under the roadside units and a large N fills the map. Each ego
 its lane to a destination --route-len metres ahead with the planner's car following.
 Slots come from the OpenDRIVE file, so no CARLA server is needed.
 
+Layouts:
+    --layout dense     slots nearest to --centre first: one block whose local density does not
+                       depend on N (the worst case: every vehicle is in range of most others)
+    --layout spread    N slots taken evenly over every usable slot of the map, so the local
+                       density grows with N only as the map fills. RSUs are placed so that
+                       every vehicle is within --rsu-radius of one (--rsus is then a cap, 0 for none).
+Range gates (both layouts, both execution modes, written into the YAML):
+    --sense-range M    ground-truth object list of a vehicle without sensors is limited to M metres
+                       (default: the vehicle lidar range of the base YAML). 0 keeps every vehicle.
+    --recipient-range M  the edge sends a vehicle the forecasts within M metres (default 150:
+                       the 54 m planned path plus two vehicles closing at the speed limit over
+                       the 3 s forecast, with margin). 0 sends every forecast to every vehicle.
+
 Variants:
     --perception off   exact-state edge manager (oracle), no sensors on vehicles or RSUs,
                        clients run without --apply_ml: planning and orchestration cost only
@@ -112,6 +125,10 @@ def main(argv=None):
     ap.add_argument("--min-route", type=float, default=150.0, help="shortest straight route ahead of a slot, metres")
     ap.add_argument("--min-seg", type=float, default=80.0, help="shortest lane segment used, metres")
     ap.add_argument("--centre", type=float, nargs=2, default=[350.0, 145.0])
+    ap.add_argument("--layout", choices=["dense", "spread"], default="dense")
+    ap.add_argument("--rsu-radius", type=float, default=100.0, help="spread layout: every vehicle within this distance of an RSU")
+    ap.add_argument("--sense-range", type=float, default=None, help="metres; default the base YAML's vehicle lidar range; 0 unlimited")
+    ap.add_argument("--recipient-range", type=float, default=150.0, help="metres; 0 unlimited")
     ap.add_argument("--carla-host", default="localhost", help="CARLA host as the clients reach it (scenario_runner.host, world.client_host)")
     ap.add_argument("--carla-port", type=int, default=2000)
     ap.add_argument("--xodr", default=None)
@@ -128,7 +145,12 @@ def main(argv=None):
     else:
         sys.exit(f"only {len(sl)} slots on Town06 at {spacing:g} m spacing; N is too large for this map")
     a.spacing = spacing
-    sl = sl[:N]
+    if a.layout == "spread":
+        # even stride over the slots in road order (road, s, lane), so the fleet covers the map
+        order = sorted(sl, key=lambda p: (p["road"], p["s"], p["lane"]))
+        sl = [order[int(i * len(order) / N)] for i in range(N)]
+    else:
+        sl = sl[:N]
 
     # ---- scenario XML: one ego entry per vehicle, role names hero, hero1, hero2, ...
     lines = ['<?xml version="1.0"?>', "<scenarios>",
@@ -175,6 +197,11 @@ def main(argv=None):
 
     vt = edge["vehicles"][0]
     v_sensing = set_perception(vt["sensing"])
+    sense = a.sense_range if a.sense_range is not None else float(vt["sensing"]["perception"]["lidar"].get("range", 50))
+    if sense > 0:
+        v_sensing["perception"]["deactivate_range_m"] = sense
+    if a.recipient_range > 0:
+        edge["recipient_range_m"] = a.recipient_range
     v_behavior = copy.deepcopy(vt["behavior"])
     v_behavior.update(max_speed=a.speed_kmh, speed_lim_dist=3, overtake_allowed=False, start_hold_ticks=0)
     v_behavior["local_planner"].update(buffer_size=12, waypoint_update_freq=9)
@@ -189,11 +216,23 @@ def main(argv=None):
 
     rt = edge["rsus"][0]
     r_sensing = set_perception(rt["sensing"])
+    if a.layout == "spread":
+        # greedy cover: a vehicle farther than --rsu-radius from every RSU gets one at the roadside
+        # next to it (10 m to the right of its lane); --rsus caps the count
+        rsu_pos = []
+        for p in sl:
+            if len(rsu_pos) >= R:
+                break
+            if all(math.hypot(p["x"] - q[0], p["y"] - q[1]) > a.rsu_radius for q in rsu_pos):
+                yaw = math.radians(p["yaw"])
+                rsu_pos.append([round(p["x"] - 10.0 * math.sin(yaw), 1), round(p["y"] + 10.0 * math.cos(yaw), 1), 7.0])
+        R = len(rsu_pos)
+    else:
+        rsu_pos = [[float(a.centre[0] - 47.5 * (R - 1) + 95.0 * j), 155.0, 7.0] for j in range(R)]
     rsus = []
     for j in range(R):
         r = {key: val for key, val in rt.items() if key not in ("sensing", "name", "spawn_position", "id")}
-        r.update(sensing=r_sensing, name=f"rsu{j + 1}", id=-(j + 1),
-                 spawn_position=[float(a.centre[0] - 47.5 * (R - 1) + 95.0 * j), 155.0, 7.0])
+        r.update(sensing=r_sensing, name=f"rsu{j + 1}", id=-(j + 1), spawn_position=rsu_pos[j])
         rsus.append(r)
     edge["rsus"] = rsus
 
@@ -201,6 +240,13 @@ def main(argv=None):
         f"# Generated by scripts/ispass/gen_scale_town06.py -n {N} --rsus {R} --perception {a.perception}; do not edit.\n"
         + yaml.dump(d, sort_keys=False, default_flow_style=None, width=120))
     xs = [p["x"] for p in sl]; ys = [p["y"] for p in sl]
+    def within(r):
+        return sum(sum(1 for q in sl if q is not p and math.hypot(p["x"] - q["x"], p["y"] - q["y"]) <= r) for p in sl) / max(N, 1)
+    zone = [sum(1 for p in sl if math.hypot(p["x"] - q[0], p["y"] - q[1]) <= a.rsu_radius) for q in rsu_pos]
+    print(f"RSUS={R}")
+    print(f"layout {a.layout}: mean vehicles within {sense:g} m of a vehicle {within(sense if sense > 0 else 1e9):.1f}, "
+          f"within {a.recipient_range:g} m {within(a.recipient_range if a.recipient_range > 0 else 1e9):.1f}; "
+          f"vehicles within {a.rsu_radius:g} m of an RSU: mean {sum(zone) / max(len(zone), 1):.1f}, max {max(zone) if zone else 0}")
     print(f"scale_town06: {N} egos on {len({(p['road'], p['lane']) for p in sl})} lanes, x {min(xs):.0f}..{max(xs):.0f}, "
           f"y {min(ys):.0f}..{max(ys):.0f}; {R} RSUs; perception {a.perception}; manager {edge['manager_type']}; "
           f"shortest route {min(p['route'] for p in sl):.0f} m; CARLA {a.carla_host}:{a.carla_port}")

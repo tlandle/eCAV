@@ -33,6 +33,7 @@ from ecav.scenario_testing.utils.yaml_utils import load_yaml
 from ecav.core.application.edge.networking import NetworkEmulator
 from ecav.core.common.ecloud_config import EcloudConfig, eDoneBehavior, eLocationType
 from ecav.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
+from ecav.ecav2 import pred_blobs
 
 import grpc
 from google.protobuf.json_format import MessageToJson
@@ -394,8 +395,8 @@ class Ecav2ActorClient:
 
             # Process fused predictions if available
             if object_buffer and object_buffer.pickled_edge_predictions:
-                preds = pickle.loads(object_buffer.pickled_edge_predictions)
-                n_preds = len(preds.get('vehicles', [])) if isinstance(preds, dict) else 0
+                preds = pred_blobs.unpack(object_buffer.pickled_edge_predictions)
+                n_preds = len(preds.get('vehicles', [])) if isinstance(preds, dict) else len(preds)
                 logger.debug("[DATA_FLOW] tick=%d %s %d edge_predictions: %d objects",
                              vehicle_update_.tick_id, actor_label, self.vehicle_index, n_preds)
                 if self.actor_type == ecloud.ActorType.VEHICLE and self.vehicle_manager:
@@ -603,7 +604,7 @@ class Ecav2ActorClient:
                     obj_request = ecloud.ObjectRequest()
                     obj_request.vehicle_index = self.vehicle_index
                     object_proto = await self.ecloud_server.Client_GetObjects(obj_request)
-                    preds = pickle.loads(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
+                    preds = pred_blobs.unpack(object_proto.pickled_edge_predictions) if object_proto.pickled_edge_predictions else None
                     if self.actor_type == ecloud.ActorType.VEHICLE:
                         self.vehicle_manager.agent.edge_predictions = preds
                     t_pull_end = time.time()

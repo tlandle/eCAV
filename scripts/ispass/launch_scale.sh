@@ -17,7 +17,9 @@
 #   -R HOST         RSU client host (default: edge host)
 #   -H LIST         vehicle clients: "host:lo-hi,host:lo-hi" (default: orchestrator host, 0..N-1)
 #   -t TAG          results directory tag (default: n<N>_r<R>_p<on|off>_<time>)
-#   -g ARGS         extra generator arguments, quoted (e.g. -g "--speed-kmh 50")
+#   -g ARGS         extra generator arguments, quoted (e.g. -g "--layout spread --rsus 12")
+#   -m dist|seq     dist (default): one process per actor. seq: the sequential single process
+#                   (ecav.py without -d) on the orchestrator host, same scenario files
 # Environment: SCALE_WT (worktree on every host, default $HOME/scale_wt), SCALE_ACT (shell line that activates the
 # Python env on every host), SCALE_CARLA_ROOT (default $HOME/carla-0.9.15), BATCH (clients started per wave, 16).
 #
@@ -29,8 +31,9 @@
 # one host is used: carla_server_public_ip, ecloud_server_public_ip, vehicle_client_public_ip
 # (the host's own address; on the orchestrator the list of client hosts), edge_server_public_ip.
 set -uo pipefail
-N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""
-while getopts "n:r:p:s:o:c:e:R:H:t:g:" o; do case $o in
+N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""; MODE=dist
+while getopts "n:r:p:s:o:c:e:R:H:t:g:m:" o; do case $o in
+  m) MODE=$OPTARG;;
   n) N=$OPTARG;; r) R=$OPTARG;; p) P=$OPTARG;; s) STEPS=$OPTARG;; o) ORCH=$OPTARG;; c) CARLA=$OPTARG;;
   e) EDGE=$OPTARG;; R) RSUH=$OPTARG;; H) VLIST=$OPTARG;; t) TAG=$OPTARG;; g) GEN=$OPTARG;; *) exit 2;; esac; done
 [[ -n "$N" && -n "$ORCH" ]] || { sed -n 2,20p "$0"; exit 2; }
@@ -79,6 +82,10 @@ if [[ $(wc -l <<< "$HOSTS") -eq 1 ]]; then CARLA_IP=localhost; MULTI=0; else
   log "addresses: carla $CARLA_IP orchestrator $ORCH_IP edge $EDGE_IP clients $CLIENT_IPS"
 fi
 
+# file logging: every process writes a debug-level log file by default (cloud_config file_log_level), hundreds of MB
+# per client per run and about 12 % of a client's step. Scale runs log warnings and above to file.
+for h in $HOSTS; do $SSH "$h" "cd $WT && sed -i '/^file_log_level:/d' cloud_config.yaml && echo 'file_log_level: \"${SCALE_FILE_LOG:-warning}\"' >> cloud_config.yaml" || fail "file_log_level on $h"; done
+
 # CARLA
 if ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
   log "starting CARLA on $CARLA"
@@ -89,11 +96,24 @@ fi
 
 # scenario files: generated on the orchestrator, copied to the other hosts (clients read the XML, the YAML comes from the server)
 on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $P --carla-host $CARLA_IP $GEN" | tee -a "$OUT/launch.log" || fail "generator"
+# the spread layout chooses its own RSU count
+RG=$(grep -o '^RSUS=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); [[ -n "$RG" ]] && R=$RG
 for h in $HOSTS; do [[ $h == "$ORCH" ]] && continue
   for f in ecav/scenario_testing/scenarios/scenario_scale_town06.xml ecav/scenario_testing/config_yaml/scale_town06.yaml; do
     scp -q -3 $SSHO "$ORCH:${WT/\$HOME\//}/$f" "$h:${WT/\$HOME\//}/$f" || fail "copy $f to $h"; done; done
 
 T0=$(date +%s)
+if [[ $MODE == seq ]]; then
+  bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS python -u ecav.py -t scale_town06 -v 0.9.15 $ML"
+  wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 |Caught exception|Traceback" $((900 + 6 * N)) || fail "no first tick (sequential)"
+  $SSH "$ORCH" "cd $WT && grep -q 'Caught exception' $L/orch.log" && fail "sequential run raised before the first tick"
+  log "first tick after $(( $(date +%s) - T0 )) s"
+  $SSH "$ORCH" "cd $WT && head -1 /proc/stat > $L/cpu_start.log; cat /proc/loadavg > $L/load_start.log"
+  wait_log "$ORCH" orch "SCALE_TOWN06. SUMMARY" $((600 + STEPS * 30)) || fail "run did not finish"
+  $SSH "$ORCH" "cd $WT && head -1 /proc/stat > $L/cpu_end.log; cat /proc/loadavg > $L/load_end.log"
+  sleep 10; collect; killall_hosts
+  grep -h "SUMMARY" "$OUT"/*/orch.log | tee -a "$OUT/launch.log"; log "done: $OUT"; exit 0
+fi
 bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
 wait_log "$ORCH" orch "start [0-9]+ vehicle containers" 300 || fail "orchestrator did not come up"
 log "orchestrator up"

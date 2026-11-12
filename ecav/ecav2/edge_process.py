@@ -27,6 +27,7 @@ import grpc
 
 from ecav.scenario_testing.utils.yaml_utils import load_yaml
 from ecav.ecloud_server.ecloud_comms import EcloudClient
+from ecav.ecav2 import pred_blobs
 
 import ecloud_pb2 as ecloud
 import ecloud_pb2_grpc as ecloud_rpc
@@ -869,7 +870,7 @@ class EdgeProcess:
                         # edge step at 32 vehicles (each buffer holds every other vehicle's
                         # forecast, so the count cost grew with the square of the fleet)
                         if obj_buf.pickled_edge_predictions and n_preds == 0:
-                            _p = pickle.loads(obj_buf.pickled_edge_predictions)
+                            _p = pred_blobs.unpack(obj_buf.pickled_edge_predictions)
                             n_preds = len(_p) if isinstance(_p, list) else len(_p.get('vehicles', []))
                         vehicles_updated += 1
 
