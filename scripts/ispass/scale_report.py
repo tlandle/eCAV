@@ -97,11 +97,11 @@ def figure(runs, path):
     import matplotlib.pyplot as plt
     plt.rcParams.update({"font.size": 7, "axes.labelsize": 7, "xtick.labelsize": 7, "ytick.labelsize": 7,
                          "legend.fontsize": 6.5, "axes.linewidth": 0.6, "pdf.fonttype": 42})
-    fig, (a, b) = plt.subplots(1, 2, figsize=(3.4, 1.75), gridspec_kw={"width_ratios": [1.0, 1.15]})
+    fig, (a, b) = plt.subplots(1, 2, figsize=(3.4, 2.05), gridspec_kw={"width_ratios": [1.0, 1.25]})
     style = {"dense": ("C0", "o", "-"), "spread": ("C1", "s", "-"), "seqdense": ("C0", "o", ":"),
              "seqspread": ("C1", "s", ":"), "pdense": ("C3", "^", "-")}
-    short = {"dense": "dist., dense", "spread": "dist., spread", "seqdense": "seq., dense",
-             "seqspread": "seq., spread", "pdense": "dist., percep."}
+    short = {"dense": "distributed, dense", "spread": "distributed, spread", "seqdense": "sequential, dense",
+             "seqspread": "sequential, spread", "pdense": "distributed, perception"}
     for c in CONFIGS:
         rs = sorted((x for x in runs if x["config"] == c), key=lambda x: x["n"])
         if rs:
@@ -110,31 +110,38 @@ def figure(runs, path):
                    label=short[c])
     a.axhline(1.0, color="0.6", lw=0.5, ls="--")
     a.set_xscale("log", base=2); a.set_yscale("log")
-    a.set_xlabel("vehicles N"); a.set_ylabel("simulated s per wall-clock s")
+    a.set_xlabel("vehicles N"); a.set_ylabel("sim. s per wall s")
     ns = sorted({r["n"] for r in runs})
-    a.set_xticks(ns); a.set_xticklabels([str(n) for n in ns]); a.minorticks_off()
-    a.legend(frameon=False, loc="lower left", handlelength=1.6, borderpad=0.1, labelspacing=0.2)
-    a.set_title("(a) throughput", fontsize=7, pad=2)
+    a.set_xticks(ns); a.set_xticklabels([str(n) for n in ns], rotation=90); a.minorticks_off()
+    ha, la = a.get_legend_handles_labels()
+    # (b): share of the tick on the critical path, stacked to 100 %
     cols = ["C0", "C2", "0.55", "C4"]
     xs, lab = [], []
     x = 0
+    hb = []
     for c in ("dense", "spread"):
         rs = sorted((r for r in runs if r["config"] == c), key=lambda r: r["n"])
+        x0 = x
         for r in rs:
+            vals = [sum((r["rows"].get(k) or 0.0) for k in keys) for name, keys in GROUPS]
+            tot = sum(vals) or 1.0
             bottom = 0.0
-            for (name, keys), col in zip(GROUPS, cols):
-                v = sum((r["rows"].get(k) or 0.0) for k in keys) / 1000.0
-                b.bar(x, v, 0.8, bottom=bottom, color=col, lw=0, label=name if x == 0 else None)
-                bottom += v
+            for (name, keys), col, v in zip(GROUPS, cols, vals):
+                h = b.bar(x, 100 * v / tot, 0.8, bottom=bottom, color=col, lw=0)
+                if len(hb) < len(GROUPS):
+                    hb.append((h, name))
+                bottom += 100 * v / tot
             xs.append(x); lab.append(str(r["n"])); x += 1
         if rs:
-            b.text(x - len(rs) / 2 - 0.5, 1.0, c, transform=b.get_xaxis_transform(), ha="center", va="top", fontsize=7)
+            b.text((x0 + x - 1) / 2, 103, c, ha="center", va="bottom", fontsize=7)
         x += 0.8
-    b.set_yscale("log"); b.set_xticks(xs); b.set_xticklabels(lab, rotation=90)
-    b.set_xlabel("vehicles N"); b.set_ylabel("per-tick time (s)")
-    b.legend(frameon=False, loc="upper left", bbox_to_anchor=(0.0, 0.9), handlelength=0.9, borderpad=0.1, labelspacing=0.2)
-    b.set_title("(b) critical-path breakdown", fontsize=7, pad=2)
-    fig.subplots_adjust(left=0.13, right=0.995, bottom=0.24, top=0.9, wspace=0.42)
+    b.set_ylim(0, 100); b.set_xticks(xs); b.set_xticklabels(lab, rotation=90)
+    b.set_xlabel("vehicles N"); b.set_ylabel("share of tick (%)")
+    fig.legend(ha, la, frameon=False, loc="upper left", bbox_to_anchor=(0.0, 1.005), ncol=1, handlelength=1.8,
+               borderpad=0.1, labelspacing=0.15)
+    fig.legend([h for h, _ in hb], [n for _, n in hb], frameon=False, loc="upper right", bbox_to_anchor=(1.0, 1.005),
+               ncol=2, handlelength=0.9, borderpad=0.1, labelspacing=0.15, columnspacing=0.8)
+    fig.subplots_adjust(left=0.16, right=0.995, bottom=0.26, top=0.66, wspace=0.5)
     fig.savefig(path)
 
 

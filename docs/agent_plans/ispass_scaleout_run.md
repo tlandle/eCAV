@@ -173,3 +173,111 @@ Multi-host run must know:
   (`ecloud_actor_client.py:159`), 128 s at N=128; not changed.
 - Node-only state: worktree files delivered by scp, py-spy installed in opencda310, ~/spy.sh,
   ~/spy_top.py, ~/prof_vm.py. CARLA and all run processes on the node are stopped.
+
+## Probe log, 2026-11-12 03:05 (superlinear terms fixed, two layouts, sequential baseline, perception rows; sweep3 on the A10 node)
+
+Code: develop b5a0d526 for the sweep (dense N=8 to 128 ran at d90af688/c32fa70f; the later commits change the
+generator only for slot lists that contain overlapping slots, the N<=128 dense lists are byte-identical, checked
+by checksum, the CARLA timeout, and the sweep script). Results: experiment_results/ispass_scale/sweep3_<config>_n<N>,
+table paper_ispass/scale_sweep3.md, data paper_ispass/scale_sweep3.json, figure paper_ispass/fig_scale_sweep3.pdf
+(scripts/ispass/scale_report.py sweep3). Host: A10 node, 36 vCPUs (18 cores), 432 GB, everything on one host.
+300 ticks up to N=128, 100 ticks at 256. Times are means in ms over the ticks after the first 5.
+
+| configuration | N | RSUs | in sensing range | in forecast range | tick wall mean / p50 / p99 (ms) | sim s per wall s | clients | edge step | transport | world | client compute, all (ms) | first tick (s) | CPU busy | GPU util / mem | inference service p50 / p95 / p99 (ms), requests per wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| distributed, dense | 8 | 2 | 7.0 | 7.0 | 66 / 60 / 274 | 0.759 | 40 | 11 | 12 | 3 | 32 | 50 | 22 % | - | - |
+| distributed, dense | 16 | 2 | 15.0 | 15.0 | 104 / 89 / 334 | 0.480 | 58 | 19 | 22 | 4 | 44 | 50 | 31 % | - | - |
+| distributed, dense | 32 | 2 | 25.2 | 31.0 | 210 / 159 / 460 | 0.239 | 99 | 50 | 53 | 8 | 76 | 59 | 46 % | - | - |
+| distributed, dense | 64 | 2 | 30.4 | 62.4 | 435 / 389 / 792 | 0.115 | 211 | 119 | 91 | 14 | 173 | 89 | 59 % | - | - |
+| distributed, dense | 128 | 2 | 29.3 | 108.6 | 1066 / 1078 / 1548 | 0.047 | 515 | 350 | 174 | 27 | 428 | 144 | 63 % | - | - |
+| distributed, dense | 256 | 2 | 34.7 | 146.2 | 2383 / 2398 / 3485 | 0.021 | 1130 | 858 | 340 | 55 | 1006 | 295 | 64 % | - | - |
+| distributed, spread | 8 | 6 | 0.0 | 1.8 | 55 / 53 / 249 | 0.916 | 32 | 13 | 7 | 3 | 24 | 53 | 23 % | - | - |
+| distributed, spread | 16 | 9 | 0.0 | 3.9 | 91 / 80 / 307 | 0.551 | 42 | 27 | 17 | 4 | 31 | 54 | 30 % | - | - |
+| distributed, spread | 32 | 10 | 1.4 | 9.0 | 177 / 144 / 397 | 0.282 | 55 | 64 | 49 | 8 | 50 | 70 | 39 % | - | - |
+| distributed, spread | 64 | 11 | 3.7 | 18.1 | 382 / 347 / 764 | 0.131 | 130 | 150 | 88 | 14 | 114 | 94 | 48 % | - | - |
+| distributed, spread | 128 | 14 | 7.9 | 35.9 | 997 / 1039 / 1573 | 0.050 | 391 | 426 | 153 | 28 | 326 | 155 | 53 % | - | - |
+| distributed, spread | 256 | 14 | 16.8 | 71.9 | 2774 / 2910 / 4384 | 0.018 | 1153 | 1194 | 358 | 69 | 940 | 300 | 58 % | - | - |
+| sequential, dense | 8 | - | 7.0 | 7.0 | 201 / 202 / 412 | 0.248 | - | 199 (with vehicles) | - | 3 | - | 19 | 9 % | - | - |
+| sequential, dense | 16 | - | 15.0 | 15.0 | 483 / 474 / 781 | 0.104 | - | 479 (with vehicles) | - | 4 | - | 21 | 9 % | - | - |
+| sequential, dense | 32 | - | 25.2 | 31.0 | 1377 / 1348 / 1773 | 0.036 | - | 1370 (with vehicles) | - | 7 | - | 23 | 9 % | - | - |
+| sequential, spread | 8 | - | 0.0 | 1.8 | 135 / 129 / 188 | 0.371 | - | 133 (with vehicles) | - | 2 | - | 19 | 9 % | - | - |
+| sequential, spread | 16 | - | 0.0 | 3.9 | 280 / 273 / 553 | 0.178 | - | 277 (with vehicles) | - | 3 | - | 19 | 9 % | - | - |
+| sequential, spread | 32 | - | 1.4 | 9.0 | 687 / 674 / 1006 | 0.073 | - | 680 (with vehicles) | - | 6 | - | 21 | 9 % | - | - |
+| distributed, dense, perception | 8 | 2 | 7.0 | 7.0 | 463 / 462 / 704 | 0.108 | 407 | 29 | 23 | 3 | 312 | 56 | 30 % | 47 % / 9.8 GB | 144 / 174 / 207, 21.7 |
+| distributed, dense, perception | 16 | 2 | 15.0 | 15.0 | 828 / 827 / 1141 | 0.060 | 720 | 73 | 29 | 5 | 490 | 67 | 32 % | 57 % / 11.0 GB | 146 / 169 / 199, 21.8 |
+| distributed, dense, perception | 32 | 2 | 25.2 | 31.0 | 1591 / 1616 / 1903 | 0.031 | 1331 | 211 | 40 | 9 | 849 | 117 | 35 % | 58 % / 13.1 GB | 146 / 166 / 192, 21.4 |
+
+Columns "clients", "edge step", "transport", "world" partition the tick along the last-reporting client.
+"In sensing range" and "in forecast range" are the mean number of other vehicles within 50 m and 150 m of a vehicle.
+
+### What was fixed (before to after, dense layout)
+
+| N | tick wall before (sweep2) | after (sweep3) | edge step | client compute, last reporter |
+|---|---|---|---|---|
+| 32 | 283 | 210 | 106 to 50 | 123 to 97 |
+| 64 | 888 | 435 | 366 to 119 | 435 to 203 |
+| 128 | 3910 | 1066 | 1462 to 350 | 2249 to 510 |
+
+1. Forecasts serialised once per tick (ecav/ecav2/pred_blobs.py, exact-state manager distribution step). Each
+   recipient's buffer was pickle.dumps of its own list, N*(N-1) forecast objects per tick, 48 % of the edge step at
+   N=64. A recipient's buffer is now the concatenation of forecasts pickled once. The client reads both forms.
+   N=64 dense, 200 ticks: tick 562 to 445 ms, edge step 266 to 125 ms (fixA_n64, fixB_n64).
+2. Sensing range for vehicles without sensors (perception YAML deactivate_range_m, default unchanged: unlimited).
+   deactivate_mode listed every vehicle in the world (hard-coded 100000 m), so each client tracked, uploaded and
+   collision-checked N-1 objects. The scale YAML sets the vehicle lidar range of the base YAML, 50 m, which is what
+   a vehicle with sensors sees. N=32 dense: client compute, all clients, 111 to 79 ms (prof1_n32, fixA_n32).
+3. Recipient range at the edge (edge config recipient_range_m, default unset: every forecast to every vehicle).
+   The scale YAML sets 150 m: the 54 m planned path plus two vehicles closing at the speed limit over the 3 s
+   forecast, with margin. Not matched against a sequential campaign setting: the junction campaigns have no gate
+   because a locale there is smaller than 150 m. Both gates are in the YAML, so the sequential rows use them too.
+4. File logging: every process wrote a debug-level log file (cloud_config file_log_level), hundreds of MB per
+   client per run, about 12 % of a client step. The launcher sets warning. N=64 dense: 445 to 422 ms.
+5. Spawn slots that overlap where roads join are dropped (CARLA refused one spawn at N=256).
+6. Thread limit per process (OMP/OPENBLAS/MKL = 1): no measurable change (prof2/prof3 spread N=64), kept.
+
+### What limits each workload class (single host)
+
+- No perception, distributed: two serial phases. Client phase: per-client work is about 25 to 30 ms when a
+  vehicle has few neighbours (spread N=8, 16) and grows with the neighbours in range in the dense layout; beyond
+  18 clients the clients share 18 cores, so client compute per client rises with N in both layouts (spread: 24, 31,
+  50, 114, 326, 940 ms). More client hosts remove that term. Edge phase: one single-threaded process; its
+  largest part after the fix is the tracker over all N ground-truth boxes (association is quadratic in N), then
+  the forecast generation and the per-tick metrics. The edge step does not shrink with client hosts and is
+  larger than the client phase from N=64 in the spread layout.
+- The spread layout is only 10 to 20 % faster than dense: neighbours in range are not the main cost at this
+  scale, core sharing and the single edge are.
+- Sequential single process: 201, 483, 1377 ms (dense) and 135, 280, 687 ms (spread) at N=8, 16, 32. Distributed on
+  the same host is 3.0, 4.6, 6.6 times faster (dense) and 2.5, 3.1, 3.9 times faster (spread).
+- Perception, shared YOLO service: the tick is the client phase (88 % at N=8). The service delivers about 21.6
+  requests per wall second at every N (4 worker threads, p50 145 ms per 4-camera request under load, 72 ms
+  unloaded), GPU utilisation 47 to 58 %, 9.8 to 13.1 GB. The service's worker threads, not the GPU, cap the rate,
+  so the tick grows as (N + 2 RSUs) / 21.6 s.
+- Start-up: 50 to 300 s for N=8 to 256, linear in N (clients start in waves of 16).
+- N=512 does not run on this host. All 512 vehicle and 15 RSU clients started (623 s) and registered, then the
+  host ran out of memory (about 0.8 GB per client process, 415 of 432 GB used) and the kernel killed CARLA. Three
+  attempts, the first two ended on the orchestrator's 10 s CARLA timeout (now ECAV_CARLA_TIMEOUT_S, 60 s in scale
+  runs), the third showed the out-of-memory kill in dmesg.
+- More than one edge is not supported in distributed mode: the C++ server keeps vehicle-to-edge mappings, but
+  vehicle_manager.py (lines 204 to 266), ecloud_actor_client.py (157 to 183), sim_api.py (746 to 749) and
+  scale_town06.py (80) read edge_list[0]. The sequential path runs the multi-edge scenarios. One edge per region
+  is the change that would cut the edge step.
+
+### Multi-host run, prepared, not run
+
+Blocked on access (client VMs accept only a password; adding a key was refused) and on a network path (the A10
+node is alone in edge-server-vnet 10.1.0.0/16; carla-client3 and carla-client4 are in
+carla-server_group_10111734-vnet 10.0.0.0/16; no peering). Steps once access exists:
+
+1. Network: peer the two virtual networks both ways, for example
+   `az network vnet peering create -g CARLA-SERVER_GROUP -n edge-to-clients --vnet-name edge-server-vnet --remote-vnet <id of carla-server_group_10111734-vnet> --allow-vnet-access`
+   and the reverse from resource group CARLA-SERVER_GROUP_10111734. The launcher uses private addresses
+   (hostname -I) and rewrites cloud_config.yaml on every host.
+2. Per VM: `scripts/ispass/setup_scale_vm.sh azureuser@<vm>` (worktree, CARLA PythonAPI and the Python env
+   streamed from the A10 node through atlas, reserved ports, file limit, clock check, import test). Untested.
+3. On the A10 node once per boot: `sudo sysctl -w net.ipv4.ip_local_reserved_ports=50051-50070,50101-51300`.
+4. Run, A10 node as CARLA, orchestrator and edge, clients on the two D64 VMs (64 vCPUs each):
+   `scripts/ispass/launch_scale.sh -n 128 -r 20 -p off -s 300 -g "--layout spread" -o azureuser@20.81.176.215 -H "azureuser@<client3>:0-63,azureuser@<client4>:64-127" -t mh_spread_n128`
+   then N=256 with 0-127 and 128-255, and the dense layout without -g. Report with scale_report.py after naming the
+   tags <stamp>_<config>_n<N> (a multi-host configuration name must be added to CONFIGS there).
+5. Expect the client phase to fall to the per-client cost (25 to 80 ms) and the edge step to remain: 426 ms at
+   N=128 and 1.2 s at N=256 (spread), which then is the tick.
