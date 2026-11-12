@@ -1055,8 +1055,12 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 tracker_ms = (self.tracker.total_time
                               if hasattr(self.tracker, 'total_time') else 0.0)
 
-            # No new data arrived this tick — return empty
+            # No new data arrived this tick. The edge publishes nothing, but
+            # the actors still run the tick: each vehicle plans on the
+            # forecasts it holds and each RSU refreshes its detections.
             if not new_frames:
+                if not self.run_distributed:
+                    self._advance_actors(tick)
                 frame.set_counts(num_agents=num_agents, num_detections=0,
                                  num_tracks=0, num_predictions=0)
                 return ecloud.EdgeObjects()
