@@ -8314,3 +8314,11 @@ Probes (exact-state, 2 seeds, stamps sensys_hm_fix1..3): with fixes 1 to 3 and b
 **Running.** atlas: post-fix gate ispass_fid6gate (I2V and V2X2V, A and D, 3 seeds, logs/fid6gate.log). cetus: intermediate-fusion cells of ispass_fid5gate (worktree is an overlay of 60943237 on 1394d117; that manager is not affected). Next: full rerun stamp ispass_fid6 (four conditions, 1000 to 1900 ms, N 24, 10 seeds), late-fusion arms on atlas, intermediate fusion on cetus with service_occupancy=on and msg_b=16896.
 
 **Papers.** ISPASS fb8d174 / afd8d07: radio fidelity and perception scale rows in, 10 pages. Stored downlink cell at 31 senders has median 304 ms and mean 402 ms; the sampler draws a normal from mean and p95, so applied medians equal the cell mean. Dissertation c64c445.
+
+### 2026-11-12 12:43 Ablation rerun ispass_fid6 launched on both hosts after the post-fix gate
+
+**Post-fix gate ispass_fid6gate (3 seeds, N 24, left turn).** V2X2V D coverage is 0.96 to 0.99 after bb3ff61a (0.7 before). I2V: A 0.67/0.67/0.00/0.00 and D 1.00/1.00/0.00/0.00 at 1000/1300/1600/1900 ms. V2X2V: A and D both 1.00/1.00/0.67/0.33. Intermediate fusion D (service_occupancy=on, msg_b=16896): 0.00 at every delay from 1000 ms, compute 144 ms, uplink 41 ms, downlink 225 ms, coverage 0.70 to 0.79; its A condition is 1.00 to 1900 ms (ispass_fid5gate).
+
+**Campaign ispass_fid6 (one code version 6b43d807; cetus is an overlay of the same files).** Conditions A B C D, added delay 0 400 700 1000 1300 1600 ms, lut_n 24, 10 seeds, left turn. atlas: I2V and V2X2V from 12:43, logs/fid6_atlas.log, about 13 h. cetus: intermediate fusion from 12:24, ~/exp2_wt/logs/fid6_cetus_full.log. Land with rsync of exp2_wt/experiment_results/openscenario_3_edge_late_fusion/ispass_fid6, reduce with scripts/ispass/fidelity_reduce.py ispass_fid6 --csv paper_ispass/fidelity.csv --fig paper_ispass/fig_fidelity.pdf --fig-n 24. Do not edit scripts/ispass/fidelity_ablation.sh while a chain runs (an edit during the first gate broke its cleanup and left a CARLA).
+
+**Open.** The gap-tick branch existed in earlier late-fusion campaigns; which of them had compute plus radio crossing a tick is not assessed. I2V with measured compute shows more track id changes at 1300 ms (not investigated).
