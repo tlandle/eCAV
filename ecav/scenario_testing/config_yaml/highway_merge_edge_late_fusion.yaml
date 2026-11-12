@@ -154,7 +154,7 @@ vehicle_base:
         k_i: 0.032
       dynamic: false
       dt: ${world.fixed_delta_seconds}
-      max_brake: 0.5 # highway merge: emergency stop about 6 m/s2 as the encounter design (calibrated 2026-11-09: 0.4 gives 5.4, 0.6 gives 6.8, 1.0 gives 9.5 m/s2 average)
+      max_brake: 0.8 # highway merge: design deceleration 6 m/s2 at 20 to 27 m/s (measured there: 0.5 gives 4.4, 0.7 gives 5.5 m/s2)
       max_throttle: 1.0
       max_steering: 0.3
   v2x:
@@ -344,7 +344,7 @@ scenario:
       behavior:
         max_speed: 97
         tailgate_speed: 121
-        speed_lim_dist: 3
+        speed_lim_dist: 0 # the ego cruises at the commanded 97 km/h, the design speed (3 left it at 94 km/h and the closing speed 1.1 m/s short)
         speed_decrease: 15
         safety_time: 4
         emergency_param: 0.4
@@ -354,9 +354,9 @@ scenario:
         overtake_counter_recover: 35
         sample_resolution: 4.5
         local_planner:
-          buffer_size: 16 # 72 m of path for the time-synchronised collision check
+          buffer_size: 28 # with waypoint_update_freq 22 the path never falls below 94 m, 3.5 s at 27 m/s: 16 and 9 left 40 to 72 m, shorter than the 3 s check, so a cut-in was seen only at the next refill
           trajectory_update_freq: 15
-          waypoint_update_freq: 9
+          waypoint_update_freq: 22
           min_dist: 3
           trajectory_dt: 0.2
           debug: false

@@ -111,3 +111,50 @@ seeds on the cells the paper quotes (Fig. 16 panels at 4, 10, 16 m/s).
   away. That is the paper's control response and the junction runs behave the same.
 - Measured closing speed is about 0.5 m/s below the design (planner speed margin and
   follower undershoot). Reported from the log, not corrected.
+
+## Pilot failed the gate; diagnosis and fixes (2026-11-11 23:24)
+
+Pilot (stamp sensys_hm_pilot, 10 seeds, cs 10 and 16) failed at both closing speeds. Reference
+behaviour (eval_run_v12, 50 seeds): the collision rate is the same for the three arms at each
+(closing speed, delay) and follows the kinematic design, 50 % point near budget + 50 ms.
+
+Defects in the scenario and planner setup, found from per-tick logs and runner_stdout:
+
+1. Path horizon. buffer_size 16 / waypoint_update_freq 9 gave 40 to 72 m of path, 1.5 to 2.8 s at
+   highway speed. The time-synchronised collision check only covers the path, so the conflict was
+   seen at the next refill, 0.85 s after the lane change began. Now 28 / 22 (94 m minimum).
+2. Brake. max_brake 0.5 is 4.4 m/s2 at 20 to 27 m/s. 0.7 is 5.5. Now 0.8 (design 6).
+3. Cruise speed. speed_lim_dist 3 left the ego at 94 km/h. Now 0, ego 27.0 m/s at the cut-in.
+4. Path not consumed under the brake hold (behavior_agent "[STOP] hazard without obstacle" branch
+   skipped pop_buffer). On release the target was behind the car and the ego steered off the
+   carriageway: the collisions and stalls of the V2X2V arms at low delays. Fixed, stalls are 0.
+5. Gap reference. The design counts failure at the 3 m clearance, CARLA at bumper contact. The
+   cut-in now fires at design gap minus clearance (GAP_REFERENCE=clearance).
+
+Exact-state arm after the fixes (stamp sensys_hm_fix4, 2 seeds per cell):
+
+| cs | completes through | collides from | reference 50 % point |
+|---|---|---|---|
+| 4 | 1050 ms (1150: 1 of 2) | 1250 ms | about 1200 ms |
+| 10 | 700 ms | 800 ms | about 700 to 750 ms |
+| 16 | 250 ms | 300 ms | about 225 to 250 ms |
+
+The exact-state arm reproduces the reference within one 50 ms delay cell at the three speeds.
+
+V2X2V arms do not reproduce it (same stamp): +SBA at cs 10 is 2/2, 1/2, 0/2, 1/2 at 0, 100, 200,
+400 ms, and 0/2 at cs 16 from zero delay. Two causes, both in the late-fusion tracker's forecast:
+- Lateral velocity lags a lane change by about 1 s. The forecast still points straight while the
+  intruder is mid-change, so the hazard fires only when the position itself is within the 2.5 m
+  proximity radius (first brake about 1.0 s after the cut-in began; exact state: 0.15 s).
+- Speed and heading noise on an adjacent-lane car (17 m/s reported as 11 to 23 m/s, lateral drift
+  of 1.3 m over the 3 s forecast) raises a hazard before the cut-in, now that the path is long
+  enough to see it (proximity radius 2.5 m against 3.5 m lane spacing).
+In the reference the camera-lidar arm follows exact state within about 50 ms.
+
+Provenance fact: the reference rows carry kv keys workload=highway_merge and
+motion=constant_velocity and a cell suffix _experiment_highway_merge. No file or commit in this
+repository contains those keys, so the reference harness for this geometry is not in the repo.
+
+Open (Tyler's call before any large launch): how the camera-lidar arms should be made to follow
+exact state (tracker lateral velocity, proximity radius for multi-lane roads, or the cut-in
+duration of the reference, which the export does not state).
