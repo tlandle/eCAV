@@ -154,3 +154,20 @@ D, left turn and straight crossing, added delay 0 and 200 ms, table at N=16, 10 
 - status: `ssh tlandle@143.215.184.49 'cd ~/exp2_wt && scripts/ispass/fidelity_status.sh ispass_fid3 logs/fid3_full.log'`
 - land: rsync `exp2_wt/experiment_results/{openscenario_3_edge_late_fusion,scp_edge_late_fusion}/ispass_fid3` (simulation_metrics.json, per_tick_age.csv, runner_stdout.txt), then
   `PYTHONPATH=.:ecav/protos python scripts/ispass/fidelity_reduce.py ispass_fid3 --csv paper_ispass/fidelity.csv --fig paper_ispass/fig_fidelity.pdf --fig-n 16 --fig-lat 200`
+
+## Experiment 4, radio fidelity (2026-11-12 09:09, atlas, stamps rf_20261112 and ispass_rfcl)
+
+Open loop (scripts/ispass/radio_fidelity_bench.py, 600 ticks, 3 seeds, 2 at N 24 and 31 with 16.9 KB): live
+ns-3 NR Uu against the stored tables and the SEE-V2X trace, table in paper_ispass/radio_fidelity_table.md,
+figure paper_ispass/fig_radio_fidelity.pdf. Table within 0.6 ms (uplink p50) and 1.7 ms (downlink p50) of
+live through N 16 at every payload, except downlink p50 at N 8 with 16.9 KB (16.1 against 23.1 ms). At
+16.9 KB and N 24 the table gives delivery 0.37 and p50 223 ms, live gives 0.80 and 122 ms. At N 31 the
+table gives 0.22 and 401 ms to every sender, live gives 0.27 with 19 of 31 senders receiving nothing.
+The table's N 24 and 31 feature cells hold 67 and 50 delivered samples (about 7 ticks of ns-3). Live ns-3
+costs 0.16 to 6 wall s per simulated s at 300 B and 1 KB and 0.5 to 26 at 16.9 KB.
+Closed loop (scripts/ispass/radio_fidelity_closed_loop.sh, left turn, intermediate fusion, 70 km/h,
+measured compute, 16.9 KB both directions, 10 paired seeds): every arm completes 10 of 10 at both loads
+(the encounter passes without detections at zero added delay). p99 age at N 16: table 338, live 305 ms.
+At N 24: table 536, table with loss 766, live 300 ms, because ns-3 serves the managed CAV (sender 0)
+at 48 ms with full delivery while other senders starve. New edge options on the intermediate-fusion
+manager, all default off: radio=live, lut_loss=true, msg_b=<bytes>. No 5G-MOBIX trace replay exists.
