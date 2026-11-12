@@ -14,7 +14,7 @@ ego's lane over CUTIN_DURATION_S seconds and holds its speed. An optional truck
 see the intruder only around the cut-in while the roadside unit sees it earlier.
 
 Design (highway_merge_design.csv of the evaluation export), all in SI:
-    initial_gap        = clearance + ttc * closing_speed            (bumper gap at the cut-in)
+    initial_gap        = clearance + ttc * closing_speed            (gap at the cut-in: GAP_REFERENCE)
     rel_stop_distance  = closing_speed^2 / (2 * ego_braking)
     kinematic_budget   = ttc - non_age_response - closing_speed / (2 * ego_braking)
 with ttc 1.9 s, clearance 3.0 m, non-age response 0.28 s, ego braking 6 m/s^2.
@@ -32,6 +32,12 @@ Environment knobs (test_runner --scenario-env KEY=VALUE):
                         encounter starts with both vehicles cruising
     EGO_DRIVE_DISTANCE  scenario ends when the ego has driven this far (250: the cut-in happens
                         about 110 to 140 m in and an emergency stop from 27 m/s ends within 60 m)
+    GAP_REFERENCE       clearance (default): the cut-in fires at a bumper gap of
+                        initial_gap - clearance, so the bumpers touch where the design reaches
+                        its clearance and a collision in CARLA is the design's failure.
+                        bumper: the cut-in fires at a bumper gap of initial_gap. With bumper
+                        the exact-state arm fails about 3.7 m of closing distance later than the
+                        evaluation export at closing speeds 10 and 16 (probes of 2026-11-11).
     OCCLUDER            1 places the truck behind the intruder in lane -5 (default 0)
     OCCLUDER_GAP_M      bumper gap truck to intruder (12.0)
 """
@@ -180,12 +186,15 @@ class Scenario_HighwayMerge(BasicScenario):
         self.pre_trigger = _env_float("PRE_TRIGGER_S", 4.0)
         self.ego_initial_speed = _env_float("EGO_INITIAL_SPEED_MPS", self.ego_speed)
         self.drive_distance = _env_float("EGO_DRIVE_DISTANCE", 250.0)
+        self.contact_at_clearance = os.environ.get("GAP_REFERENCE", "clearance") != "bumper"
         self.occluder = os.environ.get("OCCLUDER", "0") == "1"
         self.occluder_gap = _env_float("OCCLUDER_GAP_M", 12.0)
         self.intruder_speed = max(self.ego_speed - self.closing, 1.0)
         self.gap, self.rel_stop, self.budget_s = design(
             self.closing, self.ttc, self.clearance, self.braking, self.response)
-        self.start_gap = self.gap + self.closing * self.pre_trigger
+        # bumper gap at which the cut-in fires
+        self.trigger_gap = self.gap - (self.clearance if self.contact_at_clearance else 0.0)
+        self.start_gap = self.trigger_gap + self.closing * self.pre_trigger
         print(f"{TAG} design: ego {self.ego_speed:.2f} m/s, closing {self.closing:.1f} m/s, "
               f"intruder {self.intruder_speed:.2f} m/s, cut-in gap {self.gap:.1f} m "
               f"(start gap {self.start_gap:.1f}), rel. stop {self.rel_stop:.2f} m, "
@@ -268,7 +277,7 @@ class Scenario_HighwayMerge(BasicScenario):
             self.visible_transforms.append(carla.Transform(carla.Location(x=x_t, y=y_t, z=0.5),
                                                            carla.Rotation(yaw=ROAD_YAW)))
         print(f"{TAG} intruder starts at x={x_i:.1f} (lane {INTRUDER_LANE}), ego at x={ego_loc.x:.1f} "
-              f"(lane {EGO_LANE}); start bumper gap {self.start_gap:.1f} m", flush=True)
+              f"(lane {EGO_LANE}); start bumper gap {self.start_gap:.1f} m, cut-in at {self.trigger_gap:.1f} m", flush=True)
 
     def _create_behavior(self):
         if self.distributed and self.vehicle_index >= 0:
@@ -288,7 +297,7 @@ class Scenario_HighwayMerge(BasicScenario):
         both = py_trees.composites.Parallel("Intruder_drive_and_cut_in",
                                             policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ALL)
         both.add_child(follower)
-        both.add_child(CutIn(ego, intruder, follower, self.gap, self.cutin_duration,
+        both.add_child(CutIn(ego, intruder, follower, self.trigger_gap, self.cutin_duration,
                              self.intruder_speed, self))
         seq.add_child(both)
         seq.add_child(Idle())

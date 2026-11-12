@@ -2394,6 +2394,13 @@ class BehaviorAgent(object):
                 return self._local_planner.run_step(
                     rx, ry, rk, target_speed=self._graded_hazard_speed_kmh())
             logger.warning("[STOP] hazard without obstacle (ttl=%d)", self._committed_brake_ttl)
+            # The hold skips run_step, the only caller of pop_buffer. Keep
+            # consuming the path here: at highway speed the ego covers 50 m
+            # under the hold, the passed waypoints stay at the head of the
+            # buffer (pop_buffer only drops waypoints within min_dist), and
+            # on release the target is behind the car (measured on the
+            # highway merge: err_deg=-145, full steer, off the carriageway).
+            self._local_planner.pop_buffer(self._ego_pos)
             return 0, None
 
         if not is_hazard:

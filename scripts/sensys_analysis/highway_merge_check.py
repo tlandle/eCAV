@@ -28,7 +28,7 @@ try:
 except Exception:  # pragma: no cover
     reduce_run = None
 
-CUTIN_RE = re.compile(r"\[HIGHWAY_MERGE\] cut-in at tick (-?\d+) x=([\d.]+): bumper gap ([\d.]+) m "
+CUTIN_RE = re.compile(r"\[HIGHWAY_MERGE\] cut-in at tick (-?\d+) x=([\d.]+): (?:bumper )?gap ([\d.]+) m "
                       r"\(design ([\d.]+)\), ego ([\d.]+) m/s, intruder ([\d.]+) m/s")
 
 
