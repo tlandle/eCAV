@@ -109,8 +109,32 @@ def slots(xodr, spacing, route_len, min_seg, centre, min_route):
                             road=road, lane=lane, s=round(d, 1), route=gone))
             d += spacing
     # Row-major fill outward from the centre: rows (same road and s) nearest first.
+    out = _drop_overlaps(out)
     out.sort(key=lambda p: (round(math.hypot(p["x"] - centre[0], p["y"] - centre[1]) / spacing), p["road"], p["s"], p["lane"]))
     return out
+
+
+def _drop_overlaps(sl, along=7.0, across=2.5):
+    """Remove a slot whose car would overlap an earlier slot's car: lanes of different roads
+    overlap where roads join, and CARLA refuses the second spawn (seen at 256 vehicles). Two
+    slots conflict when they are closer than `along` metres along the first one's heading and
+    `across` metres across it. Slots are visited in (road, s, lane) order, so the result does
+    not depend on N."""
+    kept = []
+    grid = {}
+    for p in sorted(sl, key=lambda q: (q["road"], q["s"], q["lane"])):
+        c, s_ = math.cos(math.radians(p["yaw"])), math.sin(math.radians(p["yaw"]))
+        gx, gy = int(p["x"] // 10), int(p["y"] // 10)
+        clash = False
+        for q in (q for i in (-1, 0, 1) for j in (-1, 0, 1) for q in grid.get((gx + i, gy + j), [])):
+            dx, dy = q["x"] - p["x"], q["y"] - p["y"]
+            if abs(dx * c + dy * s_) < along and abs(-dx * s_ + dy * c) < across:
+                clash = True
+                break
+        if not clash:
+            kept.append(p)
+            grid.setdefault((gx, gy), []).append(p)
+    return kept
 
 
 def main(argv=None):
