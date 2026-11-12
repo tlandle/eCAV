@@ -204,7 +204,9 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
 
         # Create push client for this actor (to push ticks to it)
         if request.vehicle_port > 0:
-            push_target = f"localhost:{request.vehicle_port}"
+            # the actor's own address (cloud_config vehicle_client_public_ip on its host): the edge
+            # and its actors may be on different machines
+            push_target = f"{request.vehicle_ip or 'localhost'}:{request.vehicle_port}"
             actor_info.push_channel = grpc.aio.insecure_channel(
                 target=push_target,
                 options=[
