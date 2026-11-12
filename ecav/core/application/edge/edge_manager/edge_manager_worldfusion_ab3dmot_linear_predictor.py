@@ -641,6 +641,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     # predictor previously fell back to a placeholder tensor.
                     if fused_feature is not None and hasattr(self.predictor, 'set_fused_feature'):
                         self.predictor.set_fused_feature(fused_feature.detach())
+                    if os.environ.get('WF_RECALL_PROBE'):
+                        self._recall_probe(tick, latest_source_tick, spatial_features, pred_dict, poses)
 
             # 5. Post-process to get detections in world frame
             with frame.time("detection"):
@@ -1078,6 +1080,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
         spatial_2d = torch.cat(bev_features, dim=0)  # [N, C, H, W]
         psm_single = torch.cat(psm_single_list, dim=0)  # [N, anchor_num, H, W]
+        self._probe_psm_single = psm_single if os.environ.get('WF_RECALL_PROBE') else None
 
         # DEBUG: Check per-agent PSM at Lincoln's expected position in the
         # world-anchor frame. Constants come from the training config:
@@ -1173,6 +1176,76 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                          i + 1, gx, gy, local_x, local_y, val)
 
         return fused_feature, pred_dict
+
+    def _recall_probe(self, tick, source_tick, spatial_features, pred_dict, poses):
+        """Detection-recall attribution for one unmanaged vehicle (WF_RECALL_PROBE=<csv>,
+        WF_RECALL_PROBE_TYPE=<type_id substring>, default model3). Per fusion tick and
+        per contributor: occupied input cells within 2.5 m of the vehicle (lidar
+        coverage), the contributor's own classification score there, and the fused
+        score there, all before the score threshold. Diagnostic only."""
+        try:
+            want = os.environ.get('WF_RECALL_PROBE_TYPE', 'model3')
+            managed = {int(vm.vehicle.id) for vm in self.vehicle_manager_list}
+            car = None
+            for a in self.world.get_actors().filter('vehicle.*'):
+                if a.id not in managed and want in a.type_id.lower():
+                    car = a
+                    break
+            if car is None:
+                return
+            loc, vel = car.get_location(), car.get_velocity()
+            half = float(self.hypes['preprocess']['cav_lidar_range'][3])
+
+            def near_max(grid, dx, dy, radius_m):
+                # grid [H, W] over [-half, half] m, x along columns
+                h, w = grid.shape[-2], grid.shape[-1]
+                cx, cy = (dx + half) / (2 * half) * w, (dy + half) / (2 * half) * h
+                r = max(1, int(round(radius_m / (2 * half) * w)))
+                x1, x2 = int(cx) - r, int(cx) + r + 1
+                y1, y2 = int(cy) - r, int(cy) + r + 1
+                if x2 <= 0 or y2 <= 0 or x1 >= w or y1 >= h:
+                    return float('nan')
+                return float(grid[..., max(0, y1):y2, max(0, x1):x2].max().item())
+
+            def local(pose):
+                dx, dy = loc.x - pose.location.x, loc.y - pose.location.y
+                yaw = math.radians(pose.rotation.yaw)
+                return (dx * math.cos(yaw) + dy * math.sin(yaw),
+                        -dx * math.sin(yaw) + dy * math.cos(yaw))
+
+            fused = pred_dict['psm'].sigmoid()[0].max(dim=0)[0]
+            ax, ay = local(poses[0])
+            row = [tick, source_tick, round(loc.x, 2), round(loc.y, 2),
+                   round(math.hypot(vel.x, vel.y), 2), len(poses),
+                   round(near_max(fused, ax, ay, 2.5), 4),
+                   round(near_max(fused, ax, -ay, 2.5), 4),
+                   round(float(fused.max().item()), 4)]
+            single = getattr(self, '_probe_psm_single', None)
+            for i, pose in enumerate(poses):
+                lx, ly = local(pose)
+                occ = (spatial_features[i].abs().sum(dim=0) > 0).float()
+                sc = single[i].sigmoid().max(dim=0)[0] if single is not None else None
+                row += [round(pose.location.x, 2), round(pose.location.y, 2),
+                        round(pose.location.z, 2), round(pose.rotation.yaw, 1),
+                        round(math.hypot(lx, ly), 1),
+                        int(self._probe_count(occ, lx, ly, half, 2.5)),
+                        int(self._probe_count(occ, lx, -ly, half, 2.5)),
+                        round(near_max(sc, lx, ly, 2.5), 4) if sc is not None else '',
+                        round(near_max(sc, lx, -ly, 2.5), 4) if sc is not None else '']
+            with open(os.environ['WF_RECALL_PROBE'], 'a') as f:
+                f.write(','.join(str(v) for v in row) + '\n')
+        except Exception as exc:  # the probe never disturbs a run
+            logger.warning("recall probe failed: %s", exc)
+
+    @staticmethod
+    def _probe_count(occ, dx, dy, half, radius_m):
+        h, w = occ.shape
+        cx, cy = (dx + half) / (2 * half) * w, (dy + half) / (2 * half) * h
+        r = max(1, int(round(radius_m / (2 * half) * w)))
+        x1, x2, y1, y2 = int(cx) - r, int(cx) + r + 1, int(cy) - r, int(cy) + r + 1
+        if x2 <= 0 or y2 <= 0 or x1 >= w or y1 >= h:
+            return -1
+        return occ[max(0, y1):y2, max(0, x1):x2].sum().item()
 
     def _compute_world_pairwise_transforms(self, poses: List[carla.Transform]) -> torch.Tensor:
         """
