@@ -9,7 +9,9 @@
 #
 #   -n N            ego vehicles (one client process each)
 #   -r R            RSU clients (default 2)
-#   -p on|off       perception (default off: exact-state edge manager, no sensors, no --apply_ml)
+#   -p on|off|shared  perception (default off: exact-state edge manager, no sensors, no --apply_ml).
+#                   on: every client loads its own detector. shared: clients call the YOLO inference
+#                   service at ml_manager.yolo_endpoint (--apply_ml -l); start the service first
 #   -s STEPS        ticks to run (default 200)
 #   -o HOST         orchestrator host (ssh target); default host for everything else
 #   -c HOST         CARLA host (default: orchestrator host). CARLA is started there if port 2000 is closed
@@ -50,7 +52,8 @@ TAG=${TAG:-n${N}_r${R}_p${P}_$(date +%m%d_%H%M%S)}
 HERE=$(cd "$(dirname "$0")/../.." && pwd)
 OUT=$HERE/experiment_results/ispass_scale/$TAG; mkdir -p "$OUT"
 L=logs/scale/$TAG                       # log directory inside the worktree on every host
-ML=""; [[ $P == on ]] && ML="--apply_ml"
+ML=""; [[ $P == on ]] && ML="--apply_ml"; [[ $P == shared ]] && ML="--apply_ml -l"
+GP=$P; [[ $P == shared ]] && GP=on
 # one multiplexed connection per host: sshd rate-limits new connections (MaxStartups), and a run makes hundreds of calls
 SSHO="-o BatchMode=yes -o ConnectTimeout=15 -o ControlMaster=auto -o ControlPath=/tmp/scale_ssh_%C -o ControlPersist=300"
 SSH="ssh $SSHO"
@@ -99,7 +102,7 @@ if ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
 fi
 
 # scenario files: generated on the orchestrator, copied to the other hosts (clients read the XML, the YAML comes from the server)
-on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $P --carla-host $CARLA_IP $GEN" | tee -a "$OUT/launch.log" || fail "generator"
+on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $GP --carla-host $CARLA_IP $GEN" | tee -a "$OUT/launch.log" || fail "generator"
 # the spread layout chooses its own RSU count
 RG=$(grep -o '^RSUS=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); [[ -n "$RG" ]] && R=$RG
 for h in $HOSTS; do [[ $h == "$ORCH" ]] && continue

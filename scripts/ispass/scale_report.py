@@ -54,6 +54,14 @@ def load(stamp):
             if rows:
                 r["gpu_util_mean"] = sum(float(x[0]) for x in rows) / len(rows)
                 r["gpu_mem_max_mib"] = max(float(x[1]) for x in rows)
+        yl = os.path.join(d, "yolo_grpc.log")
+        if os.path.exists(yl):
+            tot = sorted(float(x) for x in re.findall(r"PerceptionServicer\].*? total=(\d+)ms", open(yl, errors="ignore").read()))
+            if tot:
+                q = lambda p: tot[min(len(tot) - 1, int(len(tot) * p))]
+                r["service_ms"] = dict(p50=q(.5), p95=q(.95), p99=q(.99), requests=len(tot))
+                # one request per client per tick: delivered detection updates per wall-clock second
+                r["service_req_per_wall_s"] = len(tot) / (r["wall_mean"] / 1000.0 * max(r["ticks"] + 5, 1))
         runs.append(r)
     return runs
 
@@ -64,8 +72,9 @@ def f(v, fmt="{:.0f}"):
 
 def table(runs):
     L = ["| configuration | N | RSUs | in sensing range | in forecast range | tick wall mean / p50 / p99 (ms) | sim s per wall s | "
-         "clients | edge step | transport | world | client compute, all (ms) | first tick (s) | CPU busy | GPU util / mem |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         "clients | edge step | transport | world | client compute, all (ms) | first tick (s) | CPU busy | GPU util / mem | "
+         "inference service p50 / p95 / p99 (ms), requests per wall s |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for c in CONFIGS:
         for r in sorted((x for x in runs if x["config"] == c), key=lambda x: x["n"]):
             g = {name: sum((r["rows"].get(k) or 0.0) for k in keys) for name, keys in GROUPS}
@@ -76,7 +85,9 @@ def table(runs):
                      f"{f(r['neighbours_recipient'], '{:.1f}')} | {r['wall_mean']:.0f} / {r['wall_p50']:.0f} / {r['wall_p99']:.0f} | "
                      f"{r['sim_s_per_wall_s']:.3f} | {'-' if seq else f(g['clients'])} | {f(g['edge step'])}{' (with vehicles)' if seq else ''} | "
                      f"{'-' if seq else f(g['transport'])} | {f(g['world tick'])} | {f(r['client_compute_all_mean'])} | "
-                     f"{f(r['first_tick_s'])} | {busy} | {gpu} |")
+                     f"{f(r['first_tick_s'])} | {busy} | {gpu} | " +
+                     (f"{r['service_ms']['p50']:.0f} / {r['service_ms']['p95']:.0f} / {r['service_ms']['p99']:.0f}, "
+                      f"{r['service_req_per_wall_s']:.1f}" if "service_ms" in r else "-") + " |")
     return "\n".join(L)
 
 
