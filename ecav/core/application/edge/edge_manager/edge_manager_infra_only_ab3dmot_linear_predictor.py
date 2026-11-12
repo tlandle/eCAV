@@ -155,11 +155,17 @@ class InfraOnlyEdge(PredictionLateFusionEdge):
         # base latency model. This keeps the architecture honest: I2V has no
         # over-the-air vehicle uplink to contend.
         arrival = self.latency_model.stamp(frame_idx)
+        net_arrival = arrival
         # compute_delay=measured / lut_dl: the edge-to-vehicle downlink is the
         # radio hop of this architecture (see the parent's _composed_extra_ms)
-        extra_ms = self._composed_extra_ms(frame_idx, objects, 0.0)
+        _rep = self._stamp_trace.lookup(frame_idx) if self._stamp_trace else None
+        extra_ms = self._composed_extra_ms(frame_idx, objects, 0.0, replay=_rep)
         arrival += int(math.ceil(extra_ms / self._sim_dt_ms))
-        self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+        if self._occupancy.enabled:
+            # service_occupancy=on (default off), see the parent's _occupancy_push
+            self._occupancy_push(frame_idx, net_arrival, (objects, beacons), extra_ms)
+        else:
+            self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
 
     def _collect_detections_for_frame(self, payload, beacons, source_tick):
         """Oracle detector: collect from GT actors; else default perception."""

@@ -46,6 +46,7 @@ from AB3DMOT_libs.model import AB3DMOT
 from ecav.core.prediction.linear_predictor_manager import LinearPredictorManager
 from ecav.core.sensing.tracking.obstacle_trajectory import ObstacleTrajectory
 from ecav.core.sensing.perception.obstacle_vehicle import ObstacleVehicle
+from ecav.core.application.edge.service_occupancy import ServiceOccupancy, occupancy_enabled
 from ecav.core.application.edge.edge_profiler import EdgeProfiler
 from ecav.core.application.edge.ego_uniqueness_monitor import EgoUniquenessMonitor
 from ecav.core.application.edge.beacon_id_manager import BeaconIdManager
@@ -255,6 +256,13 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # Latest-wins: _drain_outbound_latest returns the freshest prediction
         # whose delivery_tick has been reached and discards older entries.
         self._outbound_queue: List[Tuple[int, List]] = []
+        # Logical service occupancy (edge option service_occupancy=on|off,
+        # default off: every arriving frame is processed and only its delivery
+        # is delayed, as the SenSys study's arms ran). With on, a frame is
+        # admitted only when the previous invocation has completed in logical
+        # time and the frames that arrived meanwhile are superseded by the
+        # newest. See ecav/core/application/edge/service_occupancy.py.
+        self._occupancy = ServiceOccupancy(occupancy_enabled(cfg), self._sim_dt_ms)
 
         # Two-time-base determinism modes:
         #   - 'live': logical service occupancy uses live wall-clock GPU stamps
@@ -584,6 +592,9 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
 
                 # Drain jitter buffer for all arrived frames
                 new_frames = self._jitter_buffer.drain(tick)
+                if self._occupancy.enabled:
+                    _adm = self._occupancy.admit(tick, new_frames)
+                    new_frames = [_adm] if _adm is not None else []
 
             if not new_frames:
                 # No fresh fusion this tick: deliver whatever's already
@@ -894,6 +905,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     dl_ms = 0.0
             if getattr(self, '_compute_delay_mode', 'measured') == 'zero':
                 compute_ms = 0.0
+            if self._occupancy.enabled:
+                self._occupancy.occupy(tick, compute_ms)
             self._composed_rows.append(
                 (int(tick), float(compute_ms),
                  float(getattr(self, '_last_ul_ms', 0.0)), float(dl_ms)))
@@ -2537,6 +2550,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 'ul_ms_mean': float(_c[:, 1].mean()), 'dl_ms_mean': float(_c[:, 2].mean()),
                 'dl_ms_p95': float(np.percentile(_c[:, 2], 95)),
             }
+        if getattr(self, '_occupancy', None) is not None:
+            metrics['service_occupancy'] = self._occupancy.metrics()
         if hasattr(self, 'mot_tracker') and self.mot_tracker is not None:
             metrics['birth_gate'] = {
                 # AB3DMOT birth-gate counters; other trackers (mamba)

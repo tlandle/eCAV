@@ -51,6 +51,8 @@ from ecav.core.application.edge.latency.ns3_lut_sampler import (
 
 from .ab3dmot_state_transfer import AB3DMOTStateTransferMixin
 from .edge_manager_base import _BaseEdgeManager, logger
+from ecav.core.application.edge.service_occupancy import (
+    ServiceOccupancy, TimingTrace, occupancy_enabled)
 
 # Late-fusion uplink payload per source: 96 B self-beacon + object list.
 # Each 3D box ~48 B serialized; the paper reports mean ~7 boxes, <10 worst case.
@@ -362,6 +364,21 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._cav_world_ref = cav_world
         self._last_edge_compute_ms = 0.0
         self._composed_rows: list = []   # (tick, compute_ms, ul_ms, dl_ms)
+        # Logical service occupancy (edge option service_occupancy=on|off,
+        # default off: every frame is ingested and only delayed, as the SenSys
+        # study's arms ran). With on, a frame that reaches the edge while the
+        # previous invocation is still running in logical time waits, and only
+        # the newest waiting frame is ingested when the service frees. See
+        # ecav/core/application/edge/service_occupancy.py.
+        self._occupancy = ServiceOccupancy(
+            occupancy_enabled(cfg) and not is_proxy, self._sim_dt_ms)
+        self._occ_inflight: list = []    # (network_arrival_tick, source_tick, payload)
+        self._last_composed_compute_ms = 0.0
+        # Stamp record and replay (timing_mode=live|replay, timing_trace).
+        self._stamp_trace = None
+        if not is_proxy and (cfg.get("timing_trace", None)
+                             or os.environ.get("ECAV_TIMING_TRACE")):
+            self._stamp_trace = TimingTrace(cfg)
 
         if is_proxy:
             self.profiler = None
@@ -764,6 +781,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 f"rsu_{rsu_id}", None, src_objects, beacons, frame_idx))
 
         # Stamp with per-packet arrival time and push to jitter buffer
+        _rep = self._stamp_trace.lookup(frame_idx) if self._stamp_trace else None
         if self._lut_sampler is not None:
             # ns-3 Uu uplink: one packet per vehicle source (RSU is wired
             # backhaul, not over Uu, so excluded from radio contention).
@@ -778,22 +796,56 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 for _ in range(n_cav)
             ]
             ul_ms = max(ul_samples) if ul_samples else 0.0
-            extra_ms = self._composed_extra_ms(frame_idx, objects, ul_ms)
+            if _rep is not None:
+                ul_ms = float(_rep.get("ul_ms", ul_ms))
+            service_ms = self._composed_extra_ms(frame_idx, objects, ul_ms, replay=_rep)
+            extra_ms = service_ms
+            cfg_ms = 0.0
             if self._lut_plus_configured:
-                extra_ms += (self.latency_model.stamp(frame_idx) - frame_idx) * self._sim_dt_ms
+                cfg_ms = (self.latency_model.stamp(frame_idx) - frame_idx) * self._sim_dt_ms
+                extra_ms += cfg_ms
             ul_ticks = int(math.ceil((ul_ms + extra_ms) / self._sim_dt_ms))
             arrival = frame_idx + ul_ticks
+            net_arrival = frame_idx + int(math.ceil((ul_ms + cfg_ms) / self._sim_dt_ms))
         else:
             arrival = self.latency_model.stamp(frame_idx)
-            extra_ms = self._composed_extra_ms(frame_idx, objects, 0.0)
-            arrival += int(math.ceil(extra_ms / self._sim_dt_ms))
+            net_arrival = arrival
+            service_ms = self._composed_extra_ms(frame_idx, objects, 0.0, replay=_rep)
+            arrival += int(math.ceil(service_ms / self._sim_dt_ms))
         self._after_uplink_collect(objects, beacons, frame_idx)
-        self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
+        if self._occupancy.enabled:
+            self._occupancy_push(frame_idx, net_arrival, (objects, beacons), service_ms)
+        else:
+            self._jitter_buffer.push(frame_idx, arrival, (objects, beacons))
 
     # ------------------------------------------------------------------
-    def _composed_extra_ms(self, frame_idx, objects, ul_ms):
+    def _occupancy_push(self, tick, net_arrival, payload, service_ms):
+        """service_occupancy=on: the frame reaches the edge at net_arrival. The
+        service is invoked at this step on the newest frame that has arrived,
+        if the previous invocation has completed in logical time, and its
+        result is ingested service_ms (compute and downlink) later."""
+        self._occ_inflight.append((int(net_arrival), int(tick), payload))
+        arrived = [(s, p) for (a, s, p) in self._occ_inflight if a <= tick]
+        self._occ_inflight = [e for e in self._occ_inflight if e[0] > tick]
+        f = self._occupancy.admit(tick, arrived)
+        if f is None:
+            return
+        self._occupancy.occupy(tick, self._last_composed_compute_ms)
+        self._jitter_buffer.push(
+            f[0], tick + int(math.ceil(service_ms / self._sim_dt_ms)), f[1])
+
+    # ------------------------------------------------------------------
+    def _composed_extra_ms(self, frame_idx, objects, ul_ms, replay=None):
         """Measured compute and table downlink added to a frame's stamp
-        (zero unless compute_delay=measured or lut_dl is set)."""
+        (zero unless compute_delay=measured or lut_dl is set). replay: the
+        recorded stamp of this tick, used in place of the live values."""
+        if replay is not None:
+            compute_ms = float(replay.get("compute_ms", 0.0))
+            dl_ms = float(replay.get("dl_ms", 0.0))
+            self._last_composed_compute_ms = compute_ms
+            if compute_ms or dl_ms or ul_ms:
+                self._composed_rows.append((int(frame_idx), compute_ms, float(ul_ms), dl_ms))
+            return compute_ms + dl_ms
         compute_ms = 0.0
         if self._compute_delay_mode == "measured":
             det_ms = 0.0
@@ -813,6 +865,9 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 n_lut, _LF_BEACON_BYTES + n_boxes * _LF_PER_BOX_BYTES, "dl")
         if compute_ms or dl_ms or ul_ms:
             self._composed_rows.append((int(frame_idx), compute_ms, float(ul_ms), dl_ms))
+        self._last_composed_compute_ms = compute_ms
+        if self._stamp_trace is not None:
+            self._stamp_trace.record(frame_idx, ul_ms, compute_ms, dl_ms)
         return compute_ms + dl_ms
 
     # ------------------------------------------------------------------
@@ -2081,6 +2136,8 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 'ul_ms_mean': float(_c[:, 1].mean()), 'dl_ms_mean': float(_c[:, 2].mean()),
                 'dl_ms_p95': float(np.percentile(_c[:, 2], 95)),
             }
+        if getattr(self, '_occupancy', None) is not None and self._occupancy.enabled:
+            metrics['service_occupancy'] = self._occupancy.metrics()
         metrics.update(self._get_contract_metrics())
         self.mac_model.metrics.finalize()
         metrics['mac'] = self.mac_model.metrics.get_summary()
