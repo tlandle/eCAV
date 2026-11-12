@@ -647,6 +647,28 @@ class PerceptionManager:
         self.client_metrics.update_detections_time(
             (detection_end_time - detection_start_time) * 1000)
         logger.debug("Yolo Detection: %s", yolo_detection)
+        # SENSOR_FRAME_TRACE=1: which simulator frame each sensor's data comes
+        # from and a digest of it, to tell stale sensor data, different sensor
+        # data and different detector output apart between two repeated runs.
+        if os.environ.get('SENSOR_FRAME_TRACE'):
+            import hashlib
+            try:
+                _wf = self.vehicle.get_world().get_snapshot().frame
+                _cams = [(getattr(c, 'frame', None),
+                          hashlib.md5(np.ascontiguousarray(c.image).tobytes()).hexdigest()[:8])
+                         for c in self.rgb_camera]
+                _ld = self.lidar.data
+                _lid = (getattr(self.lidar, 'frame', None),
+                        hashlib.md5(np.ascontiguousarray(_ld).tobytes()).hexdigest()[:8]
+                        if _ld is not None else None)
+                _yo = hashlib.md5(b''.join(
+                    np.ascontiguousarray(np.round(np.asarray(
+                        x.detach().cpu() if hasattr(x, 'detach') else x, dtype=np.float64), 2)).tobytes()
+                    for x in yolo_detection.xyxy)).hexdigest()[:8]
+                logger.warning("[SENSOR-TRACE] id=%s world_frame=%s cams=%s lidar=%s yolo=%s",
+                               getattr(self, 'id', '?'), _wf, _cams, _lid, _yo)
+            except Exception as _e:
+                logger.warning("[SENSOR-TRACE] failed: %s", _e)
 
         # rgb_images for drawing
         rgb_draw_images = []

@@ -9,6 +9,7 @@ as environment variables (CLOSING_SPEED_MPS and friends, see that file).
 import os
 import asyncio
 import time
+from ecav.scenario_testing.utils import sr_lockstep
 from multiprocessing import Process
 
 import carla
@@ -209,6 +210,9 @@ def run_scenario(opt, scenario_params):
                 flag = scenario_manager.broadcast_message(command)
                 scenario_manager.tick_world()
             else:
+                # SR_LOCKSTEP=1: wait for the scenario runner process to step the
+                # scripted actors for the current frame (default off, no wait)
+                sr_lockstep.wait(world)
                 scenario_manager.tick()
 
             print("about to set ego cav")
