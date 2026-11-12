@@ -24,7 +24,7 @@
 # Every host needs: the worktree at $WT with generated proto stubs and, on the orchestrator, the
 # ecloud_server binary; the opencda310 env; CARLA's PythonAPI under $CARLA_ROOT. Hosts must reach
 # each other on 2000-2002 (CARLA), 50051 (orchestration server), 50061 (orchestrator push),
-# 50054 (edge), 50101-50101+N (vehicle push) and 50201-50201+R (RSU push).
+# 50054 (edge), 50101-50101+N (vehicle push) and 51101-51101+R (RSU push).
 # cloud_config.yaml is rewritten on every host from the private IPs (hostname -I) when more than
 # one host is used: carla_server_public_ip, ecloud_server_public_ip, vehicle_client_public_ip
 # (the host's own address; on the orchestrator the list of client hosts), edge_server_public_ip.
@@ -121,7 +121,10 @@ for j in $(seq 0 $((R - 1))); do bg "$RSUH" "rsu_$j" "python -u ecav/ecav2/eclou
 log "all clients started after $(( $(date +%s) - T0 )) s; waiting for the run"
 wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 " $((600 + 4 * N)) || fail "no first tick"
 log "first tick after $(( $(date +%s) - T0 )) s"
+# CPU counters on every host at the first tick and at the end: scale_breakdown.py reports the busy fraction
+for h in $HOSTS; do $SSH "$h" "cd $WT && head -1 /proc/stat > $L/cpu_start.log; cat /proc/loadavg > $L/load_start.log"; done
 wait_log "$ORCH" orch "SCALE_TOWN06. SUMMARY" $((600 + STEPS * 20)) || fail "run did not finish"
+for h in $HOSTS; do $SSH "$h" "cd $WT && head -1 /proc/stat > $L/cpu_end.log; cat /proc/loadavg > $L/load_end.log"; done
 sleep 15
 collect; killall_hosts
 grep -h "SUMMARY" "$OUT"/*/orch.log | tee -a "$OUT/launch.log"

@@ -512,7 +512,8 @@ class ScenarioManager:
         print(f"[SERVER TICK {self.tick_id}] "
               f"send_cmd={(t_do_tick_sent-t_do_tick_start)*1000:.0f}ms | "
               f"wait_clients={(t_clients_done-t_do_tick_sent)*1000:.0f}ms | "
-              f"unpack={(t_unpack_done-t_clients_done)*1000:.0f}ms",
+              f"unpack={(t_unpack_done-t_clients_done)*1000:.0f}ms | "
+              f"t_start={t_do_tick_start:.4f} t_sent={t_do_tick_sent:.4f} t_done={t_clients_done:.4f}",
               flush=True)
 
         return empty
@@ -1657,15 +1658,18 @@ class ScenarioManager:
                     logger.debug("finished creating VehicleManager for vehicle %s", index)
 
                     # --- Spawn-tick diagnostic: log ALL vehicle positions before tick ---
-                    _snap = self.world.get_snapshot()
-                    _all_actors = self.world.get_actors().filter('vehicle.*')
-                    for _a in _all_actors:
-                        _loc = _a.get_transform().location
-                        _vel = _a.get_velocity()
-                        _spd = (_vel.x**2 + _vel.y**2 + _vel.z**2)**0.5
-                        print(f"[SPAWN TICK] vm_idx={index} sim_t={_snap.timestamp.elapsed_seconds:.3f} "
-                              f"actor={_a.id} type={_a.type_id} "
-                              f"pos=({_loc.x:.1f},{_loc.y:.1f}) spd={_spd:.1f}", flush=True)
+                    # per-vehicle dump of every actor: two RPCs per actor per vehicle, quadratic
+                    # in the vehicle count, so only for the small scenarios it was written for
+                    if n_total_vehicles <= 8:
+                        _snap = self.world.get_snapshot()
+                        _all_actors = self.world.get_actors().filter('vehicle.*')
+                        for _a in _all_actors:
+                            _loc = _a.get_transform().location
+                            _vel = _a.get_velocity()
+                            _spd = (_vel.x**2 + _vel.y**2 + _vel.z**2)**0.5
+                            print(f"[SPAWN TICK] vm_idx={index} sim_t={_snap.timestamp.elapsed_seconds:.3f} "
+                                  f"actor={_a.id} type={_a.type_id} "
+                                  f"pos=({_loc.x:.1f},{_loc.y:.1f}) spd={_spd:.1f}", flush=True)
 
                     print(f"[SPAWN LOOP] vm_idx={index} calling world.tick()...", flush=True)
                     self.world.tick()

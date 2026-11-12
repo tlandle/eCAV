@@ -174,6 +174,7 @@ class EdgeServer(ecloud_rpc.EcloudServicer):
 
         self.edge_process.current_tick_id = tick_id
         self.edge_process.current_command = command
+        self.edge_process.tick_recv_time = time.time()
 
         # Signal the main loop that a new tick arrived
         if not self.edge_process.tick_queue.full():
@@ -747,7 +748,11 @@ class EdgeProcess:
         prior_done = {key for key, a in self.actors.items() if a.is_done}
 
         # Push tick to all active (non-done) actors
+        t_recv = getattr(self, 'tick_recv_time', time.time())
+        t_dequeued = time.time()
         await self.push_tick_to_actors(tick_id, command)
+        t_pushed = time.time()
+        t_first_report = None
 
         # Wait for all active (non-done) actors to report
         expected = sum(1 for a in self.actors.values() if not a.is_done)
@@ -759,6 +764,8 @@ class EdgeProcess:
                     timeout=30.0
                 )
                 actors_reported += 1
+                if t_first_report is None:
+                    t_first_report = time.time()
                 logger.debug("Actor %s completed (%d/%d)",
                            vehicle_index, actors_reported, expected)
             except asyncio.TimeoutError:
@@ -770,10 +777,22 @@ class EdgeProcess:
         newly_done = [a for key, a in self.actors.items()
                       if a.is_done and key not in prior_done]
 
+        t_last_report = time.time()
         self.run_edge_step(tick_id)
+        t_step = time.time()
 
         # Report completion to orchestrator, forwarding any newly-done vehicle state
         await self.report_tick_complete(tick_id, newly_done)
+        t_reported = time.time()
+        # absolute times (epoch s) so scale_breakdown.py can line the edge up with the
+        # orchestrator and the clients; durations in ms for reading the log directly
+        print(f"[EDGE TICK {tick_id}] push={(t_pushed - t_dequeued) * 1000:.0f}ms | "
+              f"wait_actors={(t_last_report - t_pushed) * 1000:.0f}ms | "
+              f"edge_step={(t_step - t_last_report) * 1000:.0f}ms | "
+              f"report={(t_reported - t_step) * 1000:.0f}ms | "
+              f"t_recv={t_recv:.4f} t_dequeued={t_dequeued:.4f} t_pushed={t_pushed:.4f} "
+              f"t_first={(t_first_report or t_last_report):.4f} t_last={t_last_report:.4f} "
+              f"t_step={t_step:.4f} t_reported={t_reported:.4f}", flush=True)
 
         return True  # Continue processing
 
@@ -845,12 +864,16 @@ class EdgeProcess:
                     if vm_list_idx < len(self._vm_list_to_actor_key):
                         actor_key = self._vm_list_to_actor_key[vm_list_idx]
                         self.fused_predictions[actor_key] = obj_buf.pickled_edge_predictions
-                        if obj_buf.pickled_edge_predictions:
+                        # count for the log line from the first recipient's buffer only:
+                        # unpickling every recipient's buffer to count it was 59 % of the
+                        # edge step at 32 vehicles (each buffer holds every other vehicle's
+                        # forecast, so the count cost grew with the square of the fleet)
+                        if obj_buf.pickled_edge_predictions and n_preds == 0:
                             _p = pickle.loads(obj_buf.pickled_edge_predictions)
-                            n_preds += len(_p) if isinstance(_p, list) else len(_p.get('vehicles', []))
+                            n_preds = len(_p) if isinstance(_p, list) else len(_p.get('vehicles', []))
                         vehicles_updated += 1
 
-            logger.info("[DATA_FLOW] tick=%d features=%d/%d objects=%d/%d predictions=%d vehicles_updated=%d",
+            logger.info("[DATA_FLOW] tick=%d features=%d/%d objects=%d/%d predictions_per_vehicle=%d vehicles_updated=%d",
                         tick_id, actors_with_features, total_actors,
                         actors_with_objects, total_actors, n_preds, vehicles_updated)
 

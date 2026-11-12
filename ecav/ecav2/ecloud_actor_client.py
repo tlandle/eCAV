@@ -49,6 +49,7 @@ CARLA_IP = cloud_config["carla_server_public_ip"]
 ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
 VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
 ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
+ECLOUD_RSU_PUSH_OFFSET = 1000
 
 if cloud_config["log_level"] == "error":
     logger.setLevel(logging.ERROR)
@@ -204,13 +205,16 @@ class Ecav2ActorClient:
 
     async def connect(self) -> ecloud.SimulationInfo:
         # spawn push server
-        self.push_port = ECLOUD_PUSH_BASE_PORT + self.opt.vehicle_index + ( 100 if self.actor_type == ecloud.ActorType.RSU else 0 ) # TODO: needs to count number of vehicles so that we can then index RSUs properly
+        # vehicle k listens on 50101 + k, RSU j on 51101 + j: the old RSU offset of 100 put
+        # RSU 0 on vehicle 100's port, and runs go to 512 vehicles on one host
+        self.push_port = ECLOUD_PUSH_BASE_PORT + self.opt.vehicle_index + ( ECLOUD_RSU_PUSH_OFFSET if self.actor_type == ecloud.ActorType.RSU else 0 )
         self.push_server = asyncio.create_task(ecloud_run_push_server(self.push_port, self.push_q))
 
         await asyncio.sleep(1)
 
         push_port = await self.push_q.get() # make sure we get the actual port - try logic may have altered it.
         self.push_q.task_done()
+        self.push_port = push_port # register the port the server actually bound
 
         logger.info("push server spun up on port %s", push_port)
 
@@ -422,6 +426,7 @@ class Ecav2ActorClient:
         assert self.vehicle_manager is not None, "vehicle_manager not initialized"
 
         logger.info("vehicle %s beginning scenario tick flow", self.vehicle_index)
+        self._t_tick_entry = time.time()
         
         vehicle_update = ecloud.VehicleUpdate()
         
@@ -555,6 +560,12 @@ class Ecav2ActorClient:
                 t_post_send = time.time()
                 actor_label = "VEHICLE" if self.actor_type == ecloud.ActorType.VEHICLE else "RSU"
                 print(f"[CLIENT {actor_label}] send_update={(t_post_send-t_pre_send)*1000:.0f}ms", flush=True)
+                # absolute times (epoch s) for scale_breakdown.py: when the tick arrived at this
+                # process, when tick() started on it, when the reply was built, when it was acknowledged
+                print(f"[CLIENT TIMING {actor_label} {self.vehicle_index} TICK {self.tick_id}] "
+                      f"t_recv={getattr(self, '_t_tick_recv', t_pre_send):.4f} "
+                      f"t_start={getattr(self, '_t_tick_entry', t_pre_send):.4f} "
+                      f"t_built={t_pre_send:.4f} t_sent={t_post_send:.4f}", flush=True)
 
             if vehicle_update.vehicle_state == ecloud.VehicleState.TICK_DONE or vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE:
                 if vehicle_update.vehicle_state == ecloud.VehicleState.DEBUG_INFO_UPDATE and self.pong.command == ecloud.Command.REQUEST_DEBUG_INFO:
@@ -567,6 +578,7 @@ class Ecav2ActorClient:
             t_wait_start = time.time()
             self.pong = await self.push_q.get()
             t_wait_end = time.time()
+            self._t_tick_recv = t_wait_end
             self.push_q.task_done()
             assert( self.pong.tick_id != self.tick_id )
             self.tick_id = self.pong.tick_id

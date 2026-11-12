@@ -137,24 +137,30 @@ async def ecloud_run_push_server(port,
     '''
 
     logger.info("spinning up eCloud push server")
-    server = grpc.aio.server()
+    # so_reuseport off: with it on, two clients can listen on one port and the pushes are
+    # split between them without an error
+    server = grpc.aio.server(options=(('grpc.so_reuseport', 0),))
     ecloud_rpc.add_EcloudServicer_to_server(EcloudPushServer(que), server)
-    
-    server_started = False
-    while not server_started:
-        try:
-            listen_addr = f"0.0.0.0:{port}"
-            server.add_insecure_port(listen_addr)
-            server_started = True
-        except Exception as port_exception: # pylint: disable=broad-exception-caught
-            logger.warning("failed to start push server on port %s - incrementing port & retrying", 
-                           port)
-            port += 1
-            continue
+
+    requested = port
+    try:
+        bound = server.add_insecure_port(f"0.0.0.0:{port}")
+    except Exception: # pylint: disable=broad-exception-caught
+        bound = 0
+    if not bound:
+        # The push ports sit inside the kernel's ephemeral range (32768 to 60999), so an
+        # outgoing connection of any process can hold one. The old fallback, port + 1, took
+        # the next client's port (measured at 32 clients on one host: client 17 moved to
+        # client 18's port). Clients register the port they bound, so any free port works.
+        if requested < ECLOUD_PUSH_BASE_PORT:
+            raise RuntimeError(f"push server port {requested} is in use and its peers expect that port")
+        bound = server.add_insecure_port("0.0.0.0:0")
+        logger.warning("push server port %s is in use - bound %s instead", requested, bound)
+    port = bound
 
     logger.critical("started eCloud push server on port %s", port)
 
-    if port >= ECLOUD_PUSH_BASE_PORT: # only push for vehicle clients
+    if requested >= ECLOUD_PUSH_BASE_PORT: # only push for vehicle clients
         que.put_nowait(port)
 
     await server.start()

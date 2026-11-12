@@ -26,6 +26,10 @@ from ecav.core.map.map_drawing import \
     cv2_subpixel, draw_agent, draw_road, draw_lane
 
 
+# (map name, lane sample resolution) -> (lane_info, bound_info), per process
+_LANE_CROSS_CACHE = {}
+
+
 class MapManager(object):
     """
     This class is used to manage HD Map. We emulate the style of Lyft dataset.
@@ -123,8 +127,18 @@ class MapManager(object):
 
         # generate information for traffic light
         self.generate_tl_info(self.world)
-        # generate lane, crosswalk and boundary information
-        self.generate_lane_cross_info()
+        # generate lane, crosswalk and boundary information. The result depends on
+        # the map and the sample resolution only and is read-only afterwards, so
+        # one process computes it once: the orchestrator and the edge process build
+        # one proxy VehicleManager per vehicle, and on Town06 the sampling is 2 s
+        # each (64 s and 78 s of start-up at 32 vehicles).
+        _key = (carla_map.name, float(self.lane_sample_resolution))
+        _cached = _LANE_CROSS_CACHE.get(_key)
+        if _cached is None:
+            self.generate_lane_cross_info()
+            _LANE_CROSS_CACHE[_key] = (self.lane_info, self.bound_info)
+        else:
+            self.lane_info, self.bound_info = _cached
 
         # bev maps
         self.dynamic_bev = None
