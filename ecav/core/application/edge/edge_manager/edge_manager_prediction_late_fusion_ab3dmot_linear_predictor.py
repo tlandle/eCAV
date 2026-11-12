@@ -353,6 +353,10 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         #   lut_n: sender count the table is sampled at (default: managed CAVs).
         self._compute_delay_mode = str(cfg.get("compute_delay", "zero")).lower()
         self._lut_dl = bool(cfg.get("lut_dl", False)) if not is_proxy else False
+        #   lut_plus_configured: with the ns-3 table on, the configured delay
+        #   (--latencies) is otherwise not applied. True adds it to the table
+        #   sample, so an added-delay cell exists under table delivery too.
+        self._lut_plus_configured = bool(cfg.get("lut_plus_configured", False))
         self._lut_n = cfg.get("lut_n", None)
         self._dl_sampler = _get_lut_sampler() if self._lut_dl else None
         self._cav_world_ref = cav_world
@@ -775,6 +779,8 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             ]
             ul_ms = max(ul_samples) if ul_samples else 0.0
             extra_ms = self._composed_extra_ms(frame_idx, objects, ul_ms)
+            if self._lut_plus_configured:
+                extra_ms += (self.latency_model.stamp(frame_idx) - frame_idx) * self._sim_dt_ms
             ul_ticks = int(math.ceil((ul_ms + extra_ms) / self._sim_dt_ms))
             arrival = frame_idx + ul_ticks
         else:

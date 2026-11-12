@@ -32,8 +32,8 @@ arch_args() { case "$1" in
 cond_kv() { local n="$2"; case "$1" in
   A) echo "compute_delay=zero use_ns3_lut=false lut_dl=false" ;;
   B) echo "compute_delay=measured use_ns3_lut=false lut_dl=false" ;;
-  C) echo "compute_delay=zero use_ns3_lut=true lut_dl=true lut_n=$n" ;;
-  D) echo "compute_delay=measured use_ns3_lut=true lut_dl=true lut_n=$n" ;; esac; }
+  C) echo "compute_delay=zero use_ns3_lut=true lut_dl=true lut_n=$n lut_plus_configured=true" ;;
+  D) echo "compute_delay=measured use_ns3_lut=true lut_dl=true lut_n=$n lut_plus_configured=true" ;; esac; }
 run_cell() {  # geom arch cond lut_n reps
   set -- "$@"; local g a; read -r g a <<< "$(geom_args "$1")"
   local cmd=(test_runner.py -t "$g" $(arch_args "$2") --latencies $LATS --latency-distribution fixed --speeds $SPEED

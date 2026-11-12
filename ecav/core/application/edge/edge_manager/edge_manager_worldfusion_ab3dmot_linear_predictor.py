@@ -246,6 +246,9 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # if the service took no time. lut_n fixes the sender count the radio
         # table is sampled at (the NS3_LUT_N environment override still wins).
         self._compute_delay_mode = str(cfg.get("compute_delay", "measured")).lower()
+        # With the ns-3 table on, the configured delay (--latencies) is otherwise
+        # not applied. True adds it to the table uplink sample.
+        self._lut_plus_configured = bool(cfg.get("lut_plus_configured", False))
         self._lut_n = cfg.get("lut_n", None)
         self._composed_rows: List[Tuple[int, float, float, float]] = []
         # Outbound delivery queue: list of (deliver_tick, predictions).
@@ -495,7 +498,9 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 ]
                 ul_ms = max(ul_samples_ms) if ul_samples_ms else 0.0
                 self._last_ul_ms = ul_ms  # for network_age_ms (T12)
-                ul_ticks = int(math.ceil(ul_ms / self._sim_dt_ms))
+                cfg_ms = ((self.latency_model.stamp(frame_idx) - frame_idx) * self._sim_dt_ms
+                          if self._lut_plus_configured else 0.0)
+                ul_ticks = int(math.ceil((ul_ms + cfg_ms) / self._sim_dt_ms))
                 arrival = frame_idx + ul_ticks
             else:
                 arrival = self.latency_model.stamp(frame_idx)
