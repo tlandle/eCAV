@@ -42,9 +42,11 @@ cond_kv() { local n="$2"; case "$1" in
   D) echo "compute_delay=measured use_ns3_lut=true lut_dl=true lut_n=$n lut_plus_configured=true" ;; esac; }
 run_cell() {  # geom arch cond lut_n reps
   set -- "$@"; local g a; read -r g a <<< "$(geom_args "$1")"
+  # the intermediate-fusion manager does not read lut_dl; leaving it out keeps the run directory name under 255 bytes
+  local ckv; ckv="$(cond_kv "$3" "$4")"; [[ "$2" == inter ]] && ckv="${ckv/ lut_dl=true/}"
   local cmd=(test_runner.py -t "$g" $(arch_args "$2") --latencies $LATS --latency-distribution fixed --speeds $SPEED
              --ego-counts 1 --repetitions "$5" --per-tick-age-log --self-id-radius 1 --carla-port "$PORT" --stamp "$STAMP"
-             --edge-kv prediction_steps=60 $(cond_kv "$3" "$4") $(arch_cond_kv "$2" "$3") --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
+             --edge-kv prediction_steps=60 $ckv $(arch_cond_kv "$2" "$3") --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
              --scenario-env "$a" HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=-90 EGO_DRIVE_DISTANCE=400 SCENARIO_MAX_STEP=900)
   echo "$(date '+%F %T') $1 $2 $3 n=$4 reps=$5 lats=$LATS"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; else "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3; fi
