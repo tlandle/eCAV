@@ -99,3 +99,77 @@ Open points for the sweep:
 - Teardown noise, harmless: edge_process core dump after cleanup, grpc aio `__del__` TypeError in RSU clients.
 
 Multi-host: every VM needs the worktree at $HOME/scale_wt (git push to the VM, or rsync from the node, since VMs have no GitHub access), the scenario_runner submodule content at 527c028, sort and ecav/worldfusion submodule content, `python ecav.py --build` for the stubs, the opencda310 env, CARLA 0.9.15 PythonAPI under $HOME/carla-0.9.15 (clients need only PythonAPI/carla and Town06.xodr on the orchestrator), and the ecloud_server binary on the orchestrator. Ports between VMs: 2000 to 2002, 50051, 50061, 50054, 50101 to 50101+N, 50201 to 50201+R. The launcher rewrites cloud_config.yaml on every host from private IPs (carla_server_public_ip, ecloud_server_public_ip, vehicle_client_public_ip, edge_server_public_ip) and keeps the original as cloud_config.yaml.single_host. The multi-host path of the launcher is written and not yet run.
+
+## Probe log, 2026-11-11 23:34 (scale defects closed, single-host baseline sweep on the A10 node)
+
+Code version for the whole sweep: develop 8effe0e7 (node files checked against it by checksum).
+Results: `experiment_results/ispass_scale/sweep2_n{8,16,32,64,128}` on atlas. No perception,
+exact-state edge manager, 2 RSUs, 300 ticks, 30 km/h, everything on the A10 node (36 cores).
+No vehicle reported done early and no collision was logged in any run.
+
+Tick wall time and its partition along the critical path (the client that reports last), ms, means
+over ticks 5 to 299. `scripts/ispass/scale_breakdown.py <dir>` prints one run, `--row` one row.
+
+| N | tick wall mean / p50 / p99 | orch to edge | edge fan-out | client loop gap | client compute (last reporter) | client reply | edge step | edge to orch | unpack | world tick | unattributed | client compute, all clients | first tick (s) | CPU busy | load avg |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 8 | 72 / 64 / 294 | 2 | 9 | 2 | 37 | 2 | 15 | 2 | 1 | 3 | 0 | 31 | 52 | 21 % | 17 |
+| 16 | 127 / 110 / 330 | 2 | 17 | 2 | 63 | 4 | 31 | 2 | 1 | 4 | 0 | 49 | 49 | 29 % | 8 |
+| 32 | 283 / 257 / 687 | 3 | 14 | 2 | 123 | 25 | 106 | 2 | 1 | 8 | 0 | 107 | 68 | 47 % | 20 |
+| 64 | 888 / 877 / 1463 | 5 | 13 | 4 | 435 | 48 | 366 | 2 | 1 | 13 | 0 | 369 | 103 | 56 % | 38 |
+| 128 | 3910 / 4096 / 5099 | 7 | 31 | 6 | 2249 | 126 | 1462 | 2 | 1 | 27 | 0 | 2055 | 176 | 66 % | 73 |
+
+(The load average of the N=8 row still carries the run before it. N=256 was not run: the host is
+past its core count at N=64.)
+
+Reading:
+- The orchestration path itself (orchestrator to edge, fan-out, edge to orchestrator, unpack) is 14 ms
+  at N=8 and 41 ms at N=128, about 1 % of the tick at N=128. CARLA's world tick is 3 to 27 ms.
+- The tick is two serial phases: the clients compute in parallel, then the edge process runs one
+  single-threaded step. Client compute per vehicle grows with N in this scenario because the fleet
+  is one dense block (12 m slots, 5 lanes): every client tracks and plans against most of the other
+  vehicles, and beyond 36 clients they share cores. The edge step (exact-state manager: tracker,
+  forecast, one pickled forecast list per recipient) grows faster than linearly for the same reason.
+- CPU busy stays below 70 % at N=128 because the clients idle during the edge step and the edge
+  process idles during the client phase.
+- More hosts will cut the client phase only. The edge step (1.5 s at N=128) is one Python process and
+  will not move with client hosts. That is the next bottleneck for the multi-host sweep, and the
+  place to look is per-recipient serialization in the edge manager's run_step (py-spy at N=32:
+  pickle.dumps of each recipient's list and the tracker).
+
+Defects closed in this block:
+1. Barrier wait attributed. Orchestrator (`sim_api.py` server_do_tick), edge (`edge_process.py`
+   process_tick) and clients (`ecloud_actor_client.py` tick) log absolute times per tick, and the
+   breakdown follows the last-reporting client. Unattributed time is under 1 ms at every N. The
+   earlier 384 ms wait against 105 ms client compute at N=32 was the edge step, which no timer covered.
+2. Real inefficiency in the edge step: `edge_process.py` run_edge_step unpickled every recipient's
+   forecast buffer to count predictions for one log line, 59 % of the edge step at N=32 (py-spy).
+   It now counts the first buffer only. N=32 before and after, same day, 200 ticks: tick wall 400 to
+   271 ms, edge step 238 to 102 ms (runs probe1_n32 and probe4_n32).
+3. Start-up. `MapManager.__init__` sampled every Town06 lane at 0.1 m for each VehicleManager, 2 s
+   each, in the orchestrator's and the edge's per-vehicle proxy loops (78 s and 64 s at N=32). The
+   result is cached per process (`ecav/core/map/map_manager.py`). The orchestrator's per-vehicle dump
+   of every actor (`sim_api.py` SPAWN TICK, quadratic) now runs only up to 8 vehicles. Time to first
+   tick at N=32: 223 s to 68 s. At N=128 it is 176 s, of which 130 s is starting the clients in waves
+   of 16; the estimate for N=512 on one host is about 10 minutes, less with clients on more hosts.
+4. File descriptors. The orchestrator opened one CARLA client per proxy VehicleManager and failed at
+   the 98th vehicle (epoll: Too many open files). Proxies now share the orchestrator's world
+   (`vehicle_manager.py`), and the launcher raises the limit to 65536 and stops when the orchestrator
+   logs an exception before the first tick.
+5. Push ports. RSU j now listens on 51101+j (vehicle k on 50101+k). A second fault showed at N=32:
+   the push ports are inside the kernel's ephemeral range (32768 to 60999), an outgoing connection
+   held 50118, client 17 fell back to port + 1 and shared client 18's port (SO_REUSEPORT), and the
+   run stalled at 30 s per tick. `ecloud_comms.py` now disables port sharing, falls back to a free
+   OS-assigned port, and the client registers the port the server bound.
+
+Multi-host run must know:
+- On every host: `sudo sysctl -w net.ipv4.ip_local_reserved_ports=50051-50070,50101-51300` (set on the
+  A10 node, not persisted across reboot) so outgoing connections never take a service port. With the
+  fallback a client can still land on an OS-assigned port, so hosts need all TCP ports open to each
+  other inside the virtual network, not only the listed ranges.
+- scale_breakdown.py compares time.time() across processes: hosts need synchronised clocks (chrony)
+  or the cross-host rows (fan-out, reply) are off by the clock offset. Sums stay correct.
+- py-spy in its default blocking mode stalls a run (14 s ticks); use `--nonblocking -r 50`.
+- With perception on, each client sleeps index + 1 seconds before building its VehicleManager
+  (`ecloud_actor_client.py:159`), 128 s at N=128; not changed.
+- Node-only state: worktree files delivered by scp, py-spy installed in opencda310, ~/spy.sh,
+  ~/spy_top.py, ~/prof_vm.py. CARLA and all run processes on the node are stopped.
