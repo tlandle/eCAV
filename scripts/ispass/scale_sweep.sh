@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Single-host scale sweep for the ISPASS scaling section, one code version for the whole table.
 #   scripts/ispass/scale_sweep.sh <stamp> <host> [parts]      parts: dense spread seq percep (default: all)
+# Multi-host parts (not in the default): mhdense mhspread mhpercep. <host> keeps CARLA, the orchestrator, the edge,
+# the RSU clients and the inference service; the vehicle clients are split evenly over the hosts in CLIENT_HOSTS:
+#   CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 "mhdense mhspread"
 # Runs land in experiment_results/ispass_scale/<stamp>_<config>_n<N>; scale_report.py <stamp> builds the table and figure.
 # 300 ticks up to 128 vehicles, 100 ticks above (a tick takes seconds there). A failed run is retried once.
 set -uo pipefail
@@ -14,7 +17,18 @@ one() { local tag=$1; shift
     if timeout 5400 $L "$@" -o $HOST -t $tag > /dev/null 2>&1; then break; fi; echo "$(date '+%T') $tag attempt $try failed"; done
   echo "$(date '+%T') $tag: $(grep -h SUMMARY experiment_results/ispass_scale/$tag/launch.log | tail -1)"; }
 { git rev-parse HEAD; date -Is; } > experiment_results/ispass_scale/${STAMP}_meta.txt
+# vehicle index ranges for launch_scale.sh -H: N clients split evenly over CLIENT_HOSTS
+split() { local n=$1 hs=($CLIENT_HOSTS) k=${#hs[@]} i lo=0 hi out=""
+  for (( i = 0; i < k; i++ )); do hi=$(( lo + n / k - 1 + (i < n % k ? 1 : 0) )); out+="${hs[i]}:$lo-$hi,"; lo=$(( hi + 1 )); done; echo "${out%,}"; }
+perc_start() { ssh $HOST 'cd $HOME/scale_wt && source $HOME/miniconda3/etc/profile.d/conda.sh && conda activate opencda310 && (PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True PYTHONUNBUFFERED=1 setsid nohup python ecav/ml_manager/yolo_grpc_server.py > /tmp/yolo_grpc_scale.log 2>&1 < /dev/null &); timeout 180 bash -c "until ss -ltn | grep -q \":18001 \"; do sleep 2; done"'
+  ssh $HOST '(setsid nohup nvidia-smi --query-gpu=utilization.gpu,memory.used --format=csv,noheader,nounits -l 1 > /tmp/gpu_scale.csv 2>/dev/null < /dev/null &)'; }
+perc_stop() { ssh $HOST 'for p in $(pgrep -f "^nvidia-smi --query-gpu=utilization.gpu,memory.used"); do kill $p; done; for p in $(pgrep -f "^python ecav/ml_manager/yolo_grpc_server.py"); do kill -9 $p; done'
+  scp -q $HOST:/tmp/gpu_scale.csv experiment_results/ispass_scale/$1/gpu.csv; scp -q $HOST:/tmp/yolo_grpc_scale.log experiment_results/ispass_scale/$1/yolo_grpc.log; }
+[[ "$PARTS" == *mh* && -z "${CLIENT_HOSTS:-}" ]] && { echo "multi-host parts need CLIENT_HOSTS"; exit 2; }
 for part in $PARTS; do case $part in
+  mhdense)  for n in ${MH_NS:-64 128 256 512}; do one ${STAMP}_mhdense_n$n -n $n -r 2 -p off -s $(steps $n) -H "$(split $n)"; done ;;
+  mhspread) for n in ${MH_NS:-64 128 256 512}; do one ${STAMP}_mhspread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread" -H "$(split $n)"; done ;;
+  mhpercep) for n in ${MH_PN:-8 16 32 64}; do perc_start; one ${STAMP}_mhpdense_n$n -n $n -r 2 -p shared -s 300 -H "$(split $n)"; perc_stop ${STAMP}_mhpdense_n$n; done ;;
   dense)  for n in 8 16 32 64 128 256; do one ${STAMP}_dense_n$n -n $n -r 2 -p off -s $(steps $n); done ;;
   spread) for n in 8 16 32 64 128 256 512; do one ${STAMP}_spread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread"; done ;;
   seq)    for n in 8 16 32; do one ${STAMP}_seqdense_n$n -n $n -r 2 -p off -s 300 -m seq

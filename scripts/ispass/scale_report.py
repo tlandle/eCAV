@@ -21,9 +21,11 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RES = os.path.join(ROOT, "experiment_results", "ispass_scale")
-CONFIGS = ["dense", "spread", "seqdense", "seqspread", "pdense"]
+CONFIGS = ["dense", "spread", "seqdense", "seqspread", "pdense", "mhdense", "mhspread", "mhpdense"]
 LABEL = {"dense": "distributed, dense", "spread": "distributed, spread", "seqdense": "sequential, dense",
-         "seqspread": "sequential, spread", "pdense": "distributed, dense, perception"}
+         "seqspread": "sequential, spread", "pdense": "distributed, dense, perception",
+         "mhdense": "distributed, three hosts, dense", "mhspread": "distributed, three hosts, spread",
+         "mhpdense": "distributed, three hosts, dense, perception"}
 GROUPS = [("clients", ["client compute", "client loop gap"]),
           ("edge step", ["edge step"]),
           ("transport", ["orchestrator -> edge", "edge fan-out", "client reply", "edge -> orchestrator",
@@ -99,9 +101,11 @@ def figure(runs, path):
                          "legend.fontsize": 6.5, "axes.linewidth": 0.6, "pdf.fonttype": 42})
     fig, (a, b) = plt.subplots(1, 2, figsize=(3.4, 2.05), gridspec_kw={"width_ratios": [1.0, 1.25]})
     style = {"dense": ("C0", "o", "-"), "spread": ("C1", "s", "-"), "seqdense": ("C0", "o", ":"),
-             "seqspread": ("C1", "s", ":"), "pdense": ("C3", "^", "-")}
+             "seqspread": ("C1", "s", ":"), "pdense": ("C3", "^", "-"),
+             "mhdense": ("C0", "o", "--"), "mhspread": ("C1", "s", "--"), "mhpdense": ("C3", "^", "--")}
     short = {"dense": "distributed, dense", "spread": "distributed, spread", "seqdense": "sequential, dense",
-             "seqspread": "sequential, spread", "pdense": "distributed, perception"}
+             "seqspread": "sequential, spread", "pdense": "distributed, perception",
+             "mhdense": "three hosts, dense", "mhspread": "three hosts, spread", "mhpdense": "three hosts, perception"}
     for c in CONFIGS:
         rs = sorted((x for x in runs if x["config"] == c), key=lambda x: x["n"])
         if rs:

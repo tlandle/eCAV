@@ -40,8 +40,20 @@ import coloredlogs, logging
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='INFO', logger=logger)
 
-# Default ecloud server address
-ECLOUD_SERVER_ADDRESS = "localhost:50051"
+# ecloud server address: the host is cloud_config.yaml's ecloud_server_public_ip (the same key the
+# actor clients read), so a vehicle client on another machine fetches its scenario from the orchestrator
+def _ecloud_server_address() -> str:
+    import yaml
+    host = "localhost"
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "cloud_config.yaml")) as fh:
+            host = (yaml.safe_load(fh) or {}).get("ecloud_server_public_ip") or host
+    except (OSError, yaml.YAMLError) as exc:
+        logger.warning("cloud_config.yaml not read (%s); ecloud server assumed on localhost", exc)
+    return f"{host}:50051"
+
+
+ECLOUD_SERVER_ADDRESS = _ecloud_server_address()
 
 
 def fetch_scenario_from_server(vehicle_index: int = -1) -> str:

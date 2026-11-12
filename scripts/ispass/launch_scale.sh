@@ -18,6 +18,8 @@
 #   -e HOST         edge host (default: orchestrator host)
 #   -R HOST         RSU client host (default: edge host)
 #   -H LIST         vehicle clients: "host:lo-hi,host:lo-hi" (default: orchestrator host, 0..N-1)
+#   -y HOST         host of the shared YOLO inference service (default: orchestrator host). With more than
+#                   one host and -p shared, the scenario YAML's yolo_endpoint is set to that host's private address
 #   -t TAG          results directory tag (default: n<N>_r<R>_p<on|off>_<time>)
 #   -g ARGS         extra generator arguments, quoted (e.g. -g "--layout spread --rsus 12")
 #   -m dist|seq     dist (default): one process per actor. seq: the sequential single process
@@ -33,16 +35,19 @@
 # one host is used: carla_server_public_ip, ecloud_server_public_ip, vehicle_client_public_ip
 # (the host's own address; on the orchestrator the list of client hosts), edge_server_public_ip.
 set -uo pipefail
-N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""; MODE=dist
-while getopts "n:r:p:s:o:c:e:R:H:t:g:m:" o; do case $o in
+N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""; MODE=dist; PERC=""
+while getopts "n:r:p:s:o:c:e:R:H:t:g:m:y:" o; do case $o in
+  y) PERC=$OPTARG;;
   m) MODE=$OPTARG;;
   n) N=$OPTARG;; r) R=$OPTARG;; p) P=$OPTARG;; s) STEPS=$OPTARG;; o) ORCH=$OPTARG;; c) CARLA=$OPTARG;;
   e) EDGE=$OPTARG;; R) RSUH=$OPTARG;; H) VLIST=$OPTARG;; t) TAG=$OPTARG;; g) GEN=$OPTARG;; *) exit 2;; esac; done
 [[ -n "$N" && -n "$ORCH" ]] || { sed -n 2,20p "$0"; exit 2; }
-CARLA=${CARLA:-$ORCH}; EDGE=${EDGE:-$ORCH}; RSUH=${RSUH:-$EDGE}; VLIST=${VLIST:-$ORCH:0-$((N-1))}
+CARLA=${CARLA:-$ORCH}; EDGE=${EDGE:-$ORCH}; PERC=${PERC:-$ORCH}; RSUH=${RSUH:-$EDGE}; VLIST=${VLIST:-$ORCH:0-$((N-1))}
 # defaults are expanded on the remote host, not here
 DEF_WT='$HOME/scale_wt'; DEF_CARLA='$HOME/carla-0.9.15'
-DEF_ACT='source $HOME/miniconda3/etc/profile.d/conda.sh 2>/dev/null || source $HOME/anaconda3/etc/profile.d/conda.sh; conda activate opencda310'
+# a host with a conda install activates opencda310; a client VM prepared by setup_scale_vm.sh has only the env
+# directory (no conda base), so its bin directory goes on PATH
+DEF_ACT='if [ -f $HOME/miniconda3/etc/profile.d/conda.sh ]; then source $HOME/miniconda3/etc/profile.d/conda.sh; conda activate opencda310; elif [ -f $HOME/anaconda3/etc/profile.d/conda.sh ]; then source $HOME/anaconda3/etc/profile.d/conda.sh; conda activate opencda310; else export PATH=$HOME/miniconda3/envs/opencda310/bin:$PATH; fi'
 WT=${SCALE_WT:-$DEF_WT}; CARLA_ROOT=${SCALE_CARLA_ROOT:-$DEF_CARLA}; ACT=${SCALE_ACT:-$DEF_ACT}; BATCH=${BATCH:-16}
 # numeric libraries start one thread per core in every process; with one process per actor that
 # oversubscribes the host, so each process gets SCALE_THREADS threads (default 1, 0 leaves the libraries alone)
@@ -105,6 +110,11 @@ fi
 on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $GP --carla-host $CARLA_IP $GEN" | tee -a "$OUT/launch.log" || fail "generator"
 # the spread layout chooses its own RSU count
 RG=$(grep -o '^RSUS=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); [[ -n "$RG" ]] && R=$RG
+if [[ $MULTI == 1 && $P == shared ]]; then
+  PERC_IP=$(ip_of "$PERC")
+  $SSH "$ORCH" "cd $WT && sed -i -E \"s|yolo_endpoint: *'?localhost:([0-9]+)'?|yolo_endpoint: '$PERC_IP:\\1'|\" ecav/scenario_testing/config_yaml/scale_town06.yaml && grep -q \"yolo_endpoint: '$PERC_IP:\" ecav/scenario_testing/config_yaml/scale_town06.yaml" || fail "yolo_endpoint rewrite"
+  log "perception service at $PERC_IP"
+fi
 for h in $HOSTS; do [[ $h == "$ORCH" ]] && continue
   for f in ecav/scenario_testing/scenarios/scenario_scale_town06.xml ecav/scenario_testing/config_yaml/scale_town06.yaml; do
     scp -q -3 $SSHO "$ORCH:${WT/\$HOME\//}/$f" "$h:${WT/\$HOME\//}/$f" || fail "copy $f to $h"; done; done

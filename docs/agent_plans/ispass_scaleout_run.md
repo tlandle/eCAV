@@ -281,3 +281,51 @@ carla-server_group_10111734-vnet 10.0.0.0/16; no peering). Steps once access exi
    tags <stamp>_<config>_n<N> (a multi-host configuration name must be added to CONFIGS there).
 5. Expect the client phase to fall to the per-client cost (25 to 80 ms) and the edge step to remain: 426 ms at
    N=128 and 1.2 s at N=256 (spread), which then is the tick.
+
+## Multi-host run, hosts prepared, 2026-11-12 15:22 (not run: the A10 node is busy with the competitor benchmark)
+
+### State
+- Peering edge-server-vnet (10.1.0.0/16) with carla-server_group_10111734-vnet (10.0.0.0/16) is Connected and in sync in both directions (peerings edge-to-clients and clients-to-edge).
+- carla-client3 (172.200.91.133, private 10.0.0.11) and carla-client4 (20.242.82.41, private 10.0.0.12): 64 cores, 251 GB, Ubuntu 20.04, atlas's key installed. Each has
+  - `~/scale_wt`, a copy of the A10 node's worktree (sweep3 code) without logs, results, checkpoints and docs,
+  - `~/carla-0.9.15/PythonAPI`,
+  - `~/miniconda3/envs/opencda310`, a copy of the A10 node's env without the CUDA toolkit (9.7 GB, symlinks kept). There is no conda base install. The launcher puts the env's bin directory on PATH. The env imports on Ubuntu 20.04 (carla, grpc, numpy, scipy, cv2, torch, shapely, py_trees, omegaconf, the proto stubs).
+  - reserved ports 50051-50070 and 50101-51300 in /etc/sysctl.d/90-scale.conf (persistent), file limit 65536, chrony in sync.
+  - Root disk 30 GB, 6.6 GB free after the install. client4 has no temporary disk. client3 has one at /mnt, not used (a deallocation erases it).
+- A vehicle client started on each VM (`python -u ecav.py -v 0.9.15 -d -i 1 -T 8001`) reaches its scenario request to 10.1.0.4:50051 and is refused, as expected with no orchestrator running.
+
+### Defect found and fixed
+`ecav.py` requested the scenario from a hard-coded localhost:50051, so a vehicle client on another machine could never start. The address now comes from cloud_config.yaml's ecloud_server_public_ip (the key the actor clients already read). The fixed file is on the A10 node and both clients. The multi-host rows therefore differ from sweep3 in this one file; on one host the address is localhost as before.
+
+### Ports and directions (verified in code; TCP tested both ways across the peering on unused ports 47001 to 47003)
+| listener | port | host | who connects |
+|---|---|---|---|
+| CARLA | 2000 to 2002 | A10 | every vehicle and RSU client, orchestrator, scenario runner |
+| orchestration server (C++) | 50051 | A10 | every client, edge process |
+| orchestrator push API | 50061 | A10 | orchestration server (local) |
+| edge process | 50054 | A10 | clients it serves |
+| vehicle push | 50101 + k | host of client k | orchestration server, edge process |
+| RSU push | 51101 + j | RSU host (A10) | orchestration server, edge process |
+| shared YOLO inference | 18001 | A10 | every client with `-p shared` |
+- No rule was added. edge-server-nsg allows only 22, 80 and 443 from the internet, and the default AllowVnetInBound rule covers the peered range, which the listener test confirmed (client to A10, A10 to client, client to client). No host firewall is active on any of the three (ufw inactive).
+- carla-client3-nsg and carla-client4-nsg carry a rule AllowAnyCustomAnyInbound (priority 310, any source, any port). The rule predates this work. It exposes every port of both clients to the internet while they run. Not changed; Tyler's call.
+
+### Launcher changes
+- `launch_scale.sh`: a host without a conda install uses the env through PATH; `-y HOST` names the inference service host, and with several hosts and `-p shared` the scenario YAML's yolo_endpoint is rewritten to that host's private address (it was localhost, which a remote client cannot use). Remote start by ssh, per-host index ranges (`-H`), the cloud_config rewrite from private addresses and cleanup by PID (`^python -u ecav`, `^./ecav/ecloud_server/ecloud_server`) already existed.
+- `scale_sweep.sh`: parts mhdense, mhspread, mhpercep split the vehicle clients evenly over CLIENT_HOSTS. `scale_report.py` knows the three configurations.
+- `setup_scale_vm.sh`: fixed (tar warnings no longer abort it, env copied without the CUDA toolkit and with symlinks kept, persistent sysctl).
+
+### Run (once the A10 node has no simulator running)
+```
+ssh azureuser@20.81.176.215 'sudo sysctl -w net.ipv4.ip_local_reserved_ports=50051-50070,50101-51300'
+CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" MH_NS="64" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 mhdense      # smoke, one run
+CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 "mhdense mhspread mhpercep"
+/home/atlas/anaconda3/envs/opencda310/bin/python scripts/ispass/scale_report.py mh1
+```
+Defaults: 64, 128, 256, 512 vehicles without perception, 8 to 64 with the shared service. The sweep exits early for a tag that already finished.
+
+### Not yet verified (needs the first run)
+- The orchestration server and the edge process pushing to a client on another host (the address path exists and was used in 2023; untested on this code).
+- Memory at 512 vehicles: 256 clients per VM against 251 GB.
+- Client index 0 spawns every ego and runs on carla-client3, so spawn time includes the 1 to 2 ms path to CARLA.
+- After a VM is deallocated and started again the install persists (root disk). The A10 node's sysctl does not persist; the first command above sets it.
