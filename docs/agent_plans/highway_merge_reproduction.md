@@ -158,3 +158,32 @@ repository contains those keys, so the reference harness for this geometry is no
 Open (Tyler's call before any large launch): how the camera-lidar arms should be made to follow
 exact state (tracker lateral velocity, proximity radius for multi-lane roads, or the cut-in
 duration of the reference, which the export does not state).
+
+## Tracker velocity diagnosis (2026-11-12 00:23, cetus, stamps trkfix_hm and trkfix_wf)
+
+Root cause of the camera-lidar arm's forecast errors on the highway: the tracker does not publish
+the Kalman velocity. `AB3DMOT_libs/model.py` (`output`, `_edge_velocity`) publishes the
+least-squares slope of the measured box edges over ten frames and takes the slower edge per axis,
+a rule built for parked vehicles at the junctions. On a car seen from behind at highway speed the
+box edges move by 1 to 2 m between frames and sensors. Offline replay of the recorded detections
+(scripts/tracker_velocity): the rule gives a speed sd of 3.4 m/s, lateral velocity noise of
+1.5 m/s at p95 in steady cruise, and reaches half the true lateral velocity 0.6 s into the lane
+change. The slope of the box centre over 20 frames gives sd 0.9 m/s and 0.38 m/s.
+
+Named options added, defaults unchanged: `--edge-kv vel_from_edges=false vel_window=20`
+(late-fusion manager to tracker) and the existing `--behavior-kv proximity_check_m=2.0`.
+
+Gate, V2X2V +SBA, cs 10, 2 seeds (trkfix_hm) against the same arm with defaults (sensys_hm_fix4):
+
+| delay | before: outcome | after: outcome | after: first held brake after the lane change starts |
+|---|---|---|---|
+| 0 | brakes 1.25 s before the cut-in, 2/2 | 1/2 (one self-ghost), no collision | 1.15 s |
+| 100 | 1/2 | 1/2 (one self-ghost), no collision | 1.7 to 1.85 s |
+| 200 | 0/2, collisions | 2/2, min gap -0.3 m | 0.85 s |
+| 400 | 1/2, one collision | 2/2 | brakes at tick 41 for a young backward-moving duplicate, cut-in delayed |
+
+Published speed of the intruder: mean 16.4 m/s, sd 0.9 (before 12.6 to 15.8, sd 1.2 to 4.2; truth
+16.7). No collision in the gate. The target of a first brake within 0.3 s is not met: exact state
+brakes at the start of the lane change, the tracker arm 0.85 to 1.85 s later. Lateral velocity from
+positions needs most of a second at this noise level, so the reference's camera-lidar arm (within
+about 50 ms of exact state) is not reachable with a 2 s lane change and this detector.
