@@ -657,7 +657,8 @@ class ScenarioManager:
 
         self.client = \
             carla.Client(CARLA_IP, simulation_config['client_port'])
-        self.client.set_timeout(10.0)
+        # 10 s by default; a world tick with several hundred attached clients on one host can take longer
+        self.client.set_timeout(float(os.environ.get("ECAV_CARLA_TIMEOUT_S", 10.0)))
 
         if xodr_path:
             self.world = load_customized_world(xodr_path, self.client)

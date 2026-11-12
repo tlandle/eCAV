@@ -111,7 +111,7 @@ for h in $HOSTS; do [[ $h == "$ORCH" ]] && continue
 
 T0=$(date +%s)
 if [[ $MODE == seq ]]; then
-  bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS python -u ecav.py -t scale_town06 -v 0.9.15 $ML"
+  bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} python -u ecav.py -t scale_town06 -v 0.9.15 $ML"
   wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 |Caught exception|Traceback" $((900 + 6 * N)) || fail "no first tick (sequential)"
   $SSH "$ORCH" "cd $WT && grep -q 'Caught exception' $L/orch.log" && fail "sequential run raised before the first tick"
   log "first tick after $(( $(date +%s) - T0 )) s"
@@ -121,7 +121,7 @@ if [[ $MODE == seq ]]; then
   sleep 10; collect; killall_hosts
   grep -h "SUMMARY" "$OUT"/*/orch.log | tee -a "$OUT/launch.log"; log "done: $OUT"; exit 0
 fi
-bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
+bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
 wait_log "$ORCH" orch "start [0-9]+ vehicle containers" 300 || fail "orchestrator did not come up"
 log "orchestrator up"
 EARGS="-e 0 -P 50054"; [[ $MULTI == 1 ]] && EARGS="$EARGS -O $ORCH_IP -o 50051"
