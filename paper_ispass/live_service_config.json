@@ -1,0 +1,71 @@
+{
+ "stamp": "live_20261111",
+ "ns": [
+  1,
+  2,
+  4,
+  8,
+  16,
+  24,
+  30
+ ],
+ "reps": 3,
+ "steps": [
+  50.0,
+  25.0
+ ],
+ "workloads": [
+  "fusion",
+  "full"
+ ],
+ "duration_s": 60.0,
+ "warm_s": 5.0,
+ "frame_ms": 50.0,
+ "ul_bytes": 16896,
+ "dl_bytes": 2400,
+ "radio": "zero in every arm (live arm adds loopback gRPC transit)",
+ "data": {
+  "scenario": "Town10HD__2023_11_15_00_20_38",
+  "rsu": "rsu_40",
+  "window": [
+   "000536",
+   "000538",
+   "000540",
+   "000542",
+   "000544",
+   "000546",
+   "000548",
+   "000550",
+   "000552",
+   "000554",
+   "000556",
+   "000558",
+   "000560",
+   "000562",
+   "000564",
+   "000566",
+   "000568",
+   "000570",
+   "000572",
+   "000574"
+  ],
+  "agents_min": 30
+ },
+ "checkpoints": {
+  "worldfusion": "ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch45.pth",
+  "mtr": "ecav/ml_manager/models/mtr_wf_stage1/best_model.pth"
+ },
+ "hardware": {
+  "host": "atlas-workstation",
+  "python": "3.10.19",
+  "torch": "2.9.1+cu128",
+  "cuda": "12.8",
+  "gpu": "NVIDIA GeForce RTX 4080 SUPER",
+  "kernel": "6.8.0-100-generic",
+  "cpu": "Intel(R) Core(TM) i9-14900KF",
+  "cores": 32,
+  "nvidia_smi": "NVIDIA GeForce RTX 4080 SUPER, 565.77, 16376 MiB",
+  "git": "1048f5a97715a8efbd98b58b0fd854f824610c82"
+ },
+ "started": "2026-11-11 23:39:16"
+}
