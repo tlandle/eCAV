@@ -112,7 +112,7 @@ vehicle_base:
       backend: worldfusion
       worldfusion_model:
         hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
-        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch45.pth
     localization:
       activate: true
       dt: ${world.fixed_delta_seconds}
@@ -226,7 +226,7 @@ rsu_base:
         noise_stddev: 0.0
       worldfusion_model:
         hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
-        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+        checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch45.pth
     localization:
       activate: true
       dt: ${world.fixed_delta_seconds}
@@ -291,14 +291,14 @@ scenario:
       spawn_position:
       - -60.0
       - 142.7
-      - 7.0
+      - 4.3
       id: -1
     - sensing: *id002
       name: rsu2
       spawn_position:
       - -110.0
       - 144.0
-      - 7.0
+      - 4.3
       id: -2
     vehicles:
     - sensing:
@@ -330,7 +330,7 @@ scenario:
           backend: worldfusion
           worldfusion_model:
             hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
-            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+            checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch45.pth
         localization:
           activate: true
           dt: ${world.fixed_delta_seconds}
@@ -376,7 +376,7 @@ scenario:
       - 0.5
     worldfusion_model:
       hypes_yaml: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml
-      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth
+      checkpoint: ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch45.pth
     world_anchor:
     - -85.0
     - 128.0

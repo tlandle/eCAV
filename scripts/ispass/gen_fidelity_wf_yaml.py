@@ -19,8 +19,17 @@ import sys, os, re, yaml, argparse, copy
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "ecav", "scenario_testing")
 MODEL = {
     "hypes_yaml": "ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/config.yaml",
-    "checkpoint": "ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch27.pth",
+    "checkpoint": "ecav/ml_manager/models/worldfusion_multiv2x_translaug_finetune/net_epoch45.pth",
 }
+# Detector configuration on record (openscenario_3_edge_worldfusion_mtr_live.yaml): the
+# translation-augmented fine-tune at epoch 45 and RSU lidar on a 4.3 m mast, the Multi-V2X
+# training height. The voxel range is z in [-6, 2] m in the lidar frame, so on the 7 m masts of
+# the object-sharing arms the ground and all but the roof of a car fall below the range.
+# Measured on the left turn at 70 km/h (stamp wfdiag1, crossing car moving and within 60 m,
+# fraction of fusion ticks with a fused score >= 0.15 at the car): 7 m epoch 27 30 %,
+# 7 m epoch 45 0 %, 4.3 m epoch 27 67 %, 4.3 m epoch 45 81 % (98 % at 15 to 30 m).
+RSU_Z = 4.3
+EPOCH = 45
 # conflict point of both junction geometries (RSU masts 25 m either side, crossing lane y = 128)
 ANCHOR = [-85.0, 128.0, 0.0, 0.0, 0.0, 0.0]
 
@@ -41,8 +50,8 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("bases", nargs="*", default=["openscenario_3_edge_late_fusion", "scp_edge_late_fusion"])
     ap.add_argument("--suffix", default="wf")
-    ap.add_argument("--epoch", type=int, default=27)
-    ap.add_argument("--rsu-z", type=float, default=None)
+    ap.add_argument("--epoch", type=int, default=EPOCH)
+    ap.add_argument("--rsu-z", type=float, default=RSU_Z)
     ap.add_argument("--rsus", default=None)
     ap.add_argument("--score", type=float, default=None)
     a = ap.parse_args(argv)
