@@ -295,6 +295,29 @@ class PerTickAgeLogger:
                     self._lineage_violations += 1
                 seq = self._publish_seq.get(int(pub_tick)) if pub_tick is not None else None
                 ox, oy, ospd = self._obs_xy_speed(pred)
+                if os.environ.get("PTA_WP_DEBUG"):
+                    # diagnostic: the forecast's own first waypoint (before the
+                    # planner's age re-indexing) beside the live obstacle state
+                    # and the conflict actor's true position at the stamps
+                    try:
+                        _tr = getattr(pred, "_orig_predicted_trajectory", None) or pred.predicted_trajectory
+                        _w0 = _tr[0].location if _tr else None
+                        _w1 = _tr[1].location if _tr and len(_tr) > 1 else None
+                        def _g(tk):
+                            _sn = self._gt_hist.get(int(tk)) if tk is not None else None
+                            _v = (_sn.get(c_id) or _sn.get(str(c_id))) if _sn else None
+                            return (_fmt(float(_v["x"])), _fmt(float(_v["y"]))) if _v is not None else ("", "")
+                        with open(str(self._path) + ".wp.csv", "a") as _wf:
+                            _wf.write(",".join(str(v) for v in (
+                                tick, _fmt(tid), _fmt(frame_tick), _fmt(obs_tick),
+                                _fmt(getattr(pred, "origin_tick", None)), _fmt(pub_tick),
+                                len(_tr) if _tr else 0, getattr(pred, "age_reindex_steps", 0),
+                                _fmt(_w0.x) if _w0 else "", _fmt(_w0.y) if _w0 else "",
+                                _fmt(_w1.x) if _w1 else "", _fmt(_w1.y) if _w1 else "",
+                                _fmt(ox), _fmt(oy), _fmt(ospd),
+                                *_g(frame_tick), *_g(obs_tick), _fmt(cgx), _fmt(cgy))) + "\n")
+                    except Exception:
+                        pass
                 if conflict is not None and not math.isnan(ox):
                     # against the actor where it was at the state's observation
                     # tick, so a stale but correct state still matches
