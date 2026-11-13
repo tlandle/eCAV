@@ -77,7 +77,7 @@ def encode_response(results) -> dict:
     return resp
 
 
-def serve(port: int, max_workers: int) -> None:
+def serve(port: int, max_workers: int, host: str = "[::]") -> None:
     model = load_yolo_model()
 
     server = grpc.server(
@@ -87,9 +87,9 @@ def serve(port: int, max_workers: int) -> None:
     perception_pb2_grpc.add_PerceptionServiceServicer_to_server(
         PerceptionServicer(model, encode_response), server
     )
-    server.add_insecure_port(f"[::]:{port}")
+    server.add_insecure_port(f"{host}:{port}")
     server.start()
-    print(f"[YoloGrpcServer] Listening on port {port} (workers={max_workers})", flush=True)
+    print(f"[YoloGrpcServer] Listening on {host} port {port} (workers={max_workers})", flush=True)
     server.wait_for_termination()
 
 
@@ -97,6 +97,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YOLO gRPC server")
     parser.add_argument("--port",    type=int, default=int(os.environ.get("YOLO_GRPC_PORT", 18001)))
     parser.add_argument("--workers", type=int, default=int(os.environ.get("YOLO_GRPC_WORKERS", 4)))
+    # bind address: every interface by default; a host with an open security group binds its private address
+    parser.add_argument("--host",    type=str, default=os.environ.get("YOLO_GRPC_HOST", "[::]"))
     args = parser.parse_args()
 
-    serve(args.port, args.workers)
+    serve(args.port, args.workers, args.host)
