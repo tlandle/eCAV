@@ -43,11 +43,15 @@ def main():
 
     # perception rows: OpenCDA (detector in the vehicle loop), eCAV on one host (shared service beside the simulator),
     # eCAV on three hosts with R service replicas on a fourth
+    # --perception <stamp>: the perception rows (one host and distributed) come from scale_<stamp>.json, e.g. the
+    # rows measured with the sensor wait; without it they come from the single-host file and the multi-host stamp
+    pst = arg("--perception", None)
+    prow = json.load(open(os.path.join(out, f"scale_{pst}.json"))) if pst else None
     pser = {"OpenCDA": {r["n"]: r["opencda_default"]["tick_ms"]["p50"] for r in comp
                         if r["layout"] == "dense" and r["perception"] == "on" and r["opencda_default"].get("completed")},
-            "eCAV, one host": {r["n"]: r["wall_p50"] for r in single if r["config"] == "pdense"}}
+            "eCAV, one host": {r["n"]: r["wall_p50"] for r in (prow or single) if r["config"] == "pdense"}}
     for rr in (1, 2, 4, 8):
-        pser[f"eCAV, distributed, {rr} replica{'s' if rr > 1 else ''}"] = {r["n"]: r["wall_p50"] for r in multi if r["config"] == f"mhpr{rr}"}
+        pser[f"eCAV, distributed, {rr} replica{'s' if rr > 1 else ''}"] = {r["n"]: r["wall_p50"] for r in (prow or multi) if r["config"] == f"mhpr{rr}"}
     pns = sorted({n for v in pser.values() for n in v})
     L = ["| system | " + " | ".join(str(n) for n in pns) + " |", "|---|" + "---|" * len(pns)]
     for lab, v in pser.items():
