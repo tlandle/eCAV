@@ -1,0 +1,1109 @@
+[
+ {
+  "n": 8,
+  "layout": "dense",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 8,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 8,
+   "setup_s": 21.0,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 161.5,
+    "p50": 160.0,
+    "p95": 179.0,
+    "p99": 200.3
+   },
+   "world_ms": {
+    "mean": 2.8,
+    "p50": 2.7
+   },
+   "vehicles_ms": {
+    "mean": 158.7,
+    "p50": 157.2
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.31,
+   "peak_client_rss_gb": 0.57,
+   "peak_carla_rss_gb": 3.8,
+   "peak_gpu_mb": 7226,
+   "speeds_mps_end": 9.96,
+   "wall_total_s": 71.5
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 8,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 8,
+   "setup_s": 20.8,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 98.5,
+    "p50": 96.9,
+    "p95": 110.1,
+    "p99": 141.8
+   },
+   "world_ms": {
+    "mean": 2.6,
+    "p50": 2.5
+   },
+   "vehicles_ms": {
+    "mean": 95.8,
+    "p50": 94.3
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.508,
+   "peak_client_rss_gb": 0.56,
+   "peak_carla_rss_gb": 3.79,
+   "peak_gpu_mb": 7226,
+   "speeds_mps_end": 9.79,
+   "wall_total_s": 52.1
+  },
+  "ecav_sequential_mean_ms": 201.48474576271187,
+  "ecav_distributed_mean_ms": 65.91525423728814
+ },
+ {
+  "n": 16,
+  "layout": "dense",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 16,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 16,
+   "setup_s": 39.2,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 377.7,
+    "p50": 380.1,
+    "p95": 392.7,
+    "p99": 426.0
+   },
+   "world_ms": {
+    "mean": 3.9,
+    "p50": 3.7
+   },
+   "vehicles_ms": {
+    "mean": 373.8,
+    "p50": 376.2
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.132,
+   "peak_client_rss_gb": 0.75,
+   "peak_carla_rss_gb": 3.57,
+   "peak_gpu_mb": 7225,
+   "speeds_mps_end": 8.55,
+   "wall_total_s": 156.1
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 16,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 16,
+   "setup_s": 39.2,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 247.7,
+    "p50": 248.3,
+    "p95": 269.0,
+    "p99": 279.1
+   },
+   "world_ms": {
+    "mean": 3.8,
+    "p50": 3.7
+   },
+   "vehicles_ms": {
+    "mean": 243.9,
+    "p50": 244.5
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.202,
+   "peak_client_rss_gb": 0.73,
+   "peak_carla_rss_gb": 3.48,
+   "peak_gpu_mb": 7225,
+   "speeds_mps_end": 8.69,
+   "wall_total_s": 116.1
+  },
+  "ecav_sequential_mean_ms": 483.03389830508473,
+  "ecav_distributed_mean_ms": 104.07457627118644
+ },
+ {
+  "n": 32,
+  "layout": "dense",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 32,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 32,
+   "setup_s": 76.2,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 917.6,
+    "p50": 918.7,
+    "p95": 945.2,
+    "p99": 964.7
+   },
+   "world_ms": {
+    "mean": 7.0,
+    "p50": 6.9
+   },
+   "vehicles_ms": {
+    "mean": 910.6,
+    "p50": 912.6
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.054,
+   "peak_client_rss_gb": 1.1,
+   "peak_carla_rss_gb": 3.47,
+   "peak_gpu_mb": 7224,
+   "speeds_mps_end": 7.36,
+   "wall_total_s": 358.8
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 32,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 32,
+   "setup_s": 76.3,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 610.3,
+    "p50": 619.3,
+    "p95": 670.2,
+    "p99": 697.8
+   },
+   "world_ms": {
+    "mean": 6.5,
+    "p50": 6.4
+   },
+   "vehicles_ms": {
+    "mean": 603.8,
+    "p50": 612.7
+   },
+   "planner_exceptions": 229,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 825, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.082,
+   "peak_client_rss_gb": 1.08,
+   "peak_carla_rss_gb": 3.52,
+   "peak_gpu_mb": 7223,
+   "speeds_mps_end": 7.11,
+   "wall_total_s": 264.8
+  },
+  "ecav_sequential_mean_ms": 1377.3050847457628,
+  "ecav_distributed_mean_ms": 209.58983050847456
+ },
+ {
+  "n": 64,
+  "layout": "dense",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 64,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 64,
+   "setup_s": 149.5,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 2155.0,
+    "p50": 2151.2,
+    "p95": 2220.7,
+    "p99": 2422.0
+   },
+   "world_ms": {
+    "mean": 11.6,
+    "p50": 11.3
+   },
+   "vehicles_ms": {
+    "mean": 2143.4,
+    "p50": 2138.8
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.023,
+   "peak_client_rss_gb": 1.82,
+   "peak_carla_rss_gb": 3.51,
+   "peak_gpu_mb": 7192,
+   "speeds_mps_end": 6.35,
+   "wall_total_s": 812.1
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 64,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 64,
+   "setup_s": 149.9,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 1441.1,
+    "p50": 1438.8,
+    "p95": 1533.2,
+    "p99": 1640.0
+   },
+   "world_ms": {
+    "mean": 11.3,
+    "p50": 11.1
+   },
+   "vehicles_ms": {
+    "mean": 1429.8,
+    "p50": 1427.1
+   },
+   "planner_exceptions": 229,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 825, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.035,
+   "peak_client_rss_gb": 1.79,
+   "peak_carla_rss_gb": 3.43,
+   "peak_gpu_mb": 7192,
+   "speeds_mps_end": 6.34,
+   "wall_total_s": 594.2
+  },
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 435.48474576271184
+ },
+ {
+  "n": 128,
+  "layout": "dense",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 128,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 128,
+   "setup_s": 296.3,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 4912.8,
+    "p50": 4888.3,
+    "p95": 5291.7,
+    "p99": 5345.6
+   },
+   "world_ms": {
+    "mean": 23.6,
+    "p50": 23.7
+   },
+   "vehicles_ms": {
+    "mean": 4889.2,
+    "p50": 4864.3
+   },
+   "planner_exceptions": 2,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 825, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.01,
+   "peak_client_rss_gb": 3.27,
+   "peak_carla_rss_gb": 3.05,
+   "peak_gpu_mb": 6674,
+   "speeds_mps_end": 7.43,
+   "wall_total_s": 1802.4
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 128,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 128,
+   "setup_s": 297.7,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 3211.6,
+    "p50": 3209.8,
+    "p95": 3309.7,
+    "p99": 3639.5
+   },
+   "world_ms": {
+    "mean": 22.6,
+    "p50": 22.4
+   },
+   "vehicles_ms": {
+    "mean": 3189.0,
+    "p50": 3188.5
+   },
+   "planner_exceptions": 2,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 825, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.016,
+   "peak_client_rss_gb": 3.21,
+   "peak_carla_rss_gb": 3.04,
+   "peak_gpu_mb": 6679,
+   "speeds_mps_end": 7.42,
+   "wall_total_s": 1285.6
+  },
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 1065.5457627118644
+ },
+ {
+  "n": 256,
+  "layout": "dense",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 256,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 100,
+   "skip": 5,
+   "completed": true,
+   "spawned": 256,
+   "setup_s": 595.2,
+   "ticks": 100,
+   "tick_ms": {
+    "mean": 14038.0,
+    "p50": 13953.5,
+    "p95": 14652.4,
+    "p99": 14865.0
+   },
+   "world_ms": {
+    "mean": 46.2,
+    "p50": 46.3
+   },
+   "vehicles_ms": {
+    "mean": 13991.8,
+    "p50": 13907.0
+   },
+   "planner_exceptions": 74,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 858, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.004,
+   "peak_client_rss_gb": 6.09,
+   "peak_carla_rss_gb": 3.08,
+   "peak_gpu_mb": 6602,
+   "speeds_mps_end": 4.41,
+   "wall_total_s": 2087.6
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 256,
+   "layout": "dense",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 100,
+   "skip": 5,
+   "completed": true,
+   "spawned": 256,
+   "setup_s": 593.7,
+   "ticks": 100,
+   "tick_ms": {
+    "mean": 9876.5,
+    "p50": 9826.9,
+    "p95": 10475.1,
+    "p99": 10624.4
+   },
+   "world_ms": {
+    "mean": 45.9,
+    "p50": 46.3
+   },
+   "vehicles_ms": {
+    "mean": 9830.6,
+    "p50": 9778.8
+   },
+   "planner_exceptions": 44,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 858, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.005,
+   "peak_client_rss_gb": 5.97,
+   "peak_carla_rss_gb": 3.06,
+   "peak_gpu_mb": 6604,
+   "speeds_mps_end": 4.49,
+   "wall_total_s": 1647.3
+  },
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 2383.378947368421
+ },
+ {
+  "n": 8,
+  "layout": "spread",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 8,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 8,
+   "setup_s": 21.0,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 292.6,
+    "p50": 286.7,
+    "p95": 363.0,
+    "p99": 388.2
+   },
+   "world_ms": {
+    "mean": 2.8,
+    "p50": 2.7
+   },
+   "vehicles_ms": {
+    "mean": 289.8,
+    "p50": 283.9
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.171,
+   "peak_client_rss_gb": 0.57,
+   "peak_carla_rss_gb": 3.78,
+   "peak_gpu_mb": 7225,
+   "speeds_mps_end": 8.87,
+   "wall_total_s": 111.5
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 8,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 8,
+   "setup_s": 21.0,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 156.4,
+    "p50": 150.0,
+    "p95": 212.2,
+    "p99": 264.1
+   },
+   "world_ms": {
+    "mean": 2.6,
+    "p50": 2.5
+   },
+   "vehicles_ms": {
+    "mean": 153.8,
+    "p50": 147.5
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.32,
+   "peak_client_rss_gb": 0.56,
+   "peak_carla_rss_gb": 3.8,
+   "peak_gpu_mb": 7226,
+   "speeds_mps_end": 10.02,
+   "wall_total_s": 69.9
+  },
+  "ecav_sequential_mean_ms": 134.91525423728814,
+  "ecav_distributed_mean_ms": 54.57966101694915
+ },
+ {
+  "n": 16,
+  "layout": "spread",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 16,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 16,
+   "setup_s": 39.1,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 521.3,
+    "p50": 513.1,
+    "p95": 609.2,
+    "p99": 628.3
+   },
+   "world_ms": {
+    "mean": 4.0,
+    "p50": 3.9
+   },
+   "vehicles_ms": {
+    "mean": 517.4,
+    "p50": 509.4
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.096,
+   "peak_client_rss_gb": 0.75,
+   "peak_carla_rss_gb": 3.47,
+   "peak_gpu_mb": 7225,
+   "speeds_mps_end": 8.76,
+   "wall_total_s": 199.6
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 16,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 16,
+   "setup_s": 39.8,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 356.6,
+    "p50": 349.1,
+    "p95": 438.7,
+    "p99": 461.2
+   },
+   "world_ms": {
+    "mean": 4.1,
+    "p50": 4.0
+   },
+   "vehicles_ms": {
+    "mean": 352.5,
+    "p50": 345.0
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.14,
+   "peak_client_rss_gb": 0.74,
+   "peak_carla_rss_gb": 3.49,
+   "peak_gpu_mb": 7225,
+   "speeds_mps_end": 8.8,
+   "wall_total_s": 150.0
+  },
+  "ecav_sequential_mean_ms": 280.45762711864404,
+  "ecav_distributed_mean_ms": 90.76610169491525
+ },
+ {
+  "n": 32,
+  "layout": "spread",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 32,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 32,
+   "setup_s": 76.6,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 1062.3,
+    "p50": 1050.9,
+    "p95": 1179.0,
+    "p99": 1206.2
+   },
+   "world_ms": {
+    "mean": 7.2,
+    "p50": 7.1
+   },
+   "vehicles_ms": {
+    "mean": 1055.1,
+    "p50": 1042.6
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.047,
+   "peak_client_rss_gb": 1.11,
+   "peak_carla_rss_gb": 3.44,
+   "peak_gpu_mb": 7224,
+   "speeds_mps_end": 8.46,
+   "wall_total_s": 402.7
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 32,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 32,
+   "setup_s": 76.5,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 735.3,
+    "p50": 722.2,
+    "p95": 872.6,
+    "p99": 895.8
+   },
+   "world_ms": {
+    "mean": 7.1,
+    "p50": 7.0
+   },
+   "vehicles_ms": {
+    "mean": 728.2,
+    "p50": 715.5
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.068,
+   "peak_client_rss_gb": 1.09,
+   "peak_carla_rss_gb": 3.41,
+   "peak_gpu_mb": 7224,
+   "speeds_mps_end": 8.75,
+   "wall_total_s": 302.7
+  },
+  "ecav_sequential_mean_ms": 686.8406779661017,
+  "ecav_distributed_mean_ms": 177.0542372881356
+ },
+ {
+  "n": 64,
+  "layout": "spread",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 64,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 64,
+   "setup_s": 150.1,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 2578.7,
+    "p50": 2566.3,
+    "p95": 2790.1,
+    "p99": 2855.8
+   },
+   "world_ms": {
+    "mean": 12.8,
+    "p50": 12.6
+   },
+   "vehicles_ms": {
+    "mean": 2565.9,
+    "p50": 2553.9
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.019,
+   "peak_client_rss_gb": 1.83,
+   "peak_carla_rss_gb": 3.48,
+   "peak_gpu_mb": 7192,
+   "speeds_mps_end": 8.82,
+   "wall_total_s": 939.7
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 64,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 64,
+   "setup_s": 151.0,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 1866.8,
+    "p50": 1861.8,
+    "p95": 2080.9,
+    "p99": 2126.8
+   },
+   "world_ms": {
+    "mean": 12.7,
+    "p50": 12.7
+   },
+   "vehicles_ms": {
+    "mean": 1854.1,
+    "p50": 1848.4
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.027,
+   "peak_client_rss_gb": 1.8,
+   "peak_carla_rss_gb": 3.43,
+   "peak_gpu_mb": 7191,
+   "speeds_mps_end": 8.64,
+   "wall_total_s": 723.1
+  },
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 381.90508474576274
+ },
+ {
+  "n": 128,
+  "layout": "spread",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 128,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 128,
+   "setup_s": 299.3,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 5760.0,
+    "p50": 5759.3,
+    "p95": 6177.7,
+    "p99": 6256.5
+   },
+   "world_ms": {
+    "mean": 25.5,
+    "p50": 25.0
+   },
+   "vehicles_ms": {
+    "mean": 5734.5,
+    "p50": 5732.2
+   },
+   "planner_exceptions": 298,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 858, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.009,
+   "peak_client_rss_gb": 3.27,
+   "peak_carla_rss_gb": 3.03,
+   "peak_gpu_mb": 6674,
+   "speeds_mps_end": 8.08,
+   "wall_total_s": 2062.1
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 128,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 128,
+   "setup_s": 296.6,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 3979.1,
+    "p50": 4027.5,
+    "p95": 4407.0,
+    "p99": 4493.5
+   },
+   "world_ms": {
+    "mean": 23.8,
+    "p50": 24.0
+   },
+   "vehicles_ms": {
+    "mean": 3955.4,
+    "p50": 4004.2
+   },
+   "planner_exceptions": 298,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 858, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.013,
+   "peak_client_rss_gb": 3.21,
+   "peak_carla_rss_gb": 3.08,
+   "peak_gpu_mb": 6675,
+   "speeds_mps_end": 8.08,
+   "wall_total_s": 1516.0
+  },
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 997.0779661016949
+ },
+ {
+  "n": 256,
+  "layout": "spread",
+  "perception": "off",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 256,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 100,
+   "skip": 5,
+   "completed": true,
+   "spawned": 256,
+   "setup_s": 592.8,
+   "ticks": 100,
+   "tick_ms": {
+    "mean": 15313.3,
+    "p50": 15272.7,
+    "p95": 16057.1,
+    "p99": 16318.5
+   },
+   "world_ms": {
+    "mean": 48.5,
+    "p50": 48.3
+   },
+   "vehicles_ms": {
+    "mean": 15264.8,
+    "p50": 15224.9
+   },
+   "planner_exceptions": 162,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 858, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.003,
+   "peak_client_rss_gb": 6.09,
+   "peak_carla_rss_gb": 3.07,
+   "peak_gpu_mb": 6607,
+   "speeds_mps_end": 7.62,
+   "wall_total_s": 2209.8
+  },
+  "opencda_map_off": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 256,
+   "layout": "spread",
+   "perception": "off",
+   "map_manager": "off",
+   "spacing": 12.0,
+   "ticks_requested": 100,
+   "skip": 5,
+   "completed": true,
+   "spawned": 256,
+   "setup_s": 593.9,
+   "ticks": 100,
+   "tick_ms": {
+    "mean": 10991.1,
+    "p50": 10975.4,
+    "p95": 11709.2,
+    "p99": 11869.3
+   },
+   "world_ms": {
+    "mean": 49.5,
+    "p50": 50.0
+   },
+   "vehicles_ms": {
+    "mean": 10941.5,
+    "p50": 10928.1
+   },
+   "planner_exceptions": 162,
+   "planner_exception_first": "da_scale_bench.py\", line 141, in main\n    control = c.run_step()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/common/vehicle_manager.py\", line 214, in run_step\n    target_speed, target_pos = self.agent.run_step(target_speed)\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/behavior_agent.py\", line 858, in run_step\n    rx, ry, rk, ryaw = self._local_planner.generate_path()\n  File \"/home/azureuser/competitors/OpenCDA/opencda/core/plan/local_planner_behavior.py\", line 256, in generate_path\n    future_wpt = self._waypoint_buffer[-1][0]\nIndexError: deque index out of range\n",
+   "sim_s_per_wall_s": 0.005,
+   "peak_client_rss_gb": 5.97,
+   "peak_carla_rss_gb": 3.06,
+   "peak_gpu_mb": 6609,
+   "speeds_mps_end": 7.59,
+   "wall_total_s": 1756.6
+  },
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 2774.063157894737
+ },
+ {
+  "n": 8,
+  "layout": "dense",
+  "perception": "on",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 8,
+   "layout": "dense",
+   "perception": "on",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 8,
+   "setup_s": 26.8,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 1611.9,
+    "p50": 1595.6,
+    "p95": 1743.2,
+    "p99": 1830.4
+   },
+   "world_ms": {
+    "mean": 4.1,
+    "p50": 3.5
+   },
+   "vehicles_ms": {
+    "mean": 1607.8,
+    "p50": 1591.9
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.031,
+   "peak_client_rss_gb": 2.23,
+   "peak_carla_rss_gb": 4.12,
+   "peak_gpu_mb": 9127,
+   "speeds_mps_end": 9.68,
+   "wall_total_s": 520.5
+  },
+  "opencda_map_off": null,
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 463.0
+ },
+ {
+  "n": 16,
+  "layout": "dense",
+  "perception": "on",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 16,
+   "layout": "dense",
+   "perception": "on",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 16,
+   "setup_s": 50.0,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 3341.6,
+    "p50": 3323.2,
+    "p95": 3543.4,
+    "p99": 3636.5
+   },
+   "world_ms": {
+    "mean": 6.2,
+    "p50": 5.4
+   },
+   "vehicles_ms": {
+    "mean": 3335.4,
+    "p50": 3315.4
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.015,
+   "peak_client_rss_gb": 2.65,
+   "peak_carla_rss_gb": 4.29,
+   "peak_gpu_mb": 10470,
+   "speeds_mps_end": 6.82,
+   "wall_total_s": 1071.8
+  },
+  "opencda_map_off": null,
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 828.0
+ },
+ {
+  "n": 32,
+  "layout": "dense",
+  "perception": "on",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 32,
+   "layout": "dense",
+   "perception": "on",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 300,
+   "skip": 5,
+   "completed": true,
+   "spawned": 32,
+   "setup_s": 100.3,
+   "ticks": 300,
+   "tick_ms": {
+    "mean": 7237.4,
+    "p50": 7212.7,
+    "p95": 7624.8,
+    "p99": 7895.3
+   },
+   "world_ms": {
+    "mean": 10.3,
+    "p50": 9.8
+   },
+   "vehicles_ms": {
+    "mean": 7227.1,
+    "p50": 7203.6
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.007,
+   "peak_client_rss_gb": 3.45,
+   "peak_carla_rss_gb": 5.17,
+   "peak_gpu_mb": 13164,
+   "speeds_mps_end": 6.51,
+   "wall_total_s": 2311.4
+  },
+  "opencda_map_off": null,
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": 1591.0
+ }
+]
