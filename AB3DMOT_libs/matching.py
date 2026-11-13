@@ -190,6 +190,13 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 		# stationary track implies 40 m/s velocity (800 m/s² accel).
 		trk_speed = getattr(trks[m[1]], 'kf_speed_ground', None)
 		trk_hits  = getattr(trks[m[1]], 'hits', 0)
+		# Source ticks since the tracker's last call (1 unless the tracker keeps time,
+		# cfg.time_rules). The gates below bound the innovation of one call; their
+		# metres are metres per tick (1.5 m per frame admits 30 m/s, a 1 m jump of a
+		# resting track implies 20 m/s), so they scale with the stride. Unscaled, a car
+		# launching from rest left its resting track at 6.7 m/s when the tracker was
+		# called every third tick and a new track had to mature (2026-11-13).
+		_stride = getattr(trks[m[1]], 'stride', 1)
 		if trk_speed is not None:
 			trk_speed = trk_speed / _DT       # KF velocity is per frame; gate is in m/s
 
@@ -207,7 +214,7 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 				d = dist_ground(dets[m[0]], trks[m[1]])
 			else:
 				d = -aff_matrix[m[0], m[1]]
-			if d > _D_MIN:
+			if d > _D_MIN * _stride:
 				logger.log(_GATE_LVL, "[YOUNG GATE] rejected match det=%d trk=%d d=%.2fm > %.2fm (edge frames=%d)",
 				             m[0], m[1], d, _D_MIN, getattr(trks[m[1]], 'n_edge_frames', 0))
 				unmatched_dets.append(m[0])
@@ -224,7 +231,7 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 				d = dist_ground(dets[m[0]], trks[m[1]])
 			else:
 				d = -aff_matrix[m[0], m[1]]       # positive distance
-			max_innov = max(trk_speed * _DT + _D_BASE, _D_MIN)
+			max_innov = max(trk_speed * _DT * _stride + _D_BASE, _D_MIN * _stride)
 
 			if d > max_innov:
 				logger.log(_GATE_LVL, 
@@ -238,7 +245,7 @@ def data_association(dets, trks, metric, threshold, algm='greedy', \
 				continue
 
 			# Extra: stationary tracks get a tighter absolute gate
-			if trk_speed < _V_STATIC and d > _D_STATIC:
+			if trk_speed < _V_STATIC and d > _D_STATIC * _stride:
 				logger.log(_GATE_LVL, 
 					"[STATIC GATE] rejected match det=%d trk=%d "
 					"d=%.2fm > D_STATIC=%.2fm (trk_speed=%.2f m/s)",

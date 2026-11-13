@@ -360,6 +360,7 @@ class AB3DMOT(object):
 			trk_box.guid         = getattr(kf_tmp, "guid",     -1)
 			trk_box.anchoring_age = kf_tmp.anchoring_age
 			trk_box.hits         = kf_tmp.hits
+			trk_box.stride       = self._stride    # ticks since the last call, for the gates
 
 			# Ground-plane speed for kinematic gating in matching.
 			# KF state: [x, y, z, theta, l, w, h, dx, dy, dz]

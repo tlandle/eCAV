@@ -2,6 +2,7 @@
 # Author: Tyler Landle <tlandle3@gatech.edu>
 # License: TDG Non-Commercial Non-Distributable License
 
+import math
 import logging
 import numpy as np
 
@@ -89,6 +90,16 @@ class LinearPredictorManager():
             cid = getattr(obstacle_trajectory.obstacle, 'carla_id', -1)
             min_hist = (_MIN_HISTORY_IDENTIFIED if cid != -1
                         else _MIN_HISTORY_ANONYMOUS)
+            # The maturity window is a time (ten 50 ms frames, half a second).
+            # A manager whose tracker is stepped every s ticks (service
+            # occupancy) sets hist_stride = s on the obstacle: the window is
+            # then the entries that span the same time, never fewer than two.
+            # Counted in entries, a track born when a parked car launched was
+            # withheld for ten tracker calls, 1.75 s at 3.5 ticks per call
+            # (left turn, 2026-11-13). Unset or 1.0 leaves the count as is.
+            hist_stride = getattr(obstacle_trajectory.obstacle, 'hist_stride', None)
+            if hist_stride is not None and hist_stride != 1.0:
+                min_hist = max(2, 1 + int(math.ceil((min_hist - 1) / hist_stride)))
             if num_steps < min_hist:
                 continue
 

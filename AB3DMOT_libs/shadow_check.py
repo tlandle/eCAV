@@ -1,6 +1,7 @@
 """Per-call differential check of the tracker against an earlier version of model.py.
 
-With AB3D_SHADOW_PREV=<path to the earlier model.py> every AB3DMOT.track() call is run twice
+With AB3D_SHADOW_PREV=<path to the earlier model.py> (and optionally
+AB3D_SHADOW_PREV_MATCHING=<path to the earlier matching.py>) every AB3DMOT.track() call is run twice
 from the same state: live on the current code, and on a deep copy of the tracker rebound to the
 earlier class. The published rows and the state after the call (filter state and covariance,
 hit counters, identities, position and edge histories, held velocity) are compared for exact
@@ -25,6 +26,14 @@ def _prev_class(path):
         m.__file__ = path
         with open(path) as fh:
             exec(compile(fh.read(), path, "exec"), m.__dict__)
+        pm = os.environ.get("AB3D_SHADOW_PREV_MATCHING")
+        if pm:
+            # the earlier model.py runs with the earlier matching.py as well
+            mm = types.ModuleType("ab3dmot_matching_prev")
+            mm.__file__ = pm
+            with open(pm) as fh:
+                exec(compile(fh.read(), pm, "exec"), mm.__dict__)
+            m.data_association = mm.data_association
         _prev_cls = m.AB3DMOT
     return _prev_cls
 
@@ -68,7 +77,7 @@ def shadow_track(trk, dets_all, frame, prev_path):
     a, b = _rows(out), _rows(out_prev)
     rows_eq = a.shape == b.shape and np.array_equal(a, b)
     state_eq = _state(trk) == _state(shadow)
-    _log.write(f"frame={frame} stride={getattr(trk, '_stride', '?')} dets={len(dets_all['dets'])} "
+    _log.write(f"frame={frame} stride={getattr(trk, '_stride', '?')} mean_stride={trk._mean_stride()!r} dets={len(dets_all['dets'])} "
                f"rows={a.shape[0] if a.ndim == 2 else 0} trackers={len(trk.trackers)} "
                f"rows_equal={int(rows_eq)} state_equal={int(state_eq)}\n")
     return out

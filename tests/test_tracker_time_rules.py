@@ -10,9 +10,11 @@ counted in source ticks. Checked here:
    that occupancy produces, so the linear predictor (position + kf_vx * (i + 1) per tick) covers
    13 m in one second. Before 2026-11-12 the velocity was per call and the forecast ran at 3 to 4
    times the car's speed.
-2. A car at rest that launches at 13 m/s is published as moving after the same time at strides
-   1, 3 and 4, to within one stride. Before, the ten-entry rule took ten calls: 0.5 s at one tick
-   per call, 1.5 to 2 s at three or four.
+2. A car at rest that steps to 13 m/s is published as moving no later at strides 3 and 4 than at
+   one tick per call, plus one stride. Before, the ten-entry rule took ten calls: 0.5 s at one
+   tick per call, 1.5 to 2 s at three or four. (At one tick the step leaves the resting track
+   through the 1 m gate and a new track matures; at three or four ticks the same step is within
+   the gate, which is 1 m per tick, and the resting track follows it.)
 3. With measured box edges (the object-level managers, one tick per call) the constant and the
    launched car are published as before.
 4. At a one-tick stride the output is identical, bit for bit, to the tracker before this change
@@ -20,6 +22,14 @@ counted in source ticks. Checked here:
    git cannot provide the earlier source. The time index is an option of the tracker (time_rules),
    set by the intermediate-fusion manager. With the option off the tracker is the earlier one for
    any frame numbering, including frames ingested out of source-tick order.
+
+5. A car that launches from rest at 7 m/s^2 keeps one track id at strides 1, 3 and 4 and gets
+   its first moving forecast after the same time, to within one stride. The association gates
+   bound the innovation of one call; their metres are per tick and scale with the stride.
+   Unscaled, the resting track lost the car at 6.7 m/s at three ticks per call.
+6. The linear predictor's maturity window (ten entries for an anonymous track, half a second)
+   is the entries that span the same time when the manager reports its tracker stride: four
+   at 3 to 4 ticks per call, ten at one tick or when no stride is reported.
 
 Runs standalone."""
 import math
@@ -88,6 +98,67 @@ def launch(strides, edges, t0=101):
         if k >= t0 and sp is not None and sp > 2.0:
             return k - t0
     return None
+
+
+def ramp(k, t0=101):
+    """Position of a car that stands until t0 and then accelerates at 7 m/s^2 to 13.5 m/s."""
+    t = max(0, k - t0 + 1) * DT
+    tr = 13.5 / 7.0
+    return 0.5 * 7.0 * t * t if t <= tr else 0.5 * 7.0 * tr * tr + 13.5 * (t - tr)
+
+
+def forecast_launch(strides, t0=101):
+    """The tracker and the linear predictor as the intermediate-fusion manager runs them, on a car
+    that launches from rest. Returns (ticks from the launch to the first forecast that moves more
+    than 2 m in a second, track ids published from the launch on)."""
+    from collections import deque
+    from types import SimpleNamespace as NS
+    from ecav.core.prediction.linear_predictor_manager import LinearPredictorManager
+    from ecav.ecav_carla import Location, Rotation, Transform
+    trk = new_tracker()
+    pred = LinearPredictorManager(num_future_steps=60)
+    trajs, ids, first = {}, [], None
+    for k in ticks_for(strides, 260):
+        out, _ = trk.track(bundle(ramp(k, t0), k, False), k)
+        rows = out[0] if out and len(out[0]) else []
+        live = set()
+        for r in rows:
+            tid = int(r[7])
+            live.add(tid)
+            if tid not in trajs:
+                trajs[tid] = NS(obstacle=NS(track_id=tid, carla_id=-1), trajectory=deque(maxlen=60))
+            if k >= t0 and tid not in ids:
+                ids.append(tid)
+            t = trajs[tid]
+            t.trajectory.appendleft(Transform(location=Location(x=float(r[3]), y=float(r[5]), z=0.0),
+                                              rotation=Rotation(yaw=0.0)))
+            t.obstacle.kf_vx, t.obstacle.kf_vy = float(r[10]), float(r[12])
+            t.obstacle.kf_speed_mps = math.hypot(float(r[10]), float(r[12])) / DT
+            t.obstacle.hist_stride = trk._mean_stride()
+        for tid in list(trajs):
+            if tid not in live:
+                del trajs[tid]
+        for p in pred.generate_predicted_trajectories(trajs, source_tick=k, publish_tick=k):
+            d = abs(p.predicted_trajectory[19].location.x - p.predicted_trajectory[0].location.x)
+            if first is None and k >= t0 and d > 2.0:
+                first = k - t0
+    return first, ids
+
+
+def predictor_window(stride, n):
+    """True when the linear predictor emits a forecast for an anonymous track with n history
+    entries at the given stride (None: the manager does not report one)."""
+    from collections import deque
+    from types import SimpleNamespace as NS
+    from ecav.core.prediction.linear_predictor_manager import LinearPredictorManager
+    from ecav.ecav_carla import Location, Rotation, Transform
+    ob = NS(track_id=1, carla_id=-1, kf_vx=0.65, kf_vy=0.0, kf_speed_mps=13.0)
+    if stride is not None:
+        ob.hist_stride = stride
+    tr = deque(Transform(location=Location(x=-0.65 * i * (stride or 1), y=0.0, z=0.0), rotation=Rotation(yaw=0.0))
+               for i in range(n))
+    return len(LinearPredictorManager(num_future_steps=20).generate_predicted_trajectories(
+        {1: NS(obstacle=ob, trajectory=tr)})) == 1
 
 
 def previous_model():
@@ -159,10 +230,23 @@ def main():
         base = launch([1], edges)
         for name, strides in ((("stride 1", [1]),) if edges else (("stride 1", [1]), ("stride 3", [3]), ("stride 4", [4]))):
             lag = launch(strides, edges)
-            good = lag is not None and base is not None and abs(lag - base) <= strides[0]
+            good = lag is not None and base is not None and lag <= base + strides[0]
             ok &= good
             print(f"launch, {tag:8s} {name:9s} first moving publish after "
                   f"{'never' if lag is None else str(lag * 50) + ' ms'}  {'ok' if good else 'FAIL'}")
+    base, ids = forecast_launch([1])
+    for name, strides in (("stride 1", [1]), ("stride 3", [3]), ("stride 4", [4])):
+        lag, ids = forecast_launch(strides)
+        good = lag is not None and len(ids) == 1 and abs(lag - base) <= strides[0]
+        ok &= good
+        print(f"launch from rest at 7 m/s^2, {name}: track ids {ids}, first moving forecast after "
+              f"{'never' if lag is None else str(lag * 50) + ' ms'}  {'ok' if good else 'FAIL'}")
+    for stride, first_n in ((None, 10), (1.0, 10), (3.0, 4), (3.5, 4), (4.0, 4)):
+        got = next(n for n in range(1, 13) if predictor_window(stride, n))
+        good = got == first_n
+        ok &= good
+        print(f"predictor maturity window, stride {stride}: first forecast at {got} entries "
+              f"(expected {first_n})  {'ok' if good else 'FAIL'}")
     prev = previous_model()
     if prev is None:
         print("identity at one tick: skipped (no git source for", PREV_COMMIT + ")")

@@ -1944,6 +1944,13 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 traj.obstacle.location = tf.location
                 traj.obstacle.carla_id = cid
                 self.track_to_carla[tid] = cid
+                # source ticks per tracker call over the last half second (1.0
+                # when the tracker runs every tick): the predictor's maturity
+                # window counts history entries and needs the stride to keep
+                # the window a time
+                _ms = getattr(self.tracker, '_mean_stride', None)
+                if _ms is not None:
+                    traj.obstacle.hist_stride = _ms()
                 # KF velocity for prediction.  AB3DMOT KF state stores
                 # velocity in m per AB3DMOT internal step (= 0.1 s, not the
                 # sim dt 0.05 s).  Verified against Tesla cross-traffic at
