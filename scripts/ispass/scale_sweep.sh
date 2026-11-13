@@ -50,7 +50,7 @@ for part in $PARTS; do case $part in
     for r in ${MH_RS:-1 2 4 8}; do for n in ${MH_RN:-8 16 32 64 128}; do tag=${STAMP}_mhpr${r}_n$n
       [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; continue; }
       eps=$(scripts/ispass/perception_replicas.sh start $PERC_HOST $r) || { echo "$tag: replicas did not start"; continue; }
-      one $tag -n $n -r 2 -p shared -s 300 -H "$(split $n)" -Y "$eps"
+      one $tag -n $n -r 2 -p shared -s $(( n > ${MH_RLONG:-32} ? 100 : 300 )) -H "$(split $n)" -Y "$eps"   # 100 ticks above MH_RLONG vehicles
       scripts/ispass/perception_replicas.sh collect $PERC_HOST experiment_results/ispass_scale/$tag
       scripts/ispass/perception_replicas.sh stop $PERC_HOST; done; done ;;
   mhpercep) for n in ${MH_PN:-8 16 32 64}; do perc_start; one ${STAMP}_mhpdense_n$n -n $n -r 2 -p shared -s 300 -H "$(split $n)"; perc_stop ${STAMP}_mhpdense_n$n; done ;;
