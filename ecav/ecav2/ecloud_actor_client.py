@@ -399,7 +399,12 @@ class Ecav2ActorClient:
 
             # Process fused predictions if available
             if object_buffer and object_buffer.pickled_edge_predictions:
+                _t_unp = time.time()
                 preds = pred_blobs.unpack(object_buffer.pickled_edge_predictions)
+                if os.environ.get('ECAV_SENSOR_TIMING'):
+                    print("[STEP TIMING] forecast_unpack_ms=%.1f bytes=%d forecasts=%d" % (
+                        (time.time() - _t_unp) * 1000.0, len(object_buffer.pickled_edge_predictions),
+                        len(preds) if preds else 0), flush=True)
                 n_preds = len(preds.get('vehicles', [])) if isinstance(preds, dict) else len(preds)
                 logger.debug("[DATA_FLOW] tick=%d %s %d edge_predictions: %d objects",
                              vehicle_update_.tick_id, actor_label, self.vehicle_index, n_preds)
