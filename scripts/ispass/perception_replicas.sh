@@ -23,7 +23,7 @@ case $CMD in
     # replicas bind the host's private address only: a VM may carry a security group that admits any port from the internet
     $SSH "$HOST" "cd $WT && $ENVL; G=\$(nvidia-smi -L | wc -l); IP=\$(hostname -I | cut -d' ' -f1); rm -f /tmp/yolo_grpc_r*.log
       for g in \$(seq 0 $((R - 1))); do
-        (CUDA_VISIBLE_DEVICES=\$(((g + ${REPLICA_GPU_OFFSET:-0}) % G)) YOLO_GRPC_WORKERS=${YOLO_GRPC_WORKERS:-4} PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True PYTHONUNBUFFERED=1 \
+        (CUDA_VISIBLE_DEVICES=\$(((g + ${REPLICA_GPU_OFFSET:-0}) % G)) YOLO_GRPC_WORKERS=${YOLO_GRPC_WORKERS:-4} YOLO_GRPC_BATCH=${YOLO_GRPC_BATCH:-0} PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True PYTHONUNBUFFERED=1 \
           setsid nohup python ecav/ml_manager/yolo_grpc_server.py --host \$IP --port \$(($BASE + g)) > /tmp/yolo_grpc_r\$g.log 2>&1 < /dev/null &); done
       timeout 300 bash -c 'for g in \$(seq 0 $((R - 1))); do until ss -ltn | grep -q \":\$(($BASE + g)) \"; do sleep 2; done; done' || { echo 'replicas did not start' >&2; exit 1; }
       (setsid nohup nvidia-smi --query-gpu=index,utilization.gpu,memory.used --format=csv,noheader,nounits -l 1 > /tmp/gpu_replicas.csv 2>/dev/null < /dev/null &)
