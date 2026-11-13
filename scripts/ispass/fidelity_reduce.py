@@ -29,7 +29,7 @@ from campaign_check import load_runs  # noqa: E402  (operational success as the 
 
 GEOM = {"openscenario_3_edge_late_fusion": "left turn", "scp_edge_late_fusion": "straight crossing"}
 BUDGET_MS = {"left turn": 348.0, "straight crossing": 300.0}   # exact-state useful-age budgets at 70 km/h
-ARCH_ORDER = ["I2V object sharing", "V2X2V prediction", "intermediate fusion"]
+ARCH_ORDER = ["no cooperation", "I2V object sharing", "V2X2V prediction", "intermediate fusion"]
 COND_ORDER = ["A", "B", "C", "D"]
 COND_NAME = {"A": "idealized", "B": "compute", "C": "network", "D": "full"}
 
@@ -135,6 +135,7 @@ def load(stamp, root):
         rel = os.path.relpath(r["path"], root); scen = rel.split(os.sep)[0]
         geom = GEOM.get(re.sub(r"_wf$", "", scen)); arch = arch_of("/" + rel.replace(os.sep, "/"))
         if geom is None or arch is None: continue
+        if "_loss_100_" in rel: arch = "no cooperation"      # every shared message dropped (stage nocoop)
         m = json.load(open(r["path"])); kv = m.get("config_edge_kv", {}) or {}
         run_dir = os.path.dirname(r["path"]); pt = os.path.join(run_dir, "evaluation_output", "per_tick_age.csv")
         age = reduce_run(pt) if os.path.exists(pt) else {}
