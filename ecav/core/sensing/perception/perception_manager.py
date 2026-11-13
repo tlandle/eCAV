@@ -605,12 +605,15 @@ class PerceptionManager:
 
         Returns the frame id, or None when there is no sensor or the wait is switched off.
         """
-        if os.environ.get('ECAV_SENSOR_SYNC', '1') == '0':
-            return None
         sensors = [("camera%d" % i, c) for i, c in enumerate(self.rgb_camera or [])]
         if self.lidar is not None:
             sensors.append(("lidar", self.lidar))
         if not sensors:
+            return None
+        if os.environ.get('ECAV_SENSOR_SYNC', '1') == '0':
+            if SENSOR_TIMING:   # the old behaviour, with the age of the frames it reads (against this process's world snapshot)
+                snap = self.carla_world.get_snapshot().frame
+                print("[SENSOR NOSYNC] id=%s world_frame=%d ages=%s" % (self.id, snap, [snap - s.frame for _, s in sensors]), flush=True)
             return None
         timeout = float(os.environ.get('ECAV_SENSOR_SYNC_TIMEOUT_S', '60'))
         tick = getattr(self, 'sync_tick', None)
@@ -725,7 +728,7 @@ class PerceptionManager:
         if os.environ.get('SENSOR_FRAME_TRACE'):
             import hashlib
             try:
-                _wf = self.vehicle.get_world().get_snapshot().frame
+                _wf = self.carla_world.get_snapshot().frame
                 _cams = [(getattr(c, 'frame', None),
                           hashlib.md5(np.ascontiguousarray(c.image).tobytes()).hexdigest()[:8])
                          for c in self.rgb_camera]
