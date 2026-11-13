@@ -119,6 +119,7 @@ class CoBEVTPerceptionManager(PerceptionManager):
 
     def detect(self, ego_pos, **kw):
         """Run CoBEVT feature extraction if LiDAR data is ready."""
+        self.sync_sensors()
         if self.lidar and self.lidar.data is not None:
             self.run_step()
         return {"vehicles": [], "traffic_lights": [], "static": []}

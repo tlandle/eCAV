@@ -179,6 +179,7 @@ class WorldFusionPerceptionManager(PerceptionManager):
         directly visible obstacles regardless of what the edge reports.
         RSUs stay feature-only: no planner consumes their local list.
         """
+        self.sync_sensors()
         lidar_ready = self.lidar and self.lidar.data is not None
         cams_ready = self.rgb_camera and all(c.image is not None for c in self.rgb_camera)
         has_cameras = self.rgb_camera and len(self.rgb_camera) > 0

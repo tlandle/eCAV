@@ -84,6 +84,7 @@ class BM2CPPerceptionManager(PerceptionManager):
         logger.debug("Init complete.\n")
 
     def detect(self, ego_pos, **kw):
+        self.sync_sensors()
         lidar_ready = self.lidar and self.lidar.data is not None
         cams_ready = self.rgb_camera and all(c.image is not None for c in self.rgb_camera)
         

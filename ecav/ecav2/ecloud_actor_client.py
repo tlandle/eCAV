@@ -198,6 +198,7 @@ class Ecav2ActorClient:
 
         logger.info("pong received")
 
+        self._set_sync_tick()
         self.vehicle_manager.update_info()
         if self.actor_type == ecloud.ActorType.VEHICLE:
             self.vehicle_manager.set_destination(
@@ -425,6 +426,13 @@ class Ecav2ActorClient:
         opt = parser.parse_args()
         return opt
 
+    def _set_sync_tick(self):
+        """Tell the perception manager which tick this client was sent: it waits for that tick's sensor frames
+        (PerceptionManager.sync_sensors). The orchestrator ticks the world once per tick it broadcasts."""
+        pm = getattr(self.vehicle_manager, 'perception_manager', None)
+        if pm is not None:
+            pm.sync_tick = self.tick_id
+
     async def tick(self):
         assert self.pong is not None, "pong not initialized"
         assert self.vehicle_manager is not None, "vehicle_manager not initialized"
@@ -451,6 +459,7 @@ class Ecav2ActorClient:
             # Wrapped in asyncio.to_thread so the blocking LitServe HTTP call
             # (requests.post inside WorldFusion PM) does not stall the event loop.
             update_info_start_time = time.time()
+            self._set_sync_tick()
             await asyncio.to_thread(self.vehicle_manager.update_info)
             t_update_info = time.time()
 
