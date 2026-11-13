@@ -307,6 +307,11 @@ class BehaviorAgent(object):
         self._rss_lateral_growing_ticks = 0
         # Step counter for AoI tracking (incremented each run_step call)
         self._step_count = 0
+        # Simulation steps on which the planner was not invoked since its last run_step
+        # (measured-time execution, ecav/core/common/vehicle_compute.py). run_step adds them
+        # to _step_count, so the rules counted in planner steps (start hold, oncoming hold,
+        # overtake timers) run on simulated time. Always 0 when the planner runs every step.
+        self._skipped_steps = 0
         # Global sim tick, set by VehicleManager before run_step. Used as the
         # brake trigger timestamp so AoI-at-use shares the edge clock with the
         # prediction's source_tick. Falls back to _step_count if unset.
@@ -411,6 +416,11 @@ class BehaviorAgent(object):
         self.local_predictions = self._linear_predictor.generate_predicted_trajectories(
             self.tracked_obstacles
         )
+
+    def advance_time(self, skipped_steps):
+        """Tell the planner that skipped_steps simulation steps passed without a run_step
+        (the vehicle pipeline was busy). Applied at the next run_step."""
+        self._skipped_steps += max(0, int(skipped_steps))
 
     def update_information(self, ego_pos, ego_speed, objects):
         """
@@ -2057,7 +2067,8 @@ class BehaviorAgent(object):
         """
 
         agent_step_start_time = time.time()
-        self._step_count += 1
+        self._step_count += 1 + self._skipped_steps
+        self._skipped_steps = 0
         if self._step_count <= self.start_hold_ticks:
             if self._step_count == 1:
                 logger.info("[HOLD] start hold for %d ticks", self.start_hold_ticks)

@@ -38,9 +38,11 @@ class ControlManager(object):
         """
         self.controller.update_info(ego_pos, ego_speed)
 
-    def run_step(self, target_speed, waypoint):
+    def run_step(self, target_speed, waypoint, elapsed_s=None):
         """
-        Execute current controller step.
+        Execute current controller step. elapsed_s is the simulated time since the
+        controller's previous invocation, passed only under measured-time execution.
         """
-        control_command = self.controller.run_step(target_speed, waypoint)
-        return control_command
+        if elapsed_s is None:
+            return self.controller.run_step(target_speed, waypoint)
+        return self.controller.run_step(target_speed, waypoint, elapsed_s=elapsed_s)

@@ -314,12 +314,20 @@ class AB3DMOT(object):
 			return trks
 
 		F = self.trackers[0].kf.F
-		if self._stride != 1:
-			# the state velocity is in m per source tick: predict over the ticks since the last call
-			F = F.copy()
-			F[0, 7] = F[1, 8] = F[2, 9] = self._stride
-		FT = F.T
 		Q = self.trackers[0].kf.Q
+		if self._stride != 1:
+			# The state velocity is in m per source tick: predict over the ticks since the last
+			# call. The process noise is the noise of that many one-tick predicts,
+			# Q_s = sum_{k<s} F^k Q (F^k)^T, so one predict over s ticks leaves the same state and
+			# covariance as s one-tick predicts (tests/test_tracker_predict_interval.py).
+			F1 = F
+			Fk = np.eye(F1.shape[0])
+			Qs = np.zeros_like(Q, dtype=np.float64)
+			for _ in range(int(self._stride)):
+				Qs += Fk @ Q @ Fk.T
+				Fk = F1 @ Fk
+			F, Q = Fk, Qs
+		FT = F.T
 
 		# Preallocate and fill via direct indexing (faster than np.stack
 		# for small N where Python overhead dominates)

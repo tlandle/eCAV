@@ -55,6 +55,7 @@ from ecav.scenario_testing.utils.route_parser import RouteParser
 from ecav.client_metrics import ClientMetrics
 from ecav.core.common.ecloud_config import eLocationType
 from ecav.core.common.traffic_event import TrafficEvent, TrafficEventType
+from ecav.core.common.vehicle_compute import VehicleCompute
 
 logger = logging.getLogger(__name__)
 
@@ -522,6 +523,18 @@ class VehicleManager(object):
         self.controller = ControlManager(control_config)
         logger.debug("ControlManager created")
 
+        # Measured-time execution of the perceive, plan and control step (behavior option
+        # vehicle_compute, default zero: the step runs inside the tick at no cost, as before).
+        # See ecav/core/common/vehicle_compute.py.
+        _vc_dt = None
+        try:
+            _vc_dt = control_config['args']['dt']
+        except Exception:  # noqa: BLE001
+            _vc_dt = None
+        if not _vc_dt:
+            _vc_dt = (config_yaml.get('world') or {}).get('fixed_delta_seconds', 0.05)
+        self.vehicle_compute = VehicleCompute(behavior_config, float(_vc_dt), vehicle_index)
+
         # Stats Gathering — skipped for proxy VMs; sensors belong to the actor process
         self._collision_sensor = None
         self._lane_sensor = None
@@ -723,6 +736,7 @@ class VehicleManager(object):
         retrieve surrounding info an ego position.
         """
         # localization
+        _perceive_t0 = time.perf_counter()
         start_time = time.time()
         self.localizer.localize()
         self.step_id = step_id
@@ -738,9 +752,8 @@ class VehicleManager(object):
         start_time = time.time()
         objects = self.perception_manager.detect(ego_pos)
         t_detect_ms = (time.time() - start_time) * 1000
-        print(f"[VehicleManager update_info] localize={t_localize_ms:.0f}ms | "
-              f"detect={t_detect_ms:.0f}ms | "
-              f"total={t_localize_ms + t_detect_ms:.0f}ms", flush=True)
+        logger.debug("[VehicleManager update_info] localize=%.0fms | detect=%.0fms | total=%.0fms",
+                     t_localize_ms, t_detect_ms, t_localize_ms + t_detect_ms)
         #logger.debug(f"Objects", {objects})
 
         #self.tracked_local_trajectories = self.update_local_trajectories(objects, self.localizer.get_sim_time())
@@ -839,6 +852,42 @@ class VehicleManager(object):
         end_time = time.time()
         logger.debug("Controller update time: %s" %(end_time - start_time))
         self.client_metrics.update_controller_update_info_time((end_time-start_time)*1000)
+        if self.vehicle_compute.enabled:
+            # wall time of localization, perception, local tracking and the state updates above:
+            # the perceive stage of the vehicle pipeline
+            self.vehicle_compute.note_perceive((time.perf_counter() - _perceive_t0) * 1000.0)
+
+    def _run_step_measured(self, target_speed=None):
+        """run_step under measured-time execution (behavior option vehicle_compute).
+
+        The planner and the controller run only at a step where the pipeline is free. The
+        command they produce is applied at the first step boundary at or after the pipeline's
+        duration, and the vehicle holds the command it applied last until then. The planner's
+        step counter and the controller's integral and derivative terms advance by the steps
+        that passed since the previous invocation."""
+        def _plan(elapsed_steps):
+            try:
+                self.agent._current_global_tick = self.step_id
+                if elapsed_steps > 1 and hasattr(self.agent, 'advance_time'):
+                    self.agent.advance_time(elapsed_steps - 1)
+                tgt = self.agent.run_step(target_speed)
+                self.map_manager.run_step()
+            except Exception as e:  # noqa: BLE001
+                logger.warning("can't successfully complete agent.run_step; setting to done. Error: %s" % (e),
+                               exc_info=True)
+                tgt = (0, self.localizer.get_ego_pos().location)
+            return tgt
+
+        def _control(tgt, elapsed_s):
+            return self.controller.run_step(tgt[0], tgt[1], elapsed_s=elapsed_s)
+
+        control = self.vehicle_compute.step(self.step_id, _plan, _control,
+                                            idle_command=carla.VehicleControl())
+        if self.data_dumper:
+            self.data_dumper.run_step(self.perception_manager,
+                                      self.localizer,
+                                      self.agent)
+        return control
 
     def run_step(self, target_speed=None):
         """
@@ -849,6 +898,9 @@ class VehicleManager(object):
         if target_speed == -1 and self.run_distributed:
             logger.info("run_step: simulation is over")
             return None # -1 indicates the simulation is over. TODO Need a const here.
+
+        if self.vehicle_compute.enabled:
+            return self._run_step_measured(target_speed)
 
         pre_vehicle_step_time = time.time()
         try:

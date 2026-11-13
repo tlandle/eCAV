@@ -190,6 +190,7 @@ class _BaseEdgeManager:
         # conflict-time age, critical-object age, burst loss). Off unless
         # cfg['per_tick_age_log']['enabled']. Writes per_tick_age.csv into the
         # run's own output dir, beside simulation_metrics.json.
+        self._vehicle_compute_run_dir = cfg.get("run_output_dir") if not is_proxy else None
         self._age_logger = None
         self._age_gt_tick = None
         self._age_gt_snap = {}
@@ -565,6 +566,12 @@ class _BaseEdgeManager:
         vid = vm.vehicle.id
         if vid not in self._first_event_ticks:
             self._first_event_ticks[vid] = {}
+            # measured-time execution of the vehicle step: its per-tick rows go into the run's
+            # output directory, beside per_tick_age.csv
+            _vc = getattr(vm, 'vehicle_compute', None)
+            _run_dir = self._vehicle_compute_run_dir
+            if _vc is not None and _vc.enabled and _vc.log_path is None and _run_dir:
+                _vc.set_log_path(os.path.join(_run_dir, "vehicle_compute_%s.jsonl" % vid))
 
         events = self._first_event_ticks[vid]
         for attr in vm.agent.planning_metrics.brake_attributions:

@@ -489,6 +489,12 @@ class EvaluationManager(object):
             veh_dict = self.global_metrics.setdefault("vehicles", {}).setdefault(str(vm.vehicle.id), {})
             veh_dict.update(per_vehicle[v_id])
 
+            # measured-time execution of the vehicle step (behavior option vehicle_compute):
+            # stage durations, invocations, superseded inputs and command age at apply
+            _vc = getattr(vm, 'vehicle_compute', None)
+            if _vc is not None and _vc.enabled:
+                veh_dict["vehicle_compute"] = _vc.metrics()
+
             # Per-camera disagreement metrics (inter-source position disagreement)
             if hasattr(vm, 'perception_manager') and hasattr(vm.perception_manager, 'get_camera_disagreement_metrics'):
                 disagree = vm.perception_manager.get_camera_disagreement_metrics()

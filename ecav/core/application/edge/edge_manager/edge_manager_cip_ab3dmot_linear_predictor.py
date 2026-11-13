@@ -138,14 +138,33 @@ class CIPEdge(InfraOnlyEdge):
             # onboard perception; all obstacles come from edge predictions.
             vid = vm.vehicle.id
             objects: Dict[str, List[Any]] = {"vehicles": [], "traffic_lights": [], "static": []}
-            try:
-                vm.agent.update_information(ego_pos, ego_spd, objects)
+            # Measured-time execution (behavior option vehicle_compute): the edge planner and
+            # the vehicle's controller are two components, each occupied for its own duration.
+            _vc = getattr(vm, 'vehicle_compute', None)
+            _vc = _vc if (_vc is not None and _vc.enabled) else None
+            _plan_steps = 0       # steps from this tick until the plan leaves the edge planner
+            _planned = True       # False on a tick where the edge planner is still busy
+
+            def _run_planner(elapsed_steps=1, vm=vm):
                 # agent.run_step() runs the planner (conceptually at the edge)
                 # and returns its target; the sampled trajectory behind that
                 # target is what the edge sends down to the vehicle.
                 vm.agent._current_global_tick = tick
+                if elapsed_steps > 1:
+                    vm.agent.advance_time(elapsed_steps - 1)
                 target_speed, target_pos = vm.agent.run_step()
-                plan = self._cip_plan_message(vm, target_speed, target_pos)
+                return self._cip_plan_message(vm, target_speed, target_pos)
+
+            try:
+                vm.agent.update_information(ego_pos, ego_spd, objects)
+                if _vc is None:
+                    plan = _run_planner()
+                else:
+                    _res = _vc.edge_plan(tick, _run_planner)
+                    if _res is None:
+                        _planned, plan = False, None
+                    else:
+                        plan, _plan_steps = _res
             except Exception:  # noqa: BLE001
                 logger.exception("CIP: planner failed for vehicle %s; emergency-stopping",
                                  getattr(vm.vehicle, 'id', '?'))
@@ -168,8 +187,10 @@ class CIPEdge(InfraOnlyEdge):
                 # Controlled latency: edge latency model maps source->arrival;
                 # the (arrival - tick) gap is the trajectory downlink delay.
                 dl_ticks = max(0, self.latency_model.stamp(tick) - tick)
-            self._cip_pending_plans.setdefault(vid, []).append(
-                (tick + dl_ticks, plan))
+            self._cip_pending_plans.setdefault(vid, [])
+            if _planned:
+                self._cip_pending_plans[vid].append(
+                    (tick + _plan_steps + dl_ticks, plan))
 
             # Deliver all trajectories whose downlink delay has elapsed; the
             # most recent delivered one becomes the held trajectory.
@@ -188,11 +209,20 @@ class CIPEdge(InfraOnlyEdge):
                 held = self._cip_last_plan[vid]
                 try:
                     vm.controller.update_info(ego_pos, ego_spd)
-                    if held:
-                        tgt_tr, tgt_spd = self._cip_select_target(held, ego_pos, ego_spd)
-                        control = vm.controller.run_step(tgt_spd, tgt_tr)
+                    if _vc is None:
+                        if held:
+                            tgt_tr, tgt_spd = self._cip_select_target(held, ego_pos, ego_spd)
+                            control = vm.controller.run_step(tgt_spd, tgt_tr)
+                        else:
+                            control = carla.VehicleControl(throttle=0.0, brake=1.0, steer=0.0)
                     else:
-                        control = carla.VehicleControl(throttle=0.0, brake=1.0, steer=0.0)
+                        def _run_controller(elapsed_s, _held=held, _pos=ego_pos, _spd=ego_spd, vm=vm):
+                            if not _held:
+                                return carla.VehicleControl(throttle=0.0, brake=1.0, steer=0.0)
+                            _tr, _tspd = self._cip_select_target(_held, _pos, _spd)
+                            return vm.controller.run_step(_tspd, _tr, elapsed_s=elapsed_s)
+                        control = _vc.control(tick, _run_controller,
+                                              idle_command=carla.VehicleControl())
                     vm.vehicle.apply_control(control)
                 except Exception:  # noqa: BLE001
                     logger.exception("CIP: trajectory tracking failed for vehicle %s", vid)

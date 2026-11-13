@@ -59,6 +59,7 @@ class Controller:
         self._lon_k_i = args['lon']['k_i']
 
         self._lon_ebuffer = deque(maxlen=10)
+        self._lon_dtbuffer = deque(maxlen=10)
 
         # lateral related
         self.max_steering = args['max_steering']
@@ -68,9 +69,15 @@ class Controller:
         self._lat_k_i = args['lat']['k_i']
 
         self._lat_ebuffer = deque(maxlen=10)
+        self._lat_dtbuffer = deque(maxlen=10)
 
         # simulation time-step
         self.dt = args['dt']
+        # Simulated time since the previous invocation (s). None: the controller runs every
+        # step and the terms below use self.dt, as before. Set per invocation by run_step
+        # under measured-time execution (ecav/core/common/vehicle_compute.py), where the
+        # controller can be invoked every second or third step.
+        self._elapsed_s = None
 
         # current speed and localization retrieved from sensing layer
         self.current_transform = None
@@ -125,8 +132,13 @@ class Controller:
         """
         error = target_speed - self.current_speed
         self._lat_ebuffer.append(error)
+        self._lat_dtbuffer.append(self.dt if self._elapsed_s is None else self._elapsed_s)
 
-        if len(self._lat_ebuffer) >= 2:
+        if len(self._lat_ebuffer) >= 2 and self._elapsed_s is not None:
+            # derivative over the time since the previous sample, integral with each sample's own interval
+            _de = (self._lat_ebuffer[-1] - self._lat_ebuffer[-2]) / self._lat_dtbuffer[-1]
+            _ie = sum(e * d for e, d in zip(self._lat_ebuffer, self._lat_dtbuffer))
+        elif len(self._lat_ebuffer) >= 2:
             _de = (self._lat_ebuffer[-1] - self._lat_ebuffer[-2]) / self.dt
             _ie = sum(self._lat_ebuffer) * self.dt
         else:
@@ -175,7 +187,11 @@ class Controller:
 
         self._lat_err = _dot
         self._lon_ebuffer.append(_dot)
-        if len(self._lon_ebuffer) >= 2:
+        self._lon_dtbuffer.append(self.dt if self._elapsed_s is None else self._elapsed_s)
+        if len(self._lon_ebuffer) >= 2 and self._elapsed_s is not None:
+            _de = (self._lon_ebuffer[-1] - self._lon_ebuffer[-2]) / self._lon_dtbuffer[-1]
+            _ie = sum(e * d for e, d in zip(self._lon_ebuffer, self._lon_dtbuffer))
+        elif len(self._lon_ebuffer) >= 2:
             _de = (self._lon_ebuffer[-1] - self._lon_ebuffer[-2]) / self.dt
             _ie = sum(self._lon_ebuffer) * self.dt
         else:
@@ -185,8 +201,11 @@ class Controller:
         return np.clip((self._lat_k_p * _dot) + (self._lat_k_d *
                        _de) + (self._lat_k_i * _ie), -1.0, 1.0)
 
-    def run_step(self, target_speed, waypoint):
+    def run_step(self, target_speed, waypoint, elapsed_s=None):
         """
+        elapsed_s: simulated time since the previous invocation, when the controller is not
+        invoked every step (measured-time execution). None keeps the fixed step self.dt.
+
         Execute one step of control invoking both lateral and longitudinal
         PID controllers to reach a target waypoint at a given target_speed.
 
@@ -204,6 +223,7 @@ class Controller:
             Desired vehicle control command for the current step.
 
         """
+        self._elapsed_s = elapsed_s
         # control class for carla vehicle
         control = carla.VehicleControl()
 
