@@ -193,7 +193,9 @@ def main():
     assert scene_dict is not None, "scene_dict is not initialized!"
     scene_dict.scenario_runner.distributed = opt.distributed
 
-    if opt.apply_ml:
+    # with the shared inference service (--litserve) this process runs no model, so it needs no GPU:
+    # a vehicle client may run on a host without one
+    if opt.apply_ml and not opt.litserve:
         torch.cuda.init()
 
     # import the testing script
