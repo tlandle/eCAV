@@ -21,11 +21,15 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RES = os.path.join(ROOT, "experiment_results", "ispass_scale")
-CONFIGS = ["dense", "spread", "seqdense", "seqspread", "pdense", "mhdense", "mhspread", "mhpdense"]
+CONFIGS = ["dense", "spread", "seqdense", "seqspread", "pdense", "mhdense", "mhspread", "mhpdense",
+           "mhpr1", "mhpr2", "mhpr4", "mhpr8"]
+# mhpr<R>: vehicle clients on the client hosts, the inference service as R replicas (one per GPU) on a GPU host
+REPLICAS = {"mhpr1": 1, "mhpr2": 2, "mhpr4": 4, "mhpr8": 8}
 LABEL = {"dense": "distributed, dense", "spread": "distributed, spread", "seqdense": "sequential, dense",
          "seqspread": "sequential, spread", "pdense": "distributed, dense, perception",
          "mhdense": "distributed, three hosts, dense", "mhspread": "distributed, three hosts, spread",
          "mhpdense": "distributed, three hosts, dense, perception"}
+LABEL.update({c: f"distributed, perception, {r} service replica{'s' if r > 1 else ''}" for c, r in REPLICAS.items()})
 GROUPS = [("clients", ["client compute", "client loop gap"]),
           ("edge step", ["edge step"]),
           ("transport", ["orchestrator -> edge", "edge fan-out", "client reply", "edge -> orchestrator",
@@ -56,6 +60,15 @@ def load(stamp):
             if rows:
                 r["gpu_util_mean"] = sum(float(x[0]) for x in rows) / len(rows)
                 r["gpu_mem_max_mib"] = max(float(x[1]) for x in rows)
+        gr = os.path.join(d, "gpu_replicas.csv")   # index, utilisation, memory; one row per GPU per second
+        if os.path.exists(gr) and r["config"] in REPLICAS:
+            rows = [[float(v) for v in l.split(",")] for l in open(gr).read().strip().splitlines() if l[:1].isdigit()]
+            rows = [x for x in rows if len(x) == 3 and x[0] < REPLICAS[r["config"]]]
+            if rows:
+                r["gpu_util_mean"] = sum(x[1] for x in rows) / len(rows)
+                r["gpu_mem_max_mib"] = max(x[2] for x in rows)
+        if r["config"] in REPLICAS:
+            r["service_replicas"] = REPLICAS[r["config"]]
         yl = os.path.join(d, "yolo_grpc.log")
         if os.path.exists(yl):
             tot = sorted(float(x) for x in re.findall(r"PerceptionServicer\].*? total=(\d+)ms", open(yl, errors="ignore").read()))
@@ -75,8 +88,8 @@ def f(v, fmt="{:.0f}"):
 def table(runs):
     L = ["| configuration | N | RSUs | in sensing range | in forecast range | tick wall mean / p50 / p99 (ms) | sim s per wall s | "
          "clients | edge step | transport | world | client compute, all (ms) | first tick (s) | CPU busy | GPU util / mem | "
-         "inference service p50 / p95 / p99 (ms), requests per wall s |",
-         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+         "inference service p50 / p95 / p99 (ms), requests per wall s | service replicas |",
+         "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for c in CONFIGS:
         for r in sorted((x for x in runs if x["config"] == c), key=lambda x: x["n"]):
             g = {name: sum((r["rows"].get(k) or 0.0) for k in keys) for name, keys in GROUPS}
@@ -89,7 +102,7 @@ def table(runs):
                      f"{'-' if seq else f(g['transport'])} | {f(g['world tick'])} | {f(r['client_compute_all_mean'])} | "
                      f"{f(r['first_tick_s'])} | {busy} | {gpu} | " +
                      (f"{r['service_ms']['p50']:.0f} / {r['service_ms']['p95']:.0f} / {r['service_ms']['p99']:.0f}, "
-                      f"{r['service_req_per_wall_s']:.1f}" if "service_ms" in r else "-") + " |")
+                      f"{r['service_req_per_wall_s']:.1f}" if "service_ms" in r else "-") + f" | {r.get('service_replicas', '-')} |")
     return "\n".join(L)
 
 
@@ -102,10 +115,12 @@ def figure(runs, path):
     fig, (a, b) = plt.subplots(1, 2, figsize=(3.4, 2.05), gridspec_kw={"width_ratios": [1.0, 1.25]})
     style = {"dense": ("C0", "o", "-"), "spread": ("C1", "s", "-"), "seqdense": ("C0", "o", ":"),
              "seqspread": ("C1", "s", ":"), "pdense": ("C3", "^", "-"),
-             "mhdense": ("C0", "o", "--"), "mhspread": ("C1", "s", "--"), "mhpdense": ("C3", "^", "--")}
+             "mhdense": ("C0", "o", "--"), "mhspread": ("C1", "s", "--"), "mhpdense": ("C3", "^", "--"),
+             "mhpr1": ("C3", "v", ":"), "mhpr2": ("C5", "v", "-."), "mhpr4": ("C6", "v", "--"), "mhpr8": ("C8", "v", "-")}
     short = {"dense": "distributed, dense", "spread": "distributed, spread", "seqdense": "sequential, dense",
              "seqspread": "sequential, spread", "pdense": "distributed, perception",
              "mhdense": "three hosts, dense", "mhspread": "three hosts, spread", "mhpdense": "three hosts, perception"}
+    short.update({c: f"perception, {r} replica{'s' if r > 1 else ''}" for c, r in REPLICAS.items()})
     for c in CONFIGS:
         rs = sorted((x for x in runs if x["config"] == c), key=lambda x: x["n"])
         if rs:

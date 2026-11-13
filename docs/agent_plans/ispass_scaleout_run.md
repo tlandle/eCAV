@@ -329,3 +329,43 @@ Defaults: 64, 128, 256, 512 vehicles without perception, 8 to 64 with the shared
 - Memory at 512 vehicles: 256 clients per VM against 251 GB.
 - Client index 0 spawns every ego and runs on carla-client3, so spawn time includes the 1 to 2 ms path to CARLA.
 - After a VM is deallocated and started again the install persists (root disk). The A10 node's sysctl does not persist; the first command above sets it.
+
+## Perception replicas on carla-ndm, 2026-11-12 21:38 (set up and measured standalone; the multi-host sweep has not run)
+
+### State
+- carla-ndm (azureuser@20.172.248.156, private 10.2.0.6, 8 V100 32 GB, 40 cores, Ubuntu 20.04) holds `~/scale_wt` (a copy of the A10 node's worktree with `yolov5/` and `yolov5m.pt`, sha256 61d93336..., the same file as on the A10) and `~/scale_pydeps` (grpcio 1.80.0, protobuf 6.33.6, seaborn, psutil, setuptools 75.8.0 installed with `pip --target`; the training env `opencda310` on that host is not modified and lacks grpcio). Both are on the root disk and survive a deallocation. Nothing is on a temporary disk.
+- Its virtual network was re-addressed to 10.2.0.0/16 and peered with the A10 node's network (10.1.0.0/16) and the client network (10.0.0.0/16). TCP to 10.2.0.6:18001 and :18008 connects from the A10 node and from carla-client3; round-trip time about 5.3 ms.
+- The service listens on every interface on ports 18001 to 18008. The NSG on the NIC (carlandmnsg981) allows inbound from the internet only on 22, 8000, 8787, 50051-50053 and 50101-50512, so the replicas are reachable from the peered networks only. No rule was added.
+
+### Standalone ceiling (paper_ispass/perception_replicas.md, .json)
+One replica per GPU, four worker threads, the request of a scale_town06 client (four 640x480 JPEG frames, 412 KB), eight closed-loop clients per replica: 36.6 requests per s on 1 GPU, 73.8 on 2, 146.9 on 4, 291.1 on 8, p50 218 to 222 ms at that load. A replica saturates at four clients. From carla-client3 across the peering: 36.6 and 290.7 requests per s. The A10 node's standalone ceiling is not measured (the 21.6 requests per s of sweep3 is an in-run rate).
+
+### Launcher changes
+- `ecav/ml_manager/ml_manager.py`: `ECAV_YOLO_ENDPOINT` in a client's environment overrides the scenario YAML's `yolo_endpoint`. Unset, the behaviour is unchanged.
+- `scripts/ispass/launch_scale.sh -Y "ip:port,ip:port"`: vehicle client k and RSU client j use endpoint k mod R and j mod R. Without `-Y` nothing changes.
+- `scripts/ispass/perception_replicas.sh start|stop|collect`: R replicas on one host, replica g on GPU g, port 18001+g, GPU sampling once per second.
+- `scripts/ispass/scale_sweep.sh` part `mhprepl`: R in MH_RS (1 2 4 8) by N in MH_RN (8 16 32 64 128), runs `<stamp>_mhpr<R>_n<N>`.
+- `scripts/ispass/scale_report.py`: configurations mhpr1, mhpr2, mhpr4, mhpr8, a service replicas column, GPU utilisation from the replicas' sample file.
+- `scripts/ispass/perception_service_bench.py`: the standalone load test.
+
+### Run (the A10 node must have no simulator running; start carla-ndm, carla-client3 and carla-client4 first)
+```
+# the client VMs were set up before these changes: deliver the one changed client file
+for h in azureuser@172.200.91.133 azureuser@20.242.82.41; do rsync -aR ecav/ml_manager/ml_manager.py $h:scale_wt/; done
+ssh azureuser@20.81.176.215 'sudo sysctl -w net.ipv4.ip_local_reserved_ports=50051-50070,50101-51300'
+# smoke: 8 vehicles, 2 replicas
+CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" PERC_HOST=azureuser@20.172.248.156 MH_RS="2" MH_RN="8" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 mhprepl
+# full: R = 1 2 4 8 by N = 8 16 32 64 128
+CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" PERC_HOST=azureuser@20.172.248.156 scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 mhprepl
+/home/atlas/anaconda3/envs/opencda310/bin/python scripts/ispass/scale_report.py mh1
+# standalone ceiling of the A10 node, for the per-GPU comparison (GPU must be idle)
+scripts/ispass/perception_replicas.sh start azureuser@20.81.176.215 1
+ssh azureuser@20.81.176.215 'cd ~/scale_wt && source ~/miniconda3/etc/profile.d/conda.sh && conda activate opencda310 && python scripts/ispass/perception_service_bench.py --endpoints localhost:18001 --clients 8 --seconds 25'
+scripts/ispass/perception_replicas.sh stop azureuser@20.81.176.215
+```
+
+### Not yet verified
+- No closed-loop run has used `-Y`. The endpoint assignment was tested with the launcher's own command string in a local shell, and the override in the client is a single environment read.
+- With the service on another host, each CARLA-side sensor frame still reaches the client first. The RSU clients run on the A10 node and call the replicas across the peering.
+- At 128 vehicles with perception the limit may move to the client hosts (64 clients each with four cameras and a LiDAR) or to CARLA rendering on the A10 node's single GPU, not to the service. The breakdown columns will show which.
+- carla-client1 and carla-client2 are in the re-addressed network (10.2.0.4, 10.2.0.5) and reachable by peering once started, but hold no setup and no key of mine.

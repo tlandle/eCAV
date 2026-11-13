@@ -4,6 +4,11 @@
 # Multi-host parts (not in the default): mhdense mhspread mhpercep. <host> keeps CARLA, the orchestrator, the edge,
 # the RSU clients and the inference service; the vehicle clients are split evenly over the hosts in CLIENT_HOSTS:
 #   CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 "mhdense mhspread"
+# Perception replicas (not in the default): mhprepl. The inference service runs as R replicas, one per GPU, on
+# PERC_HOST (scripts/ispass/perception_replicas.sh); client k calls replica k mod R. R in MH_RS (default 1 2 4 8),
+# N in MH_RN (default 8 16 32 64 128); runs are <stamp>_mhpr<R>_n<N>:
+#   CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" PERC_HOST=azureuser@20.172.248.156 \
+#       scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 mhprepl
 # Runs land in experiment_results/ispass_scale/<stamp>_<config>_n<N>; scale_report.py <stamp> builds the table and figure.
 # 300 ticks up to 128 vehicles, 100 ticks above (a tick takes seconds there). A failed run is retried once.
 set -uo pipefail
@@ -28,6 +33,13 @@ perc_stop() { ssh $HOST 'for p in $(pgrep -f "^nvidia-smi --query-gpu=utilizatio
 for part in $PARTS; do case $part in
   mhdense)  for n in ${MH_NS:-64 128 256 512}; do one ${STAMP}_mhdense_n$n -n $n -r 2 -p off -s $(steps $n) -H "$(split $n)"; done ;;
   mhspread) for n in ${MH_NS:-64 128 256 512}; do one ${STAMP}_mhspread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread" -H "$(split $n)"; done ;;
+  mhprepl) [[ -n "${PERC_HOST:-}" ]] || { echo "mhprepl needs PERC_HOST"; exit 2; }
+    for r in ${MH_RS:-1 2 4 8}; do for n in ${MH_RN:-8 16 32 64 128}; do tag=${STAMP}_mhpr${r}_n$n
+      [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; continue; }
+      eps=$(scripts/ispass/perception_replicas.sh start $PERC_HOST $r) || { echo "$tag: replicas did not start"; continue; }
+      one $tag -n $n -r 2 -p shared -s 300 -H "$(split $n)" -Y "$eps"
+      scripts/ispass/perception_replicas.sh collect $PERC_HOST experiment_results/ispass_scale/$tag
+      scripts/ispass/perception_replicas.sh stop $PERC_HOST; done; done ;;
   mhpercep) for n in ${MH_PN:-8 16 32 64}; do perc_start; one ${STAMP}_mhpdense_n$n -n $n -r 2 -p shared -s 300 -H "$(split $n)"; perc_stop ${STAMP}_mhpdense_n$n; done ;;
   dense)  for n in 8 16 32 64 128 256; do one ${STAMP}_dense_n$n -n $n -r 2 -p off -s $(steps $n); done ;;
   spread) for n in 8 16 32 64 128 256 512; do one ${STAMP}_spread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread"; done ;;

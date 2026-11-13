@@ -104,7 +104,9 @@ class MLManager(object):
         print("[ML Manager] Initializing in DISTRIBUTED mode...")
 
         # gRPC perception endpoint
-        yolo_endpoint = self.config.get('yolo_endpoint', 'localhost:18001')
+        # ECAV_YOLO_ENDPOINT (host:port) overrides the scenario YAML for this process: the scale launcher
+        # assigns each client one of several service replicas this way
+        yolo_endpoint = os.environ.get('ECAV_YOLO_ENDPOINT') or self.config.get('yolo_endpoint', 'localhost:18001')
         self.worldfusion_endpoint = self.config.get('worldfusion_endpoint', 'http://localhost:18000')
         self.worldfusion_grpc_endpoint = self.config.get('worldfusion_grpc_endpoint', None)
 

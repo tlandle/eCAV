@@ -1,0 +1,72 @@
+{
+ "host": "carla-ndm (Standard_ND40rs_v2, 8 x V100 32 GB, 40 cores)",
+ "service": "ecav/ml_manager/yolo_grpc_server.py, YOLOv5m, 4 worker threads per replica, one replica per GPU",
+ "request": "4 JPEG frames 640x480 quality 85 per DetectYolo call (412 KB), 8 closed-loop clients per replica, 25 s after 5 s warm-up, load generator on the same host",
+ "weights_sha256": "61d933360ba5a7733a36764996c800287d973889d875227f5beedd2473a97a56",
+ "rows": [
+  {
+   "replicas": 1,
+   "total_req_per_s": 36.6,
+   "per_replica_min": 36.6,
+   "per_replica_max": 36.6,
+   "p50_ms": 218,
+   "p99_ms": 227,
+   "errors": 0
+  },
+  {
+   "replicas": 2,
+   "total_req_per_s": 73.8,
+   "per_replica_min": 36.6,
+   "per_replica_max": 37.1,
+   "p50_ms": 218,
+   "p99_ms": 225,
+   "errors": 0
+  },
+  {
+   "replicas": 4,
+   "total_req_per_s": 146.9,
+   "per_replica_min": 36.3,
+   "per_replica_max": 37.0,
+   "p50_ms": 220,
+   "p99_ms": 226,
+   "errors": 0
+  },
+  {
+   "replicas": 8,
+   "total_req_per_s": 291.1,
+   "per_replica_min": 36.0,
+   "per_replica_max": 37.1,
+   "p50_ms": 222,
+   "p99_ms": 231,
+   "errors": 0
+  }
+ ],
+ "single_replica_by_clients": [
+  {
+   "clients": 1,
+   "req_per_s": 26.1,
+   "p50_ms": 38.0
+  },
+  {
+   "clients": 4,
+   "req_per_s": 37.0,
+   "p50_ms": 108.5
+  },
+  {
+   "clients": 8,
+   "req_per_s": 36.6,
+   "p50_ms": 218.1
+  },
+  {
+   "clients": 16,
+   "req_per_s": 35.4,
+   "p50_ms": 450.9
+  }
+ ],
+ "across_peering": {
+  "from": "carla-client3 (10.0.0.11)",
+  "one_replica_8_clients_req_per_s": 36.6,
+  "eight_replicas_64_clients_req_per_s": 290.7,
+  "rtt_ms": 5.4
+ }
+}

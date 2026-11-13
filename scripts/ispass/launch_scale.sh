@@ -20,6 +20,10 @@
 #   -H LIST         vehicle clients: "host:lo-hi,host:lo-hi" (default: orchestrator host, 0..N-1)
 #   -y HOST         host of the shared YOLO inference service (default: orchestrator host). With more than
 #                   one host and -p shared, the scenario YAML's yolo_endpoint is set to that host's private address
+#   -Y LIST         perception service replicas, "ip:port,ip:port,...": vehicle client k and RSU client j call
+#                   endpoint k mod R and j mod R (ECAV_YOLO_ENDPOINT in each client's environment). Implies the
+#                   service is already running at those addresses (scripts/ispass/perception_replicas.sh);
+#                   the scenario YAML's yolo_endpoint is left alone. Without -Y every client uses the YAML's endpoint
 #   -t TAG          results directory tag (default: n<N>_r<R>_p<on|off>_<time>)
 #   -g ARGS         extra generator arguments, quoted (e.g. -g "--layout spread --rsus 12")
 #   -m dist|seq     dist (default): one process per actor. seq: the sequential single process
@@ -35,9 +39,9 @@
 # one host is used: carla_server_public_ip, ecloud_server_public_ip, vehicle_client_public_ip
 # (the host's own address; on the orchestrator the list of client hosts), edge_server_public_ip.
 set -uo pipefail
-N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""; MODE=dist; PERC=""
-while getopts "n:r:p:s:o:c:e:R:H:t:g:m:y:" o; do case $o in
-  y) PERC=$OPTARG;;
+N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""; MODE=dist; PERC=""; EPS=""
+while getopts "n:r:p:s:o:c:e:R:H:t:g:m:y:Y:" o; do case $o in
+  y) PERC=$OPTARG;; Y) EPS=$OPTARG;;
   m) MODE=$OPTARG;;
   n) N=$OPTARG;; r) R=$OPTARG;; p) P=$OPTARG;; s) STEPS=$OPTARG;; o) ORCH=$OPTARG;; c) CARLA=$OPTARG;;
   e) EDGE=$OPTARG;; R) RSUH=$OPTARG;; H) VLIST=$OPTARG;; t) TAG=$OPTARG;; g) GEN=$OPTARG;; *) exit 2;; esac; done
@@ -76,6 +80,10 @@ collect() { for h in $HOSTS; do mkdir -p "$OUT/${h##*@}"; scp -q $SSHO "$h:${WT/
 fail() { log "FAILED: $*"; collect; killall_hosts; exit 1; }
 
 log "scale_town06 N=$N R=$R perception=$P steps=$STEPS orch=$ORCH carla=$CARLA edge=$EDGE rsu=$RSUH vehicles=$VLIST"
+if [[ -n "$EPS" ]]; then
+  [[ $P == shared && $MODE == dist ]] || { log "FAILED: -Y needs -p shared and the distributed mode"; exit 2; }
+  NEP=$(tr ',' '\n' <<< "$EPS" | grep -c .); log "perception replicas ($NEP): $EPS"
+fi
 killall_hosts
 
 # addresses: one host means localhost everywhere; several hosts means private IPs and a cloud_config rewrite
@@ -110,7 +118,7 @@ fi
 on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $GP --carla-host $CARLA_IP $GEN" | tee -a "$OUT/launch.log" || fail "generator"
 # the spread layout chooses its own RSU count
 RG=$(grep -o '^RSUS=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); [[ -n "$RG" ]] && R=$RG
-if [[ $MULTI == 1 && $P == shared ]]; then
+if [[ $MULTI == 1 && $P == shared && -z "$EPS" ]]; then
   PERC_IP=$(ip_of "$PERC")
   $SSH "$ORCH" "cd $WT && sed -i -E \"s|yolo_endpoint: *'?localhost:([0-9]+)'?|yolo_endpoint: '$PERC_IP:\\1'|\" ecav/scenario_testing/config_yaml/scale_town06.yaml && grep -q \"yolo_endpoint: '$PERC_IP:\" ecav/scenario_testing/config_yaml/scale_town06.yaml" || fail "yolo_endpoint rewrite"
   log "perception service at $PERC_IP"
@@ -143,7 +151,10 @@ log "edge registered"
 host_of() { local k=$1 e h r; for e in $(tr ',' ' ' <<< "$VLIST"); do h=${e%%:*}; r=${e##*:}; (( k >= ${r%-*} && k <= ${r#*-} )) && { echo "$h"; return; }; done; }
 # vehicles lo..hi that live on one host start from one remote loop
 veh_range() { local h=$1 lo=$2 hi=$3
-  on "$h" "mkdir -p $L && for i in \$(seq $lo $hi); do (setsid nohup python -u ecav.py $ML -v 0.9.15 -d -i \$i -T \$((8000 + i)) > $L/veh_\$i.log 2>&1 < /dev/null &); done"; }
+  # with -Y, client i gets endpoint i mod R in its environment; without it the variable stays unset
+  local pre=""; [[ -n "$EPS" ]] && pre="EP=($(tr ',' ' ' <<< "$EPS")); "
+  local envp=""; [[ -n "$EPS" ]] && envp="env ECAV_YOLO_ENDPOINT=\${EP[\$((i % \${#EP[@]}))]} "
+  on "$h" "mkdir -p $L && ${pre}for i in \$(seq $lo $hi); do (setsid nohup ${envp}python -u ecav.py $ML -v 0.9.15 -d -i \$i -T \$((8000 + i)) > $L/veh_\$i.log 2>&1 < /dev/null &); done"; }
 veh_range "$(host_of 0)" 0 0
 wait_log "$(host_of 0)" veh_0 "spawning Ecav2ActorClient" $((120 + N)) || fail "client 0 did not spawn the egos"
 log "client 0 spawned the egos"
@@ -154,7 +165,10 @@ k=1; while (( k < N )); do
   wait_log "$h" "veh_$hi" "spawning Ecav2ActorClient|Traceback" 600 || fail "client $hi did not start"
   log "clients $k..$hi started on $h"; k=$(( hi + 1 ))
 done
-for j in $(seq 0 $((R - 1))); do bg "$RSUH" "rsu_$j" "python -u ecav/ecav2/ecloud_actor_client.py $ML -v 0.9.15 -i $j"; done
+EPA=($(tr ',' ' ' <<< "$EPS"))
+for j in $(seq 0 $((R - 1))); do
+  rpre=""; [[ -n "$EPS" ]] && rpre="env ECAV_YOLO_ENDPOINT=${EPA[$((j % ${#EPA[@]}))]} "
+  bg "$RSUH" "rsu_$j" "${rpre}python -u ecav/ecav2/ecloud_actor_client.py $ML -v 0.9.15 -i $j"; done
 log "all clients started after $(( $(date +%s) - T0 )) s; waiting for the run"
 wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 |Caught exception" $((600 + 4 * N)) || fail "no first tick"
 $SSH "$ORCH" "cd $WT && grep -q 'Caught exception' $L/orch.log" && fail "orchestrator raised before the first tick: $($SSH "$ORCH" "cd $WT && grep -m1 'Caught exception' $L/orch.log")"
