@@ -94,7 +94,9 @@ def table(runs):
     for c in CONFIGS:
         for r in sorted((x for x in runs if x["config"] == c), key=lambda x: x["n"]):
             g = {name: sum((r["rows"].get(k) or 0.0) for k in keys) for name, keys in GROUPS}
-            busy = " ".join(f"{v * 100:.0f} %" for v in r["cpu_busy"].values()) or "-"
+            cb = r["cpu_busy"]   # one host: the value; several hosts: each value with its host address
+            busy = (" ".join(f"{v * 100:.0f} %" for v in cb.values()) if len(cb) < 2 else
+                    ", ".join(f"{k} {v * 100:.0f} %" for k, v in sorted(cb.items()))) or "-"
             gpu = f"{r['gpu_util_mean']:.0f} % / {r['gpu_mem_max_mib'] / 1024:.1f} GB" if "gpu_util_mean" in r else "-"
             seq = r["mode"] == "sequential"
             L.append(f"| {LABEL[c]} | {r['n']} | {r['rsus'] if not seq else '-'} | {f(r['neighbours_sense'], '{:.1f}')} | "
@@ -141,7 +143,9 @@ def figure(runs, path):
     xs, lab = [], []
     x = 0
     hb = []
-    for c in ("dense", "spread"):
+    # a multi-host stamp shows its multi-host rows
+    panel = ("mhdense", "mhspread") if any(r["config"] == "mhdense" for r in runs) else ("dense", "spread")
+    for c in panel:
         rs = sorted((r for r in runs if r["config"] == c), key=lambda r: r["n"])
         x0 = x
         for r in rs:
@@ -155,7 +159,7 @@ def figure(runs, path):
                 bottom += 100 * v / tot
             xs.append(x); lab.append(str(r["n"])); x += 1
         if rs:
-            b.text((x0 + x - 1) / 2, 103, c, ha="center", va="bottom", fontsize=7)
+            b.text((x0 + x - 1) / 2, 103, c.replace("mh", ""), ha="center", va="bottom", fontsize=7)
         x += 0.8
     b.set_ylim(0, 100); b.set_xticks(xs); b.set_xticklabels(lab, rotation=90)
     b.set_xlabel("vehicles N"); b.set_ylabel("share of tick (%)")

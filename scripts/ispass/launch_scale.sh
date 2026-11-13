@@ -183,6 +183,9 @@ veh_range() { local h=$1 lo=$2 hi=$3
   local pre=""; [[ -n "$EPS" ]] && pre="EP=($(tr ',' ' ' <<< "$EPS")); "
   local envp=""; [[ -n "$EPS" ]] && envp="env ECAV_YOLO_ENDPOINT=\${EP[\$((i % \${#EP[@]}))]} "
   on "$h" "mkdir -p $L && ${pre}for i in \$(seq $lo $hi); do (setsid nohup ${envp}python -u ecav.py $ML -v 0.9.15 -d -i \$i -T \$((8000 + i)) > $L/veh_\$i.log 2>&1 < /dev/null &); done"; }
+# wait until every client lo..hi on one host has either reached its actor client or raised
+batch_wait() { $SSH "$1" "cd $WT && timeout 600 bash -c 'until ( for i in \$(seq $2 $3); do grep -Eq \"spawning Ecav2ActorClient|Traceback\" $L/veh_\$i.log 2>/dev/null || exit 1; done ); do sleep 2; done'" \
+               || { log "TIMEOUT waiting for clients $2..$3 on $1"; return 1; }; }
 veh_range "$(host_of 0)" 0 0
 wait_log "$(host_of 0)" veh_0 "spawning Ecav2ActorClient" $((120 + N)) || fail "client 0 did not spawn the egos"
 log "client 0 spawned the egos"
@@ -190,7 +193,17 @@ k=1; while (( k < N )); do
   h=$(host_of $k); hi=$(( k + BATCH - 1 < N - 1 ? k + BATCH - 1 : N - 1 ))
   while [[ $(host_of $hi) != "$h" ]]; do hi=$(( hi - 1 )); done
   veh_range "$h" $k $hi
-  wait_log "$h" "veh_$hi" "spawning Ecav2ActorClient|Traceback" 600 || fail "client $hi did not start"
+  batch_wait "$h" $k $hi || fail "clients $k..$hi did not start"
+  # Every client is a remote user of client 0's traffic manager (the scenario YAML gives all of them port 8000),
+  # and that RPC has a fixed 2 s timeout. With many sensors in the world the simulator answers slowly and a client
+  # can die on set_random_device_seed before it has created anything. Such a client is started again.
+  for try in 1 2 3; do
+    bad=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || { grep -q 'rpc::timeout' $L/veh_\$i.log && echo \$i; }; done" | tr '\n' ' ')
+    [[ -z "${bad// }" ]] && break
+    log "clients ${bad}timed out on the traffic manager RPC: starting them again (try $try)"
+    for i in $bad; do $SSH "$h" "cd $WT && mv $L/veh_$i.log $L/veh_$i.log.rpc_timeout$try"; veh_range "$h" $i $i; done
+    batch_wait "$h" $k $hi || fail "clients $k..$hi did not start"
+  done
   log "clients $k..$hi started on $h"; k=$(( hi + 1 ))
 done
 EPA=($(tr ',' ' ' <<< "$EPS"))
