@@ -68,6 +68,10 @@ COLUMNS = [
     "ego_speed_mps", "ctrl_throttle", "ctrl_brake", "decision",
     "brake_event", "brake_reason", "gt_brake_class", "ttc_s",
     "ego_x", "ego_y",
+    # the track whose forecast triggered this tick's brake event and the true
+    # actor the labeler matched it to (the class alone does not say whether a
+    # brake labelled self_ghost was on the conflict actor's track)
+    "brake_track_id", "brake_gt_actor_id",
 ]
 
 _ANON_GUID_FLOOR = 10000   # planner rule: carla_id > 10000 is an edge guid
@@ -233,6 +237,8 @@ class PerTickAgeLogger:
             self._brake_seen[focal_id] = len(attrs)
             brake_reason = attrs[-1].get("ghost_reason") if (brake_event and attrs) else ""
             gt_class = attrs[-1].get("gt_brake_class") if (brake_event and attrs) else ""
+            brake_tid = attrs[-1].get("trigger_track_id") if (brake_event and attrs) else None
+            brake_actor = attrs[-1].get("gt_matched_actor_id") if (brake_event and attrs) else None
             ttc = getattr(agent, "ttc", None)
             ttc_s = float(ttc) if ttc is not None and float(ttc) < 999 else float("nan")
 
@@ -250,6 +256,7 @@ class PerTickAgeLogger:
                 _fmt(ego_speed), _fmt(throttle), _fmt(brake), decision,
                 brake_event, brake_reason or "", gt_class or "", _fmt(ttc_s),
                 _fmt(ego_x), _fmt(ego_y),
+                _fmt(brake_tid), _fmt(brake_actor),
             ]
 
             preds = list(getattr(agent, "generated_predictions", None) or [])
@@ -295,6 +302,25 @@ class PerTickAgeLogger:
                     self._lineage_violations += 1
                 seq = self._publish_seq.get(int(pub_tick)) if pub_tick is not None else None
                 ox, oy, ospd = self._obs_xy_speed(pred)
+                # Position for the conflict match: the forecast's own first
+                # waypoint (a snapshot taken when the forecast was generated),
+                # which refers to the tick after its origin. The track object
+                # behind the forecast is live: a manager that delivers after a
+                # compute or radio delay keeps tracking meanwhile, and the
+                # live position read here ran up to 3.8 m ahead of the stamp
+                # (full condition, 2026-11-13), past the match radius.
+                mx, my, m_tick = ox, oy, gen_tick
+                try:
+                    _snap_tr = getattr(pred, "_orig_predicted_trajectory", None) or pred.predicted_trajectory
+                    _origin = getattr(pred, "origin_tick", None)
+                    if _origin is None:
+                        _origin = frame_tick
+                    if _snap_tr and _origin is not None:
+                        mx, my = float(_snap_tr[0].location.x), float(_snap_tr[0].location.y)
+                        m_tick = int(_origin) + 1
+                        ox, oy = mx, my
+                except Exception:
+                    pass
                 if os.environ.get("PTA_WP_DEBUG"):
                     # diagnostic: the forecast's own first waypoint (before the
                     # planner's age re-indexing) beside the live obstacle state
@@ -322,8 +348,10 @@ class PerTickAgeLogger:
                     # against the actor where it was at the state's observation
                     # tick, so a stale but correct state still matches
                     cpos = None
-                    if gen_tick is not None:
-                        snap = self._gt_hist.get(int(gen_tick))
+                    for _mt in (m_tick, gen_tick):
+                        if _mt is None or cpos is not None:
+                            continue
+                        snap = self._gt_hist.get(int(_mt))
                         vd = (snap.get(c_id) or snap.get(str(c_id))) if snap else None
                         if vd is not None:
                             cpos = (float(vd["x"]), float(vd["y"]))
