@@ -68,7 +68,8 @@ SSHO="-o BatchMode=yes -o ConnectTimeout=15 -o ControlMaster=auto -o ControlPath
 SSH="ssh $SSHO"
 log() { echo "$(date '+%T') $*" | tee -a "$OUT/launch.log"; }
 # run a command line in the worktree with the env active
-on() { local h=$1; shift; $SSH "$h" "ulimit -n 65536 2>/dev/null; cd $WT && $ACT && export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla:\${PYTHONPATH:-} $THREADS && $*"; }
+# SCALE_CLIENT_ENV: extra NAME=value words exported to every process this launcher starts (e.g. ECAV_SENSOR_TIMING=1)
+on() { local h=$1; shift; $SSH "$h" "ulimit -n 65536 2>/dev/null; cd $WT && $ACT && export PYTHONPATH=$CARLA_ROOT/PythonAPI/carla:\${PYTHONPATH:-} $THREADS ${SCALE_CLIENT_ENV:-} && $*"; }
 # start a detached process: bg <host> <logname> <command...>
 bg() { local h=$1 n=$2; shift 2; on "$h" "mkdir -p $L && (setsid nohup $* > $L/$n.log 2>&1 < /dev/null &)"; }
 # wait_log <host> <logname> <regex> <timeout_s>

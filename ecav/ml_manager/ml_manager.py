@@ -242,7 +242,8 @@ class MLManager(object):
                 f"[ML Manager] serialize={serialize_ms:.1f}ms "
                 f"rpc={rpc_ms:.1f}ms "
                 f"parse={parse_ms:.1f}ms "
-                f"total={total_e2e_ms:.1f}ms"
+                f"total={total_e2e_ms:.1f}ms "
+                f"t_send={t_after_serialize:.4f} t_ret={t_after_rpc:.4f} req_bytes={sum(len(b) for b in jpeg_frames)}"
             )
 
             self._dist_timing_rows.append({

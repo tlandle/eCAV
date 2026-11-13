@@ -3,7 +3,7 @@
 # Run on the benchmark host from any directory:
 #   OPENCDA=~/competitors/OpenCDA GEN=~/scale_wt/scripts/ispass/gen_scale_town06.py \
 #   OUT=~/competitors/results/run1 scripts/ispass/opencda_scale_sweep.sh
-# Variables: NS (vehicle counts), LAYOUTS, PERCEPTION (on|off), MAPMGR (on|off), PY, CARLA_ROOT.
+# Variables: NS (vehicle counts), LAYOUTS, PERCEPTION (on|off), MAPMGR (on|off), TICKS, PY, CARLA_ROOT.
 # 300 ticks up to 128 vehicles and 100 above, as in scripts/ispass/scale_sweep.sh.
 set -uo pipefail
 OPENCDA="${OPENCDA:?OpenCDA checkout}"; GEN="${GEN:?gen_scale_town06.py}"; OUT="${OUT:?output directory}"
@@ -27,6 +27,7 @@ for layout in $LAYOUTS; do for n in $NS; do
   tag="opencda_${layout}_n${n}_perc${PERCEPTION}_map${MAPMGR}"
   [[ -s "$OUT/$tag.json" ]] && grep -q '"completed": true' "$OUT/$tag.json" && continue
   ticks=300; (( n > 128 )) && ticks=100
+  [[ -n "${TICKS:-}" ]] && ticks=$TICKS     # fewer ticks where a tick takes many seconds (perception at 64 and above)
   start_carla
   echo "$(date '+%F %T') $tag ticks=$ticks"
   timeout "${RUN_TIMEOUT:-5400}" "$PY" "$BENCH" --gen "$GEN" -n "$n" --layout "$layout" --perception "$PERCEPTION" \

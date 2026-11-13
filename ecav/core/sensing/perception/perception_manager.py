@@ -53,6 +53,11 @@ VALID_VEHICLE_TYPES = {
     'vehicle.carlamotors',
 }
 
+# ECAV_SENSOR_TIMING=1: print the wall-clock arrival of every sensor frame ([SENSOR RX]) and, at each
+# detection, which frames are used ([SENSOR USE]). scripts/ispass/perception_step_breakdown.py reads both.
+SENSOR_TIMING = bool(os.environ.get('ECAV_SENSOR_TIMING'))
+
+
 class CameraSensor:
     """
     Camera manager for vehicle or infrastructure.
@@ -173,6 +178,9 @@ class CameraSensor:
         self.image = image
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if SENSOR_TIMING:
+            print(f"[SENSOR RX] kind=camera sensor={self.sensor.id} frame={event.frame} sim_t={event.timestamp:.3f} "
+                  f"t={time.time():.4f} bytes={len(event.raw_data)}", flush=True)
 
 
 class LidarSensor:
@@ -275,6 +283,9 @@ class LidarSensor:
         self.data = data
         self.frame = event.frame
         self.timestamp = event.timestamp
+        if SENSOR_TIMING:
+            print(f"[SENSOR RX] kind=lidar sensor={self.sensor.id} frame={event.frame} sim_t={event.timestamp:.3f} "
+                  f"t={time.time():.4f} bytes={len(event.raw_data)}", flush=True)
 
 
 class SemanticLidarSensor:
@@ -625,6 +636,7 @@ class PerceptionManager:
         """
         # retrieve current cameras and lidar data
         
+        _t_prep = time.time()
         rgb_images = []
         for rgb_camera in self.rgb_camera:
             while rgb_camera.image is None:
@@ -634,6 +646,9 @@ class PerceptionManager:
                     np.asarray(
                         rgb_camera.image),
                     cv2.COLOR_BGR2RGB))
+        if SENSOR_TIMING:
+            print(f"[SENSOR USE] t={_t_prep:.4f} prep_ms={(time.time() - _t_prep) * 1000:.1f} "
+                  f"cams={[c.frame for c in self.rgb_camera]} lidar={self.lidar.frame}", flush=True)
 
         # yolo detection (uses ml_manager.detect() which handles both local and distributed)
 

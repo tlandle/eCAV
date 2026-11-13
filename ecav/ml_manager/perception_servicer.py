@@ -63,7 +63,8 @@ class PerceptionServicer(perception_pb2_grpc.PerceptionServiceServicer):
             f"decode={decode_ms:.0f}ms "
             f"inference={inference_ms:.0f}ms "
             f"encode={encode_ms:.0f}ms "
-            f"total={total_ms:.0f}ms"
+            f"total={total_ms:.0f}ms "
+            f"t0={t0:.4f} t_done={t_encoded:.4f}"
         )
 
         response = perception_pb2.YoloResponse(

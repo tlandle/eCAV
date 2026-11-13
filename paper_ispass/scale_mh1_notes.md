@@ -84,3 +84,41 @@ What limits each cell:
 - The client hosts never limit a perception cell.
 
 Against the single-host rows of sweep3 (service on the A10 beside the simulator): 463 to 258 ms at 8 vehicles, 828 to 451 ms at 16, 1591 to 871 ms at 32 with two or more replicas.
+
+## Why more inference replicas do not shorten the perception tick: measured decomposition
+
+One instrumented run, 32 vehicles, 4 replicas, clients on the two client hosts (`ECAV_SENSOR_TIMING=1`, stamp mh1dec, tick 874 ms against 871 ms without the instrumentation). Reduction: `scripts/ispass/perception_step_breakdown.py`, a 60 s stack sample (py-spy, 100 Hz, wall clock) of one client per host, and 1 s samples on the A10 node.
+
+How the client uses sensors and the service:
+- A client sends one inference request per tick: the four camera frames as JPEG in one call (412 KB). The LiDAR is not sent. Nothing is sent concurrently because there is one call.
+- A client does not wait for the sensor frames of the tick. It reads its sensor buffers 10 ms after the world tick returns (p90 12 ms). The camera frames of that tick arrive a median 571 ms after the world tick (p10 77 ms, p90 906 ms), the LiDAR frame 204 ms (p90 586 ms). Detection therefore runs on camera frames that are one world tick old in 88 % of client ticks, two ticks old in 10 % and current in 2 %. LiDAR: one tick old in 98 %. This is the existing behaviour of the distributed perception path, not an effect of the multi-host deployment being measured here.
+- Raw frames: 1.23 MB per camera frame (640x480 BGRA), 0.82 MB per LiDAR frame, 5.74 MB per vehicle per tick.
+
+Client step, mean per client tick (9433 client ticks): 619 ms in total.
+
+| stage | ms | share |
+|---|---|---|
+| wait for sensor frames | 0 | 0 % (the client does not wait) |
+| colour conversion before the call | 0.6 | 0.1 % |
+| JPEG encoding of four frames | 5.2 | 0.8 % |
+| inference call round trip | 174.5 | 28 % |
+| of which the handler in the replica | 97.5 (JPEG decode 6.6, model 90.4, encode 0.4) | |
+| of which network and wait for a handler thread | 77 | |
+| rest of detection (LiDAR and camera fusion, vehicle-side tracker) | 41 | 7 % |
+| planner and controller (`run_step`) | 352 | 57 % |
+| reply to the edge | 30 (median 10) | 5 % |
+
+Inside the replica the model takes 25 to 27 ms for a request that runs alone and 90 ms here, because 3.5 handler threads on average run the model on the same GPU at once. Per-replica throughput is unchanged by that (37 requests per s), so with 8 clients per replica the call is not the bound.
+
+Inside `run_step` the stack samples put 17 to 19 % of the client's wall time (150 to 165 ms per tick) on one statement, `behavior_agent.py:814`, which calls `vehicle.get_traffic_light()` twice. Each is a synchronous request to the simulator and is answered only between simulator frames. 7 to 8 % (about 65 ms) is the unpickling of the forecast message (`pred_blobs.unpack`). The planning arithmetic itself is under 5 %. Without perception the whole client step at 32 vehicles is 76 ms, so the same two simulator requests cost a few ms there.
+
+Simulator host during the ticks: outbound 227 MB/s median (1.8 Gbit/s, max 248 MB/s) against a measured ceiling of 23.5 Gbit/s on one TCP stream from the A10 node to carla-client3 (28.9 Gbit/s on eight streams). CARLA's game thread 85 % of one core, RHI thread 47 %, render thread 42 %, 11 task-graph threads about 35 % each. GPU 43 % utilised.
+
+Which stage bounds the tick with two or more replicas: the simulator's game thread. After a world tick it spends most of the next tick period reading back and sending 160 sensor frames (the last camera frame leaves 0.9 s after the tick), and while it does so it answers client requests slowly, which is where the client's step goes. It is not GPU rendering throughput (43 %), not the network transfer of the raw frames (8 % of the link), and not the inference service.
+
+What would move it:
+- CARLA secondary servers (multi-GPU) take the sensor readback off the primary's game thread. This is the change that addresses the bound.
+- One simulator request instead of two in `traffic_light_manager` removes about 75 ms per client tick at 32 vehicles (9 % of the tick) without changing the planner's input.
+- Clients on the simulator host would not help: the network is at 8 % of its ceiling, and the single-host rows are slower.
+- Compressed or lower-rate sensor streams are excluded (no change to quality, resolution or rate in a measured row).
+- Concurrent per-camera requests would not help: there is one request per tick and the call is 28 % of the step, bounded by GPU sharing inside the replica, not by serial sending.
