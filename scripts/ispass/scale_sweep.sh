@@ -41,6 +41,7 @@ for part in $PARTS; do case $part in
   mhequiv) # the same scenario with every client on <host> and with the clients on the client hosts
     n=${MH_EN:-16}
     one ${STAMP}_eqsh_n$n -n $n -r 2 -p off -s 300
+    one ${STAMP}_eqrep_n$n -n $n -r 2 -p off -s 300     # repeat on one host: the run-to-run difference (GNSS noise is not seeded)
     one ${STAMP}_eqmh_n$n -n $n -r 2 -p off -s 300 -H "$(split $n)" ;;
   mhprepl) [[ -n "${PERC_HOST:-}" ]] || { echo "mhprepl needs PERC_HOST"; exit 2; }
     for r in ${MH_RS:-1 2 4 8}; do for n in ${MH_RN:-8 16 32 64 128}; do tag=${STAMP}_mhpr${r}_n$n
