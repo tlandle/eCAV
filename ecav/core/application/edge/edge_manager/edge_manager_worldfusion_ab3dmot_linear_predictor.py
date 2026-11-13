@@ -55,7 +55,6 @@ from ecav.core.application.edge.latency.ns3_lut_sampler import (
     get_default as _get_lut_sampler,
 )
 from .ab3dmot_state_transfer import AB3DMOTStateTransferMixin
-from ecav.core.application.edge.tracker_step import TrackerStepClock, velocity_per_tick
 from .edge_manager_base import _BaseEdgeManager
 
 import logging
@@ -191,7 +190,12 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             'dup_x_max': cfg.get("dup_x_max", 8.0),
             'dup_y_max': cfg.get("dup_y_max", 2.0),
             'dup_size_ratio': cfg.get("dup_size_ratio", 2.5),
-            'cull_consec_ticks': cfg.get("cull_consec_ticks", 3)
+            'cull_consec_ticks': cfg.get("cull_consec_ticks", 3),
+            # Velocity, the half second of history before a velocity is
+            # published and the velocity window are kept in source ticks, so
+            # they hold when service occupancy feeds the tracker every third
+            # or fourth tick. min_hits and max_age stay in tracker calls.
+            'time_rules': True,
         })
         self.anchoring = cfg.get("anchoring", True)
         # Phase 1.5 warm import gate — mirrors PredictionLateFusionEdge and
@@ -314,9 +318,12 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._gt_snapshots: Dict[int, Dict] = {}
         self._excluded_snapshots: Dict[int, Dict] = {}
         self._latest_source_tick = None
-        # Seconds between the source ticks of consecutive tracker steps,
-        # measured in run_step. The tracker's velocity is per step.
-        self._trk_clock = TrackerStepClock(float(self.dt), 0.2)
+        # Seconds per unit of the tracker's velocity. AB3DMOT publishes and
+        # keeps velocity in m per source tick at any stride (it predicts over
+        # the ticks between calls), so the value is the simulation tick once
+        # the tracker has stepped twice.
+        self._trk_prev_frame_id = None
+        self._trk_step_s = None
 
         # Track history for AB3DMOT replay (following late fusion pattern)
         self.track_history: Deque[Dict] = deque(maxlen=30)
@@ -798,7 +805,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 _n_in = len(det_results.get('dets', []))
                 _has_internals = hasattr(self.tracker, 'trackers')
                 _n_trks_before = len(self.tracker.trackers) if _has_internals else -1
-                self._trk_clock.note(frame_id)
+                if (self._trk_prev_frame_id is not None
+                        and frame_id > self._trk_prev_frame_id):
+                    self._trk_step_s = float(self.dt)
+                self._trk_prev_frame_id = frame_id
                 tracks, _ = self.tracker.track(det_results, frame_id)
                 _n_out = len(tracks[0]) if tracks and len(tracks) > 0 and len(tracks[0]) > 0 else 0
                 _n_trks_after = len(self.tracker.trackers) if _has_internals else -1
@@ -1944,25 +1954,28 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 # 1 m/s stationary gate, causing MTR to hallucinate motion.
                 # KITTI dx(10)=CARLA vx, KITTI dz(12)=CARLA vy
                 if len(trk) > 12:
+                    kf_vx, kf_vy = float(trk[10]), float(trk[12])
+                    _step_s = self._tracker_step_s()
                     # Col 13 flags the unit: Mamba rows carry m/s directly
                     # (cadence-independent, measured from the source-tick
-                    # stride in the wrapper). AB3DMOT rows are per TRACKER
-                    # STEP, and the step is the measured stride between the
-                    # source ticks the tracker was fed (TrackerStepClock). The
-                    # configured edge_dt (0.2 s) read a car at a quarter of
-                    # its speed when the edge fused every 50 ms tick
-                    # (left turn, 2026-11-11: at most 2.2 m/s for 5 to 19 m/s).
-                    # kf_vx and kf_vy go out in m per simulation tick, the unit
-                    # the linear predictor extrapolates in: with service
-                    # occupancy the tracker steps every 3 or 4 ticks, and a
-                    # per-step velocity sent as per-tick put the forecast at 3
-                    # to 4 times the car's speed (left turn, 2026-11-12).
-                    (traj.obstacle.kf_vx, traj.obstacle.kf_vy,
-                     traj.obstacle.kf_speed_mps) = velocity_per_tick(
-                        float(trk[10]), float(trk[12]),
-                        len(trk) > 13 and float(trk[13]) == 1.0,
-                        self._tracker_step_s(), float(self.dt),
-                        self._trk_clock.measured)
+                    # stride in the wrapper). AB3DMOT rows are in m per source
+                    # tick whatever the stride between the frames the tracker
+                    # was fed: with service occupancy it steps every 3 or 4
+                    # ticks, and a per-step velocity extrapolated per tick put
+                    # the forecast at 3 to 4 times the car's speed (left turn,
+                    # 2026-11-12). The configured edge_dt (0.2 s) read a car
+                    # at a quarter of its speed when the edge fused every
+                    # 50 ms tick (left turn, 2026-11-11).
+                    if len(trk) > 13 and float(trk[13]) == 1.0:
+                        traj.obstacle.kf_speed_mps = (
+                            kf_vx**2 + kf_vy**2)**0.5
+                        kf_vx *= _step_s
+                        kf_vy *= _step_s
+                    else:
+                        traj.obstacle.kf_speed_mps = (
+                            (kf_vx**2 + kf_vy**2)**0.5) / _step_s
+                    traj.obstacle.kf_vx = kf_vx
+                    traj.obstacle.kf_vy = kf_vy
 
         # Only prune trajectories for tracks that AB3DMOT has stopped outputting
         # Don't prune if no updates this frame (let trajectories persist)
@@ -2023,12 +2036,11 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     self.track_to_carla[best_tid] = vm.vehicle.id
 
     def _tracker_step_s(self) -> float:
-        """Seconds per tracker step: the measured source-tick stride over the
-        tracker's velocity window, or the configured edge_dt before two steps
-        have run."""
-        if not self._trk_clock.measured:
-            return float(self.cfg.get('edge_dt', 0.2)) if hasattr(self, 'cfg') else 0.2
-        return self._trk_clock.step_s()
+        """Seconds per unit of the tracker's velocity: the simulation tick, or
+        the configured edge_dt before two steps have run."""
+        if self._trk_step_s:
+            return float(self._trk_step_s)
+        return float(self.cfg.get('edge_dt', 0.2)) if hasattr(self, 'cfg') else 0.2
 
     def _filter_ghost_tracks(self, min_speed_mps: float = 0.5, static_frames_to_remove: int = 4):
         """

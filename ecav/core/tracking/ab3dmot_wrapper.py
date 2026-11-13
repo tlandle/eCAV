@@ -30,6 +30,7 @@ class AB3DMOTWrapper(BaseTracker):
         'dup_y_max': 2.0,
         'dup_size_ratio': 2.5,
         'cull_consec_ticks': 3,
+        'time_rules': False,
     }
 
     def __init__(self, cfg: dict):
@@ -53,6 +54,7 @@ class AB3DMOTWrapper(BaseTracker):
             'dup_y_max': merged.get('dup_y_max', 2.0),
             'dup_size_ratio': merged.get('dup_size_ratio', 2.5),
             'cull_consec_ticks': merged.get('cull_consec_ticks', 3),
+            'time_rules': merged.get('time_rules', False),
         })
 
         self._tracker = AB3DMOT(self._cfg, self.category)

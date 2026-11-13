@@ -30,6 +30,25 @@ class AB3DMOT(object):
 		# counter
 		self.trackers = []
 		self.frame_count = 0
+		# Time index of the current call, in source ticks. It advances by the number of source
+		# ticks between consecutive calls (the stride), so it equals frame_count for a tracker
+		# fed every tick. The rules below that the comments state in time (half a second of
+		# history before a velocity is published, the velocity window, the rest hold) are
+		# counted in this index, and the filter predicts over the stride, so they hold for a
+		# tracker that is fed every third or fourth tick (service occupancy). min_hits and
+		# max_age stay in calls: a track needs that many observations at any frame rate
+		# (min_hits 3 and max_age 3 are two and three strides: 100 and 150 ms at one tick per
+		# call, about 350 and 525 ms at 3.5 ticks per call).
+		# The time index is used when cfg.time_rules is set (the intermediate-fusion manager,
+		# whose frames arrive in order at a stride of one tick, or three to four under service
+		# occupancy). Without it the index is the call count, as before: the object-level
+		# managers ingest frames in arrival order, which under measured compute is not always
+		# source-tick order.
+		self.time_rules = bool(getattr(cfg, 'time_rules', False))
+		self._tidx = 0
+		self._stride = 1
+		self._prev_tick = None
+		self._call_tidx = []
 		self.ID_count = [ID_init]
 		self.id_now_output = []
 
@@ -295,6 +314,10 @@ class AB3DMOT(object):
 			return trks
 
 		F = self.trackers[0].kf.F
+		if self._stride != 1:
+			# the state velocity is in m per source tick: predict over the ticks since the last call
+			F = F.copy()
+			F[0, 7] = F[1, 8] = F[2, 9] = self._stride
 		FT = F.T
 		Q = self.trackers[0].kf.Q
 
@@ -349,6 +372,8 @@ class AB3DMOT(object):
 			_eh = getattr(kf_tmp, 'edge_hist', None)
 			trk_box.edges_in_use = _eh is not None
 			trk_box.n_edge_frames = len(_eh) if _eh is not None else 0
+			if _eh is not None and trk_box.n_edge_frames < 10 and self._mature(_eh):
+				trk_box.n_edge_frames = 10    # half a second of matched frames at a longer stride
 
 			trks.append(trk_box)
 			#trks.append(Box3D.array2bbox(trk_tmp))
@@ -444,7 +469,7 @@ class AB3DMOT(object):
 						trk.carla_id = cid_in
 						trk.anchoring_age = 0
 						if getattr(trk, 'anon_birth_frame', -1) >= 0:
-							self.anon_hold_ticks.append(self.frame_count - trk.anon_birth_frame)
+							self.anon_hold_ticks.append(self._tidx - trk.anon_birth_frame)
 							trk.anon_birth_frame = -1
 
 			if trk.id == self.debug_id:
@@ -518,7 +543,7 @@ class AB3DMOT(object):
 			trk.carla_id = cid
 			trk.guid     = int(info[i, GUID])
 			trk.near_identified_ticks = 0  # for post-birth cull
-			trk.anon_birth_frame = self.frame_count if cid == -1 else -1
+			trk.anon_birth_frame = self._tidx if cid == -1 else -1
 			self._note_edges(trk, edges, i)
 			if getattr(self, '_cur_frame_tick', None) is not None:
 				trk.last_obs_tick = self._cur_frame_tick   # born from this frame's detection
@@ -612,13 +637,13 @@ class AB3DMOT(object):
 			# (2 m over the expected motion) is a change of object or of view,
 			# not motion: the velocity estimate restarts from this frame.
 			f0, e0 = h[-1]
-			df = max(1, self.frame_count - f0)
+			df = max(1, self._tidx - f0)
 			v = trk.kf.x.reshape(-1)[7:10]
 			expected = math.hypot(float(v[0]), float(v[2])) * df
 			moved = math.hypot((e[0] + e[1] - e0[0] - e0[1]) / 2.0, (e[2] + e[3] - e0[2] - e0[3]) / 2.0)
 			if moved > expected + 2.0:
 				del h[:]
-		h.append((self.frame_count, e))
+		h.append((self._tidx, e))
 		if len(h) > 21:
 			del h[0]
 
@@ -647,12 +672,43 @@ class AB3DMOT(object):
 			return None
 		return ((vals - vals.mean(axis=0)) * fr[:, None]).sum(axis=0) / den
 
+	def _mean_stride(self):
+		"""Source ticks per call over the calls of the last half second (1.0 for a tracker fed every tick)."""
+		k = [t for t in self._call_tidx if t > self._tidx - self.VEL_WINDOW]
+		if len(k) < 2:
+			return float(self._stride)
+		return (k[-1] - k[0]) / (len(k) - 1)
+
+	def _samples(self, n):
+		"""The number of calls that n one-tick frames correspond to at the current stride, at least two."""
+		return max(2, int(math.ceil(n / self._mean_stride())))
+
+	def _mature(self, hist, from_birth=True):
+		"""True when hist (a list of (time index, ...)) holds half a second of history.
+
+		For a tracker fed every tick the rule is ten entries, as before: ten consecutive entries
+		span nine ticks. For a tracker fed every s ticks the rule is the same time: the entries
+		that fit in the span, never fewer than two (no velocity from one sample), over a span of
+		nine ticks. The measured-edge history (from_birth) starts at the track's first detection
+		and uses that span as is. The position history starts when the track is first published,
+		min_hits - 1 calls after its first detection, which costs (min_hits - 1) * (s - 1) more
+		ticks than at one tick per call. That wait is observation time too, so it is taken off
+		the span (down to one stride), and a launched vehicle is published as moving after the
+		same time since its first detection at any stride, to within one stride."""
+		ms = self._mean_stride()
+		span = float(self.VEL_WINDOW - 1)
+		if not from_birth:
+			span = max(ms, span - (self.min_hits - 1) * (ms - 1.0))
+		need = max(2, int(math.ceil((span + 1.0) / ms)))
+		return len(hist) >= need and hist[-1][0] - hist[0][0] >= span
+
 	def _history_slopes(self, hist):
-		"""Slopes over the last VEL_WINDOW frames of hist, else over VEL_WINDOW_LONG, else None."""
+		"""Slopes (units per source tick) over the last VEL_WINDOW ticks of hist, else over
+		VEL_WINDOW_LONG, else None."""
 		f1 = hist[-1][0]
-		s = self._window_slopes(hist, f1, self.VEL_WINDOW, self.VEL_MIN_SAMPLES)
+		s = self._window_slopes(hist, f1, self.VEL_WINDOW, self._samples(self.VEL_MIN_SAMPLES))
 		if s is None:
-			s = self._window_slopes(hist, f1, self.VEL_WINDOW_LONG, 3)
+			s = self._window_slopes(hist, f1, self.VEL_WINDOW_LONG, self._samples(3))
 		return s
 
 	def _edge_velocity(self, eh, vel):
@@ -722,11 +778,11 @@ class AB3DMOT(object):
 				_hist = getattr(trk, 'pos_hist', None)
 				if _hist is None:
 					_hist = trk.pos_hist = []
-				_hist.append((self.frame_count, float(trk.kf.x[0]), float(trk.kf.x[2])))
+				_hist.append((self._tidx, float(trk.kf.x[0]), float(trk.kf.x[2])))
 				if len(_hist) > max(21, self.VEL_WINDOW_LONG + 1):
 					del _hist[0]
 				_eh = getattr(trk, 'edge_hist', None) if self.vel_from_edges else None
-				if len(_hist) < 10:
+				if not self._mature(_hist, from_birth=False):
 					# under half a second of history the displacement is
 					# dominated by the measured centroid settling (a track
 					# born from one sensor's face of a parked vehicle read
@@ -738,7 +794,7 @@ class AB3DMOT(object):
 					# published at rest, never from the position displacement, which
 					# a young track dragged along a column by a passing sensor's
 					# wandering reports read as 16 m/s (2026-10-15)
-					vel = self._edge_velocity(_eh, vel) if len(_eh) >= 10 else np.zeros(3)
+					vel = self._edge_velocity(_eh, vel) if self._mature(_eh) else np.zeros(3)
 				else:
 					# Least-squares slope of the output position over the last
 					# half second of frames (_history_slopes): a measured face
@@ -769,13 +825,13 @@ class AB3DMOT(object):
 				# into the state below, the track froze, lost its association and
 				# the planner held a stationary forecast for 650 ms. Rest needs the
 				# same half second of evidence that motion needs.
-				if len(_hist) >= 10:
+				if self._mature(_hist, from_birth=False):
 					_dt_s = max(getattr(self, 'dt', 0.05), 1e-3)
 					_prev = getattr(trk, 'pub_vel', None)
 					_rest_now = math.hypot(vel[0], vel[2]) / _dt_s < 2.0
 					if (_rest_now and _prev is not None
 							and math.hypot(_prev[0], _prev[2]) / _dt_s >= 2.0):
-						trk.rest_frames = getattr(trk, 'rest_frames', 0) + 1
+						trk.rest_frames = getattr(trk, 'rest_frames', 0) + self._stride
 						if trk.rest_frames < 10:
 							vel = np.array(_prev, dtype=float)
 						else:
@@ -792,7 +848,7 @@ class AB3DMOT(object):
 				# vehicle. Under half a second the filter keeps its own
 				# estimate (a 13 m/s target would otherwise be lost before the
 				# displacement is available). Position and size untouched.
-				if len(_hist) >= 10:
+				if self._mature(_hist, from_birth=False):
 					trk.kf.x[7] = float(vel[0])
 					trk.kf.x[9] = float(vel[2])
 				elif trk.time_since_update > 0:
@@ -915,6 +971,11 @@ class AB3DMOT(object):
 
 		NOTE: The number of objects returned may differ from the number of detections provided.
 		"""
+		_prev = os.environ.get('AB3D_SHADOW_PREV')
+		if _prev and not getattr(self, '_shadow_busy', False):
+			# differential check against an earlier model.py (AB3DMOT_libs/shadow_check.py)
+			from AB3DMOT_libs.shadow_check import shadow_track
+			return shadow_track(self, dets_all, frame, _prev)
 		dets, info = dets_all['dets'], dets_all['info']         # dets: N x 7, float numpy array
 		edges = dets_all.get('edges') if hasattr(dets_all, 'get') else None   # measured box edges per det
 		if self.debug_id: print('\nframe is %s' % frame)
@@ -927,6 +988,16 @@ class AB3DMOT(object):
 	
 		# logging
 		self.frame_count += 1
+		_t = self._cur_frame_tick
+		self._stride = 1
+		if self.time_rules and _t is not None:
+			if self._prev_tick is not None and _t > self._prev_tick:
+				self._stride = _t - self._prev_tick
+			self._prev_tick = _t if self._prev_tick is None else max(self._prev_tick, _t)
+		self._tidx += self._stride
+		self._call_tidx.append(self._tidx)
+		if len(self._call_tidx) > 32:
+			del self._call_tidx[0]
 
 		# recall the last frames of outputs for computing ID correspondences during affinity processing
 		self.id_past_output = copy.copy(self.id_now_output)
