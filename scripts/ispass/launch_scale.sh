@@ -109,7 +109,16 @@ fi
 # per client per run and about 12 % of a client's step. Scale runs log warnings and above to file.
 for h in $HOSTS; do $SSH "$h" "cd $WT && sed -i '/^file_log_level:/d' cloud_config.yaml && echo 'file_log_level: \"${SCALE_FILE_LOG:-warning}\"' >> cloud_config.yaml" || fail "file_log_level on $h"; done
 
-# CARLA
+# CARLA. The server keeps the traffic manager registrations (address and port) of the clients of the last run.
+# When the set of client hosts changes, a new client that asks for its traffic manager port is pointed at the
+# old host and fails with a bind error, so the server is restarted whenever the host layout differs from the last run's.
+# (the layout is the vehicle index ranges per host; on one host it does not depend on N)
+LAYOUT="$VLIST"; [[ $(wc -l <<< "$HOSTS") -eq 1 ]] && LAYOUT="single:$ORCH"
+if $SSH "$CARLA" "ss -ltn | grep -q ':2000 '" && ! $SSH "$CARLA" "[ \"\$(cat /tmp/scale_carla_layout 2>/dev/null)\" = \"$LAYOUT\" ]"; then
+  log "host layout changed: restarting CARLA on $CARLA"
+  $SSH "$CARLA" "for p in \$(pgrep -f \"^$CARLA_ROOT/CarlaUE4/Binaries/Linux/CarlaUE4-Linux-Shipping\") \$(pgrep -f \"^/bin/sh $CARLA_ROOT/CarlaUE4.sh\"); do kill -9 \$p; done; timeout 60 bash -c 'while ss -ltn | grep -q \":2000 \"; do sleep 1; done'" || fail "CARLA did not stop"
+fi
+$SSH "$CARLA" "echo \"$LAYOUT\" > /tmp/scale_carla_layout"
 if ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
   log "starting CARLA on $CARLA"
   $SSH "$CARLA" "(setsid nohup $CARLA_ROOT/CarlaUE4.sh -RenderOffScreen -carla-port=2000 > /tmp/carla_scale.log 2>&1 < /dev/null &)"
