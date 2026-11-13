@@ -97,7 +97,7 @@ if [[ $(wc -l <<< "$HOSTS") -eq 1 ]]; then CARLA_IP=localhost; MULTI=0; else
       sed -i -E -e 's|^carla_server_public_ip:.*|carla_server_public_ip: \"$CARLA_IP\"|' \
                 -e 's|^ecloud_server_public_ip:.*|ecloud_server_public_ip: \"$ORCH_IP\"|' \
                 -e 's|^vehicle_client_public_ip:.*|vehicle_client_public_ip: \"$vc\"|' \
-                -e '/^edge_server_public_ip:/d' cloud_config.yaml && echo 'edge_server_public_ip: \"$own\"' >> cloud_config.yaml" || fail "cloud_config on $h"
+                -e '/^edge_server_public_ip:/d' -e '/^actor_client_ip:/d' cloud_config.yaml && echo 'edge_server_public_ip: \"$own\"' >> cloud_config.yaml && echo 'actor_client_ip: \"$own\"' >> cloud_config.yaml" || fail "cloud_config on $h"
   done
   log "addresses: carla $CARLA_IP orchestrator $ORCH_IP edge $EDGE_IP clients $CLIENT_IPS"
 fi

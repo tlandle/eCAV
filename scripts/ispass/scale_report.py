@@ -21,12 +21,13 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RES = os.path.join(ROOT, "experiment_results", "ispass_scale")
-CONFIGS = ["dense", "spread", "seqdense", "seqspread", "pdense", "mhdense", "mhspread", "mhpdense",
+CONFIGS = ["dense", "spread", "seqdense", "seqspread", "pdense", "h1dense", "mhdense", "mhspread", "mhpdense",
            "mhpr1", "mhpr2", "mhpr4", "mhpr8"]
 # mhpr<R>: vehicle clients on the client hosts, the inference service as R replicas (one per GPU) on a GPU host
 REPLICAS = {"mhpr1": 1, "mhpr2": 2, "mhpr4": 4, "mhpr8": 8}
 LABEL = {"dense": "distributed, dense", "spread": "distributed, spread", "seqdense": "sequential, dense",
          "seqspread": "sequential, spread", "pdense": "distributed, dense, perception",
+         "h1dense": "distributed, two hosts, dense",
          "mhdense": "distributed, three hosts, dense", "mhspread": "distributed, three hosts, spread",
          "mhpdense": "distributed, three hosts, dense, perception"}
 LABEL.update({c: f"distributed, perception, {r} service replica{'s' if r > 1 else ''}" for c, r in REPLICAS.items()})
@@ -115,10 +116,12 @@ def figure(runs, path):
     fig, (a, b) = plt.subplots(1, 2, figsize=(3.4, 2.05), gridspec_kw={"width_ratios": [1.0, 1.25]})
     style = {"dense": ("C0", "o", "-"), "spread": ("C1", "s", "-"), "seqdense": ("C0", "o", ":"),
              "seqspread": ("C1", "s", ":"), "pdense": ("C3", "^", "-"),
+             "h1dense": ("C2", "D", "--"),
              "mhdense": ("C0", "o", "--"), "mhspread": ("C1", "s", "--"), "mhpdense": ("C3", "^", "--"),
              "mhpr1": ("C3", "v", ":"), "mhpr2": ("C5", "v", "-."), "mhpr4": ("C6", "v", "--"), "mhpr8": ("C8", "v", "-")}
     short = {"dense": "distributed, dense", "spread": "distributed, spread", "seqdense": "sequential, dense",
              "seqspread": "sequential, spread", "pdense": "distributed, perception",
+             "h1dense": "two hosts, dense",
              "mhdense": "three hosts, dense", "mhspread": "three hosts, spread", "mhpdense": "three hosts, perception"}
     short.update({c: f"perception, {r} replica{'s' if r > 1 else ''}" for c, r in REPLICAS.items()})
     for c in CONFIGS:

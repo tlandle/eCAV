@@ -48,7 +48,10 @@ logger = logging.getLogger(__name__)
 cloud_config = load_yaml("cloud_config.yaml")
 CARLA_IP = cloud_config["carla_server_public_ip"]
 ECLOUD_IP = cloud_config["ecloud_server_public_ip"]
-VEHICLE_IP = cloud_config["vehicle_client_public_ip"]
+# This host's own address, which the orchestration server and the edge push ticks to. On the
+# orchestrator host vehicle_client_public_ip lists every client host, so an actor client that runs
+# there (the RSU clients in a multi-host run) reads actor_client_ip instead when the key is present.
+VEHICLE_IP = cloud_config.get("actor_client_ip") or cloud_config["vehicle_client_public_ip"]
 ECLOUD_PUSH_BASE_PORT = 50101 # TODO: config
 ECLOUD_RSU_PUSH_OFFSET = 1000
 

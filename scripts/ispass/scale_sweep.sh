@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Single-host scale sweep for the ISPASS scaling section, one code version for the whole table.
 #   scripts/ispass/scale_sweep.sh <stamp> <host> [parts]      parts: dense spread seq percep (default: all)
-# Multi-host parts (not in the default): mhdense mhspread mhpercep. <host> keeps CARLA, the orchestrator, the edge,
+# Multi-host parts (not in the default): mhdense mhspread mhpercep mhstrong mhequiv. <host> keeps CARLA, the orchestrator, the edge,
 # the RSU clients and the inference service; the vehicle clients are split evenly over the hosts in CLIENT_HOSTS:
 #   CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 "mhdense mhspread"
 # Perception replicas (not in the default): mhprepl. The inference service runs as R replicas, one per GPU, on
@@ -33,6 +33,15 @@ perc_stop() { ssh $HOST 'for p in $(pgrep -f "^nvidia-smi --query-gpu=utilizatio
 for part in $PARTS; do case $part in
   mhdense)  for n in ${MH_NS:-64 128 256 512}; do one ${STAMP}_mhdense_n$n -n $n -r 2 -p off -s $(steps $n) -H "$(split $n)"; done ;;
   mhspread) for n in ${MH_NS:-64 128 256 512}; do one ${STAMP}_mhspread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread" -H "$(split $n)"; done ;;
+  mhstrong) # strong scaling at one vehicle count: every client on <host>, on the first client host, on all client hosts
+    n=${MH_SN:-256}; hs=($CLIENT_HOSTS)
+    one ${STAMP}_dense_n$n -n $n -r 2 -p off -s $(steps $n)
+    one ${STAMP}_h1dense_n$n -n $n -r 2 -p off -s $(steps $n) -H "${hs[0]}:0-$((n - 1))"
+    one ${STAMP}_mhdense_n$n -n $n -r 2 -p off -s $(steps $n) -H "$(split $n)" ;;
+  mhequiv) # the same scenario with every client on <host> and with the clients on the client hosts
+    n=${MH_EN:-16}
+    one ${STAMP}_eqsh_n$n -n $n -r 2 -p off -s 300
+    one ${STAMP}_eqmh_n$n -n $n -r 2 -p off -s 300 -H "$(split $n)" ;;
   mhprepl) [[ -n "${PERC_HOST:-}" ]] || { echo "mhprepl needs PERC_HOST"; exit 2; }
     for r in ${MH_RS:-1 2 4 8}; do for n in ${MH_RN:-8 16 32 64 128}; do tag=${STAMP}_mhpr${r}_n$n
       [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; continue; }
