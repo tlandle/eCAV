@@ -104,6 +104,14 @@ else
                 -e '/^edge_server_public_ip:/d' -e '/^actor_client_ip:/d' cloud_config.yaml && echo 'edge_server_public_ip: \"$own\"' >> cloud_config.yaml && echo 'actor_client_ip: \"$own\"' >> cloud_config.yaml" || fail "cloud_config on $h"
   done
   log "addresses: carla $CARLA_IP orchestrator $ORCH_IP edge $EDGE_IP clients $CLIENT_IPS"
+  # Every vehicle client runs a CARLA traffic manager RPC server on port 8000+k, and the push servers listen on
+  # 50101+k. A VM whose security group admits any port from the internet receives scanner connections on these
+  # ports (8000, 8080, ...). The traffic manager's RPC server does not survive a non-RPC message: the client
+  # process terminates with a msgpack parse or type error. Each host therefore drops connections to these ports
+  # that do not come from the private network (SCALE_PRIVATE_NET, default 10.0.0.0/8) or from loopback.
+  # The rule is not persistent (gone after a restart of the VM).
+  NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 8000:8999,50051:51300 ! -s $NET -j DROP"
+  for h in $HOSTS; do $SSH "$h" "sudo iptables -C $RULE 2>/dev/null || sudo iptables -I $RULE" || fail "port guard on $h"; done
   # CARLA 0.9.15 in synchronous mode: a stream write that has not completed when the next frame's message is queued
   # for the same client makes a streaming worker spin forever (ServerSession::Write waits inside the strand that
   # must run the completion). On loopback a write completes at once. To a remote client it completes only when the
