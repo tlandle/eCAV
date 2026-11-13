@@ -395,3 +395,11 @@ python scripts/ispass/scale_equivalence.py <runA> <runB> [--lp]
 - The GNSS noise sequence depends on the start-up order of the clients, so a one-host and a three-host run of the same scenario differ unless localization is exact. A per-vehicle `noise_seed` on the GNSS sensor would make the two deployments comparable with noise on.
 - The security group of carla-client3 and carla-client4 still admits any port from the internet. The launcher's host rule covers the ports this run uses.
 - 128 vehicles with perception is at the A10's limits (22 of 24 GB GPU memory, 26 minutes to the first tick, two of six start attempts failed).
+
+### Additions on 2026-11-13 after the mh1 sweep (details in `paper_ispass/scale_mh1_notes.md`)
+- Client-step decomposition (stamp mh1dec, `ECAV_SENSOR_TIMING=1`, `scripts/ispass/perception_step_breakdown.py`): with two or more replicas the simulator's game thread bounds the perception tick. Detection uses camera frames one world tick old in 88 % of client ticks.
+- `ECAV_TL_SINGLE_RPC=1` (one traffic-light request per tick): output unchanged, no gain (stamp mh1tl).
+- CARLA secondary servers: `launch_scale.sh -G host:n` and sweep part `mhsec` exist and are off by default. On the packaged 0.9.15 build a secondary runs with a variable time step that could not be fixed from outside, so sensor timing and LiDAR content change. Rejected, not used for any row. Needs a CARLA source change.
+- OpenCDA perception: 64 vehicles measured, 128 does not start on the A10 (22.1 GB, simulator segmentation fault).
+- V2Xverse and AutoCastSim ran on the A10's old CARLA builds under `/mnt/competitors` (temporary disk, erased by a deallocation).
+- Host changes: iperf3 installed on the A10 node and carla-client3. The launcher's host firewall rule now also covers 2000-2002 and 3000-3999.
