@@ -1,0 +1,74 @@
+{
+ "eqsh_eqrep": {
+  "a": "experiment_results/ispass_scale/mh1_eqsh_n16",
+  "b": "experiment_results/ispass_scale/mh1_eqrep_n16",
+  "vehicles": 16,
+  "common_ticks": 300,
+  "max_diff_m": 0.0,
+  "max_diff_by_tick": {
+   "1": 0.0,
+   "50": 0.0,
+   "100": 0.0,
+   "150": 0.0,
+   "200": 0.0,
+   "250": 0.0,
+   "300": 0.0
+  },
+  "rms_diff_m": 0.0,
+  "first_tick_over_resolution": null,
+  "tick_span": [
+   1,
+   300
+  ],
+  "position_resolution_m": 0.1,
+  "position_source": "ground truth"
+ },
+ "eqsh_eqmh": {
+  "a": "experiment_results/ispass_scale/mh1_eqsh_n16",
+  "b": "experiment_results/ispass_scale/mh1_eqmh_n16",
+  "vehicles": 16,
+  "common_ticks": 300,
+  "max_diff_m": 11.1,
+  "max_diff_by_tick": {
+   "1": 0.0,
+   "50": 0.0,
+   "100": 0.7,
+   "150": 1.0,
+   "200": 1.6,
+   "250": 10.8,
+   "300": 11.0
+  },
+  "rms_diff_m": 1.5025,
+  "first_tick_over_resolution": 41,
+  "tick_span": [
+   1,
+   300
+  ],
+  "position_resolution_m": 0.1,
+  "position_source": "ground truth"
+ },
+ "eqxsh_eqxmh": {
+  "a": "experiment_results/ispass_scale/mh1_eqxsh_n16",
+  "b": "experiment_results/ispass_scale/mh1_eqxmh_n16",
+  "vehicles": 16,
+  "common_ticks": 300,
+  "max_diff_m": 0.0,
+  "max_diff_by_tick": {
+   "1": 0.0,
+   "50": 0.0,
+   "100": 0.0,
+   "150": 0.0,
+   "200": 0.0,
+   "250": 0.0,
+   "300": 0.0
+  },
+  "rms_diff_m": 0.0,
+  "first_tick_over_resolution": null,
+  "tick_span": [
+   1,
+   300
+  ],
+  "position_resolution_m": 0.01,
+  "position_source": "planner ego position"
+ }
+}

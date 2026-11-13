@@ -167,7 +167,11 @@ def figure(runs, path):
                borderpad=0.1, labelspacing=0.15)
     fig.legend([h for h, _ in hb], [n for _, n in hb], frameon=False, loc="upper right", bbox_to_anchor=(1.0, 1.005),
                ncol=2, handlelength=0.9, borderpad=0.1, labelspacing=0.15, columnspacing=0.8)
-    fig.subplots_adjust(left=0.16, right=0.995, bottom=0.26, top=0.66, wspace=0.5)
+    # the legend of panel (a) sits above the axes: the figure grows with the number of entries (five fit the base height)
+    extra = max(0, len(la) - 5) * 0.115
+    H = 2.05 + extra
+    fig.set_size_inches(3.4, H)
+    fig.subplots_adjust(left=0.16, right=0.995, bottom=0.26 * 2.05 / H, top=1 - (0.34 * 2.05 + extra) / H, wspace=0.5)
     fig.savefig(path)
 
 
