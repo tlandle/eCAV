@@ -68,5 +68,40 @@
   "one_replica_8_clients_req_per_s": 36.6,
   "eight_replicas_64_clients_req_per_s": 290.7,
   "rtt_ms": 5.4
+ },
+ "a10_single_replica_by_clients": {
+  "host": "A10 node (Standard_NV36ads_A10_v5, one A10 24 GB, 36 cores)",
+  "request": "same request and load generator, generator on the same host, 25 s after warm-up, GPU otherwise idle (no simulator running)",
+  "gpu_util_mean_pct": 60,
+  "rows": [
+   {
+    "clients": 1,
+    "req_per_s": 37.44,
+    "p50_ms": 26.673078536987305,
+    "p99_ms": 27.25839614868164,
+    "errors": 0
+   },
+   {
+    "clients": 4,
+    "req_per_s": 40.4,
+    "p50_ms": 99.04026985168457,
+    "p99_ms": 104.3243408203125,
+    "errors": 0
+   },
+   {
+    "clients": 8,
+    "req_per_s": 40.48,
+    "p50_ms": 198.7314224243164,
+    "p99_ms": 205.31320571899414,
+    "errors": 0
+   },
+   {
+    "clients": 16,
+    "req_per_s": 40.32,
+    "p50_ms": 397.8915214538574,
+    "p99_ms": 404.9687385559082,
+    "errors": 0
+   }
+  ]
  }
 }

@@ -14,4 +14,13 @@ One replica against the number of closed-loop clients: 26.1 requests per s at 1 
 
 Across the peering, from carla-client3: 36.6 requests per s on one replica and 290.7 on eight (64 clients), round-trip time 5.4 ms. The network path does not lower the ceiling.
 
-Reference on the A10 node: the single-host sweep3 perception rows report about 21.6 requests per wall-clock second inside a run (service p50 145 ms). That figure is an in-run rate and is limited by the tick, so it is not a standalone ceiling. The standalone A10 ceiling has not been measured with this load generator.
+A10 node, standalone, same request and load generator (one replica, four worker threads, GPU otherwise idle, measured 2026-11-13):
+
+| closed-loop clients | requests per s | latency p50 / p99 (ms) | errors |
+|---|---|---|---|
+| 1 | 37.4 | 27 / 27 | 0 |
+| 4 | 40.4 | 99 / 104 | 0 |
+| 8 | 40.5 | 199 / 205 | 0 |
+| 16 | 40.3 | 398 / 405 | 0 |
+
+The A10 replica saturates at four clients at 40.4 requests per s (mean GPU utilisation 60 % over the four loads), against 37.0 requests per s for one V100 replica on carla-ndm. One A10 therefore serves about 1.1 times one V100 with this service. The 21.6 requests per s that the single-host sweep3 perception rows report is an in-run rate limited by the tick, about half of the standalone ceiling of the same GPU.
