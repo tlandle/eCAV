@@ -153,6 +153,8 @@ def main(argv=None):
     ap.add_argument("--rsu-radius", type=float, default=100.0, help="spread layout: every vehicle within this distance of an RSU")
     ap.add_argument("--sense-range", type=float, default=None, help="metres; default the base YAML's vehicle lidar range; 0 unlimited")
     ap.add_argument("--recipient-range", type=float, default=150.0, help="metres; 0 unlimited")
+    ap.add_argument("--exact-localization", action="store_true",
+                    help="vehicles localize from the simulator's transform (no GNSS and no noise): for comparing two deployments")
     ap.add_argument("--carla-host", default="localhost", help="CARLA host as the clients reach it (scenario_runner.host, world.client_host)")
     ap.add_argument("--carla-port", type=int, default=2000)
     ap.add_argument("--xodr", default=None)
@@ -221,6 +223,8 @@ def main(argv=None):
 
     vt = edge["vehicles"][0]
     v_sensing = set_perception(vt["sensing"])
+    if a.exact_localization:
+        v_sensing["localization"]["activate"] = False
     sense = a.sense_range if a.sense_range is not None else float(vt["sensing"]["perception"]["lidar"].get("range", 50))
     if sense > 0:
         v_sensing["perception"]["deactivate_range_m"] = sense

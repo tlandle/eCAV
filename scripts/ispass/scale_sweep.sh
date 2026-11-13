@@ -42,7 +42,10 @@ for part in $PARTS; do case $part in
     n=${MH_EN:-16}
     one ${STAMP}_eqsh_n$n -n $n -r 2 -p off -s 300
     one ${STAMP}_eqrep_n$n -n $n -r 2 -p off -s 300     # repeat on one host: the run-to-run difference (GNSS noise is not seeded)
-    one ${STAMP}_eqmh_n$n -n $n -r 2 -p off -s 300 -H "$(split $n)" ;;
+    one ${STAMP}_eqmh_n$n -n $n -r 2 -p off -s 300 -H "$(split $n)"
+    # the same pair without localization noise: the GNSS noise sequence a vehicle draws depends on the start-up order
+    one ${STAMP}_eqxsh_n$n -n $n -r 2 -p off -s 300 -g "--exact-localization"
+    one ${STAMP}_eqxmh_n$n -n $n -r 2 -p off -s 300 -g "--exact-localization" -H "$(split $n)" ;;
   mhprepl) [[ -n "${PERC_HOST:-}" ]] || { echo "mhprepl needs PERC_HOST"; exit 2; }
     for r in ${MH_RS:-1 2 4 8}; do for n in ${MH_RN:-8 16 32 64 128}; do tag=${STAMP}_mhpr${r}_n$n
       [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; continue; }
