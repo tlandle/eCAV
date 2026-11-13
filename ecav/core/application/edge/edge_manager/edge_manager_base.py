@@ -767,7 +767,12 @@ class _BaseEdgeManager:
             # is_self_ghost only when provenance says the track was consistently
             # the ego (or, with no history, nearest-now is the ego as fallback).
             if prov is not None:
-                is_self_ghost = (prov == 'self_ghost')
+                # A self-ghost is the consumer's own echo: the provenance history
+                # says ego and the track's position at the observation tick is
+                # the ego's. A track that sits on another actor at that tick (the
+                # crossing car at 0.2 to 0.5 m, straight crossing and left turn,
+                # 2026-11-13) is that actor whatever its history says.
+                is_self_ghost = (prov == 'self_ghost') and matched_id == ego_id
                 if not is_self_ghost and matched_id == ego_id:
                     # nearest-now is ego but provenance says merge/external:
                     # re-match to nearest NON-ego so hazard/FP classification

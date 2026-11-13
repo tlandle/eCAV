@@ -97,7 +97,7 @@ def attribution(pt_csv):
                         pass
                 ev.append((t, cls))
     nan = float("nan")
-    out = dict(tp_onset=nan, first_ms=nan, first_class="", other_first=nan, min_sep=nan, sustained_ms=nan)
+    out = dict(tp_onset=nan, first_ms=nan, first_class="", other_first=nan, min_sep=nan, sustained_ms=nan, false_brake=0)
     ts = sorted(gt)
     launch = next((t for t in ts if t - 1 in gt and math.hypot(gt[t][0] - gt[t - 1][0], gt[t][1] - gt[t - 1][1]) > 0.02), None)
     if launch is None:
@@ -117,6 +117,16 @@ def attribution(pt_csv):
         w = ticks[i:i + 5]
         if all(float(per[u].get("ctrl_brake") or 0) >= 0.9 for u in w) and not any(u in hazard_ticks for u in w):
             sustained = w[0]; break
+    # False brake: a hazard on a track that is not the conflict actor's (another actor, or no
+    # actor) that starts sustained full braking (five consecutive ticks beginning within three
+    # ticks of the event) before the forecast brake, or with no forecast brake at all.
+    def _sustained_from(t0):
+        for s0 in (u for u in ticks if t0 <= u <= t0 + 3):
+            w = [u for u in ticks if s0 <= u < s0 + 5]
+            if len(w) == 5 and all(float(per[u].get("ctrl_brake") or 0) >= 0.9 for u in w):
+                return True
+        return False
+    false_brake = any(_sustained_from(t) for t, c in ev if c != "true_positive" and (tp is None or t < tp))
     cands = [t for t in (other, sustained) if t is not None]
     first_other = min(cands) if cands else None
     seps = [math.hypot(float(per[t]["ego_x"]) - gt[t][0], float(per[t]["ego_y"]) - gt[t][1])
@@ -125,6 +135,7 @@ def attribution(pt_csv):
                first_ms=(ev[0][0] - launch) * 50.0 if ev else nan, first_class=ev[0][1] if ev else "none",
                sustained_ms=(sustained - launch) * 50.0 if sustained is not None else nan,
                other_first=float(first_other is not None and (tp is None or first_other < tp)),
+               false_brake=int(false_brake),
                min_sep=min(seps) if seps else nan)
     return out
 
@@ -147,10 +158,14 @@ def load(stamp, root):
         age = reduce_run(pt) if os.path.exists(pt) else {}
         att = attribution(pt) if os.path.exists(pt) else {}
         edges = list((m.get("edges") or {}).values()); comp = (edges[0].get("composed_delay") if edges else None) or {}
+        # a brake that a non-conflict track caused is a false brake and fails the run, whatever
+        # class the run's own labeler gave it
+        fb = int(r.get("focal_fp_episodes", 0) > 0 or att.get("false_brake", 0))
         rows.append(dict(
-            geom=geom, arch=arch, cond=cond_of(kv), lut_n=int(kv.get("lut_n", 0) or 0), lat=int(r.get("lat", 0) or 0), rep=int(r["rep"]), s_op=int(r["s_op"]),
+            geom=geom, arch=arch, cond=cond_of(kv), lut_n=int(kv.get("lut_n", 0) or 0), lat=int(r.get("lat", 0) or 0), rep=int(r["rep"]),
+            s_op=int(r["s_op"]) if not att.get("false_brake", 0) else 0,
             collided=int(r.get("focal_collisions", 0) > 0), ghost=int(r.get("focal_ghost_episodes", 0) > 0),
-            fbrake=int(r.get("focal_fp_episodes", 0) > 0),
+            fbrake=fb,
             p99=age.get("critical_object_p99_ms", float("nan")), brake_age=age.get("conflict_brake_age_ms", float("nan")),
             coverage=age.get("conflict_coverage", float("nan")),
             in_budget=within_budget(pt, BUDGET_MS[geom]) if os.path.exists(pt) else float("nan"),
