@@ -24,6 +24,10 @@
 #                   endpoint k mod R and j mod R (ECAV_YOLO_ENDPOINT in each client's environment). Implies the
 #                   service is already running at those addresses (scripts/ispass/perception_replicas.sh);
 #                   the scenario YAML's yolo_endpoint is left alone. Without -Y every client uses the YAML's endpoint
+#   -G LIST         CARLA secondary servers (multi-GPU sensor rendering), "host:n,host:n": n secondaries on that host,
+#                   one per GPU index 0..n-1. The CARLA host then runs the primary without rendering (-nullrhi) and
+#                   the secondaries render the sensors. Off by default (one server renders everything).
+#                   Every secondary host needs CARLA under $SCALE_CARLA_ROOT and reaches the primary on port 2002
 #   -t TAG          results directory tag (default: n<N>_r<R>_p<on|off>_<time>)
 #   -g ARGS         extra generator arguments, quoted (e.g. -g "--layout spread --rsus 12")
 #   -m dist|seq     dist (default): one process per actor. seq: the sequential single process
@@ -39,9 +43,9 @@
 # one host is used: carla_server_public_ip, ecloud_server_public_ip, vehicle_client_public_ip
 # (the host's own address; on the orchestrator the list of client hosts), edge_server_public_ip.
 set -uo pipefail
-N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""; MODE=dist; PERC=""; EPS=""
-while getopts "n:r:p:s:o:c:e:R:H:t:g:m:y:Y:" o; do case $o in
-  y) PERC=$OPTARG;; Y) EPS=$OPTARG;;
+N=""; R=2; P=off; STEPS=200; ORCH=""; CARLA=""; EDGE=""; RSUH=""; VLIST=""; TAG=""; GEN=""; MODE=dist; PERC=""; EPS=""; SECS=""
+while getopts "n:r:p:s:o:c:e:R:H:t:g:m:y:Y:G:" o; do case $o in
+  y) PERC=$OPTARG;; Y) EPS=$OPTARG;; G) SECS=$OPTARG;;
   m) MODE=$OPTARG;;
   n) N=$OPTARG;; r) R=$OPTARG;; p) P=$OPTARG;; s) STEPS=$OPTARG;; o) ORCH=$OPTARG;; c) CARLA=$OPTARG;;
   e) EDGE=$OPTARG;; R) RSUH=$OPTARG;; H) VLIST=$OPTARG;; t) TAG=$OPTARG;; g) GEN=$OPTARG;; *) exit 2;; esac; done
@@ -88,6 +92,8 @@ if [[ -n "$EPS" ]]; then
 fi
 killall_hosts
 
+# host firewall rule used below: simulator ports (2000-2002, secondaries 3000-3999), client RPC and push ports
+NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 2000:2002,3000:3999,8000:8999,50051:51300 ! -s $NET -j DROP"
 # addresses: one host means localhost everywhere; several hosts means private IPs and a cloud_config rewrite
 ip_of() { $SSH "$1" "hostname -I | cut -d' ' -f1"; }
 if [[ $(wc -l <<< "$HOSTS") -eq 1 ]]; then CARLA_IP=localhost; MULTI=0
@@ -111,7 +117,7 @@ else
   # process terminates with a msgpack parse or type error. Each host therefore drops connections to these ports
   # that do not come from the private network (SCALE_PRIVATE_NET, default 10.0.0.0/8) or from loopback.
   # The rule is not persistent (gone after a restart of the VM).
-  NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 8000:8999,50051:51300 ! -s $NET -j DROP"
+  : # RULE is defined before this block
   for h in $HOSTS; do $SSH "$h" "sudo iptables -C $RULE 2>/dev/null || sudo iptables -I $RULE" || fail "port guard on $h"; done
   # CARLA 0.9.15 in synchronous mode: a stream write that has not completed when the next frame's message is queued
   # for the same client makes a streaming worker spin forever (ServerSession::Write waits inside the strand that
@@ -131,12 +137,36 @@ for h in $HOSTS; do $SSH "$h" "cd $WT && sed -i '/^file_log_level:/d' cloud_conf
 # old host and fails with a bind error, so the server is restarted whenever the host layout differs from the last run's.
 # (the layout is the vehicle index ranges per host; on one host it does not depend on N)
 LAYOUT="$VLIST"; [[ $(wc -l <<< "$HOSTS") -eq 1 ]] && LAYOUT="single:$ORCH"
+# secondaries hold sensor state of the previous run: with -G the servers are always started fresh
+[[ -n "$SECS" ]] && LAYOUT="secondaries:$SECS:$VLIST:$(date +%s)"
+SEC_HOSTS=$(tr ',' '\n' <<< "$SECS" | sed 's/:[0-9]*$//' | sort -u)
+kill_carla() { $SSH "$1" "for p in \$(pgrep -f \"^$CARLA_ROOT/CarlaUE4/Binaries/Linux/CarlaUE4-Linux-Shipping\") \$(pgrep -f \"^/bin/sh $CARLA_ROOT/CarlaUE4.sh\"); do kill -9 \$p; done; true"; }
+# secondaries of an earlier run are stopped whether or not this run uses them
+for h in $SEC_HOSTS $($SSH "$CARLA" "cat /tmp/scale_carla_secondary_hosts 2>/dev/null"); do [[ $h == "$CARLA" ]] || kill_carla "$h"; done
 if $SSH "$CARLA" "ss -ltn | grep -q ':2000 '" && ! $SSH "$CARLA" "[ \"\$(cat /tmp/scale_carla_layout 2>/dev/null)\" = \"$LAYOUT\" ]"; then
   log "host layout changed: restarting CARLA on $CARLA"
   $SSH "$CARLA" "for p in \$(pgrep -f \"^$CARLA_ROOT/CarlaUE4/Binaries/Linux/CarlaUE4-Linux-Shipping\") \$(pgrep -f \"^/bin/sh $CARLA_ROOT/CarlaUE4.sh\"); do kill -9 \$p; done; timeout 60 bash -c 'while ss -ltn | grep -q \":2000 \"; do sleep 1; done'" || fail "CARLA did not stop"
 fi
 $SSH "$CARLA" "echo \"$LAYOUT\" > /tmp/scale_carla_layout"
-if ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
+$SSH "$CARLA" "echo '$SEC_HOSTS' > /tmp/scale_carla_secondary_hosts"
+if [[ -n "$SECS" ]]; then
+  # primary: simulation only, no rendering; it listens for secondaries on 2002 and turns synchronous mode on when one connects
+  PRIM_IP=$(ip_of "$CARLA")
+  log "starting CARLA primary (no rendering) on $CARLA, secondaries: $SECS"
+  $SSH "$CARLA" "(setsid nohup $CARLA_ROOT/CarlaUE4.sh -nullrhi -carla-port=2000 -carla-primary-port=2002 > /tmp/carla_scale.log 2>&1 < /dev/null &)"
+  $SSH "$CARLA" "timeout 120 bash -c 'until ss -ltn | grep -q \":2000 \" && ss -ltn | grep -q \":2002 \"; do sleep 2; done'" || fail "CARLA primary did not open ports 2000 and 2002"
+  sleep 8
+  for e in $(tr ',' ' ' <<< "$SECS"); do h=${e%:*}; n=${e##*:}
+    [[ $h == "$CARLA" ]] && ph=127.0.0.1 || ph=$PRIM_IP
+    [[ $h == "$CARLA" ]] || { $SSH "$h" "sudo iptables -C $RULE 2>/dev/null || sudo iptables -I $RULE" || fail "port guard on $h"; }
+    for g in $(seq 0 $((n - 1))); do rp=$((3000 + 10 * g))
+      $SSH "$h" "(setsid nohup $CARLA_ROOT/CarlaUE4.sh -RenderOffScreen -carla-rpc-port=$rp -carla-primary-host=$ph -carla-primary-port=2002 -ini:[/Script/Engine.RendererSettings]:r.GraphicsAdapter=$g > /tmp/carla_secondary_$g.log 2>&1 < /dev/null &)"
+    done
+    $SSH "$h" "timeout 240 bash -c 'for g in \$(seq 0 $((n - 1))); do until ss -ltn | grep -q \":\$((3000 + 10 * g)) \"; do sleep 2; done; done'" || fail "secondaries on $h did not start"
+  done
+  sleep 15
+  log "secondaries up: $($SSH "$CARLA" "ss -tn state established '( sport = :2002 )' | grep -c ':2002'") connections on the primary port"
+elif ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
   log "starting CARLA on $CARLA"
   $SSH "$CARLA" "(setsid nohup $CARLA_ROOT/CarlaUE4.sh -RenderOffScreen -carla-port=2000 > /tmp/carla_scale.log 2>&1 < /dev/null &)"
   $SSH "$CARLA" "timeout 120 bash -c 'until ss -ltn | grep -q \":2000 \"; do sleep 2; done'" || fail "CARLA did not open port 2000"

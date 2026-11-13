@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Single-host scale sweep for the ISPASS scaling section, one code version for the whole table.
 #   scripts/ispass/scale_sweep.sh <stamp> <host> [parts]      parts: dense spread seq percep (default: all)
-# Multi-host parts (not in the default): mhdense mhspread mhpercep mhstrong mhequiv. <host> keeps CARLA, the orchestrator, the edge,
+# Multi-host parts (not in the default): mhdense mhspread mhpercep mhstrong mhequiv mhsec. <host> keeps CARLA, the orchestrator, the edge,
 # the RSU clients and the inference service; the vehicle clients are split evenly over the hosts in CLIENT_HOSTS:
 #   CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 "mhdense mhspread"
 # Perception replicas (not in the default): mhprepl. The inference service runs as R replicas, one per GPU, on
@@ -51,6 +51,15 @@ for part in $PARTS; do case $part in
       [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; continue; }
       eps=$(scripts/ispass/perception_replicas.sh start $PERC_HOST $r) || { echo "$tag: replicas did not start"; continue; }
       one $tag -n $n -r 2 -p shared -s $(( n > ${MH_RLONG:-32} ? 100 : 300 )) -H "$(split $n)" -Y "$eps"   # 100 ticks above MH_RLONG vehicles
+      scripts/ispass/perception_replicas.sh collect $PERC_HOST experiment_results/ispass_scale/$tag
+      scripts/ispass/perception_replicas.sh stop $PERC_HOST; done; done ;;
+  mhsec) # CARLA secondary servers render the sensors: S secondaries on SEC_HOST (one per GPU 0..S-1), the primary on
+         # <host> without rendering, MH_SEC_R inference replicas on PERC_HOST. Runs <stamp>_mhs<S>_n<N>.
+    [[ -n "${PERC_HOST:-}" && -n "${SEC_HOST:-}" ]] || { echo "mhsec needs PERC_HOST and SEC_HOST"; exit 2; }
+    for sc in ${MH_SS:-1 2 4 8}; do for n in ${MH_SN:-8 16 32 64 128}; do tag=${STAMP}_mhs${sc}_n$n
+      [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; continue; }
+      eps=$(scripts/ispass/perception_replicas.sh start $PERC_HOST ${MH_SEC_R:-4}) || { echo "$tag: replicas did not start"; continue; }
+      one $tag -n $n -r 2 -p shared -s $(( n > ${MH_RLONG:-32} ? 100 : 300 )) -H "$(split $n)" -Y "$eps" -G "$SEC_HOST:$sc" ${MH_SEC_GEN:+-g "$MH_SEC_GEN"}
       scripts/ispass/perception_replicas.sh collect $PERC_HOST experiment_results/ispass_scale/$tag
       scripts/ispass/perception_replicas.sh stop $PERC_HOST; done; done ;;
   mhpercep) for n in ${MH_PN:-8 16 32 64}; do perc_start; one ${STAMP}_mhpdense_n$n -n $n -r 2 -p shared -s 300 -H "$(split $n)"; perc_stop ${STAMP}_mhpdense_n$n; done ;;

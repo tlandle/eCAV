@@ -811,8 +811,14 @@ class BehaviorAgent(object):
 
         """
 
-        light_id = self.vehicle.get_traffic_light(
-        ).id if self.vehicle.get_traffic_light() is not None else -1
+        # get_traffic_light() is a synchronous request to the simulator. ECAV_TL_SINGLE_RPC=1 makes it once per
+        # tick, not twice (same value; the default keeps the two requests so existing runs are unchanged).
+        if os.environ.get('ECAV_TL_SINGLE_RPC'):
+            _tl = self.vehicle.get_traffic_light()
+            light_id = _tl.id if _tl is not None else -1
+        else:
+            light_id = self.vehicle.get_traffic_light(
+            ).id if self.vehicle.get_traffic_light() is not None else -1
 
         # this is the case where the vehicle just pass a stop sign, and won't
         # stop at any stop sign in the next 4 seconds.
