@@ -88,7 +88,10 @@ killall_hosts
 
 # addresses: one host means localhost everywhere; several hosts means private IPs and a cloud_config rewrite
 ip_of() { $SSH "$1" "hostname -I | cut -d' ' -f1"; }
-if [[ $(wc -l <<< "$HOSTS") -eq 1 ]]; then CARLA_IP=localhost; MULTI=0; else
+if [[ $(wc -l <<< "$HOSTS") -eq 1 ]]; then CARLA_IP=localhost; MULTI=0
+  # a multi-host run rewrote cloud_config.yaml on this host: put the single-host file back
+  $SSH "$ORCH" "cd $WT && if [ -f cloud_config.yaml.single_host ]; then cp cloud_config.yaml.single_host cloud_config.yaml; fi" || fail "cloud_config restore on $ORCH"
+else
   MULTI=1; CARLA_IP=$(ip_of "$CARLA"); ORCH_IP=$(ip_of "$ORCH"); EDGE_IP=$(ip_of "$EDGE")
   CLIENT_IPS=$(for h in $(tr ',' '\n' <<< "$VLIST" | sed 's/:.*//' | sort -u) "$RSUH"; do ip_of "$h"; done | sort -u | paste -sd,)
   for h in $HOSTS; do
