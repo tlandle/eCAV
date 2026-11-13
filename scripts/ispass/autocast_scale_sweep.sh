@@ -5,7 +5,8 @@
 # measured per tick and is not N. One vehicle plans; the others are CARLA traffic-manager vehicles.
 # CARLA 0.9.11, 20 Hz, one process with one thread per collaborator, MQTT broker for the messages.
 #   AUTOCAST=~/competitors/AutoCastSim OUT=~/competitors/results/autocast_run1 scripts/ispass/autocast_scale_sweep.sh
-# Variables: NS (background vehicles), TICKS, PORT, SCEN (8 left turn, 6 overtake, 10 red light).
+# Variables: NS (background vehicles), TICKS, PORT, SCEN (8 left turn, 6 overtake, 10 red light), EVAL (the five
+# scenario parameters the platform requires; default the values of its scripts/run_data.sh: 20 6 20 20 0).
 set -uo pipefail
 AC="${AUTOCAST:?AutoCastSim checkout}"; OUT="${OUT:?output directory}"
 BENCH="$(cd "$(dirname "$0")" && pwd)/coop_sim_tick_bench.py"
@@ -34,7 +35,7 @@ for n in $NS; do
   echo "$(date '+%F %T') $tag"
   LD_LIBRARY_PATH="$(dirname "$(dirname "$PY")")/lib" timeout "${RUN_TIMEOUT:-5400}" "$PY" "$BENCH" --platform autocast --n "$n" --ticks "$TICKS" --tag "$tag" --out "$OUT/$tag.json" -- \
     scenario_runner.py --route "srunner/data/routes_training_town${TOWN}_autocast${SCEN}.xml" "srunner/data/towns${TOWN}_traffic_scenarios_autocast${SCEN}.json" \
-    --reloadWorld --agent AVR/autocast_agents/simple_agent.py --bgtraffic "$n" --sharing --nocollider \
+    --reloadWorld --agent AVR/autocast_agents/simple_agent.py --eval ${EVAL:-20 6 20 20 0} --bgtraffic "$n" --sharing --nocollider \
     --port "$PORT" --trafficManagerPort "$TM" --mqttport "$MQTT" --outputdir "$OUT/$tag/" > "$OUT/$tag.log" 2>&1
   echo "$(date '+%F %T') $tag exit $? $(grep -o '"tick_ms": {[^}]*}' "$OUT/$tag.json" 2>/dev/null | tr -d '\n ') $(grep -o '"sharing_vehicles": {[^}]*}' "$OUT/$tag.json" 2>/dev/null | tr -d '\n ')"
 done

@@ -23,6 +23,7 @@ start_carla() {   # 0.9.10.1 has no -RenderOffScreen; it renders off screen thro
 export LEADERBOARD_ROOT=simulation/leaderboard SCENARIO_RUNNER_ROOT=simulation/scenario_runner
 export PYTHONPATH="$CARLA_ROOT/PythonAPI:$CARLA_ROOT/PythonAPI/carla:$CARLA_ROOT/PythonAPI/carla/dist/carla-0.9.10-py3.7-linux-x86_64.egg:$LEADERBOARD_ROOT:$LEADERBOARD_ROOT/team_code:$SCENARIO_RUNNER_ROOT:$PWD:${PYTHONPATH:-}"
 export CHALLENGE_TRACK_CODENAME=SENSORS DEBUG_CHALLENGE=0 DATA_ROOT=external_paths/data_root
+export ROUTES="simulation/leaderboard/data/evaluation_routes/town05_short_r${ROUTE}.xml"   # the agent names its output after it
 { echo "v2xverse $(git rev-parse HEAD) method=$METHOD bg=$BG route=$ROUTE"; hostname; date -Is; } >> "$OUT/meta.txt"
 for n in $NS; do
   tag="v2xverse_${METHOD}_n${n}_bg${BG}"

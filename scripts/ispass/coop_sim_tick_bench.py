@@ -84,6 +84,28 @@ def main():
         os.makedirs(os.path.dirname(os.path.abspath(a.out)), exist_ok=True)
         json.dump(res, open(a.out, "w"), indent=1)
 
+    # V2Xverse's agent builds its voxel generator with the spconv 1.x class (spconv.utils.VoxelGeneratorV2). With
+    # spconv 2.x installed, the class is provided here over Point2VoxelCPU3d, the same substitution the platform's
+    # own opencood preprocessor makes for spconv 2.x. The platform's files are not edited.
+    try:
+        import spconv.utils as _su
+        if not hasattr(_su, "VoxelGeneratorV2") and hasattr(_su, "Point2VoxelCPU3d"):
+            from cumm import tensorview as _tv
+
+            class VoxelGeneratorV2:
+                def __init__(self, voxel_size, point_cloud_range, max_num_points, max_voxels, **_):
+                    self._g = _su.Point2VoxelCPU3d(vsize_xyz=voxel_size, coors_range_xyz=point_cloud_range,
+                                                   max_num_points_per_voxel=max_num_points, num_point_features=4,
+                                                   max_num_voxels=max_voxels)
+
+                def generate(self, points):
+                    v, c, n = self._g.point_to_voxel(_tv.from_numpy(np.ascontiguousarray(points)))
+                    return {"voxels": v.numpy(), "coordinates": c.numpy(), "num_points_per_voxel": n.numpy()}
+
+            _su.VoxelGeneratorV2 = VoxelGeneratorV2
+            res["compat"] = "spconv 2.x: VoxelGeneratorV2 provided over Point2VoxelCPU3d"
+    except ImportError:
+        pass
     mod = importlib.import_module(MANAGERS[a.platform])
     cls = mod.ScenarioManager
     orig = cls._tick_scenario
