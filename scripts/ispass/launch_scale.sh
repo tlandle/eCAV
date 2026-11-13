@@ -77,7 +77,8 @@ wait_log() { $SSH "$1" "cd $WT && timeout $4 bash -c 'until grep -Eq \"$3\" $L/$
 HOSTS=$(printf '%s\n' "$ORCH" "$CARLA" "$EDGE" "$RSUH" $(tr ',' '\n' <<< "$VLIST" | sed 's/:.*//') | sort -u)
 killall_hosts() { for h in $HOSTS; do $SSH "$h" "P=\$( { pgrep -f '^python -u ecav'; pgrep -f '^\./ecav/ecloud_server/ecloud_server'; } | sort -u); [ -n \"\$P\" ] && kill -9 \$P; true"; done; }
 collect() { for h in $HOSTS; do mkdir -p "$OUT/${h##*@}"; scp -q $SSHO "$h:${WT/\$HOME\//}/$L/*.log" "$OUT/${h##*@}/" 2>/dev/null; done; }
-fail() { log "FAILED: $*"; collect; killall_hosts; exit 1; }
+# a failed run can leave the simulator unusable (see the send-buffer note below): the next run restarts it
+fail() { log "FAILED: $*"; collect; killall_hosts; $SSH "$CARLA" "rm -f /tmp/scale_carla_layout"; exit 1; }
 
 log "scale_town06 N=$N R=$R perception=$P steps=$STEPS orch=$ORCH carla=$CARLA edge=$EDGE rsu=$RSUH vehicles=$VLIST"
 if [[ -n "$EPS" ]]; then
@@ -103,6 +104,13 @@ else
                 -e '/^edge_server_public_ip:/d' -e '/^actor_client_ip:/d' cloud_config.yaml && echo 'edge_server_public_ip: \"$own\"' >> cloud_config.yaml && echo 'actor_client_ip: \"$own\"' >> cloud_config.yaml" || fail "cloud_config on $h"
   done
   log "addresses: carla $CARLA_IP orchestrator $ORCH_IP edge $EDGE_IP clients $CLIENT_IPS"
+  # CARLA 0.9.15 in synchronous mode: a stream write that has not completed when the next frame's message is queued
+  # for the same client makes a streaming worker spin forever (ServerSession::Write waits inside the strand that
+  # must run the completion). On loopback a write completes at once. To a remote client it completes only when the
+  # kernel send buffer takes the whole message, and the default initial buffer is 16 KB, less than the world state
+  # of a few hundred actors. Two frames in quick succession (clients tick once each at start) then stop every stream.
+  # A 4 MB initial send buffer on the CARLA host lets each write complete at once, as on loopback.
+  $SSH "$CARLA" "sudo sysctl -q -w net.ipv4.tcp_wmem='4096 4194304 16777216'" || fail "tcp_wmem on $CARLA"
 fi
 
 # file logging: every process writes a debug-level log file by default (cloud_config file_log_level), hundreds of MB
