@@ -67,7 +67,8 @@ def attribution(pt_csv):
     """What braked the connected vehicle, from the per-tick age log of one run.
 
     launch is the first tick the conflict actor moves. Times are ms after launch.
-    tp_onset: first hazard brake whose class is true_positive (the conflict track's forecast).
+    tp_onset: start of the first braking episode on the conflict actor's track (a hazard event
+        on that track followed by another within three ticks).
     first_class, first_ms: class and time of the first hazard brake of any class.
     other_first: a brake that the conflict track's forecast did not cause came before the
         true-positive brake, or there was no true-positive brake at all: a hazard of another
@@ -102,7 +103,12 @@ def attribution(pt_csv):
     if launch is None:
         return out
     ev = sorted({e for e in ev if e[0] >= launch})
-    tp = next((t for t, c in ev if c == "true_positive"), None)
+    # onset of the braking episode: the first true-positive event that is followed by another
+    # within three ticks (a single event that the next check withdraws does not brake the car)
+    tps = [t for t, c in ev if c == "true_positive"]
+    tp = next((t for i, t in enumerate(tps) if i + 1 < len(tps) and tps[i + 1] - t <= 3), None)
+    if tp is None and len(tps) == 1:
+        tp = tps[0]
     other = next((t for t, c in ev if c != "true_positive"), None)
     ticks = [t for t in sorted(per) if t >= launch]
     hazard_ticks = {t for t, _ in ev}
