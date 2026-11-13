@@ -369,3 +369,29 @@ scripts/ispass/perception_replicas.sh stop azureuser@20.81.176.215
 - With the service on another host, each CARLA-side sensor frame still reaches the client first. The RSU clients run on the A10 node and call the replicas across the peering.
 - At 128 vehicles with perception the limit may move to the client hosts (64 clients each with four cameras and a LiDAR) or to CARLA rendering on the A10 node's single GPU, not to the service. The breakdown columns will show which.
 - carla-client1 and carla-client2 are in the re-addressed network (10.2.0.4, 10.2.0.5) and reachable by peering once started, but hold no setup and no key of mine.
+
+## Multi-host run mh1, executed 2026-11-13 00:00 to 10:20 EST
+
+Results and the defect table are in `paper_ispass/scale_mh1_notes.md`. Tables `paper_ispass/scale_mh1.md`, `scale_mh1_compare.md`, `scale_mh1_equivalence.json`, figures `fig_scale_mh1.pdf`, `fig_scale_mh1_compare.pdf`. Raw runs `experiment_results/ispass_scale/mh1_*` on atlas.
+
+### Commands as run
+```
+# no perception, strong scaling, equivalence (hosts at 7c3a49b7)
+CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 "mhequiv mhdense mhspread mhstrong"
+# perception replicas (hosts at ec2331d0, launcher b355d528)
+CLIENT_HOSTS="azureuser@172.200.91.133 azureuser@20.242.82.41" PERC_HOST=azureuser@20.172.248.156 BATCH=4 scripts/ispass/scale_sweep.sh mh1 azureuser@20.81.176.215 mhprepl
+python scripts/ispass/scale_report.py mh1; python scripts/ispass/scale_compare_figure.py mh1
+python scripts/ispass/scale_equivalence.py <runA> <runB> [--lp]
+```
+
+### Host state left behind
+- The scale worktree on the A10 node and on both client VMs holds develop at ec2331d0 for every tracked `.py`, `.yaml`, `.xml`, `.json`, `.sh` under `ecav/`, `ecav.py` and `scripts/ispass/` (rsync by checksum from atlas). carla-ndm holds the same set. Before this run the hosts held the sweep3 snapshot (c4e0e7db plus the scale fixes), which lacked the later develop commits to the planner, the tracker and the edge managers.
+- Client VMs: `libgl1` and `libglib2.0-0` installed, `~/ecav/ecav/worldfusion/opencood` (sources only, 3.3 MB) copied from the A10 node, because the env installs `opencood` in editable mode from that path. `setup_scale_vm.sh` does not do either yet.
+- Not persistent, set by the launcher on every multi-host run: `net.ipv4.tcp_wmem='4096 4194304 16777216'` on the CARLA host, and on every host an iptables rule that drops TCP to 8000-8999 and 50051-51300 from sources outside 10.0.0.0/8 (loopback exempt).
+- carla-client3 and carla-client4 have a daily auto-shutdown at 01:00 EST (DevTestLab schedules). A sweep that crosses 01:00 loses both.
+
+### Open items
+- `-T/--trafficManagerPort` is parsed and never applied, so every client shares client 0's traffic manager on port 8000. Applying it would give each client its own traffic manager and remove the 2 s RPC timeout at start, but it changes every distributed run that passes `-T` (start_actors.sh does). Not changed.
+- The GNSS noise sequence depends on the start-up order of the clients, so a one-host and a three-host run of the same scenario differ unless localization is exact. A per-vehicle `noise_seed` on the GNSS sensor would make the two deployments comparable with noise on.
+- The security group of carla-client3 and carla-client4 still admits any port from the internet. The launcher's host rule covers the ports this run uses.
+- 128 vehicles with perception is at the A10's limits (22 of 24 GB GPU memory, 26 minutes to the first tick, two of six start attempts failed).
