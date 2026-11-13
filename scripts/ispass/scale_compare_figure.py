@@ -5,7 +5,9 @@
 
 Reads paper_ispass/scale_competitor.json (OpenCDA), paper_ispass/<single>.json (eCAV, every process on one host)
 and paper_ispass/scale_<stamp>.json (eCAV, vehicle clients on other hosts; written by scale_report.py).
-Writes fig_scale_<stamp>_compare.pdf and scale_<stamp>_compare.md. Every curve is the median tick wall time.
+Writes fig_scale_<stamp>_compare.pdf (no perception), fig_scale_<stamp>_perception_compare.pdf and
+scale_<stamp>_compare.md. Every curve is the median tick wall time. Four and eight replicas are in the table only
+(their curves lie on the two-replica curve).
 """
 import json
 import os
@@ -39,6 +41,23 @@ def main():
     open(os.path.join(out, f"scale_{stamp}_compare.md"), "w").write(md)
     print(md)
 
+    # perception rows: OpenCDA (detector in the vehicle loop), eCAV on one host (shared service beside the simulator),
+    # eCAV on three hosts with R service replicas on a fourth
+    pser = {"OpenCDA": {r["n"]: r["opencda_default"]["tick_ms"]["p50"] for r in comp
+                        if r["layout"] == "dense" and r["perception"] == "on" and r["opencda_default"].get("completed")},
+            "eCAV, one host": {r["n"]: r["wall_p50"] for r in single if r["config"] == "pdense"}}
+    for rr in (1, 2, 4, 8):
+        pser[f"eCAV, distributed, {rr} replica{'s' if rr > 1 else ''}"] = {r["n"]: r["wall_p50"] for r in multi if r["config"] == f"mhpr{rr}"}
+    pns = sorted({n for v in pser.values() for n in v})
+    L = ["| system | " + " | ".join(str(n) for n in pns) + " |", "|---|" + "---|" * len(pns)]
+    for lab, v in pser.items():
+        L.append(f"| {lab} | " + " | ".join(f"{v[n]:.0f}" if n in v else "-" for n in pns) + " |")
+    pmd = ("\nMedian tick wall time (ms) against the number of vehicles, perception on (four cameras and one LiDAR per vehicle, "
+           "dense layout). OpenCDA at 64 vehicles: 40 measured ticks. OpenCDA at 128 vehicles does not start (the simulator "
+           "ends with a segmentation fault at 22.1 GB of GPU memory).\n\n" + "\n".join(L) + "\n")
+    open(os.path.join(out, f"scale_{stamp}_compare.md"), "a").write(pmd)
+    print(pmd)
+
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -62,6 +81,24 @@ def main():
                columnspacing=1.0, bbox_to_anchor=(0.55, 1.01))
     fig.subplots_adjust(left=0.15, right=0.995, bottom=0.3, top=0.82, wspace=0.08)
     path = os.path.join(out, f"fig_scale_{stamp}_compare.pdf")
+    fig.savefig(path)
+    print(path)
+
+    pstyle = {"OpenCDA": ("0.25", "x", "-"), "eCAV, one host": ("C0", "o", "-"),
+              "eCAV, distributed, 1 replica": ("C3", "s", ":"), "eCAV, distributed, 2 replicas": ("C3", "s", "-")}
+    fig, ax = plt.subplots(figsize=(3.4, 1.9))
+    for lab, (col, mk, ls) in pstyle.items():
+        v = pser.get(lab)
+        if v:
+            x = sorted(v)
+            ax.plot(x, [v[n] for n in x], color=col, marker=mk, ls=ls, ms=2.6, lw=0.9, label=lab)
+    ax.set_xscale("log", base=2); ax.set_yscale("log")
+    ax.set_xticks(pns); ax.set_xticklabels([str(n) for n in pns]); ax.minorticks_off()
+    ax.set_xlabel("vehicles N, perception on"); ax.set_ylabel("tick time, median (ms)")
+    ax.grid(True, which="major", lw=0.3, color="0.85")
+    ax.legend(frameon=False, loc="lower right", handlelength=1.8, borderpad=0.1, labelspacing=0.15)
+    fig.subplots_adjust(left=0.16, right=0.99, bottom=0.2, top=0.97)
+    path = os.path.join(out, f"fig_scale_{stamp}_perception_compare.pdf")
     fig.savefig(path)
     print(path)
 

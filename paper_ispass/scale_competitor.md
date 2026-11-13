@@ -30,6 +30,7 @@ OpenCDA: tick wall mean / p50 / p95 (ms). eCAV: tick wall mean / p50 / p99 (ms),
 | 8 | 1612 / 1596 / 1743 | - | - | 463 / 462 / 704 | 3.5 | 2.23 / 4.12 | 9127 | 0 / - |
 | 16 | 3342 / 3323 / 3543 | - | - | 828 / 827 / 1141 | 4.0 | 2.65 / 4.29 | 10470 | 0 / - |
 | 32 | 7237 / 7213 / 7625 | - | - | 1591 / 1616 / 1903 | 4.5 | 3.45 / 5.17 | 13164 | 0 / - |
+| 64 | 15245 / 15180 / 15571 | - | - | - | - | 4.73 / 7.02 | 18538 | 0 / - |
 
 Run metadata:
 
@@ -62,6 +63,18 @@ opencda 72b17e7b7fa0d67da1bf11a4083c90737eb1225f
 edge-server
 2026-11-13T03:48:42+00:00
 numpy 1.23.5 shapely 1.8.4
+opencda 72b17e7b7fa0d67da1bf11a4083c90737eb1225f
+edge-server
+2026-11-13T17:41:43+00:00
+numpy 1.23.5 shapely 1.8.4
+opencda 72b17e7b7fa0d67da1bf11a4083c90737eb1225f
+edge-server
+2026-11-13T18:12:08+00:00
+numpy 1.23.5 shapely 1.8.4
+opencda 72b17e7b7fa0d67da1bf11a4083c90737eb1225f
+edge-server
+2026-11-13T18:28:20+00:00
+numpy 1.23.5 shapely 1.8.4
 ```
 
 ## Method and differences
@@ -87,6 +100,10 @@ Compatibility measures (OpenCDA source not edited):
 - Headless host: with perception active OpenCDA opens an Open3D window per vehicle even with LiDAR visualization off. The bench replaces the window constructor with a no-op.
 - OpenCDA's local planner raises IndexError (empty waypoint or history buffer) for some vehicles held in a queue; without a guard the 32 and 128 vehicle dense runs abort. The bench catches the exception, applies full brake to that vehicle for the tick and counts it (column "planner exceptions", vehicle-ticks). A vehicle in that state does less planning work, which favours OpenCDA slightly.
 - OpenCDA aborts at interpreter teardown (sensor callbacks on destroyed actors) after the measurements are written; the bench exits with `os._exit`.
+
+Perception rows at 64 and 128 vehicles (added 2026-11-13, same commit, bench and settings as the 8 to 32 rows):
+- 64 vehicles: 45 ticks, the first 5 dropped, 40 measured (a tick takes 15.2 s). Set-up 229 s. Peak GPU memory 18.5 GB.
+- 128 vehicles: does not start on this host. The CARLA server ends with a segmentation fault (signal 11) while OpenCDA attaches the sensors, with 22.1 GB of the A10's 24.5 GB in use, in two of two attempts (10 and 12 minutes after launch). No tick is measured. Logs: `_perc128_attempt1`, `_perc128_attempt2` under the results directory on the benchmark host. eCAV at 128 vehicles holds the same 22.1 GB with 640x480 cameras and started in four of six attempts.
 
 Cells rerun: spread layout, map manager off, 32, 64 and 128 vehicles. Their first measurements overlapped another worker's software installation on the host (23:55 to 00:30 UTC, Nov 12 to 13) and are kept under `_contaminated_install_window/` (means 762, 1856 and 3967 ms against 735, 1867 and 3979 ms in the reruns). The first sweep attempt, made before the planner-exception guard, is not used.
 

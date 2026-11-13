@@ -1,5 +1,21 @@
 # Multi-host scale run (stamp mh1), 2026-11-13
 
+## Status of every item, 2026-11-13 14:30 EST
+
+| item | state |
+|---|---|
+| A10 standalone perception ceiling | done: 40.4 requests per s |
+| vehicle-count scaling without perception, strong scaling | done, 64 to 512 vehicles |
+| equivalence | done: identical with exact localization |
+| perception with 1, 2, 4, 8 replicas, 8 to 128 vehicles | done, 20 of 20 cells |
+| client-step decomposition | done: the simulator's game thread bounds the tick with two or more replicas |
+| planner option (one traffic-light request) | done: output unchanged, no gain |
+| OpenCDA perception at 64 | done: 15.2 s per tick |
+| OpenCDA perception at 128 | does not start: simulator segmentation fault at 22.1 GB GPU memory, twice |
+| CARLA secondary servers | step 1 on the A10 failed its validity check (sensor timing and LiDAR content change), mode rejected, NDm part not run |
+| V2Xverse | done: one driving vehicle (two do not run in the platform's planner) |
+| AutoCastSim | done to 128 background vehicles, 256 not run |
+
 ## Deployment
 
 - A10 node (edge-server, 36 cores, 432 GB, one A10 24 GB, private 10.1.0.4): CARLA 0.9.15, the orchestrator, the C++ orchestration server, the edge process, the roadside unit clients.
@@ -117,8 +133,75 @@ Simulator host during the ticks: outbound 227 MB/s median (1.8 Gbit/s, max 248 M
 Which stage bounds the tick with two or more replicas: the simulator's game thread. After a world tick it spends most of the next tick period reading back and sending 160 sensor frames (the last camera frame leaves 0.9 s after the tick), and while it does so it answers client requests slowly, which is where the client's step goes. It is not GPU rendering throughput (43 %), not the network transfer of the raw frames (8 % of the link), and not the inference service.
 
 What would move it:
-- CARLA secondary servers (multi-GPU) take the sensor readback off the primary's game thread. This is the change that addresses the bound.
-- One simulator request instead of two in `traffic_light_manager` removes about 75 ms per client tick at 32 vehicles (9 % of the tick) without changing the planner's input.
+- CARLA secondary servers (multi-GPU) would take the sensor readback off the primary's game thread. This is the change that addresses the bound. It was tested and is not usable on the packaged build (section below).
+- One simulator request instead of two in `traffic_light_manager` was tried (next section): it does not shorten the tick, because the wait is for the simulator and is paid once.
 - Clients on the simulator host would not help: the network is at 8 % of its ceiling, and the single-host rows are slower.
 - Compressed or lower-rate sensor streams are excluded (no change to quality, resolution or rate in a measured row).
 - Concurrent per-camera requests would not help: there is one request per tick and the call is 28 % of the step, bounded by GPU sharing inside the replica, not by serial sending.
+
+## One simulator request per tick in the planner (`ECAV_TL_SINGLE_RPC=1`)
+
+`BehaviorAgent.traffic_light_manager` asked the simulator for the vehicle's traffic light twice per tick. With the option it asks once and uses the value twice. Default off, so existing runs are unchanged.
+- Output: 16 vehicles, exact localization, no perception, with and without the option: every trajectory identical to 0.01 m for 300 ticks.
+- Effect in perception cells (4 replicas, clients on the two client hosts, stamp mh1tl): none.
+
+| vehicles | tick mean without the option (ms) | with the option (ms) | client `run_step` mean without / with (ms) |
+|---|---|---|---|
+| 32 | 871 | 867 | 378 / 370 |
+| 64 | 1772 | 1809 | not reduced |
+
+The stack samples attribute 150 to 165 ms per tick to the statement with the two requests, but removing one request removes 8 ms. The time is the wait for the simulator's game thread to become free, and it is paid once: the second request is answered at once. A serial section in the client is therefore not what bounds the tick, and no client-side change of this kind moves it.
+
+## CARLA secondary servers (multi-GPU sensor rendering): tested on the packaged 0.9.15 build, rejected
+
+The packaged build contains the feature (`-carla-primary-host`, `-carla-primary-port`, `-carla-secondary-port`, documented in adv_multigpu for 0.9.15) and the launcher has an option for it (`launch_scale.sh -G host:n`, sweep part `mhsec`, off by default). Test on the A10 node alone: primary with `-nullrhi`, one secondary on the same GPU, 8 vehicles with perception, exact localization, against the same run on one server.
+
+| | one server | primary and one secondary |
+|---|---|---|
+| tick mean (ms) | 449 | 509 (499 in the second configuration) |
+| camera frames a client receives in 300 ticks | 310 | 156 |
+| age of the camera frame at detection, in world ticks | 0 in 80 %, 1 in 20 % | grows from 8 to 156 over the run |
+| time stamp step between frames | 0.05 s | about 1.0 s (wall clock) |
+| LiDAR frame size | 0.82 MB | 6.6 MB |
+| trajectories against the one-server run | reference | differ by up to 74 m, from tick 12 |
+
+What happens: a secondary renders one frame for each frame the primary sends, but it keeps its own episode settings and runs with a variable time step. Its sensors integrate over the wall-clock time since its previous frame. The LiDAR then sweeps about 20 rotations per frame, the frame takes about 1 s, and the secondary settles at one frame per second while the primary ticks twice per second. Frames queue on the secondary and the sensor data the clients use falls further behind every tick. Frame time stamps follow the secondary's wall clock, not the simulation. With a single camera and no LiDAR the secondary stays in step (200 of 200 and 40 of 40 frames, same frame numbers as the primary), so the frame hand-off works. The time step does not.
+
+Attempts to give the secondary the simulation's fixed step, none effective:
+- world settings through the secondary's own RPC port: `get_world()` times out, the port does not serve a client;
+- `-benchmark -fps=20` on the secondary's command line: no change (1 frame per second, 1 s time stamp steps);
+- `bUseFixedFrameRate` and `FixedFrameRate=20` through `-ini`: no change.
+
+Result: on this build secondary servers change sensor content (LiDAR sweeps eight times larger), sensor timing (frames many ticks late) and the closed-loop outcome. The mode is rejected for measured rows. No row in the tables uses it. Making it usable needs a change in CARLA (the secondary adopting the primary's fixed step, and the primary waiting for the secondaries' frames), that is a source build, which was not started. Secondaries on carla-ndm were therefore not set up, and CARLA was not installed there. Logs: `experiment_results/ispass_scale/mgs_ref1_n8`, `mgs_sec1_n8`, `mgs_sec2_n8`, `_mh1_debug/secondary`.
+
+## OpenCDA perception rows extended
+
+64 vehicles: 15245 ms per tick (median 15180, 40 measured ticks). 128 vehicles: does not start, the simulator ends with a segmentation fault during sensor set-up at 22.1 GB of the A10's 24.5 GB (two of two attempts). Table and figure: `scale_mh1_compare.md`, `fig_scale_mh1_perception_compare.pdf`, `scale_competitor.md`.
+
+## V2Xverse and AutoCastSim on the A10 node
+
+Neither has a vehicle-count axis comparable to N planning clients. They are reported as what they are.
+
+V2Xverse (b6271753, CARLA 0.9.10.1, Town05 short route 0, CoDriving agent, 20 Hz, 300 ticks): tick time against its ego count, with perception.
+
+| communicating driving vehicles | background traffic | tick mean / p50 / p95 (ms) | GPU memory |
+|---|---|---|---|
+| 1 | none | 250 / 213 / 453 | 5.3 GB |
+| 1 | the platform's default (60 vehicles, 60 pedestrians) | 335 / 291 / 539 | 5.3 GB |
+| 2 | none | does not run | |
+
+With `--ego-num=2` the agent raises in its planner (`pnp_infer_action_e2e.py:699`, the occupancy map holds one vehicle and the planner indexes the second) in the CoDriving, late-fusion and no-collaboration configurations. The platform's own evaluation script sets `EGO_NUM=1`. The ego-count axis therefore has one point with this agent. Two changes outside the platform's files were needed to run it: its agent imports the spconv 1.x voxel generator, provided over spconv 2.x by the bench wrapper, and the `ROUTES` environment variable.
+
+AutoCastSim (5b6a5bdc, CARLA 0.9.11, Town03 unprotected left turn, rule-based agent, sensor sharing on, 20 Hz): tick time against the measured number of sharing vehicles (vehicles within 50 m of the single planning vehicle), as background traffic grows. The scenario ends after 185 to 295 ticks.
+
+| background vehicles | sharing vehicles, mean (max) | tick mean / p50 / p95 (ms) | ticks |
+|---|---|---|---|
+| 0 | 2.0 (2) | 689 / 673 / 792 | 185 |
+| 8 | 2.8 (4) | 933 / 913 / 1102 | 256 |
+| 16 | 4.7 (5) | 1562 / 1551 / 1865 | 226 |
+| 32 | 5.3 (8) | 2109 / 1846 / 3575 | 223 |
+| 64 | 6.4 (9) | 3264 / 2820 / 5186 | 222 |
+| 128 | 13.0 (18) | 17015 / 14034 / 33586 | 295 |
+| 256 | not run | | |
+
+The 256 cell was stopped during its start-up: at 128 background vehicles a tick takes 14 to 34 s and the cell took 100 minutes. The platform's five scenario parameters (`--eval 20 6 20 20 0`, the values of its `run_data.sh`) had to be passed, without them its runner raises before the first tick. Raw results: `experiment_results/ispass_competitors`.

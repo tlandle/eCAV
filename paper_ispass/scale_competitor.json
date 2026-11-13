@@ -1105,5 +1105,50 @@
   "opencda_map_off": null,
   "ecav_sequential_mean_ms": null,
   "ecav_distributed_mean_ms": 1591.0
+ },
+ {
+  "n": 64,
+  "layout": "dense",
+  "perception": "on",
+  "opencda_default": {
+   "system": "OpenCDA",
+   "opencda_version": "0.1.3",
+   "n": 64,
+   "layout": "dense",
+   "perception": "on",
+   "map_manager": "on",
+   "spacing": 12.0,
+   "ticks_requested": 45,
+   "skip": 5,
+   "completed": true,
+   "spawned": 64,
+   "setup_s": 229.2,
+   "ticks": 45,
+   "tick_ms": {
+    "mean": 15245.1,
+    "p50": 15179.9,
+    "p95": 15570.9,
+    "p99": 15799.3
+   },
+   "world_ms": {
+    "mean": 18.0,
+    "p50": 17.9
+   },
+   "vehicles_ms": {
+    "mean": 15227.1,
+    "p50": 15163.1
+   },
+   "planner_exceptions": 0,
+   "planner_exception_first": "",
+   "sim_s_per_wall_s": 0.003,
+   "peak_client_rss_gb": 4.73,
+   "peak_carla_rss_gb": 7.02,
+   "peak_gpu_mb": 18538,
+   "speeds_mps_end": 7.63,
+   "wall_total_s": 994.5
+  },
+  "opencda_map_off": null,
+  "ecav_sequential_mean_ms": null,
+  "ecav_distributed_mean_ms": null
  }
 ]

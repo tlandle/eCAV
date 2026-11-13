@@ -150,6 +150,10 @@ fi
 $SSH "$CARLA" "echo \"$LAYOUT\" > /tmp/scale_carla_layout"
 $SSH "$CARLA" "echo '$SEC_HOSTS' > /tmp/scale_carla_secondary_hosts"
 if [[ -n "$SECS" ]]; then
+  # A secondary renders one frame per frame the primary sends, but it keeps its own time step: with the default
+  # variable step its sensors integrate over the wall-clock time between frames (the LiDAR sweeps many rotations per
+  # frame and frame time stamps follow the wall clock). Its RPC port does not serve a client (get_world times out),
+  # so the fixed step of the simulation is given on the command line (-benchmark -fps, SCALE_SEC_FPS, default 20).
   # primary: simulation only, no rendering; it listens for secondaries on 2002 and turns synchronous mode on when one connects
   PRIM_IP=$(ip_of "$CARLA")
   log "starting CARLA primary (no rendering) on $CARLA, secondaries: $SECS"
@@ -160,7 +164,7 @@ if [[ -n "$SECS" ]]; then
     [[ $h == "$CARLA" ]] && ph=127.0.0.1 || ph=$PRIM_IP
     [[ $h == "$CARLA" ]] || { $SSH "$h" "sudo iptables -C $RULE 2>/dev/null || sudo iptables -I $RULE" || fail "port guard on $h"; }
     for g in $(seq 0 $((n - 1))); do rp=$((3000 + 10 * g))
-      $SSH "$h" "(setsid nohup $CARLA_ROOT/CarlaUE4.sh -RenderOffScreen -carla-rpc-port=$rp -carla-primary-host=$ph -carla-primary-port=2002 -ini:[/Script/Engine.RendererSettings]:r.GraphicsAdapter=$g > /tmp/carla_secondary_$g.log 2>&1 < /dev/null &)"
+      $SSH "$h" "(setsid nohup $CARLA_ROOT/CarlaUE4.sh -RenderOffScreen -carla-rpc-port=$rp -carla-primary-host=$ph -carla-primary-port=2002 ${SCALE_SEC_FLAGS:--ini:[/Script/Engine.Engine]:bUseFixedFrameRate=True -ini:[/Script/Engine.Engine]:FixedFrameRate=20.0} -ini:[/Script/Engine.RendererSettings]:r.GraphicsAdapter=$g > /tmp/carla_secondary_$g.log 2>&1 < /dev/null &)"
     done
     $SSH "$h" "timeout 240 bash -c 'for g in \$(seq 0 $((n - 1))); do until ss -ltn | grep -q \":\$((3000 + 10 * g)) \"; do sleep 2; done; done'" || fail "secondaries on $h did not start"
   done
