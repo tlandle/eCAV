@@ -28,6 +28,7 @@ USE = re.compile(rf"\[SENSOR USE\] t={F} prep_ms={F} cams=\[([\d, ]+)\] lidar=(\
 LOC = re.compile(rf"\[LOC\].*? ts={F}")
 UPD = re.compile(rf"\[VehicleManager update_info\] localize={F}ms \| detect={F}ms")
 SND = re.compile(rf"\[CLIENT VEHICLE\] send_update={F}ms")
+SYNC = re.compile(rf"\[SENSOR SYNC\] id=\S+ tick=\S+ frame=(\d+) wait_ms={F}")
 SRV = re.compile(rf"\[PerceptionServicer\].*?decode={F}ms inference={F}ms encode={F}ms total={F}ms t0={F} t_done={F}")
 
 
@@ -43,7 +44,7 @@ def s3(v):
 def main():
     d = sys.argv[1]
     skip = int(sys.argv[sys.argv.index("--skip") + 1]) if "--skip" in sys.argv else 5
-    acc = {k: [] for k in ("update_info", "run_step", "detect", "prep", "serialize", "rpc", "parse", "reply", "step_total",
+    acc = {k: [] for k in ("sync_wait", "sync_age", "update_info", "run_step", "detect", "prep", "serialize", "rpc", "parse", "reply", "step_total",
                            "cam_arrival", "lidar_arrival", "cam_lag_frames", "lidar_lag_frames", "bytes_per_tick",
                            "cam_bytes", "lidar_bytes", "rx_before_use")}
     nveh = 0
@@ -55,6 +56,9 @@ def main():
             if m:
                 rx.append((m.group(1), int(m.group(3)), float(m.group(4)), float(m.group(5)), int(m.group(6))))
                 frame_of_ts[round(float(m.group(4)), 3)] = int(m.group(3)); continue
+            m = SYNC.search(line)
+            if m:
+                cur["sync_wait"] = float(m.group(2)); cur["sync_frame"] = int(m.group(1)); continue
             m = LOC.search(line)
             if m:
                 cur["ts"] = round(float(m.group(1)), 3); continue
@@ -97,7 +101,9 @@ def main():
         for n, c in ticks.items():
             if n <= skip or "rpc" not in c:
                 continue
-            for k in ("update_info", "run_step", "detect", "prep", "serialize", "rpc", "parse", "reply"):
+            if "sync_frame" in c and "cams" in c:
+                acc["sync_age"].extend(c["sync_frame"] - x for x in c["cams"] + [c["lidar"]])
+            for k in ("sync_wait", "update_info", "run_step", "detect", "prep", "serialize", "rpc", "parse", "reply"):
                 if k in c:
                     acc[k].append(c[k])
             acc["step_total"].append((c["t_sent"] - c["t_start"]) * 1000)
@@ -123,7 +129,8 @@ def main():
         inflight.append(sum(kk * x for kk, x in w.items()) / busy if busy else 0.0)
     lag = lambda v: {str(k): round(100.0 * v.count(k) / len(v), 1) for k in sorted(set(v))} if v else None
     res = {"dir": d, "vehicles": nveh, "client_ticks": len(acc["rpc"]),
-           "step_ms": {k: s3(acc[k]) for k in ("step_total", "update_info", "detect", "prep", "serialize", "rpc", "parse", "run_step", "reply")},
+           "frame_age_at_detection_vs_tick_frame_pct": lag(acc["sync_age"]),
+           "step_ms": {k: s3(acc[k]) for k in ("step_total", "sync_wait", "update_info", "detect", "prep", "serialize", "rpc", "parse", "run_step", "reply")},
            "service_ms": {k: s3(v) for k, v in srv.items()},
            "rpc_minus_handler_ms": round(st.mean(acc["rpc"]) - st.mean(srv["total"]), 1) if acc["rpc"] and srv["total"] else None,
            "handlers_in_flight_while_busy": [round(x, 2) for x in inflight],

@@ -587,6 +587,65 @@ class PerceptionManager:
         """
         return a.get_location().distance(self.ego_pos.location)
 
+    def sync_sensors(self):
+        """
+        Wait until every camera and the LiDAR of this actor have delivered the frame of the current world tick.
+
+        CARLA returns from world.tick() before the sensor frames of that tick reach the clients. Reading the
+        sensor buffers without waiting uses whatever frame arrived last, which under load is one or two world
+        ticks old, and how old depends on the host. Every path that reads the buffers calls this first.
+
+        The frame of the tick: a process that ticks the world itself has it in its world snapshot. A lock-step
+        client (distributed actor) sets ``sync_tick`` to the tick number it was sent. Its first call, made while
+        the world is idle, fixes the frame of that tick number, and later ticks follow one frame per tick.
+
+        Raises RuntimeError naming the sensors that have not delivered the frame within
+        ECAV_SENSOR_SYNC_TIMEOUT_S (default 60 s), or that hold a frame beyond the tick's frame. It never falls
+        back to an older frame. ECAV_SENSOR_SYNC=0 restores the old behaviour (no wait), to reproduce old runs.
+
+        Returns the frame id, or None when there is no sensor or the wait is switched off.
+        """
+        sensors = [("camera%d" % i, c) for i, c in enumerate(self.rgb_camera or [])]
+        if self.lidar is not None:
+            sensors.append(("lidar", self.lidar))
+        if not sensors:
+            return None
+        if os.environ.get('ECAV_SENSOR_SYNC', '1') == '0':
+            if SENSOR_TIMING:   # the old behaviour, with the age of the frames it reads (against this process's world snapshot)
+                snap = self.carla_world.get_snapshot().frame
+                print("[SENSOR NOSYNC] id=%s world_frame=%d ages=%s" % (self.id, snap, [snap - s.frame for _, s in sensors]), flush=True)
+            return None
+        timeout = float(os.environ.get('ECAV_SENSOR_SYNC_TIMEOUT_S', '60'))
+        tick = getattr(self, 'sync_tick', None)
+        base = getattr(self, '_sync_base', None)
+        t0 = time.time()
+        while True:
+            frames = [s.frame for _, s in sensors]
+            snap = self.carla_world.get_snapshot().frame
+            if tick is not None and base is not None:
+                target = base[1] + (tick - base[0])
+            else:
+                target = max(frames + [snap])
+            if all(f >= target for f in frames):
+                break
+            if time.time() - t0 > timeout:
+                missing = [(n, s.frame) for n, s in sensors if s.frame < target]
+                raise RuntimeError(
+                    "sensor sync: actor %s tick %s: no frame %d from %s after %.0f s (sensor, last frame held)"
+                    % (self.id, tick, target, missing, timeout))
+            time.sleep(0.0005)
+        ahead = [(n, s.frame) for n, s in sensors if s.frame != target]
+        if ahead:
+            raise RuntimeError("sensor sync: actor %s tick %s: frames beyond the tick's frame %d: %s"
+                               % (self.id, tick, target, ahead))
+        if tick is not None and base is None:
+            self._sync_base = (tick, target)
+        self.sync_frame = target
+        self.sync_wait_ms = (time.time() - t0) * 1000.0
+        print("[SENSOR SYNC] id=%s tick=%s frame=%d wait_ms=%.1f world_frame=%d sensors=%d age=0"
+              % (self.id, tick, target, self.sync_wait_ms, snap, len(sensors)), flush=True)
+        return target
+
     def detect(self, ego_pos, call_id=None):
         """
         Detect surrounding objects. Currently only vehicle detection supported.
@@ -603,6 +662,7 @@ class PerceptionManager:
 
         """
         self.ego_pos = ego_pos
+        self.sync_sensors()
 
         objects = {'vehicles': [],
                    'traffic_lights': []}
@@ -668,7 +728,7 @@ class PerceptionManager:
         if os.environ.get('SENSOR_FRAME_TRACE'):
             import hashlib
             try:
-                _wf = self.vehicle.get_world().get_snapshot().frame
+                _wf = self.carla_world.get_snapshot().frame
                 _cams = [(getattr(c, 'frame', None),
                           hashlib.md5(np.ascontiguousarray(c.image).tobytes()).hexdigest()[:8])
                          for c in self.rgb_camera]

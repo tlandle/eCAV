@@ -198,6 +198,7 @@ class Ecav2ActorClient:
 
         logger.info("pong received")
 
+        self._set_sync_tick()
         self.vehicle_manager.update_info()
         if self.actor_type == ecloud.ActorType.VEHICLE:
             self.vehicle_manager.set_destination(
@@ -398,7 +399,12 @@ class Ecav2ActorClient:
 
             # Process fused predictions if available
             if object_buffer and object_buffer.pickled_edge_predictions:
+                _t_unp = time.time()
                 preds = pred_blobs.unpack(object_buffer.pickled_edge_predictions)
+                if os.environ.get('ECAV_SENSOR_TIMING'):
+                    print("[STEP TIMING] forecast_unpack_ms=%.1f bytes=%d forecasts=%d" % (
+                        (time.time() - _t_unp) * 1000.0, len(object_buffer.pickled_edge_predictions),
+                        len(preds) if preds else 0), flush=True)
                 n_preds = len(preds.get('vehicles', [])) if isinstance(preds, dict) else len(preds)
                 logger.debug("[DATA_FLOW] tick=%d %s %d edge_predictions: %d objects",
                              vehicle_update_.tick_id, actor_label, self.vehicle_index, n_preds)
@@ -424,6 +430,13 @@ class Ecav2ActorClient:
         parser = build_arg_parser("eCAV Vehicle Simulation.")
         opt = parser.parse_args()
         return opt
+
+    def _set_sync_tick(self):
+        """Tell the perception manager which tick this client was sent: it waits for that tick's sensor frames
+        (PerceptionManager.sync_sensors). The orchestrator ticks the world once per tick it broadcasts."""
+        pm = getattr(self.vehicle_manager, 'perception_manager', None)
+        if pm is not None:
+            pm.sync_tick = self.tick_id
 
     async def tick(self):
         assert self.pong is not None, "pong not initialized"
@@ -451,6 +464,7 @@ class Ecav2ActorClient:
             # Wrapped in asyncio.to_thread so the blocking LitServe HTTP call
             # (requests.post inside WorldFusion PM) does not stall the event loop.
             update_info_start_time = time.time()
+            self._set_sync_tick()
             await asyncio.to_thread(self.vehicle_manager.update_info)
             t_update_info = time.time()
 

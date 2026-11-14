@@ -9,6 +9,7 @@ the rule the scale launcher applies. Reports requests per second and latency per
         --clients 16 --seconds 30 [--image yolov5/data/images/bus.jpg] [--json out.json]
 """
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -43,6 +44,9 @@ def frames(image, n=4, w=640, h=480):
     return out
 
 
+DIGESTS = set()   # every client sends the same frames: the set of distinct detection outputs returned
+
+
 def worker(k, endpoint, payload, t_end, warm, lat):
     ch = grpc.insecure_channel(endpoint, options=[("grpc.max_send_message_length", _16MB),
                                                   ("grpc.max_receive_message_length", _16MB)])
@@ -51,7 +55,8 @@ def worker(k, endpoint, payload, t_end, warm, lat):
     while time.time() < t_end:
         t0 = time.time()
         try:
-            stub.DetectYolo(req, timeout=60)
+            r = stub.DetectYolo(req, timeout=60)
+            DIGESTS.add(hashlib.md5(b"".join(x.SerializeToString() for x in r.per_image)).hexdigest()[:10])
         except grpc.RpcError as e:
             lat.append((time.time(), None, str(e.code())))
             time.sleep(0.2)
@@ -93,6 +98,7 @@ def main():
     allok.sort()
     q = lambda p: allok[min(len(allok) - 1, int(len(allok) * p))] if allok else float("nan")  # noqa: E731
     res.update(total_req_per_s=len(allok) / a.seconds, p50_ms=q(.5), p95_ms=q(.95), p99_ms=q(.99), errors=errors)
+    res["response_digests"] = sorted(DIGESTS)
     print(json.dumps({k: (round(v, 1) if isinstance(v, float) else v) for k, v in res.items() if k != "per_endpoint"}))
     for ep, r in res["per_endpoint"].items():
         print(f"  {ep}: {r['req_per_s']:.1f} req/s p50 {r['p50_ms']:.0f} p95 {r['p95_ms']:.0f} p99 {r['p99_ms']:.0f} ms")

@@ -205,3 +205,61 @@ AutoCastSim (5b6a5bdc, CARLA 0.9.11, Town03 unprotected left turn, rule-based ag
 | 256 | not run | | |
 
 The 256 cell was stopped during its start-up: at 128 background vehicles a tick takes 14 to 34 s and the cell took 100 minutes. The platform's five scenario parameters (`--eval 20 6 20 20 0`, the values of its `run_data.sh`) had to be passed, without them its runner raises before the first tick. Raw results: `experiment_results/ispass_competitors`.
+
+# Sensor frame synchronisation (branch sensor-sync, 2026-11-13)
+
+## The defect and the fix
+
+`world.tick()` returns before the tick's sensor frames reach a client. Every perception path read the sensor buffers without waiting and used the frame that had arrived last. Measured before the fix (frame id at detection against the tick's frame):
+
+| path | camera frame age at detection | LiDAR |
+|---|---|---|
+| distributed, three hosts, 32 vehicles (mh1dec) | 1 tick in 88 %, 2 ticks in 10 %, current in 2 % | 1 tick in 98 % |
+| distributed, one host, 8 vehicles | current in 80 %, 1 tick in 20 % | current |
+| single process, I2V, the vehicle | 1 tick in 99.4 % | current |
+| single process, I2V, the two roadside units | current in 100 % | current in 100 % |
+| single process, intermediate fusion, the vehicle | current in 83.6 %, 1 tick in 16.3 % | current |
+| single process, intermediate fusion, the two roadside units | current in 100 % | current in 100 % |
+
+Fix (`PerceptionManager.sync_sensors`, called at the start of `detect` in the base class and in the WorldFusion, BM2CP and CoBEVT managers): before detection the actor waits until every one of its cameras and its LiDAR holds the frame of the current world tick. A process that ticks the world takes the tick's frame from its world snapshot. A lock-step client takes it from the tick number it was sent (`Ecav2ActorClient._set_sync_tick`): its first call, with the world idle, fixes the frame of that tick number, and each later tick is one frame later. After `ECAV_SENSOR_SYNC_TIMEOUT_S` (60 s) it raises with the sensors that are missing and the frame each holds. A frame beyond the tick's frame also raises. There is no fallback to an older frame. Each call prints `[SENSOR SYNC]` with the frame and the wait. On by default. `ECAV_SENSOR_SYNC=0` restores the old behaviour for reproducing old rows.
+
+After the fix the frame age is 0 on every detection call in every run made: 8, 16 and 32 vehicles on one host, 16 and 32 vehicles on three hosts, and both single-process runs (4816 calls in each 16-vehicle run, 9400 in each 32-vehicle run).
+
+Source tick stamp: the edge stamps a detection with the tick at which it collected it. With frame age 0 that is the frame's own tick. In the single-process path the roadside units, which are the edge's source in I2V and intermediate fusion, already held the current frame in 100 % of calls before the fix (they are read after the vehicle's detection, some 80 ms after the tick), so the stamp was already the frame's tick there. A forecast first waypoint 1.4 to 1.5 m behind truth at the stamped tick is therefore not explained by a stale roadside frame.
+
+## Single-process path (test_runner, scp_edge_late_fusion, condition A, 0 ms, one run each)
+
+| arm | sensor wait | outcome | true-positive brake onset | minimum separation |
+|---|---|---|---|---|
+| I2V | off | success | +2150 ms | 22.2 m |
+| I2V | on | success | +2150 ms | 22.2 m |
+| intermediate fusion | off | success | +2050 ms | 24.8 m |
+| intermediate fusion | on | success | +2050 ms | 24.8 m |
+
+The fix changes only the vehicle's own onboard detection in this path (one tick fresher camera frames). Outcome and brake onset are unchanged in these runs. Wait per call: 27 ms mean in the I2V run.
+
+## Validation at 16 vehicles, exact localization, perception on
+
+- Frame age 0 on every client tick in all three runs (one host twice, three hosts).
+- Two repeats on one host are not identical, and one host against three hosts is not identical either: trajectories agree for the first 40 ticks and then differ (14.3 m between the two one-host repeats, 23.9 m between one host and three hosts). The sensor data itself is not repeatable between runs: 0 % of camera images and 11 % of LiDAR sweeps are bit-identical between the two one-host repeats, and no detector output is identical. The cause is the content of the rendered frames, not their timing (the age is 0 everywhere). Identical detections per tick cannot be shown with rendered sensors on this simulator. The lock step itself is identical across deployments (exact localization, no perception, 0.00 m, section above).
+
+## Decomposition with the fix, 32 vehicles
+
+| | one host, service on the A10 | three hosts, 2 replicas |
+|---|---|---|
+| tick mean (ms) | 1569 | 1219 |
+| client step mean (ms) | 854 | 661 |
+| wait for the tick's frames, mean / p95 (ms) | 646 / 1204 | 438 / 826 |
+| inference round trip (ms) | 61 | 59 (handler 35, 1.1 handlers in flight) |
+| planner and controller (ms) | 72 | 71 |
+| reply to the edge (ms) | 23 | 34 |
+| edge step on the critical path (ms) | 202 | 211 |
+| simulator game thread | 96 % of a core | 97 % |
+| A10 GPU | 71 % | 32 % |
+
+The tick is now bounded by the simulator delivering the frames: the last camera frame of a tick reaches its client 0.8 to 1.2 s after the tick, and the slowest client's step starts then. The old rows did not pay this wait (868 ms at 32 vehicles with two replicas in mh1) because they detected on the previous tick's frames.
+
+Serial work that is not the workload, measured with the fix (three hosts, 32 vehicles):
+- Traffic light requests in the planner: 33 ms mean per client tick, median 0.5 ms, p95 190 ms. A client that has waited for its frames finds the simulator free and the request costs under 1 ms, so the slowest client, which sets the tick, does not pay it. One request instead of two (`ECAV_TL_SINGLE_RPC=1`): see the option row below. Taking the state once in the orchestrator and distributing it was not implemented: the measured cost on the critical path is under 1 ms.
+- Forecast unpickling: 31 ms mean, median 6.5 ms, p95 302 ms, for a 210 KB message. Not on the critical path for the same reason. A different encoding was not implemented.
+- Replica handler threads sharing one GPU: with the wait the requests arrive spread over the frame delivery, 1.1 handlers are in flight on average and the handler takes 35 ms, so the sharing is gone without a change. Batching across requests (`YOLO_GRPC_BATCH=1`, off by default) raises the standalone ceiling of a replica from 40.3 to 46 to 49 requests per s, but the detector output changes with the batch composition (two distinct outputs for identical input frames against one without batching). It changes outputs, so it is not used.

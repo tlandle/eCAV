@@ -7,7 +7,12 @@ Runs in a ThreadPoolExecutor thread alongside the LitServe uvicorn process,
 sharing the global YOLO model loaded by load_global_model().
 """
 
+import concurrent.futures
+import os
+import queue
+import threading
 import time
+import types
 
 import cv2
 import numpy as np
@@ -33,6 +38,36 @@ class PerceptionServicer(perception_pb2_grpc.PerceptionServiceServicer):
         """
         self._model = model
         self._encode_response = encode_response_fn
+        # YOLO_GRPC_BATCH=1: one thread runs the model on the frames of every request that is waiting, in one
+        # forward pass, and each request gets its own frames' boxes. Default off: each handler thread calls the
+        # model itself and the threads share the GPU.
+        self._batch = os.environ.get("YOLO_GRPC_BATCH", "0") == "1"
+        if self._batch:
+            self._q = queue.Queue()
+            threading.Thread(target=self._batch_loop, daemon=True).start()
+
+    def _batch_loop(self):
+        max_frames = int(os.environ.get("YOLO_GRPC_BATCH_MAX_FRAMES", "64"))
+        while True:
+            jobs = [self._q.get()]
+            n = len(jobs[0][0])
+            while n < max_frames:
+                try:
+                    j = self._q.get_nowait()
+                except queue.Empty:
+                    break
+                jobs.append(j); n += len(j[0])
+            try:
+                with torch.no_grad():
+                    res = self._model([im for images, _ in jobs for im in images])
+                i = 0
+                for images, fut in jobs:
+                    fut.set_result(types.SimpleNamespace(xyxy=res.xyxy[i:i + len(images)], names=res.names))
+                    i += len(images)
+            except Exception as exc:   # every waiting request sees the failure
+                for _, fut in jobs:
+                    if not fut.done():
+                        fut.set_exception(exc)
 
     def DetectYolo(self, request, context):
         t0 = time.time()
@@ -44,8 +79,13 @@ class PerceptionServicer(perception_pb2_grpc.PerceptionServiceServicer):
         ]
         t_decoded = time.time()
 
-        with torch.no_grad():
-            results = self._model(images)
+        if self._batch:
+            fut = concurrent.futures.Future()
+            self._q.put((images, fut))
+            results = fut.result()
+        else:
+            with torch.no_grad():
+                results = self._model(images)
         t_inferred = time.time()
 
         # Reuse YOLOv5Server.encode_response to build the detections dict
