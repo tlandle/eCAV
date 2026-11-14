@@ -134,6 +134,20 @@ def table(cell, lats, path):
         comp = m("BD", "compute_ms"); ul = m("CD", "ul_ms"); dl = m("CD", "dl_ms")
         r = lambda v: f"{sum(v) / len(v):.0f} ({min(v):.0f} to {max(v):.0f})" if v else ""
         L.append(f"| {a} | {HOST[a]} | {r(comp)} | {r(ul)} | {r(dl)} |")
+    L += ["\n## Notes\n",
+          "- Code versions. Intermediate fusion C and D were rerun at develop bcea7b2d, which makes a recipient keep the newest forecast by source tick "
+          "(before it, an older forecast with a longer downlink sample could be delivered after a newer one and replace it: 10.4 % of arrivals in C, "
+          "5 arrivals in 70 runs in D). The earlier C and D runs are in experiment_results/_prefix_reorder/. Intermediate fusion A and B and both "
+          "object-level arms are from the campaign before that commit.",
+          "- Evidence that the fix does not act on those cells (one run each at bcea7b2d against the campaign run of the same seed; sensor data is not "
+          "repeatable across simulator sessions, so the comparison is on arrivals, control and onset): intermediate fusion A at 1800 ms has the same "
+          "forecast arrival sequence, the same control and ego state on all 346 ticks and the same onset (+3550 ms), with 0 forecasts superseded; "
+          "intermediate fusion B at 1500 ms has 27 arrivals in both, no arrival out of order, 0 superseded, onset +3400 against +3450 ms.",
+          "- Object-level arms under the same rule: the late-fusion manager applies its composed delay before ingestion, so the rule drops a frame that "
+          "arrives after a newer one was ingested. One run each of I2V D and V2X2V D at 1800 ms dropped 1 and 2 frames; onset (+3350 ms) and outcome "
+          "equal the campaign runs. The campaign's object-level cells with a composed delay (B, C, D) ingested such frames.",
+          "- False brakes. A run whose sustained brake starts on a track that is not the crossing car's counts as a false brake and as a failure. "
+          "In intermediate fusion C this is a parked car beside the lane at 1200 ms (3 of 10 runs) and 1500 ms (1 of 10)."]
     open(path, "w").write("\n".join(L) + "\n"); print("wrote", path)
 
 

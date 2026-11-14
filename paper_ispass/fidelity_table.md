@@ -16,8 +16,8 @@ Ten seeds per cell, 70 km/h, one connected vehicle and two roadside units, table
 | V2X2V prediction | D full | 1.00 | 1.00 | 1.00 | 0.90 | 0.90 | 0.10 | 0.00 |
 | intermediate fusion | A idealized | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 |
 | intermediate fusion | B compute | 1.00 | 1.00 | 1.00 | 0.80 | 0.30 | 0.00 | 0.00 |
-| intermediate fusion | C network | 1.00 | 1.00 | 1.00 | 1.00 | 0.00 | 0.00 | 0.00 |
-| intermediate fusion | D full | 1.00 | 0.90 | 0.40 | 0.10 | 0.00 | 0.00 | 0.00 |
+| intermediate fusion | C network | 1.00 | 1.00 | 0.70 | 0.90 | 0.00 | 0.00 | 0.00 |
+| intermediate fusion | D full | 1.00 | 0.90 | 0.60 | 0.20 | 0.00 | 0.00 | 0.00 |
 
 ## Boundary
 
@@ -35,8 +35,8 @@ Last cell with success at or above 0.90 and first cell at or below 0.40, as adde
 | V2X2V prediction | D full | 1800 | 1850 | 0.90 | 2100 | 2150 | 0.10 |
 | intermediate fusion | A idealized | 2100 | 2150 | 1.00 | 2400 | 2400 | 0.00 |
 | intermediate fusion | B compute | 1200 | 1445 | 1.00 | 1800 | 2145 | 0.30 |
-| intermediate fusion | C network | 1500 | 1700 | 1.00 | 1800 | 2200 | 0.00 |
-| intermediate fusion | D full | 800 | 1295 | 0.90 | 1200 | 1710 | 0.40 |
+| intermediate fusion | C network | 1500 | 1700 | 0.90 | 1800 | 2150 | 0.00 |
+| intermediate fusion | D full | 800 | 1285 | 0.90 | 1500 | 2130 | 0.20 |
 
 ## Delay terms
 
@@ -46,4 +46,11 @@ Mean over the cells of each condition (ms). Compute is the measured service time
 |---|---|---|---|---|
 | I2V object sharing | atlas, RTX 4080 Super | 20 (19 to 20) | 0 (0 to 0) | 6 (6 to 6) |
 | V2X2V prediction | atlas, RTX 4080 Super | 21 (21 to 22) | 10 (10 to 10) | 6 (6 to 6) |
-| intermediate fusion | cetus, RTX 3080 Ti | 145 (143 to 150) | 41 (41 to 41) | 223 (219 to 225) |
+| intermediate fusion | cetus, RTX 3080 Ti | 145 (143 to 150) | 41 (41 to 41) | 223 (217 to 229) |
+
+## Notes
+
+- Code versions. Intermediate fusion C and D were rerun at develop bcea7b2d, which makes a recipient keep the newest forecast by source tick (before it, an older forecast with a longer downlink sample could be delivered after a newer one and replace it: 10.4 % of arrivals in C, 5 arrivals in 70 runs in D). The earlier C and D runs are in experiment_results/_prefix_reorder/. Intermediate fusion A and B and both object-level arms are from the campaign before that commit.
+- Evidence that the fix does not act on those cells (one run each at bcea7b2d against the campaign run of the same seed; sensor data is not repeatable across simulator sessions, so the comparison is on arrivals, control and onset): intermediate fusion A at 1800 ms has the same forecast arrival sequence, the same control and ego state on all 346 ticks and the same onset (+3550 ms), with 0 forecasts superseded; intermediate fusion B at 1500 ms has 27 arrivals in both, no arrival out of order, 0 superseded, onset +3400 against +3450 ms.
+- Object-level arms under the same rule: the late-fusion manager applies its composed delay before ingestion, so the rule drops a frame that arrives after a newer one was ingested. One run each of I2V D and V2X2V D at 1800 ms dropped 1 and 2 frames; onset (+3350 ms) and outcome equal the campaign runs. The campaign's object-level cells with a composed delay (B, C, D) ingested such frames.
+- False brakes. A run whose sustained brake starts on a track that is not the crossing car's counts as a false brake and as a failure. In intermediate fusion C this is a parked car beside the lane at 1200 ms (3 of 10 runs) and 1500 ms (1 of 10).
