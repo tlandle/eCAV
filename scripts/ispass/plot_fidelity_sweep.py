@@ -35,11 +35,30 @@ def fl(r, k):
         return float("nan")
 
 
-def load(path):
+def wilson(k, n, z=1.96):
+    if n == 0:
+        return 0.0, 1.0
+    ph = k / n; d = 1 + z * z / n; c = ph + z * z / (2 * n); h = z * math.sqrt(ph * (1 - ph) / n + z * z / (4 * n * n))
+    return max(0.0, (c - h) / d), min(1.0, (c + h) / d)
+
+
+def load(path, metric="nocollision"):
+    """metric nocollision: the plotted rate is the fraction of runs completed without a collision
+    (s_op, lo, hi are replaced; the success rate of the reducer is kept as s_all, and the fraction
+    of runs that fail on a false brake without a collision as fb_only)."""
     rows = [r for r in csv.DictReader(open(path)) if r["arch"] in ARCHS]
+    for r in rows:
+        n = int(float(r["n"])); r["s_all"] = r["s_op"]
+        r["fb_only"] = f"{max(0.0, 1.0 - float(r['collided']) - float(r['s_op'])):.2f}"
+        if metric == "nocollision":
+            k = round((1.0 - float(r["collided"])) * n); lo, hi = wilson(k, n)
+            r["s_op"], r["lo"], r["hi"] = f"{k / n:.2f}", f"{lo:.4f}", f"{hi:.4f}"
     cell = {(r["arch"], r["cond"], int(r["lat"])): r for r in rows}
     lats = sorted({int(r["lat"]) for r in rows})
     return cell, lats
+
+
+YLAB = "completed without collision"
 
 
 def setup():
@@ -76,7 +95,7 @@ def fig_sweep(cell, lats, path):
         ax.set_xticks([0, 1000, 2000]); ax.set_xticks(lats, minor=True)   # labels clear of the panel edges
         ax.grid(True, lw=0.3, color="#d9d8d2"); ax.tick_params(width=0.5, length=2, pad=1.5)
         ax.tick_params(which="minor", width=0.4, length=1.2)
-    axes[0].set_ylabel("operational success"); axes[0].set_yticks([0, 0.5, 1.0])
+    axes[0].set_ylabel(YLAB); axes[0].set_yticks([0, 0.5, 1.0])
     axes[1].set_xlabel("added delay (ms)", labelpad=1.5)
     h = [Line2D([], [], lw=1.1, ms=3.2, mew=0.8, mec=STYLE[c]["color"], label=f"{c}: {NAME[c]}", **STYLE[c]) for c in CONDS]
     fig.legend(handles=h, loc="upper center", ncol=4, frameon=False, handlelength=2.3, columnspacing=0.9,
@@ -97,7 +116,7 @@ def fig_age(cell, lats, path):
         for x, r in pts:
             if 0.0 < fl(r, "s_op") < 1.0:
                 ax.plot([x, x], [fl(r, "lo"), fl(r, "hi")], color=st["color"], lw=0.6, alpha=0.7, zorder=2)
-    ax.set_xlabel("forecast age at the brake (ms)", labelpad=1.5); ax.set_ylabel("operational success")
+    ax.set_xlabel("forecast age at the brake (ms)", labelpad=1.5); ax.set_ylabel(YLAB)
     ax.set_ylim(-0.05, 1.05); ax.set_yticks([0, 0.5, 1.0]); ax.set_xlim(-100, 3000); ax.set_xticks(range(0, 3000, 500))
     ax.grid(True, lw=0.3, color="#d9d8d2"); ax.tick_params(width=0.5, length=2, pad=1.5)
     ax.legend(loc="lower left", frameon=False, handlelength=2.3, labelspacing=0.2, borderaxespad=0.3)
@@ -108,14 +127,21 @@ def fig_age(cell, lats, path):
 def table(cell, lats, path):
     L = ["# Fidelity ablation, straight crossing (stamp ispass_fid10)\n",
          "Ten seeds per cell, 70 km/h, one connected vehicle and two roadside units, table radio load 24 senders. "
-         "Success is a run without a collision and without a false brake. Source: paper_ispass/fidelity.csv.\n",
-         "## Operational success by added delay (ms)\n",
+         "Source: paper_ispass/fidelity.csv.\n",
+         "## Fraction of runs completed without a collision, by added delay (ms)\n",
          "| architecture | condition | " + " | ".join(str(x) for x in lats) + " |", "|---|---|" + "---|" * len(lats)]
     for a in ARCHS:
         for c in CONDS:
             L.append(f"| {a} | {c} {NAME[c]} | " + " | ".join(f"{fl(cell[(a, c, x)], 's_op'):.2f}" if (a, c, x) in cell else "" for x in lats) + " |")
+    L += ["\n## Fraction of runs that fail on a false brake without a collision\n",
+          "A false brake is a sustained brake that starts on a track the labeler does not match to the crossing car, "
+          "or a brake on the crossing car's forecast after the car has passed.\n",
+          "| architecture | condition | " + " | ".join(str(x) for x in lats) + " |", "|---|---|" + "---|" * len(lats)]
+    for a in ARCHS:
+        for c in CONDS:
+            L.append(f"| {a} | {c} {NAME[c]} | " + " | ".join(f"{fl(cell[(a, c, x)], 'fb_only'):.2f}" if (a, c, x) in cell else "" for x in lats) + " |")
     L += ["\n## Boundary\n",
-          "Last cell with success at or above 0.90 and first cell at or below 0.40, as added delay and as the mean forecast age at the brake in that cell (ms).\n",
+          "Last cell with the rate at or above 0.90 and first cell at or below 0.40, as added delay and as the mean forecast age at the brake in that cell (ms).\n",
           "| architecture | condition | last >= 0.90: added delay | forecast age | success | first <= 0.40: added delay | forecast age | success |",
           "|---|---|---|---|---|---|---|---|"]
     for a in ARCHS:
@@ -135,19 +161,17 @@ def table(cell, lats, path):
         r = lambda v: f"{sum(v) / len(v):.0f} ({min(v):.0f} to {max(v):.0f})" if v else ""
         L.append(f"| {a} | {HOST[a]} | {r(comp)} | {r(ul)} | {r(dl)} |")
     L += ["\n## Notes\n",
-          "- Code versions. Intermediate fusion C and D were rerun at develop bcea7b2d, which makes a recipient keep the newest forecast by source tick "
-          "(before it, an older forecast with a longer downlink sample could be delivered after a newer one and replace it: 10.4 % of arrivals in C, "
-          "5 arrivals in 70 runs in D). The earlier C and D runs are in experiment_results/_prefix_reorder/. Intermediate fusion A and B and both "
-          "object-level arms are from the campaign before that commit.",
-          "- Evidence that the fix does not act on those cells (one run each at bcea7b2d against the campaign run of the same seed; sensor data is not "
-          "repeatable across simulator sessions, so the comparison is on arrivals, control and onset): intermediate fusion A at 1800 ms has the same "
+          "- Code versions. Every cell with a composed delay (conditions B, C and D of all three architectures) ran at develop bcea7b2d or later "
+          "(object-level arms at fd75bed5), which makes a recipient keep the newest forecast by source tick. Before it, an older forecast with a longer "
+          "downlink sample could be delivered after a newer one and replace it (10.4 % of arrivals in intermediate fusion C). The earlier runs are in "
+          "experiment_results/_prefix_reorder/ and _prefix_reorder_obj/. Condition A has no composed delay and is from the campaign before that commit; "
+          "intermediate fusion B is also from before it.",
+          "- Evidence that the fix does not act on intermediate fusion A and B (one run each at bcea7b2d against the campaign run of the same seed; "
+          "sensor data is not repeatable across simulator sessions, so the comparison is on arrivals, control and onset): A at 1800 ms has the same "
           "forecast arrival sequence, the same control and ego state on all 346 ticks and the same onset (+3550 ms), with 0 forecasts superseded; "
-          "intermediate fusion B at 1500 ms has 27 arrivals in both, no arrival out of order, 0 superseded, onset +3400 against +3450 ms.",
-          "- Object-level arms under the same rule: the late-fusion manager applies its composed delay before ingestion, so the rule drops a frame that "
-          "arrives after a newer one was ingested. One run each of I2V D and V2X2V D at 1800 ms dropped 1 and 2 frames; onset (+3350 ms) and outcome "
-          "equal the campaign runs. The campaign's object-level cells with a composed delay (B, C, D) ingested such frames.",
-          "- False brakes. A run whose sustained brake starts on a track that is not the crossing car's counts as a false brake and as a failure. "
-          "In intermediate fusion C this is a parked car beside the lane at 1200 ms (3 of 10 runs) and 1500 ms (1 of 10)."]
+          "B at 1500 ms has 27 arrivals in both, no arrival out of order, 0 superseded, onset +3400 against +3450 ms.",
+          "- False brakes are listed separately from collisions. In intermediate fusion C at 1200 ms (3 of 10 runs) and 1500 ms (1 of 10) the brake "
+          "is on a parked car's track beside the lane."]
     open(path, "w").write("\n".join(L) + "\n"); print("wrote", path)
 
 
@@ -156,8 +180,11 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--csv", default=os.path.join(root, "paper_ispass", "fidelity.csv"))
     ap.add_argument("--out", default=os.path.join(root, "paper_ispass"))
+    ap.add_argument("--metric", default="nocollision", choices=["nocollision", "success"])
     a = ap.parse_args()
-    cell, lats = load(a.csv)
+    if a.metric == "success":
+        YLAB = "operational success"
+    cell, lats = load(a.csv, a.metric)
     fig_sweep(cell, lats, os.path.join(a.out, "fig_fidelity.pdf"))
     fig_age(cell, lats, os.path.join(a.out, "fig_fidelity_age.pdf"))
     table(cell, lats, os.path.join(a.out, "fidelity_table.md"))
