@@ -45,6 +45,7 @@ from ecav.core.tracking.ab3dmot_format import (
     vehicles_to_ab3dmot_rows,
     vehicles_world_edges,
 )
+from ecav.core.application.edge.latency.delivery_order import in_source_order
 from ecav.core.application.edge.latency.ns3_lut_sampler import (
     get_default as _get_lut_sampler,
 )
@@ -364,6 +365,18 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._cav_world_ref = cav_world
         self._last_edge_compute_ms = 0.0
         self._composed_rows: list = []   # (tick, compute_ms, ul_ms, dl_ms)
+        # With a composed delay (measured compute or a table radio sample) the
+        # stamp of each frame carries its whole path to the recipient, so a
+        # frame that arrives after a newer one has been ingested is a state the
+        # recipient already holds a newer version of: it is superseded in
+        # transit and dropped. The configured delay alone keeps the earlier
+        # behaviour (every frame is ingested, in arrival order). In the fidelity
+        # ablation the object payload's delays vary by less than one tick, so
+        # no frame was ever out of order there (0 of about 51,000 arrivals).
+        self._composed_delay_on = (not is_proxy) and (
+            self._compute_delay_mode == "measured" or self._lut_dl or self._use_ns3_lut)
+        self._newest_ingested_src = None
+        self._frames_superseded = 0
         # Logical service occupancy (edge option service_occupancy=on|off,
         # default off: every frame is ingested and only delayed, as the SenSys
         # study's arms ran). With on, a frame that reaches the edge while the
@@ -967,6 +980,10 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 self._drain_tick = tick   # the tick a drained frame is ingested at (VIPS rectification)
                 self._step_track_ms = 0.0
                 new_frames = self._jitter_buffer.drain(tick)
+                if self._composed_delay_on:
+                    new_frames, self._newest_ingested_src, _late = in_source_order(
+                        new_frames, self._newest_ingested_src)
+                    self._frames_superseded += _late
                 latest_dets = None
                 latest_source_tick = None
                 num_dets = 0
@@ -2139,6 +2156,7 @@ class PredictionLateFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 'compute_ms_mean': float(_c[:, 0].mean()), 'compute_ms_p95': float(np.percentile(_c[:, 0], 95)),
                 'ul_ms_mean': float(_c[:, 1].mean()), 'dl_ms_mean': float(_c[:, 2].mean()),
                 'dl_ms_p95': float(np.percentile(_c[:, 2], 95)),
+                'frames_superseded_in_transit': int(self._frames_superseded),
             }
         if getattr(self, '_occupancy', None) is not None and self._occupancy.enabled:
             metrics['service_occupancy'] = self._occupancy.metrics()

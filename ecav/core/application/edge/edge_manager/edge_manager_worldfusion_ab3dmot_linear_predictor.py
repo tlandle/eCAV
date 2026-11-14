@@ -55,6 +55,7 @@ from ecav.core.application.edge.latency.ns3_lut_sampler import (
     get_default as _get_lut_sampler,
 )
 from .ab3dmot_state_transfer import AB3DMOTStateTransferMixin
+from ecav.core.application.edge.latency.delivery_order import select_ready
 from .edge_manager_base import _BaseEdgeManager
 
 import logging
@@ -270,7 +271,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._lut_loss = str(cfg.get("lut_loss", "false")).lower() in ("true", "1", "on", "yes")
         self._dl_bytes_override = int(cfg["msg_b"]) if cfg.get("msg_b", None) else None
         self._radio_live = None           # built on first use (needs the RSU position)
-        self._radio_drops = {"ul": 0, "dl": 0, "ul_sent": 0, "dl_sent": 0}
+        self._radio_drops = {"ul": 0, "dl": 0, "ul_sent": 0, "dl_sent": 0, "dl_superseded": 0}
+        self._newest_delivered_src = None   # newest source tick delivered to the recipients
         self._composed_rows: List[Tuple[int, float, float, float]] = []
         # Outbound delivery queue: list of (deliver_tick, predictions).
         # Latest-wins: _drain_outbound_latest returns the freshest prediction
@@ -2271,13 +2273,17 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         """
         if not self._outbound_queue:
             return None
-        ready = [e for e in self._outbound_queue if e[0] <= tick]
-        if not ready:
+        # The recipient keeps the newest forecast by source tick. The downlink
+        # delay is sampled per forecast, so an older forecast can become ready
+        # after a newer one was delivered: it is superseded in transit and
+        # dropped (select_ready), not delivered over the newer one.
+        _best, self._outbound_queue, _sup = select_ready(
+            self._outbound_queue, tick, self._newest_delivered_src)
+        self._radio_drops["dl_superseded"] += _sup
+        if _best is None:
             return None
-        # Keep only entries that are still in flight (deliver_tick > tick).
-        self._outbound_queue = [e for e in self._outbound_queue if e[0] > tick]
-        ready.sort(key=lambda x: x[0])
-        _dt, _p, _src, _net = ready[-1]
+        _dt, _p, _src, _net = _best
+        self._newest_delivered_src = _src
         # T12: TOTAL age at use (Delta_use = t_c - t_o) = delivery - source
         # frame tick (cadence + buffer + DL queue + network); tau(u) is
         # defined on this. network_age_ms = UL+DL LUT delay only (radio
@@ -2648,6 +2654,7 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 'compute_ms_mean': float(_c[:, 0].mean()), 'compute_ms_p95': float(np.percentile(_c[:, 0], 95)),
                 'ul_ms_mean': float(_c[:, 1].mean()), 'dl_ms_mean': float(_c[:, 2].mean()),
                 'dl_ms_p95': float(np.percentile(_c[:, 2], 95)),
+                'dl_superseded_in_transit': int(self._radio_drops.get('dl_superseded', 0)),
             }
         if getattr(self, '_occupancy', None) is not None:
             metrics['service_occupancy'] = self._occupancy.metrics()
