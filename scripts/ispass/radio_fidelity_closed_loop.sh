@@ -29,6 +29,8 @@ run_cell() {  # model n reps
                        msg_b=$DL_BYTES $(model_kv "$1")
              --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
              --scenario-env CROSS_TRIGGER_TTA=70:4.77 HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=-90 EGO_DRIVE_DISTANCE=400 SCENARIO_MAX_STEP=900)
+  # live ns-3 steps take minutes of wall time at start-up; the scenario runner's 10 s watchdog would end the cross traffic
+  [[ "$1" == live ]] && cmd+=(SR_TIMEOUT_S=3600)
   echo "$(date '+%F %T') $1 n=$2 reps=$3"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
   local t0=$(date +%s)

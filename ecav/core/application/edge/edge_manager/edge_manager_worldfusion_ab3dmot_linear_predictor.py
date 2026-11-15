@@ -584,8 +584,14 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             import atexit
             from ecav.core.application.edge.latency.ns3_live_sampler import Ns3LiveSampler
             if self.rsu_manager_list:
-                o = self.rsu_manager_list[0].localizer.get_ego_pos().location
-                origin = (float(o.x), float(o.y))
+                # the RSU is fixed: before its localizer has a first pose, its
+                # configured spawn position is the same point
+                pose = self.rsu_manager_list[0].localizer.get_ego_pos()
+                if pose is not None:
+                    origin = (float(pose.location.x), float(pose.location.y))
+                else:
+                    sp = self.rsu_manager_list[0].spawn_position
+                    origin = (float(sp[0]), float(sp[1]))
             else:
                 xy = self._managed_xy()
                 origin = xy[0] if xy else (0.0, 0.0)

@@ -36,6 +36,11 @@ def exec_scenario_runner(scenario_params):
     Returns
     -------
     """
+    # SR_TIMEOUT_S: watchdog and client timeout of the scenario runner. A run whose
+    # steps take longer than the YAML's 10 s of wall time (live ns-3 radio) sets it,
+    # otherwise the watchdog ends the scripted actors.
+    if os.environ.get("SR_TIMEOUT_S"):
+        scenario_params.scenario_runner.timeout = int(os.environ["SR_TIMEOUT_S"])
     scenario_runner = sr.ScenarioRunner(scenario_params.scenario_runner)
     scenario_runner.run()
     scenario_runner.destroy()
