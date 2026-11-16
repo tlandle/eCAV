@@ -111,6 +111,11 @@ ap.add_argument("--vehicle-state", type=str, default=None, choices=["gt_visible"
                      "vehicles within the LiDAR range that are in line of sight of the roof sensor position, gt_all "
                      "every vehicle in the world. Recorded as config_vehicle_state; not part of the run directory "
                      "name, so use a stamp of its own.")
+ap.add_argument("--local-prediction-steps", type=int, default=None,
+                help="Forecast horizon of every vehicle's own tracker and predictor in steps of 50 ms "
+                     "(local_tracker.predictor.num_future_steps). The default is 10 steps, 0.5 s: the vehicle-side "
+                     "stack is a short-horizon fallback beside edge forecasts of prediction_steps. A study of the "
+                     "vehicle alone sets it to the edge's horizon. Recorded as config_local_prediction_steps.")
 ap.add_argument("--lidar-noise-std", type=float, default=None,
                 help="LiDAR range noise standard deviation in metres (CARLA noise_stddev) for every LiDAR of the "
                      "scenario, vehicles and RSUs. The scenario YAMLs carry 0.0; recorded as config_lidar_noise_std. "
@@ -522,6 +527,12 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 n_veh += 1
         print(f"    vehicle state {args.vehicle_state}: perception off on {n_veh} vehicles")
 
+    if args.local_prediction_steps is not None:
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                veh.setdefault("local_tracker", {}).setdefault("predictor", {})["num_future_steps"] = int(args.local_prediction_steps)
+        print(f"    local forecast horizon {args.local_prediction_steps} steps on every vehicle")
+
     if args.lidar_noise_std is not None:
         # every LiDAR of the scenario (vehicles and RSUs) gets the same range noise
         def _lidar_noise(node):
@@ -731,6 +742,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if gps_noise is not None: metrics["config_gps_noise_stddev"] = gps_noise
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
+    if args.local_prediction_steps is not None: metrics["config_local_prediction_steps"] = args.local_prediction_steps
     if gps_dropout is not None: metrics["config_gps_dropout_pct"] = gps_dropout
     metrics["config_compute_budget_ms"] = compute_budget  # None = unlimited
     if mgr_type is not None: metrics["config_manager_type"] = mgr_type

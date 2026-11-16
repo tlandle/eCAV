@@ -27,6 +27,12 @@ MS="${MS:-4 8 16 32 64 128}"; ARMS="${ARMS:-gt_vis onboard}"; ENCS="${ENCS:-open
 # SPEED (km/h): at 70 the crossing car enters the 50 m LiDAR range 1.6 s before the conflict, too late for a vehicle
 # without shared state whatever its state source; at 40 it enters about 3.6 s before. EGO_Y is the start of the approach.
 SPEED="${SPEED:-40}"; EGO_Y="${EGO_Y:--30}"; MAX_STEP="${MAX_STEP:-1400}"
+# LOCAL_STEPS: forecast horizon of the vehicle's own predictor in 50 ms steps. The platform default is 10 (0.5 s, a
+# fallback beside edge forecasts); a vehicle that drives alone gets the edge's horizon, 60 steps (3 s).
+LOCAL_STEPS="${LOCAL_STEPS:-60}"
+# TTA: the crossing car launches when the connected vehicle is TTA seconds from the conflict point (5.12 s is the
+# 70 km/h calibration of the SenSys encounter; another speed needs its own).
+TTA="${TTA:-5.12}"
 HIDE=5946265674966002516,6337000252949488035,6180885027493966721,16537817839145246163,16697564674962583843,6207999516011777620,2654350897737485752,16235826325815247835,4815558027215542490,1415910357169383613,4380901688286554368,5034201441472765163,8005252838334864825,10145647440276496614,9929740016222508988,7518384223988529276
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
@@ -37,9 +43,9 @@ enc_env() { case "$1" in
 run_cell() {  # encounter arm M reps
   local cmd=(test_runner.py -t scp_edge_late_fusion --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --ego-counts 1 --repetitions "$4" --per-tick-age-log --self-id-radius 1
-             --carla-port "$PORT" --stamp "${STAMP}_$1_$2_m$3" $(arm_args "$2") --lidar-noise-std "$LIDAR_NOISE"
+             --carla-port "$PORT" --stamp "${STAMP}_$1_$2_m$3" $(arm_args "$2") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
              --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
-             --scenario-env CROSS_TRIGGER_TTA=$SPEED:5.12 HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP
+             --scenario-env CROSS_TRIGGER_TTA=$SPEED:$TTA HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP
                             BG_TRAFFIC=$3 $(enc_env "$1"))
   echo "$(date '+%F %T') enc=$1 arm=$2 M=$3 reps=$4"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
@@ -52,7 +58,7 @@ if [[ "$DRY" != "--dry-run" ]]; then
     echo "a runner or CARLA is active; aborting"; exit 1; fi
   if ls ecav/scenario_testing/config_yaml/*.yaml.bak >/dev/null 2>&1; then echo "a patched YAML backup remains; aborting"; exit 1; fi
   mkdir -p experiment_results/campaign_meta
-  { echo "stamp=$STAMP stage=$STAGE reps=$REPS ms=$MS arms=$ARMS encs=$ENCS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_density.txt"
+  { echo "stamp=$STAMP stage=$STAGE reps=$REPS ms=$MS arms=$ARMS encs=$ENCS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_density.txt"
 fi
 case "$STAGE" in
   gate) for e in $ENCS; do for m in $MS; do for a in $ARMS; do run_cell "$e" "$a" "$m" "${GATE_REPS:-1}"; done; done; done ;;
