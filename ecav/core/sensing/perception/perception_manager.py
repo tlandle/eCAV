@@ -448,6 +448,11 @@ class PerceptionManager:
         # active (deactivate_mode), metres. Unset keeps the earlier behaviour,
         # every vehicle in the world.
         self.deactivate_range_m = float(config_yaml.get('deactivate_range_m', 100000))
+        # deactivate_line_of_sight: the ground-truth list keeps only the vehicles that a ray from
+        # the roof sensor position reaches before any other object, so the list has the range
+        # (deactivate_range_m) and the occlusions of the vehicle's own sensors and none of their
+        # detection or tracking errors.
+        self.deactivate_line_of_sight = bool(config_yaml.get('deactivate_line_of_sight', False))
         in_docker = os.environ.get('IS_DOCKER', '0') == '1'
         self.camera_visualize = 0 if in_docker else config_yaml['camera']['visualize']
         self.camera_num = config_yaml['camera']['num']
@@ -1039,6 +1044,32 @@ class PerceptionManager:
         objects['vehicles'] = filtered_vehicles
         return objects
 
+    def _in_line_of_sight(self, target):
+        """True if a ray from the roof sensor position reaches the target's body before another
+        object. Rays go to the centre and the four mid-height corners of the bounding box."""
+        world = self.carla_world
+        own = self.vehicle.get_transform()
+        origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
+        tf = target.get_transform()
+        bb = target.bounding_box
+        ground = (carla.CityObjectLabel.Roads, carla.CityObjectLabel.RoadLines,
+                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain)
+        for sx, sy in ((0, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+            point = tf.transform(carla.Location(bb.location.x + sx * bb.extent.x * 0.9,
+                                                bb.location.y + sy * bb.extent.y * 0.9, bb.location.z))
+            reach = origin.distance(point)
+            blocked = False
+            for hit in world.cast_ray(origin, point):
+                d = origin.distance(hit.location)
+                # the first 3 m are the vehicle's own body, the last 2.5 m the target's
+                if d < 3.0 or d > reach - 2.5 or hit.label in ground:
+                    continue
+                blocked = True
+                break
+            if not blocked:
+                return True
+        return False
+
     def deactivate_mode(self, objects, call_id=None):
         """
         Object detection using server information directly.
@@ -1063,6 +1094,8 @@ class PerceptionManager:
 
         vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and
                         v.id != self.id and v.id != call_id]
+        if self.deactivate_line_of_sight:
+            vehicle_list = [v for v in vehicle_list if self._in_line_of_sight(v)]
 
         # use semantic lidar to filter out vehicles out of the range
         if self.data_dump:

@@ -11,11 +11,13 @@ that suddenly appear in front of the ego vehicle and the ego vehicle has to avoi
 import py_trees
 import carla
 import math
+import os
 import random
 
 from srunner.scenariomanager.carla_data_provider import CarlaDataProvider
 from srunner.scenariomanager.scenarioatomics.atomic_behaviors import (ActorTransformSetter,
                                                                       WaypointFollower,
+                                                                      StopVehicle,
                                                                       Idle)
 from srunner.scenariomanager.scenarioatomics.atomic_criteria import CollisionTest
 from srunner.scenariomanager.scenarioatomics.atomic_trigger_conditions import (DriveDistance, InTriggerDistanceToLocation,
@@ -396,6 +398,22 @@ class Scenario_3(BasicScenario):
         ]
         print(f"Ego vehicle max speed: {self.ego_max_speed_kmh} km/h")
 
+        # BG_TRAFFIC=<n>: n background road users around the junction (traffic density study).
+        # They stand or drive on lanes that neither the connected vehicle nor the crossing car
+        # uses, so the encounter stays the same and no background vehicle is a hazard: lane
+        # waypoints within BG_RADIUS (150 m) of the conflict point, outside junctions, at least
+        # 9 m from the connected vehicle's road and 7 m from the crossing car's path. Every
+        # second vehicle whose lane leads away from the junction drives at BG_SPEED (6 m/s)
+        # from the moment the crossing car launches, and the others stand. The order of the
+        # spots is fixed by BG_SEED, so a smaller count is a subset of a larger count.
+        self._bg_n = int(os.environ.get("BG_TRAFFIC", 0) or 0)
+        self._bg_radius = float(os.environ.get("BG_RADIUS", 150))
+        self._bg_speed = float(os.environ.get("BG_SPEED", 6.0))
+        self._bg_actors = []          # (actor, plan or None)
+        # OCCLUDERS=0: the parked trucks that hide the crossing car stay underground, so the
+        # crossing car is in the connected vehicle's own sensor view on the approach.
+        self._occluders = os.environ.get("OCCLUDERS", "1") != "0"
+
 
         super(Scenario_3, self).__init__("Scenario_3",
                                                 ego_vehicles,
@@ -411,6 +429,12 @@ class Scenario_3(BasicScenario):
         if self.distributed and self.vehicle_index >= 0:
             return
 
+        # Background road users first: the scenario file's actors are spawned underground with
+        # physics on and fall until the behavior tree lifts them, so nothing slow may run between
+        # their spawn and the first tree tick (with 128 spawns after it the crossing car was
+        # falling at 66 m/s when lifted and never drove).
+        self._spawn_background()
+
         # Spawn vehicles at the XML-defined transforms (z=-500 keeps them underground).
         # ActorTransformSetter in the behavior tree teleports them to visible positions.
         for actor_config in config.other_actors:
@@ -420,8 +444,10 @@ class Scenario_3(BasicScenario):
                 raise RuntimeError(f"Failed to spawn {actor_config.model} at {actor_config.transform}")
 
             self.other_actors.append(actor)
-            actor.set_simulate_physics(enabled=True)
+            actor.set_simulate_physics(enabled=self._occluders or len(self.other_actors) == 1)
             actor.set_autopilot(False)           #  follower will drive via apply_control
+
+        self.other_actors.extend(actor for actor, _ in self._bg_actors)   # removed with the scenario
 
         for i in range(self.num_vehicle):
             car_transform = self.other_actors[i].get_transform()
@@ -436,6 +462,90 @@ class Scenario_3(BasicScenario):
                 car_transform.location.x,
                 car_transform.location.y,
                 car_transform.location.z + 501, ))
+
+    def _cross_path_dist(self, px, py):
+        """Distance from a point to the crossing car's path."""
+        path = [carla.Location(x=-35.0, y=127.7, z=0.5)] + list(self.lincoln_waypoints)
+        best = 1e9
+        for a, b in zip(path[:-1], path[1:]):
+            dx, dy = b.x - a.x, b.y - a.y
+            l2 = dx * dx + dy * dy
+            t = max(0.0, min(1.0, ((px - a.x) * dx + (py - a.y) * dy) / l2)) if l2 > 0 else 0.0
+            best = min(best, math.hypot(px - (a.x + t * dx), py - (a.y + t * dy)))
+        return best
+
+    def _background_plan(self, wp):
+        """Up to 80 m along the vehicle's own lane, ending before the next junction and before
+        the lane comes within 12 m of the connected vehicle's road or 9 m of the crossing car's
+        path. A driving background vehicle follows this plan and stops at its end, so it never
+        enters a junction and never meets either vehicle of the encounter."""
+        pts, cur = [], wp
+        while len(pts) < 16:
+            nxt = cur.next(5.0)
+            if not nxt:
+                break
+            cur = nxt[0]
+            loc = cur.transform.location
+            if cur.is_junction or abs(loc.x + 84.8) < 12.0 or self._cross_path_dist(loc.x, loc.y) < 9.0:
+                break
+            pts.append(carla.Location(loc.x, loc.y, loc.z + 0.5))
+        return pts
+
+    def _background_spots(self):
+        """Lane waypoints for the background road users, in the fixed order of BG_SEED."""
+        cx, cy = self._conflict_location.x, self._conflict_location.y
+        path_dist = self._cross_path_dist
+
+        cand = []
+        for wp in self._map.generate_waypoints(7.0):
+            loc = wp.transform.location
+            if wp.lane_type != carla.LaneType.Driving or wp.is_junction:
+                continue
+            d = math.hypot(loc.x - cx, loc.y - cy)
+            if d > self._bg_radius or d < 15.0 or abs(loc.x + 84.8) < 9.0 or path_dist(loc.x, loc.y) < 7.0:
+                continue
+            cand.append(wp)
+        cand.sort(key=lambda w: (round(w.transform.location.x, 1), round(w.transform.location.y, 1)))
+        random.Random(int(os.environ.get("BG_SEED", 7))).shuffle(cand)
+        spots = []
+        for wp in cand:
+            loc = wp.transform.location
+            # 7 m to the next vehicle in the same lane, 3.2 m to a vehicle in another lane
+            if all(math.hypot(loc.x - s.transform.location.x, loc.y - s.transform.location.y)
+                   >= (7.0 if (s.road_id, s.lane_id) == (wp.road_id, wp.lane_id) else 3.2) for s in spots):
+                spots.append(wp)
+        return spots
+
+    def _spawn_background(self):
+        if self._bg_n <= 0:
+            return
+        models = ["vehicle.audi.a2", "vehicle.toyota.prius", "vehicle.mini.cooper_s", "vehicle.seat.leon",
+                  "vehicle.nissan.micra", "vehicle.bmw.grandtourer", "vehicle.audi.tt", "vehicle.citroen.c3"]
+        cx, cy = self._conflict_location.x, self._conflict_location.y
+        spots = self._background_spots()
+        for wp in spots:
+            if len(self._bg_actors) >= self._bg_n:
+                break
+            loc = wp.transform.location
+            tf = carla.Transform(carla.Location(loc.x, loc.y, loc.z + 0.4), wp.transform.rotation)
+            try:
+                actor = CarlaDataProvider.request_new_actor(models[len(self._bg_actors) % len(models)], tf)
+            except Exception:   # the spot is taken by a map object: the next spot is used
+                actor = None
+            if actor is None:
+                continue
+            actor.set_simulate_physics(enabled=True)
+            actor.set_autopilot(False)
+            plan = self._background_plan(wp) if len(self._bg_actors) % 2 == 1 else []
+            plan = plan if len(plan) >= 5 else None        # under 25 m of free lane: the vehicle stands
+            if plan is None:
+                actor.apply_control(carla.VehicleControl(hand_brake=True))
+            self._bg_actors.append((actor, plan))
+        if len(self._bg_actors) < self._bg_n:
+            raise RuntimeError(f"BG_TRAFFIC={self._bg_n}: only {len(self._bg_actors)} background road users fit "
+                               f"({len(spots)} spots within {self._bg_radius:.0f} m)")
+        print(f"[SCENARIO_3] background road users: {len(self._bg_actors)} "
+              f"({sum(1 for _, pl in self._bg_actors if pl)} driving at {self._bg_speed} m/s, {len(spots)} spots)", flush=True)
 
     def _build_vehicle_sequences(self, use_trigger: bool):
         """
@@ -455,6 +565,8 @@ class Scenario_3(BasicScenario):
 
         sequences = []
         for i in range(self.num_vehicle):
+            if i > 0 and not self._occluders:
+                continue
             actor = self.other_actors[i]
             transform = getattr(self, f"car_0{i + 1}_visible")
             velocity = self.oncoming_speed_mps if i == 0 else getattr(self, f"vehicle_0{i + 1}_velocity")
@@ -506,6 +618,17 @@ class Scenario_3(BasicScenario):
         root = py_trees.composites.Parallel(
             "Parallel Behavior", policy=py_trees.common.ParallelPolicy.SUCCESS_ON_ONE)
         for seq in sequences:
+            root.add_child(seq)
+        for k, (actor, plan) in enumerate(self._bg_actors):
+            if not plan:
+                continue
+            seq = py_trees.composites.Sequence(f"Background_{k:03d}")
+            if use_trigger and self._trigger_tta is not None:
+                seq.add_child(InTimeToArrivalToLocation(
+                    self.ego_vehicles[0], self._trigger_tta, self._conflict_location))
+            seq.add_child(WaypointFollower(actor, self._bg_speed, plan=plan, avoid_collision=True))
+            seq.add_child(StopVehicle(actor, 1.0))
+            seq.add_child(Idle())
             root.add_child(seq)
         root.add_child(termination)
         return root

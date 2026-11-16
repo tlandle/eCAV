@@ -106,6 +106,15 @@ ap.add_argument("--see-v2x-replay", type=str, default=None, choices=["sequential
 ap.add_argument("--behavior-kv", nargs="*", type=str, default=[],
                 help="key=value pairs set on every CAV's behavior block (hazard_response, "
                      "speed_adapt_target_kmh, ttc_graded_horizon_s); value parsed like --edge-kv")
+ap.add_argument("--vehicle-state", type=str, default=None, choices=["gt_visible", "gt_all"],
+                help="Run every vehicle without its perception stack, on simulator ground truth: gt_visible keeps the "
+                     "vehicles within the LiDAR range that are in line of sight of the roof sensor position, gt_all "
+                     "every vehicle in the world. Recorded as config_vehicle_state; not part of the run directory "
+                     "name, so use a stamp of its own.")
+ap.add_argument("--lidar-noise-std", type=float, default=None,
+                help="LiDAR range noise standard deviation in metres (CARLA noise_stddev) for every LiDAR of the "
+                     "scenario, vehicles and RSUs. The scenario YAMLs carry 0.0; recorded as config_lidar_noise_std. "
+                     "Not part of the run directory name: use a stamp of its own.")
 ap.add_argument("--keep-visualize", action="store_true", default=False,
                 help="Keep the YAML camera/lidar windows; by default every run is headless (visualize 0/false)")
 ap.add_argument("--per-tick-age-log", action="store_true", default=False,
@@ -501,6 +510,34 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                     _headless(v)
         _headless(d)
 
+    if args.vehicle_state is not None:
+        n_veh = 0
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                perc = veh.setdefault("sensing", {}).setdefault("perception", {})
+                perc["activate"] = False
+                if args.vehicle_state == "gt_visible":
+                    perc["deactivate_range_m"] = float(perc.get("lidar", {}).get("range", 50))
+                    perc["deactivate_line_of_sight"] = True
+                n_veh += 1
+        print(f"    vehicle state {args.vehicle_state}: perception off on {n_veh} vehicles")
+
+    if args.lidar_noise_std is not None:
+        # every LiDAR of the scenario (vehicles and RSUs) gets the same range noise
+        def _lidar_noise(node):
+            n = 0
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if k == "lidar" and isinstance(v, dict) and "noise_stddev" in v:
+                        v["noise_stddev"] = float(args.lidar_noise_std); n += 1
+                    else:
+                        n += _lidar_noise(v)
+            elif isinstance(node, list):
+                for v in node:
+                    n += _lidar_noise(v)
+            return n
+        print(f"    setting lidar noise_stddev to {args.lidar_noise_std} m on {_lidar_noise(d)} LiDAR blocks")
+
     if speed_kmh is not None:
         if "edge_list" in d.get("scenario", {}):
             # Patch only the focal ego (vehicles[0]) — other egos keep default
@@ -692,6 +729,8 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if spd_kmh is not None: metrics["config_speed_kmh"] = spd_kmh
     if loss is not None: metrics["config_packet_loss_pct"] = loss
     if gps_noise is not None: metrics["config_gps_noise_stddev"] = gps_noise
+    if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
+    if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if gps_dropout is not None: metrics["config_gps_dropout_pct"] = gps_dropout
     metrics["config_compute_budget_ms"] = compute_budget  # None = unlimited
     if mgr_type is not None: metrics["config_manager_type"] = mgr_type
