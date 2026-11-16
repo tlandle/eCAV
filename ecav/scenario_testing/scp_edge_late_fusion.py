@@ -76,12 +76,22 @@ class SyncCrossLaunch:
         spd = math.hypot(vel.x, vel.y)
         dist = math.hypot(loc.x - self.CONFLICT[0], loc.y - self.CONFLICT[1])
         if spd > 1.0 and dist / spd <= self.lead:
+            # The check runs once per tick, so the time to the conflict point is already below the lead by up
+            # to one tick when the launch fires. The car starts that much farther along its path, so the lead
+            # of the run is the drawn value and not the value rounded to a tick.
+            adv = max(0.0, self.lead - dist / spd) * self.speed
+            if adv > 0.0:
+                tf = self.car.get_transform()
+                fwd = tf.get_forward_vector()
+                tf.location.x += fwd.x * adv
+                tf.location.y += fwd.y * adv
+                self.car.set_transform(tf)
             self.car.set_simulate_physics(True)
             self.car.enable_constant_velocity(carla.Vector3D(self.speed, 0.0, 0.0))
             self.done = True
-            print("[SYNC LAUNCH] step=%d ego=(%.1f,%.1f) v=%.2f tta=%.2f car=%d at (%.1f,%.1f)" % (
+            print("[SYNC LAUNCH] step=%d ego=(%.1f,%.1f) v=%.2f tta=%.2f car=%d at (%.1f,%.1f) advanced %.2f m" % (
                 step, loc.x, loc.y, spd, dist / spd, self.car.id, self.car.get_location().x,
-                self.car.get_location().y), flush=True)
+                self.car.get_location().y, adv), flush=True)
 
 
 def exec_scenario_runner(scenario_params):
