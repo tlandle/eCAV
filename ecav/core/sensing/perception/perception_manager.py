@@ -6,6 +6,7 @@ Perception module base.
 # Author: Runsheng Xu <rxx3386@ucla.edu>, tyler.landle <tlandle3@gatech.edu>`
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import math
 import os
 import weakref
 import sys
@@ -453,6 +454,15 @@ class PerceptionManager:
         # (deactivate_range_m) and the occlusions of the vehicle's own sensors and none of their
         # detection or tracking errors.
         self.deactivate_line_of_sight = bool(config_yaml.get('deactivate_line_of_sight', False))
+        # deactivate_error_model: with perception off, turn the ground-truth list in sensor view into
+        # the list a detector would report (misses and position error, perception_error_model.py).
+        # Unset: the list is exact.
+        self.error_model = None
+        _em = config_yaml.get('deactivate_error_model')
+        if _em:
+            from ecav.core.sensing.perception.perception_error_model import PerceptionErrorModel
+            self.error_model = PerceptionErrorModel(_em, seed=getattr(self, 'id', 0) or 0)
+        self._lidar_range_m = float((config_yaml.get('lidar') or {}).get('range', 50))
         in_docker = os.environ.get('IS_DOCKER', '0') == '1'
         self.camera_visualize = 0 if in_docker else config_yaml['camera']['visualize']
         self.camera_num = config_yaml['camera']['num']
@@ -867,6 +877,8 @@ class PerceptionManager:
         # add traffic light
         objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
+        if os.environ.get('PERC_TRACE') and self.vehicle is not None:
+            self._perception_trace(objects)
 
         return objects
 
@@ -1044,6 +1056,75 @@ class PerceptionManager:
         objects['vehicles'] = filtered_vehicles
         return objects
 
+    def _visible_rays(self, target):
+        """How many of the five rays of _in_line_of_sight reach the target (0 to 5)."""
+        world = self.carla_world
+        own = self.vehicle.get_transform()
+        origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
+        tf = target.get_transform()
+        bb = target.bounding_box
+        ground = (carla.CityObjectLabel.Roads, carla.CityObjectLabel.RoadLines,
+                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain)
+        n = 0
+        for sx, sy in ((0, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
+            point = tf.transform(carla.Location(bb.location.x + sx * bb.extent.x * 0.9,
+                                                bb.location.y + sy * bb.extent.y * 0.9, bb.location.z))
+            reach = origin.distance(point)
+            blocked = False
+            for hit in world.cast_ray(origin, point):
+                d = origin.distance(hit.location)
+                if d < 3.0 or d > reach - 2.5 or hit.label in ground:
+                    continue
+                blocked = True
+                break
+            if not blocked:
+                n += 1
+        return n
+
+    def _perception_trace(self, objects):
+        """PERC_TRACE=1: one line per simulator vehicle within the LiDAR range, with its distance,
+        its unblocked rays, whether a detection of this call lies within 3 m of its centre, and
+        the radial and tangential position error of that detection. One line per detection that
+        matches no vehicle. Input of scripts/ispass/perception_model_fit.py."""
+        try:
+            own = self.vehicle.get_transform().location
+            dets = [(o.location.x, o.location.y) for o in objects.get('vehicles', [])]
+            free = set(range(len(dets)))
+            rows = []
+            for v in self.carla_world.get_actors().filter("*vehicle*"):
+                if v.id == self.id:
+                    continue
+                d = self.dist(v)
+                if d >= self._lidar_range_m:
+                    continue
+                loc = v.get_location()
+                rows.append((d, v, loc))
+            log = logging.getLogger("DetTrace")
+            for d, v, loc in sorted(rows, key=lambda r: r[0]):
+                vis = self._visible_rays(v)
+                best, bd = None, 3.0
+                for k in free:
+                    dd = math.hypot(dets[k][0] - loc.x, dets[k][1] - loc.y)
+                    if dd < bd:
+                        best, bd = k, dd
+                er = et = float('nan')
+                if best is not None:
+                    free.discard(best)
+                    ux, uy = loc.x - own.x, loc.y - own.y
+                    n = math.hypot(ux, uy) or 1.0
+                    ux, uy = ux / n, uy / n
+                    ex, ey = dets[best][0] - loc.x, dets[best][1] - loc.y
+                    er, et = ex * ux + ey * uy, -ex * uy + ey * ux
+                vel = v.get_velocity()
+                log.warning("[PERC-TRACE] call=%d ego=%s actor=%d d=%.1f vis=%d det=%d er=%.2f et=%.2f v=%.1f",
+                            self.count, self.id, v.id, d, vis, int(best is not None), er, et,
+                            math.hypot(vel.x, vel.y))
+            for k in sorted(free):
+                log.warning("[PERC-TRACE] call=%d ego=%s actor=-1 d=%.1f vis=0 det=1 er=nan et=nan v=nan",
+                            self.count, self.id, math.hypot(dets[k][0] - own.x, dets[k][1] - own.y))
+        except Exception as e:
+            logging.getLogger("DetTrace").warning("[PERC-TRACE] failed: %s", e)
+
     def _in_line_of_sight(self, target):
         """True if a ray from the roof sensor position reaches the target's body before another
         object. Rays go to the centre and the four mid-height corners of the bounding box."""
@@ -1094,7 +1175,14 @@ class PerceptionManager:
 
         vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and
                         v.id != self.id and v.id != call_id]
-        if self.deactivate_line_of_sight:
+        _errors = None
+        if self.error_model is not None:
+            # the model needs the visible share of each vehicle, so the rays are counted here
+            _seen = [(v, self._visible_rays(v)) for v in vehicle_list]
+            _seen = [(v, n) for v, n in _seen if n > 0 or not self.deactivate_line_of_sight]
+            _errors = self.error_model.apply(self.count, [(v.id, self.dist(v), max(n, 1)) for v, n in _seen])
+            vehicle_list = [v for v, _ in _seen if v.id in _errors]
+        elif self.deactivate_line_of_sight:
             vehicle_list = [v for v in vehicle_list if self._in_line_of_sight(v)]
 
         # use semantic lidar to filter out vehicles out of the range
@@ -1119,6 +1207,17 @@ class PerceptionManager:
                     v,
                     None,
                     self.cav_world.sumo2carla_ids) for v in vehicle_list]
+
+        if _errors:
+            # position error of the model: radial (along the line from the sensor) and tangential
+            own = self.vehicle.get_transform().location
+            for ov in vehicle_list:
+                er, et = _errors.get(ov.carla_id, (0.0, 0.0))
+                ux, uy = ov.location.x - own.x, ov.location.y - own.y
+                n = math.hypot(ux, uy) or 1.0
+                ux, uy = ux / n, uy / n
+                ov.location.x += er * ux - et * uy
+                ov.location.y += er * uy + et * ux
 
         objects.update({'vehicles': vehicle_list})
 
