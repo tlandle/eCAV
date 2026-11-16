@@ -7,6 +7,8 @@
 #   gt_vis   simulator ground truth clipped to the vehicle's LiDAR range and to line of sight from its roof sensor
 #            position (test_runner --vehicle-state gt_visible): the visibility of the sensors, none of their errors
 #   onboard  camera and LiDAR detection and tracking on the vehicle
+#   gt_all   (optional, ARMS) every vehicle of the simulator, no range or line of sight limit: the state a simulator
+#            hands a vehicle when its perception is off
 # Two encounters:
 #   open     the parked trucks are removed (OCCLUDERS=0): the crossing car is in the vehicle's sensor view
 #   occ      the occluded junction: the crossing car is hidden until the junction
@@ -36,6 +38,7 @@ TTA="${TTA:-5.12}"
 HIDE=5946265674966002516,6337000252949488035,6180885027493966721,16537817839145246163,16697564674962583843,6207999516011777620,2654350897737485752,16235826325815247835,4815558027215542490,1415910357169383613,4380901688286554368,5034201441472765163,8005252838334864825,10145647440276496614,9929740016222508988,7518384223988529276
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
+  gt_all)  echo "--vehicle-state gt_all" ;;
   onboard) echo "" ;; esac; }
 enc_env() { case "$1" in
   open) echo "OCCLUDERS=0" ;;

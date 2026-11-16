@@ -20,8 +20,9 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.abspath(os.pat
 sys.path.insert(0, HERE)
 import fidelity_reduce as fr   # noqa: E402
 DT = 0.05
-ARMS = ["gt_vis", "onboard"]; ENCS = ["open", "occ"]
-NAMES = {"gt_vis": "ground truth in view", "onboard": "camera and LiDAR"}
+ARMS = ["gt_all", "gt_vis", "onboard"]; ENCS = ["open", "occ"]
+NAMES = {"gt_all": "all simulator state", "gt_vis": "ground truth in view", "onboard": "camera and LiDAR"}
+STATE = {"gt_all": "gt_all", "gt_vis": "gt_visible", "onboard": None}
 
 
 def window_stats(pt):
@@ -63,7 +64,7 @@ def load(stamp, ms):
                     run_dir = os.path.dirname(r["path"]); pt = os.path.join(run_dir, "evaluation_output", "per_tick_age.csv")
                     lp = os.path.join(run_dir, "runner_stdout.txt"); log = open(lp, errors="replace").read() if os.path.exists(lp) else ""
                     bg = re.search(r"background road users: (\d+)", log); meta = json.load(open(r["path"]))
-                    state_ok = (meta.get("config_vehicle_state") == "gt_visible") == (arm == "gt_vis")
+                    state_ok = meta.get("config_vehicle_state") == STATE[arm]
                     valid = (not r.get("bad")) and "Traceback" not in log and bg is not None and int(bg.group(1)) == m and os.path.exists(pt) and state_ok
                     ws = window_stats(pt) if valid else None
                     att = fr.attribution(pt) if valid else {}
@@ -71,7 +72,8 @@ def load(stamp, ms):
                     fb = int(r.get("focal_fp_episodes", 0) > 0 or att.get("false_brake", 0)) if valid else 0
                     col = int(r.get("focal_collisions", 0) > 0) if valid else 0
                     out.append(dict(enc=enc, m=m, arm=arm, rep=int(r["rep"]), valid=int(valid), collided=col, fbrake=fb,
-                                    s_op=int(valid and not col and not fb), **(ws or {})))
+                                    s_op=int(valid and not col and not fb), onset_s=att.get("tp_onset", float("nan")) / 1000.0,
+                                    min_sep=att.get("min_sep", float("nan")), **(ws or {})))
     return out
 
 
@@ -88,18 +90,24 @@ def summarize(rows, ms):
                                  false_brake=(sum(r["fbrake"] for r in ok) / n) if n else float("nan"),
                                  success=(sum(r["s_op"] for r in ok) / n) if n else float("nan"),
                                  coverage=mean("coverage"), first_s=mean("first_s"), gap_ms=mean("gap_ms"), ids=mean("ids"), tracks=mean("tracks"),
-                                 brakes=mean("brakes"), min_speed=mean("min_speed"), tick_ms=mean("tick_ms")))
+                                 brakes=mean("brakes"), min_speed=mean("min_speed"), tick_ms=mean("tick_ms"),
+                                 collisions=sum(r["collided"] for r in ok), onset_s=mean("onset_s"), min_sep=mean("min_sep")))
     return summ
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser(); ap.add_argument("stamp"); ap.add_argument("--ms", type=int, nargs="*", default=[4, 8, 16, 32, 64, 128]); ap.add_argument("--csv")
+    ap = argparse.ArgumentParser(); ap.add_argument("stamp"); ap.add_argument("--ms", type=int, nargs="*", default=[4, 8, 16, 32, 64, 128]); ap.add_argument("--csv"); ap.add_argument("--runs-csv", help="one row per run")
     a = ap.parse_args(); rows = load(a.stamp, a.ms); summ = summarize(rows, a.ms)
-    print(f"{'enc':5s} {'M':>4} {'arm':22s} runs valid  no coll [95% CI]    f.brake  success  seen  first s  gap ms  ids  tracks  brakes  min v  tick ms")
+    print(f"{'enc':5s} {'M':>4} {'arm':22s} runs valid  no coll [95% CI]    f.brake  success  seen  first s  gap ms  ids  tracks  brakes  min v  tick ms  onset s  min sep m")
     for s in summ:
         print(f"{s['enc']:5s} {s['m']:4d} {NAMES[s['arm']]:22s} {s['runs']:4d} {s['valid']:5d}  {s['no_collision']:5.2f} [{s['lo']:.2f},{s['hi']:.2f}]  {s['false_brake']:7.2f}  "
-              f"{s['success']:7.2f}  {s['coverage']:4.2f}  {s['first_s']:7.2f}  {s['gap_ms']:6.0f}  {s['ids']:3.1f}  {s['tracks']:6.1f}  {s['brakes']:6.1f}  {s['min_speed']:5.1f}  {s['tick_ms']:7.0f}")
+              f"{s['success']:7.2f}  {s['coverage']:4.2f}  {s['first_s']:7.2f}  {s['gap_ms']:6.0f}  {s['ids']:3.1f}  {s['tracks']:6.1f}  {s['brakes']:6.1f}  {s['min_speed']:5.1f}  {s['tick_ms']:7.0f}  {s['onset_s']:7.2f}  {s['min_sep']:9.1f}")
     if a.csv:
         with open(a.csv, "w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=list(summ[0].keys())); w.writeheader(); w.writerows(summ)
         print("csv:", a.csv)
+    if a.runs_csv:
+        keys = ["enc", "m", "arm", "rep", "valid", "collided", "fbrake", "onset_s", "min_sep", "first_s", "tick_ms"]
+        with open(a.runs_csv, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=keys, extrasaction="ignore"); w.writeheader(); w.writerows(rows)
+        print("runs csv:", a.runs_csv)
