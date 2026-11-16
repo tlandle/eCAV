@@ -48,6 +48,13 @@ HIDE=$HIDE,6036580141546007417,3663578618683831388,12050226332585529187,49305593
 MODEL="${MODEL:-paper_ispass/perception_model.json}"; TRACE="${TRACE:-0}"
 noise() { [[ -n "${NOISE:-}" ]] && { echo "$NOISE"; return; }
   "$PY" -c "import json,sys; m=json.load(open(sys.argv[1]))['independent']; print(m['p_miss'], m['pos_sigma_m'])" "$MODEL"; }
+# FOV: horizontal field of view of every vehicle camera in degrees (unset: the code default of 70, which leaves 20
+#      degree gaps between the four cameras). GT_CAM=1: the ground-truth arms are also clipped to the camera coverage.
+# SYNC_LAUNCH=<speed_mps>: the main process launches the crossing car in simulation time, TTA seconds before the
+#      vehicle reaches the conflict point, at this constant speed (the scenario runner's wall-clock trigger is off).
+FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
+rig_args() { [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
   gt_vis)   echo "--vehicle-state gt_visible" ;;
   gt_all)   echo "--vehicle-state gt_all" ;;
@@ -61,9 +68,9 @@ enc_env() { case "$1" in
 run_cell() {  # encounter arm M reps
   local cmd=(test_runner.py -t scp_edge_late_fusion --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --ego-counts 1 --repetitions "$4" --per-tick-age-log --self-id-radius 1
-             --carla-port "$PORT" --stamp "${STAMP}_$1_$2_m$3" $(arm_args "$2") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
+             --carla-port "$PORT" --stamp "${STAMP}_$1_$2_m$3" $(arm_args "$2") $(rig_args "$2") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
              --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
-             --scenario-env CROSS_TRIGGER_TTA=$SPEED:$TTA HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP
+             --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP
                             BG_TRAFFIC=$3 $(enc_env "$1") $(arm_env "$2"))
   echo "$(date '+%F %T') enc=$1 arm=$2 M=$3 reps=$4"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
@@ -76,7 +83,7 @@ if [[ "$DRY" != "--dry-run" ]]; then
     echo "a runner or CARLA is active; aborting"; exit 1; fi
   if ls ecav/scenario_testing/config_yaml/*.yaml.bak >/dev/null 2>&1; then echo "a patched YAML backup remains; aborting"; exit 1; fi
   mkdir -p experiment_results/campaign_meta
-  { echo "stamp=$STAMP stage=$STAGE reps=$REPS ms=$MS arms=$ARMS encs=$ENCS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA trace=$TRACE model=$MODEL"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_density.txt"
+  { echo "stamp=$STAMP stage=$STAGE reps=$REPS ms=$MS arms=$ARMS encs=$ENCS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA trace=$TRACE model=$MODEL fov=$FOV gt_cam=$GT_CAM sync_launch=$SYNC_LAUNCH"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_density.txt"
 fi
 case "$STAGE" in
   gate) for e in $ENCS; do for m in $MS; do for a in $ARMS; do run_cell "$e" "$a" "$m" "${GATE_REPS:-1}"; done; done; done ;;

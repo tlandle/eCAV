@@ -30,15 +30,22 @@ TRACE="${TRACE:-0}"   # 1: detection trace of the camera and LiDAR arm (PERC_TRA
 variant_env() { [[ "$BG" != 0 ]] && echo -n "BG_TRAFFIC=$BG "; [[ -n "$TAIL_Y" ]] && echo -n "QUEUE_TAIL_Y=$TAIL_Y "; [[ "$TRACE" == 1 ]] && echo -n "PERC_TRACE=1 "; echo -n "${EXTRA_ENV:-}"; }   # EXTRA_ENV: further KEY=VALUE pairs for the scenario process
 # signal assemblies of the conflict junction and of the junction the column passes before it (density_sweep.sh)
 HIDE=5946265674966002516,6337000252949488035,6180885027493966721,16537817839145246163,16697564674962583843,6207999516011777620,2654350897737485752,16235826325815247835,4815558027215542490,1415910357169383613,4380901688286554368,5034201441472765163,8005252838334864825,10145647440276496614,9929740016222508988,7518384223988529276,6036580141546007417,3663578618683831388,12050226332585529187,4930559307141010704,4126283349862587052,7662298469676198566,1410771669709828659,8314392846370487945,585006360711733766,8374940585021404564,8209796319443785099,3273669445552054494
+# FOV: horizontal field of view of every vehicle camera in degrees (unset: the code default of 70, which leaves 20
+#      degree gaps between the four cameras). GT_CAM=1: the ground-truth arms are also clipped to the camera coverage.
+# SYNC_LAUNCH=<speed_mps>: the main process launches the crossing car in simulation time, TTA seconds before the
+#      vehicle reaches the conflict point, at this constant speed (the scenario runner's wall-clock trigger is off).
+FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
+rig_args() { [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
   onboard) echo "" ;; esac; }
 run_cell() {  # arm N reps
   local cmd=(test_runner.py -t scp_column --ego-counts "$2" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --repetitions "$3" --per-tick-age-log --self-id-radius 1
-             --carla-port "$PORT" --stamp "${STAMP}_$1_n$2" $(arm_args "$1") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
+             --carla-port "$PORT" --stamp "${STAMP}_$1_n$2" $(arm_args "$1") $(rig_args "$1") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
              --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
-             --scenario-env CROSS_TRIGGER_TTA=$SPEED:$TTA HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP OCCLUDERS=0 $(variant_env))
+             --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP OCCLUDERS=0 $(variant_env))
   echo "$(date '+%F %T') arm=$1 N=$2 reps=$3"
   local t0=$(date +%s)
   "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3
@@ -48,7 +55,7 @@ if pgrep -f "^$PY test_runner.py" >/dev/null || pgrep -f "^$HOME/carla-0.9.15/Ca
   echo "a runner or CARLA is active; aborting"; exit 1; fi
 if ls ecav/scenario_testing/config_yaml/*.yaml.bak >/dev/null 2>&1; then echo "a patched YAML backup remains; aborting"; exit 1; fi
 mkdir -p experiment_results/campaign_meta
-{ echo "stamp=$STAMP stage=$STAGE reps=$REPS ns=$NS arms=$ARMS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA bg=$BG tail_y=$TAIL_Y max_step=$MAX_STEP"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_column.txt"
+{ echo "stamp=$STAMP stage=$STAGE reps=$REPS ns=$NS arms=$ARMS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA bg=$BG tail_y=$TAIL_Y max_step=$MAX_STEP fov=$FOV gt_cam=$GT_CAM sync_launch=$SYNC_LAUNCH"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_column.txt"
 case "$STAGE" in
   gate) for n in $NS; do for a in $ARMS; do run_cell "$a" "$n" "${GATE_REPS:-1}"; done; done ;;
   full) for n in $NS; do for a in $ARMS; do run_cell "$a" "$n" "$REPS"; done; done ;;
