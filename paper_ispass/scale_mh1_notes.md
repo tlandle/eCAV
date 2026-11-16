@@ -12,7 +12,7 @@
 | planner option (one traffic-light request) | done: output unchanged, no gain |
 | OpenCDA perception at 64 | done: 15.2 s per tick |
 | OpenCDA perception at 128 | does not start: simulator segmentation fault at 22.1 GB GPU memory, twice |
-| CARLA secondary servers | step 1 on the A10 failed its validity check (sensor timing and LiDAR content change), mode rejected, NDm part not run |
+| CARLA secondary servers | first test (Nov 13) failed its validity check because the secondary ran a variable time step; Nov 15: the secondary takes the fixed step through its RPC port (section below), checked with one vehicle, 8-vehicle validity check and scale rows not yet run |
 | V2Xverse | done: one driving vehicle (two do not run in the platform's planner) |
 | AutoCastSim | done to 128 background vehicles, 256 not run |
 
@@ -133,7 +133,7 @@ Simulator host during the ticks: outbound 227 MB/s median (1.8 Gbit/s, max 248 M
 Which stage bounds the tick with two or more replicas: the simulator's game thread. After a world tick it spends most of the next tick period reading back and sending 160 sensor frames (the last camera frame leaves 0.9 s after the tick), and while it does so it answers client requests slowly, which is where the client's step goes. It is not GPU rendering throughput (43 %), not the network transfer of the raw frames (8 % of the link), and not the inference service.
 
 What would move it:
-- CARLA secondary servers (multi-GPU) would take the sensor readback off the primary's game thread. This is the change that addresses the bound. It was tested and is not usable on the packaged build (section below).
+- CARLA secondary servers (multi-GPU) would take the sensor readback off the primary's game thread. This is the change that addresses the bound. The first test failed on the secondary's time step, and a fixed step can be set through its RPC port (section below, Nov 15 correction).
 - One simulator request instead of two in `traffic_light_manager` was tried (next section): it does not shorten the tick, because the wait is for the simulator and is paid once.
 - Clients on the simulator host would not help: the network is at 8 % of its ceiling, and the single-host rows are slower.
 - Compressed or lower-rate sensor streams are excluded (no change to quality, resolution or rate in a measured row).
@@ -173,6 +173,8 @@ Attempts to give the secondary the simulation's fixed step, none effective:
 - `bUseFixedFrameRate` and `FixedFrameRate=20` through `-ini`: no change.
 
 Result: on this build secondary servers change sensor content (LiDAR sweeps eight times larger), sensor timing (frames many ticks late) and the closed-loop outcome. The mode is rejected for measured rows. No row in the tables uses it. Making it usable needs a change in CARLA (the secondary adopting the primary's fixed step, and the primary waiting for the secondaries' frames), that is a source build, which was not started. Secondaries on carla-ndm were therefore not set up, and CARLA was not installed there. Logs: `experiment_results/ispass_scale/mgs_ref1_n8`, `mgs_sec1_n8`, `mgs_sec2_n8`, `_mh1_debug/secondary`.
+
+**Correction, Nov 15.** The conclusion above that a source build is needed is wrong. The secondary resets its fixed delta at `NotifyBeginEpisode`, and `get_world()` on its port times out, but the port answers raw msgpack-rpc calls. `scripts/ispass/carla_secondary_fixed_step.py` calls `set_episode_settings` on the secondary with a fixed delta of 0.05 s (parameters `[[False]] + args`, optional values encoded as `[True, value]`). With the call made after start-up, one vehicle with four cameras and one LiDAR on atlas gets sensor time stamps 0.05 s apart and LiDAR frames of 428,432 bytes, equal to the one-server reference. `launch_scale.sh -G` runs the script on every secondary after start-up. Not yet done: the 8-vehicle validity check of step 1, CARLA on the eight-GPU host, and the perception scale rows with one secondary per GPU. No row in the tables uses secondaries until those pass.
 
 ## OpenCDA perception rows extended
 
