@@ -527,16 +527,25 @@ class Scenario_3(BasicScenario):
             return
         ego_x = self.ego_vehicles[0].get_transform().location.x
         wp = self._map.get_waypoint(carla.Location(ego_x, float(self._queue_tail_y), 0.5))
-        loc = wp.transform.location
-        tf = carla.Transform(carla.Location(loc.x, loc.y, loc.z + 0.4), wp.transform.rotation)
-        actor = CarlaDataProvider.request_new_actor("vehicle.toyota.prius", tf)
-        if actor is None:
-            raise RuntimeError(f"QUEUE_TAIL_Y={self._queue_tail_y}: the stopped vehicle did not spawn")
-        actor.set_simulate_physics(enabled=True)
-        actor.set_autopilot(False)
-        actor.apply_control(carla.VehicleControl(hand_brake=True))
-        self._queue_actors.append(actor)
-        print(f"[SCENARIO_3] queue tail: stopped vehicle {actor.id} at ({loc.x:.1f}, {loc.y:.1f})", flush=True)
+        # QUEUE_TAIL_LANES=2: a second stopped vehicle in the neighbouring lane of the same direction (the
+        # column study fills that lane from its ninth vehicle on)
+        lanes = [wp]
+        if int(os.environ.get("QUEUE_TAIL_LANES", 1) or 1) >= 2:
+            for nb in (wp.get_right_lane(), wp.get_left_lane()):
+                if nb is not None and nb.lane_type == carla.LaneType.Driving and nb.lane_id * wp.lane_id > 0:
+                    lanes.append(nb)
+                    break
+        for k, w in enumerate(lanes):
+            loc = w.transform.location
+            tf = carla.Transform(carla.Location(loc.x, loc.y, loc.z + 0.4), w.transform.rotation)
+            actor = CarlaDataProvider.request_new_actor("vehicle.toyota.prius" if k == 0 else "vehicle.audi.a2", tf)
+            if actor is None:
+                raise RuntimeError(f"QUEUE_TAIL_Y={self._queue_tail_y}: the stopped vehicle did not spawn")
+            actor.set_simulate_physics(enabled=True)
+            actor.set_autopilot(False)
+            actor.apply_control(carla.VehicleControl(hand_brake=True))
+            self._queue_actors.append(actor)
+            print(f"[SCENARIO_3] queue tail: stopped vehicle {actor.id} at ({loc.x:.1f}, {loc.y:.1f})", flush=True)
 
     def _spawn_background(self):
         if self._bg_n <= 0:

@@ -1127,11 +1127,16 @@ class PerceptionManager:
     def _perception_trace(self, objects):
         """PERC_TRACE=1: one line per simulator vehicle within the LiDAR range, with its distance,
         its unblocked rays, whether a detection of this call lies within 3 m of its centre, and
-        the radial and tangential position error of that detection. One line per detection that
-        matches no vehicle. Input of scripts/ispass/perception_model_fit.py."""
+        the radial and tangential position error of that detection, and its bearing from the
+        vehicle's heading. One line per detection that matches no vehicle. Input of scripts/ispass/perception_model_fit.py."""
         try:
-            own = self.vehicle.get_transform().location
+            own_tf = self.vehicle.get_transform()
+            own = own_tf.location
             dets = [(o.location.x, o.location.y) for o in objects.get('vehicles', [])]
+
+            def _bearing(x, y):
+                # degrees from the vehicle's heading, in the simulator's sense of yaw, -180 to 180
+                return (math.degrees(math.atan2(y - own.y, x - own.x)) - own_tf.rotation.yaw + 180.0) % 360.0 - 180.0
             free = set(range(len(dets)))
             rows = []
             for v in self.carla_world.get_actors().filter("*vehicle*"):
@@ -1159,12 +1164,13 @@ class PerceptionManager:
                     ex, ey = dets[best][0] - loc.x, dets[best][1] - loc.y
                     er, et = ex * ux + ey * uy, -ex * uy + ey * ux
                 vel = v.get_velocity()
-                log.warning("[PERC-TRACE] call=%d ego=%s actor=%d d=%.1f vis=%d det=%d er=%.2f et=%.2f v=%.1f",
+                log.warning("[PERC-TRACE] call=%d ego=%s actor=%d d=%.1f vis=%d det=%d er=%.2f et=%.2f v=%.1f b=%.0f",
                             self.count, self.id, v.id, d, vis, int(best is not None), er, et,
-                            math.hypot(vel.x, vel.y))
+                            math.hypot(vel.x, vel.y), _bearing(loc.x, loc.y))
             for k in sorted(free):
-                log.warning("[PERC-TRACE] call=%d ego=%s actor=-1 d=%.1f vis=0 det=1 er=nan et=nan v=nan",
-                            self.count, self.id, math.hypot(dets[k][0] - own.x, dets[k][1] - own.y))
+                log.warning("[PERC-TRACE] call=%d ego=%s actor=-1 d=%.1f vis=0 det=1 er=nan et=nan v=nan b=%.0f",
+                            self.count, self.id, math.hypot(dets[k][0] - own.x, dets[k][1] - own.y),
+                            _bearing(dets[k][0], dets[k][1]))
         except Exception as e:
             logging.getLogger("DetTrace").warning("[PERC-TRACE] failed: %s", e)
 

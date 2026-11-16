@@ -26,7 +26,7 @@ import argparse, collections, glob, json, math, os, re, sys
 import numpy as np
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-PAT = re.compile(r"\[PERC-TRACE\] call=(\d+) ego=(\S+) actor=(-?\d+) d=([\d.]+) vis=(\d) det=(\d) er=(\S+) et=(\S+) v=(\S+)")
+PAT = re.compile(r"\[PERC-TRACE\] call=(\d+) ego=(\S+) actor=(-?\d+) d=([\d.]+) vis=(\d) det=(\d) er=(\S+) et=(\S+) v=(\S+)(?: b=(-?\d+))?")
 DIST = [0, 10, 20, 30, 40, 50]; VIS = [2, 4, 5]; MIN = 30
 
 
@@ -34,7 +34,7 @@ def dbin(d): return min(int(d // 10), len(DIST) - 2)
 def vbin(v): return next(i for i, hi in enumerate(VIS) if v <= hi)
 
 
-def load(stamps):
+def load(stamps, sector=None):
     """Per run: {(ego, actor): [(call, d, vis, det, er, et)]} and the unmatched detections per call."""
     runs = []
     for st in stamps:
@@ -45,6 +45,7 @@ def load(stamps):
                 if not m: continue
                 call, ego, actor, d, vis, det = int(m.group(1)), m.group(2), int(m.group(3)), float(m.group(4)), int(m.group(5)), int(m.group(6))
                 calls.add((ego, call))
+                if sector is not None and (m.group(10) is None or abs(float(m.group(10))) > sector / 2.0): continue   # outside the forward sector
                 if actor < 0: fp[(ego, call)] += 1; continue
                 er = float(m.group(7)); et = float(m.group(8))
                 seq[(ego, actor)].append((call, d, vis, det, er, et))
@@ -54,7 +55,8 @@ def load(stamps):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("stamps", nargs="+"); ap.add_argument("--out", required=True); ap.add_argument("--curves")
-    a = ap.parse_args(); runs = load(a.stamps)
+    ap.add_argument("--sector", type=float, default=None, help="keep only vehicles and detections within this forward sector in degrees (traces with a bearing), e.g. 81 for a comparison with one forward camera")
+    a = ap.parse_args(); runs = load(a.stamps, a.sector)
     if not runs: sys.exit("no [PERC-TRACE] lines under the given stamps")
     nd, nv = len(DIST) - 1, len(VIS)
     cnt = {k: np.zeros((nd, nv, 2)) for k in ("first", "dd", "dm")}       # [..., 0] trials, [..., 1] detections
