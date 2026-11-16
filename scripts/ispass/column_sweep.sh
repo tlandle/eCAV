@@ -35,7 +35,9 @@ HIDE=5946265674966002516,6337000252949488035,6180885027493966721,165378178391452
 # SYNC_LAUNCH=<speed_mps>: the main process launches the crossing car in simulation time, TTA seconds before the
 #      vehicle reaches the conflict point, at this constant speed (the scenario runner's wall-clock trigger is off).
 FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
-rig_args() { [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+# GAP_JITTER=<m>: every follower starts up to this much farther behind its predecessor, drawn per repetition.
+GAP_JITTER="${GAP_JITTER:-}"
+rig_args() { [[ -n "$GAP_JITTER" ]] && echo -n "--spawn-gap-jitter $GAP_JITTER "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
@@ -55,7 +57,7 @@ if pgrep -f "^$PY test_runner.py" >/dev/null || pgrep -f "^$HOME/carla-0.9.15/Ca
   echo "a runner or CARLA is active; aborting"; exit 1; fi
 if ls ecav/scenario_testing/config_yaml/*.yaml.bak >/dev/null 2>&1; then echo "a patched YAML backup remains; aborting"; exit 1; fi
 mkdir -p experiment_results/campaign_meta
-{ echo "stamp=$STAMP stage=$STAGE reps=$REPS ns=$NS arms=$ARMS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA bg=$BG tail_y=$TAIL_Y max_step=$MAX_STEP fov=$FOV gt_cam=$GT_CAM sync_launch=$SYNC_LAUNCH"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_column.txt"
+{ echo "stamp=$STAMP stage=$STAGE reps=$REPS ns=$NS arms=$ARMS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA bg=$BG tail_y=$TAIL_Y max_step=$MAX_STEP fov=$FOV gt_cam=$GT_CAM sync_launch=$SYNC_LAUNCH gap_jitter=$GAP_JITTER"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_column.txt"
 case "$STAGE" in
   gate) for n in $NS; do for a in $ARMS; do run_cell "$a" "$n" "${GATE_REPS:-1}"; done; done ;;
   full) for n in $NS; do for a in $ARMS; do run_cell "$a" "$n" "$REPS"; done; done ;;

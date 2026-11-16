@@ -113,6 +113,11 @@ ap.add_argument("--vehicle-state", type=str, default=None, choices=["gt_visible"
                      "error model: independent misses and white position noise (--perception-noise), or the table "
                      "fitted to a detection trace of the full pipeline (--perception-model). Recorded as "
                      "config_vehicle_state; not part of the run directory name, so use a stamp of its own.")
+ap.add_argument("--spawn-gap-jitter", type=float, default=None, metavar="J_M",
+                help="Column scenarios: every vehicle after the first starts up to J_M metres farther behind its "
+                     "predecessor than the scenario file says (uniform, seeded by the repetition), so repetitions "
+                     "differ in their start gaps. Vehicles are grouped by lane (start x). Recorded as "
+                     "config_spawn_gap_jitter with the gaps drawn.")
 ap.add_argument("--camera-fov", type=float, default=None,
                 help="Horizontal field of view in degrees of every vehicle camera (perception.camera.fov). The code "
                      "default is 70: four cameras at 0, 90, 180 and 270 degrees then leave 20 degree gaps between "
@@ -550,6 +555,23 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 n_veh += 1
         print(f"    vehicle state {args.vehicle_state}: perception off on {n_veh} vehicles")
 
+    if args.spawn_gap_jitter:
+        import random as _random
+        _rng = _random.Random(7919 * int(rep) + 13)
+        _extra = {}          # lane (rounded start x) -> accumulated extra distance
+        _drawn = []
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                sp = veh.get("spawn_position")
+                if not sp:
+                    continue
+                lane = round(float(sp[0]))
+                _extra[lane] = _extra.get(lane, 0.0) + _rng.uniform(0.0, float(args.spawn_gap_jitter))
+                # the column heads north (yaw 90): farther behind is a smaller y
+                sp = list(sp); sp[1] = round(float(sp[1]) - _extra[lane], 2); veh["spawn_position"] = sp
+                _drawn.append(round(_extra[lane], 2))
+        print(f"    start gaps: accumulated extra distance per follower {_drawn}")
+
     if args.camera_fov is not None:
         n_cam = 0
         for edge in d.get("scenario", {}).get("edge_list", []):
@@ -774,6 +796,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
+    if args.spawn_gap_jitter: metrics["config_spawn_gap_jitter"] = args.spawn_gap_jitter
     if args.gt_camera_coverage: metrics["config_gt_camera_coverage"] = True
     if args.perception_noise is not None: metrics["config_perception_noise"] = list(args.perception_noise)
     if args.perception_model is not None: metrics["config_perception_model"] = args.perception_model

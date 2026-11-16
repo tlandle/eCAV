@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Generate the column scenarios: N sensor-equipped vehicles approach the straight crossing in one coupled world.
 
-    python scripts/ispass/gen_column_scenario.py            # writes scp_column.yaml, scp_column_{2,4,8,16}ego.yaml
+    python scripts/ispass/gen_column_scenario.py            # writes scp_column.yaml, scp_column_{2,4,6,8,16}ego.yaml
                                                             # and the scenario modules of the same names
 
 The single-vehicle scenario scp_edge_late_fusion (as committed) is the base. Vehicle 1 is the scenario runner's
@@ -17,7 +17,7 @@ import carla
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CFG = os.path.join(ROOT, "ecav", "scenario_testing", "config_yaml"); MOD = os.path.join(ROOT, "ecav", "scenario_testing")
-BASE = "scp_edge_late_fusion"; NAME = "scp_column"; NS = [1, 2, 4, 8, 16]
+BASE = "scp_edge_late_fusion"; NAME = "scp_column"; NS = [1, 2, 4, 6, 8, 16]
 LEAD_Y = -30.0; SPACING = 10.0; PER_LANE = 8
 SPEED = 40      # km/h, the target speed of every follower; test_runner --speeds sets the leader's
 XODR = os.path.expanduser("~/carla-0.9.15/CarlaUE4/Content/Carla/Maps/OpenDrive/Town03.xodr")
