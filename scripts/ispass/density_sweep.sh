@@ -36,6 +36,11 @@ LOCAL_STEPS="${LOCAL_STEPS:-60}"
 # 70 km/h calibration of the SenSys encounter; another speed needs its own).
 TTA="${TTA:-5.12}"
 HIDE=5946265674966002516,6337000252949488035,6180885027493966721,16537817839145246163,16697564674962583843,6207999516011777620,2654350897737485752,16235826325815247835,4815558027215542490,1415910357169383613,4380901688286554368,5034201441472765163,8005252838334864825,10145647440276496614,9929740016222508988,7518384223988529276
+# The connected vehicle starts at EGO_Y and passes a second signalized junction (y -12 to 28) before the conflict junction.
+# Its overhead signal heads are detected as a stationary vehicle in the lane (ispass_den2: 55 false stops in 180 runs at
+# (-86.1, 29.3), 1.1 m from the head 6036580141546007417). The harness has hidden the four signal assemblies of the conflict
+# junction for the same reason since Oct 19 (HIDE above); the four assemblies of the second junction are hidden too.
+HIDE=$HIDE,6036580141546007417,3663578618683831388,12050226332585529187,4930559307141010704,4126283349862587052,7662298469676198566,1410771669709828659,8314392846370487945,585006360711733766,8374940585021404564,8209796319443785099,3273669445552054494
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
   gt_all)  echo "--vehicle-state gt_all" ;;
