@@ -8580,3 +8580,17 @@ The coverage column of the reducer is not meaningful here (its window ends at th
 **Deck.** 17 slides: 1a collisions only, 1b, 2a, 2b, 2d (cost), the false-stop plot moved to a backup slide that names the overhead signal, run slide updated. Sent to Tyler twice (the second copy replaces the first).
 
 **Notes file.** paper_ispass/scale_mh1_notes.md: Nov 15 correction of the multi-GPU rejection (fixed step through the secondary's RPC port).
+
+## 2026-11-16 11:02 Gate with the second junction's signals hidden is clean; full rerun ispass_den4 launched
+
+**Gate ispass_den4gate (in-view junction, 40 km/h, lead 4.8 s, 28 signal meshes hidden).**
+
+| M | arm | no collision | false stop runs | brake start (s) | closest distance (m) | tick ms |
+|---|---|---|---|---|---|---|
+| 4 | ground truth in view | 2/2 | 0 | 2.00 | 14.7 | 85 |
+| 4 | camera and LiDAR | 4/4 | 0 (was 20/30) | 3.45 | 5.3 | 159 |
+| 128 | camera and LiDAR | 4/4 | 0 (was 25/30) | 2.96 | 6.6 | 267 |
+
+No track at (-86, 29) in any run. sim_api logs every hidden object by name and position.
+
+**Full rerun.** tmp/den4_chain.sh started 11:01 on atlas, log logs/den4_atlas.log, sandbox efb9965e: STAMP=ispass_den4, M 4 8 16 32 64 128, arms gt_vis and onboard, 30 runs per cell ("pass 30 end" in the log, about 9 h), then the same command with REPS=50 adds 20 runs per cell through the runner's resume (about 6 h more, "chain end"). Started without Tyler having seen the gate table; the fix is his standing rule (a defect in the harness means fix and rerun the whole set) and atlas was idle. When the first pass lands: scripts/ispass/density_reduce.py ispass_den4 --csv paper_ispass/density.csv --runs-csv paper_ispass/density_runs.csv, scripts/ispass/plot_density.py, replace every number of Section V, the abstract, the introduction and the conclusion in both paper repos, and rebuild the deck (make_figs.py, build_deck.py). Do not edit scripts/ispass/density_sweep.sh until the log shows chain end. No second CARLA or GPU job on atlas until then.
