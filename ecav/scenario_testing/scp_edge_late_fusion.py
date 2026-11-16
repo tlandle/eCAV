@@ -38,7 +38,7 @@ class SyncCrossLaunch:
     CONFLICT = (-84.8, 127.9)
     START = (-35.0, 127.7)
 
-    def __init__(self):
+    def __init__(self, run_dir=""):
         spec = os.environ.get("CROSS_SYNC_LAUNCH")
         self.on = bool(spec)
         self.done = False
@@ -47,6 +47,17 @@ class SyncCrossLaunch:
             lead, _, speed = spec.partition(":")
             self.lead = float(lead)
             self.speed = float(speed)
+            # CROSS_SYNC_JITTER=<s>: the lead of a run is drawn uniformly within plus or minus this value,
+            # seeded by the run's repetition number (the run_<n> part of its output directory), so that
+            # repetitions sample the encounter geometry around the collision course and still repeat.
+            jit = float(os.environ.get("CROSS_SYNC_JITTER", 0) or 0)
+            if jit > 0:
+                import random
+                import re
+                m = re.search(r"run_(\d+)", str(run_dir or ""))
+                rep = int(m.group(1)) if m else 0
+                self.lead += random.Random(104729 * rep + 7).uniform(-jit, jit)
+            print("[SYNC LAUNCH] lead %.3f s, crossing speed %.1f m/s" % (self.lead, self.speed), flush=True)
 
     def step(self, ego, step):
         if not self.on or self.done:
@@ -245,7 +256,7 @@ def run_scenario(opt, scenario_params):
         spectator_altitude = 133
         spectator_bird_pitch = -90
 
-        sync_launch = SyncCrossLaunch()
+        sync_launch = SyncCrossLaunch(getattr(opt, 'output_dir', ''))
         flag = True
         while flag:
             # Determine continue condition and command based on mode
