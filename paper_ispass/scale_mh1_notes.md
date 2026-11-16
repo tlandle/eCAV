@@ -176,6 +176,19 @@ Result: on this build secondary servers change sensor content (LiDAR sweeps eigh
 
 **Correction, Nov 15.** The conclusion above that a source build is needed is wrong. The secondary resets its fixed delta at `NotifyBeginEpisode`, and `get_world()` on its port times out, but the port answers raw msgpack-rpc calls. `scripts/ispass/carla_secondary_fixed_step.py` calls `set_episode_settings` on the secondary with a fixed delta of 0.05 s (parameters `[[False]] + args`, optional values encoded as `[True, value]`). With the call made after start-up, one vehicle with four cameras and one LiDAR on atlas gets sensor time stamps 0.05 s apart and LiDAR frames of 428,432 bytes, equal to the one-server reference. `launch_scale.sh -G` runs the script on every secondary after start-up. Not yet done: the 8-vehicle validity check of step 1, CARLA on the eight-GPU host, and the perception scale rows with one secondary per GPU. No row in the tables uses secondaries until those pass.
 
+**Step 1 repeated with the fixed step, Nov 16 (A10 node alone, 8 vehicles with perception, exact localization, 300 ticks, runs `mgs2_ref_n8` and `mgs2_sec1_n8`).**
+
+| | one server | primary without rendering and one secondary |
+|---|---|---|
+| tick mean / p50 / p99 (ms) | 447 / 445 / 617 | 467 / 467 / 667 |
+| detection calls on the sensor frames of the current world frame | 2408 of 2408 | 2408 of 2408 (Nov 13: frames 8 to 156 ticks old) |
+| mean wait for the sensor frames of the step (ms) | 158 | 168 |
+| largest trajectory difference against `mgs2_ref_n8` over 300 ticks | 11.2 m (the one-server run of Nov 13, `mgs_ref1_n8`) | 14.1 m |
+
+The secondary now delivers the frames of the current step in every call. Camera images, LiDAR sweeps and detector output are not bitwise equal between the two runs, and they are not equal between two one-server runs either (0 % of camera images, 3.7 % of LiDAR sweeps), so closed-loop trajectories with perception differ between any two runs. The difference with a secondary (14.1 m) is of the size of the difference between two one-server runs (11.2 m). On one GPU the secondary gives no speed-up (the tick is 5 % longer), as expected: both servers share the A10. Step 1 passes. Step 2 is secondaries on the eight V100 GPUs of the second host.
+
+**Step 2, Nov 16: a secondary on another host delivers no sensor frames.** CARLA 0.9.15 was copied to the eight-GPU host (28 GB, with the Python client module and msgpack in its env) and renders there on a V100 as a single server (Town06 loads in 3 s, 30 synchronous ticks with one camera and one LiDAR in 0.9 s). With the primary without rendering on the A10 node (10.1.0.4) and one secondary on the eight-GPU host (10.2.0.6, peered network, fixed step set through its RPC port, one connection on the primary's port 2002): the 8-vehicle run gets no sensor frame (`mgs2_ndm1_n8`, two attempts: every client stops in its sensor wait after 60 s, ticks take the 30 s client timeout), and a one-camera, one-LiDAR client on the primary gets no sensor data from tick 5 on. The secondary process holds 5.7 to 7.8 GB on the GPU, runs one core at 100 %, and its GPU stays at 0 %. The primary's log keeps printing `Getting data on listener`. The same pair of servers on one host works (step 1). Not diagnosed: the next step is the secondary's log at `-log` verbosity and a packet count on port 2002 in both directions. The 32-vehicle runs with 1, 2, 4 and 8 secondaries were not run. No row in the tables uses secondaries.
+
 ## OpenCDA perception rows extended
 
 64 vehicles: 15245 ms per tick (median 15180, 40 measured ticks). 128 vehicles: does not start, the simulator ends with a segmentation fault during sensor set-up at 22.1 GB of the A10's 24.5 GB (two of two attempts). Table and figure: `scale_mh1_compare.md`, `fig_scale_mh1_perception_compare.pdf`, `scale_competitor.md`.
