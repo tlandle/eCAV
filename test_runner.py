@@ -113,6 +113,13 @@ ap.add_argument("--vehicle-state", type=str, default=None, choices=["gt_visible"
                      "error model: independent misses and white position noise (--perception-noise), or the table "
                      "fitted to a detection trace of the full pipeline (--perception-model). Recorded as "
                      "config_vehicle_state; not part of the run directory name, so use a stamp of its own.")
+ap.add_argument("--camera-fov", type=float, default=None,
+                help="Horizontal field of view in degrees of every vehicle camera (perception.camera.fov). The code "
+                     "default is 70: four cameras at 0, 90, 180 and 270 degrees then leave 20 degree gaps between "
+                     "neighbours. Recorded as config_camera_fov; not part of the run directory name.")
+ap.add_argument("--gt-camera-coverage", action="store_true", default=False,
+                help="With --vehicle-state gt_visible, gt_noisy or gt_model: also clip the ground-truth list to the "
+                     "horizontal coverage of the vehicle's cameras. Recorded as config_gt_camera_coverage.")
 ap.add_argument("--perception-noise", type=float, nargs=2, default=None, metavar=("P_MISS", "SIGMA_M"),
                 help="gt_noisy: probability that a vehicle in view is dropped in a tick and the standard deviation of "
                      "the position noise in metres. Recorded as config_perception_noise.")
@@ -532,6 +539,8 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 if args.vehicle_state in ("gt_visible", "gt_noisy", "gt_model"):
                     perc["deactivate_range_m"] = float(perc.get("lidar", {}).get("range", 50))
                     perc["deactivate_line_of_sight"] = True
+                if args.gt_camera_coverage and args.vehicle_state != "gt_all":
+                    perc["deactivate_camera_coverage"] = True
                 if args.vehicle_state == "gt_noisy":
                     perc["deactivate_error_model"] = {"type": "independent", "p_miss": args.perception_noise[0],
                                                       "pos_sigma_m": args.perception_noise[1], "seed": (seed or 0) * 1000 + int(rep)}
@@ -540,6 +549,14 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                                                       "file": os.path.abspath(args.perception_model)}
                 n_veh += 1
         print(f"    vehicle state {args.vehicle_state}: perception off on {n_veh} vehicles")
+
+    if args.camera_fov is not None:
+        n_cam = 0
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                cam = veh.setdefault("sensing", {}).setdefault("perception", {}).setdefault("camera", {})
+                cam["fov"] = float(args.camera_fov); n_cam += 1
+        print(f"    camera field of view {args.camera_fov} degrees on {n_cam} vehicles")
 
     if args.local_prediction_steps is not None:
         for edge in d.get("scenario", {}).get("edge_list", []):
@@ -756,6 +773,8 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if gps_noise is not None: metrics["config_gps_noise_stddev"] = gps_noise
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
+    if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
+    if args.gt_camera_coverage: metrics["config_gt_camera_coverage"] = True
     if args.perception_noise is not None: metrics["config_perception_noise"] = list(args.perception_noise)
     if args.perception_model is not None: metrics["config_perception_model"] = args.perception_model
     if args.local_prediction_steps is not None: metrics["config_local_prediction_steps"] = args.local_prediction_steps

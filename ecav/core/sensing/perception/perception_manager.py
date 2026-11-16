@@ -463,6 +463,13 @@ class PerceptionManager:
             from ecav.core.sensing.perception.perception_error_model import PerceptionErrorModel
             self.error_model = PerceptionErrorModel(_em, seed=getattr(self, 'id', 0) or 0)
         self._lidar_range_m = float((config_yaml.get('lidar') or {}).get('range', 50))
+        # deactivate_camera_coverage: the ground-truth list keeps only the vehicles whose centre lies inside
+        # the horizontal field of view of one of the configured cameras, so a ground-truth arm has the
+        # coverage of the camera rig (four 70 degree cameras leave 20 degree gaps between neighbours).
+        self.deactivate_camera_coverage = bool(config_yaml.get('deactivate_camera_coverage', False))
+        _cam = config_yaml.get('camera') or {}
+        self._camera_yaws = [float(p[3]) for p in (_cam.get('positions') or [])]
+        self._camera_half_fov = float(_cam.get('fov', 70)) / 2.0
         in_docker = os.environ.get('IS_DOCKER', '0') == '1'
         self.camera_visualize = 0 if in_docker else config_yaml['camera']['visualize']
         self.camera_num = config_yaml['camera']['num']
@@ -1082,6 +1089,16 @@ class PerceptionManager:
         objects['vehicles'] = filtered_vehicles
         return objects
 
+    def _in_camera_coverage(self, target):
+        """True if the target's centre is inside the horizontal field of view of a configured camera."""
+        tf = self.vehicle.get_transform()
+        loc = target.get_location()
+        bearing = math.degrees(math.atan2(loc.y - tf.location.y, loc.x - tf.location.x)) - tf.rotation.yaw
+        for yaw in self._camera_yaws:
+            if abs((bearing - yaw + 180.0) % 360.0 - 180.0) <= self._camera_half_fov:
+                return True
+        return False
+
     def _visible_rays(self, target):
         """How many of the five rays of _in_line_of_sight reach the target (0 to 5)."""
         world = self.carla_world
@@ -1201,6 +1218,8 @@ class PerceptionManager:
 
         vehicle_list = [v for v in vehicle_list if self.dist(v) < thresh and
                         v.id != self.id and v.id != call_id]
+        if self.deactivate_camera_coverage:
+            vehicle_list = [v for v in vehicle_list if self._in_camera_coverage(v)]
         _errors = None
         if self.error_model is not None:
             # the model needs the visible share of each vehicle, so the rays are counted here

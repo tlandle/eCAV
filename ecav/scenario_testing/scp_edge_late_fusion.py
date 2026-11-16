@@ -25,6 +25,54 @@ SCENARIO_NAME = 'scp_edge_late_fusion'
 scenario_runner = None
 
 
+class SyncCrossLaunch:
+    """CROSS_SYNC_LAUNCH="<lead_s>:<speed_mps>": this process launches the crossing car, in simulation time.
+
+    The scenario runner process reads the simulator asynchronously, so a launch it decides comes a number
+    of ticks late that depends on the wall-clock duration of a tick (tick 260 with one vehicle, 252 with
+    four, 2026-11-16), and the encounter geometry changes with the load. With this option the main loop
+    checks the connected vehicle's time to the conflict point after every world tick and, in the tick in
+    which it falls to lead_s, gives the crossing car a constant velocity of speed_mps along its heading.
+    The scenario runner's own trigger has to be off (CROSS_TRIGGER_TTA=<speed>:0).
+    """
+    CONFLICT = (-84.8, 127.9)
+    START = (-35.0, 127.7)
+
+    def __init__(self):
+        spec = os.environ.get("CROSS_SYNC_LAUNCH")
+        self.on = bool(spec)
+        self.done = False
+        self.car = None
+        if self.on:
+            lead, _, speed = spec.partition(":")
+            self.lead = float(lead)
+            self.speed = float(speed)
+
+    def step(self, ego, step):
+        if not self.on or self.done:
+            return
+        import math
+        if self.car is None:
+            cands = [a for a in ego.get_world().get_actors().filter("vehicle.tesla.model3")
+                     if math.hypot(a.get_location().x - self.START[0], a.get_location().y - self.START[1]) < 15.0
+                     and a.get_location().z > -50.0]
+            if not cands:
+                return
+            self.car = min(cands, key=lambda a: math.hypot(a.get_location().x - self.START[0],
+                                                             a.get_location().y - self.START[1]))
+        loc = ego.get_location()
+        vel = ego.get_velocity()
+        spd = math.hypot(vel.x, vel.y)
+        dist = math.hypot(loc.x - self.CONFLICT[0], loc.y - self.CONFLICT[1])
+        if spd > 1.0 and dist / spd <= self.lead:
+            self.car.set_simulate_physics(True)
+            self.car.enable_constant_velocity(carla.Vector3D(self.speed, 0.0, 0.0))
+            self.done = True
+            print("[SYNC LAUNCH] step=%d ego=(%.1f,%.1f) v=%.2f tta=%.2f car=%d at (%.1f,%.1f)" % (
+                step, loc.x, loc.y, spd, dist / spd, self.car.id, self.car.get_location().x,
+                self.car.get_location().y), flush=True)
+
+
 def exec_scenario_runner(scenario_params):
     """
     Execute the ScenarioRunner process
@@ -197,6 +245,7 @@ def run_scenario(opt, scenario_params):
         spectator_altitude = 133
         spectator_bird_pitch = -90
 
+        sync_launch = SyncCrossLaunch()
         flag = True
         while flag:
             # Determine continue condition and command based on mode
@@ -209,6 +258,7 @@ def run_scenario(opt, scenario_params):
 
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
+            sync_launch.step(ego_cav, step)
             print("bird view following")
 
             # Bird view following
