@@ -152,8 +152,9 @@ $SSH "$CARLA" "echo '$SEC_HOSTS' > /tmp/scale_carla_secondary_hosts"
 if [[ -n "$SECS" ]]; then
   # A secondary renders one frame per frame the primary sends, but it keeps its own time step: with the default
   # variable step its sensors integrate over the wall-clock time between frames (the LiDAR sweeps many rotations per
-  # frame and frame time stamps follow the wall clock). Its RPC port does not serve a client (get_world times out),
-  # so the fixed step of the simulation is given on the command line (-benchmark -fps, SCALE_SEC_FPS, default 20).
+  # frame and frame time stamps follow the wall clock). Command-line flags do not change that (CARLA resets the step
+  # at episode start) and get_world on its port times out, so after start-up the fixed step is set through its RPC
+  # port (carla_secondary_fixed_step.py, SCALE_SEC_FPS, default 20).
   # primary: simulation only, no rendering; it listens for secondaries on 2002 and turns synchronous mode on when one connects
   PRIM_IP=$(ip_of "$CARLA")
   log "starting CARLA primary (no rendering) on $CARLA, secondaries: $SECS"
@@ -169,6 +170,12 @@ if [[ -n "$SECS" ]]; then
     $SSH "$h" "timeout 240 bash -c 'for g in \$(seq 0 $((n - 1))); do until ss -ltn | grep -q \":\$((3000 + 10 * g)) \"; do sleep 2; done; done'" || fail "secondaries on $h did not start"
   done
   sleep 15
+  # the secondaries start with a variable time step: give each the simulation's fixed step through its RPC port
+  for e in $(tr ',' ' ' <<< "$SECS"); do h=${e%:*}; n=${e##*:}
+    for g in $(seq 0 $((n - 1))); do
+      $SSH "$h" "$ACT && cd $WT && python scripts/ispass/carla_secondary_fixed_step.py $((3000 + 10 * g)) $(awk "BEGIN{print 1/${SCALE_SEC_FPS:-20}}")" || fail "fixed step on secondary $g of $h"
+    done
+  done
   log "secondaries up: $($SSH "$CARLA" "ss -tn state established '( sport = :2002 )' | grep -c ':2002'") connections on the primary port"
 elif ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
   log "starting CARLA on $CARLA"

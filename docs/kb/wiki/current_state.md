@@ -8453,3 +8453,23 @@ Measured compute is 93 ms in the table arms and 70 ms in the live arm (not exami
 **Remaining step cost.** 49 of 60 steady-state samples in ThreeGppSpectrumPropagationLossModel::CalcBeamformingGain (sin and cos), called from MultiModelSpectrumChannel::StartRx for every receiver of every transmission, including each uplink at the other 23 UEs. A SpectrumTransmitFilter that drops UE to UE signals would remove most of the uplink share. It changes the random draws of the channel model, so results would not be identical per message. Tyler's decision, not applied.
 
 **Open.** cetus still has the old binary (same fix and build needed there before any live campaign). The decision to rerun the ablation network conditions with live ns-3 is Tyler's; 420 runs, late-fusion manager needs the live radio hookup first.
+
+## 2026-11-15 22:04 CARLA multi-GPU: secondary takes the fixed step through its RPC port; the Nov 13 rejection is withdrawn
+
+**Tyler (Nov 15).** "why aren't you running the server in fixed time step mode." The Nov 13 conclusion (packaged 0.9.15 secondaries need a source change) was wrong.
+
+**Source reading (carla 0.9.15, CarlaEngine.cpp).** A secondary applies default episode settings at NotifyBeginEpisode, and OnEpisodeSettingsChanged then calls FApp::SetBenchmarking(false) and SetFixedDeltaTime(0). That overrides -benchmark -fps on the command line. The secondary does start its RPC server and runs it in its pre-tick loop while it waits for frames. carla.Client.get_world() on that port times out, but plain RPC calls answer (get_server_version, get_available_maps, get_episode_settings, set_episode_settings).
+
+**Fix without a source build.** scripts/ispass/carla_secondary_fixed_step.py calls set_episode_settings on the secondary's port by raw msgpack-rpc (CARLA's call metadata [False] as the first argument, optional values encoded as [False] or [True, value]). launch_scale.sh -G now runs it on every secondary after start-up.
+
+**Check on atlas (one vehicle, four 640x480 cameras, one 64-channel LiDAR, 150 ticks, primary -nullrhi plus one secondary on the same GPU).**
+
+| | time stamp step | LiDAR frame bytes | frame lag in ticks |
+|---|---|---|---|
+| one server | 0.05 s | 428,432 | 0 |
+| secondary, no fix | 0.025 s median, up to 0.077 (wall clock) | 214,072 | 0 |
+| secondary, fixed step by RPC | 0.05 s | 428,432 | 0 |
+
+**Not yet done.** The 8-vehicle closed-loop validity check of Nov 13 (frame age, trajectories against one server), more than one secondary, secondaries on carla-ndm (CARLA is not installed there), and the perception scale rows with secondaries. The launcher change is untested on Azure. paper_ispass/scale_mh1_notes.md still carries the rejection text.
+
+**Paper repos.** Overleaf had pushed an edit to branch overleaf-2026-11-16-0259 because GitHub main was two commits ahead, so Overleaf never received those commits. Merged into main with his wording (Table I radio cell: "ns-3 5G-LENA, live co-simulation") and 512 clients kept; ecav_ispass_overleaf main dc5c440, ecav_ispass master f9cd141, 10 pages. Tyler has to pull GitHub changes in Overleaf.
