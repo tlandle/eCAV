@@ -48,14 +48,14 @@ class SyncCrossLaunch:
             self.lead = float(lead)
             self.speed = float(speed)
             # CROSS_SYNC_JITTER=<s>: the lead of a run is drawn uniformly within plus or minus this value,
-            # seeded by the run's repetition number (the run_<n> part of its output directory), so that
+            # seeded by the run's repetition number (the rep_<n> or run_<n> part of its output directory), so that
             # repetitions sample the encounter geometry around the collision course and still repeat.
             jit = float(os.environ.get("CROSS_SYNC_JITTER", 0) or 0)
             if jit > 0:
                 import random
                 import re
-                m = re.search(r"run_(\d+)", str(run_dir or ""))
-                rep = int(m.group(1)) if m else 0
+                m = re.findall(r"(?:run|rep)_(\d+)", str(run_dir or ""))
+                rep = int(m[-1]) if m else 0
                 self.lead += random.Random(104729 * rep + 7).uniform(-jit, jit)
             print("[SYNC LAUNCH] lead %.3f s, crossing speed %.1f m/s" % (self.lead, self.speed), flush=True)
 
