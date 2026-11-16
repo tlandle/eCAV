@@ -521,13 +521,13 @@ Ptr<NrHelper>                g_nrHelper;
 static void OnUuPacketRxPerUe(uint32_t txId, Ptr<const Packet> pkt)
 {
     // Uplink Rx at edge (UdpServer on remote host). Chunked sends: last
-    // chunk has bit 31 of seq set. Record delivery only on last chunk so
+    // chunk has bit 0 of seq set. Record delivery only on last chunk so
     // the recorded delay is full-message completion time.
     SeqTsHeader seqTs;
     Ptr<Packet> copy = pkt->Copy();
     if (copy->PeekHeader(seqTs) == 0) return;
     uint32_t seq = seqTs.GetSeq();
-    if ((seq & 0x80000000u) == 0) return;
+    if ((seq & 1u) == 0) return;
     double delayMs =
         (Simulator::Now() - seqTs.GetTs()).GetNanoSeconds() / 1e6;
     if (txId < g_maxVehicles) {
@@ -548,7 +548,7 @@ static void OnUuPacketRxDownlink(uint32_t ueId, Ptr<const Packet> pkt)
     Ptr<Packet> copy = pkt->Copy();
     if (copy->PeekHeader(seqTs) == 0) return;
     uint32_t seq = seqTs.GetSeq();
-    if ((seq & 0x80000000u) == 0) return;
+    if ((seq & 1u) == 0) return;
     double delayMs =
         (Simulator::Now() - seqTs.GetTs()).GetNanoSeconds() / 1e6;
     if (ueId < g_maxVehicles) {
@@ -783,9 +783,12 @@ static void SendChunkedOn(Ptr<Socket> socket, uint32_t senderTag,
                           uint32_t totalBytes)
 {
     // Split payload into <=CHUNK_PAYLOAD byte UDP datagrams so IP doesn't
-    // fragment. Last chunk has bit 31 of seq set so the receiver records
-    // delay once per logical message. senderTag identifies the UE index
-    // (so both UL and DL rx traces can demux per-UE).
+    // fragment. Last chunk has bit 0 of seq set so the receiver records
+    // delay once per logical message; the UE index is in the bits above.
+    // The flag is the low bit, not bit 31: UdpServer hands seq to
+    // PacketLossCounter::NotifyReceived, which loops from the last maximum
+    // to the new value, and a jump to 2^31 costs seconds of wall time per
+    // UdpServer (about 20 s per UE at start-up in the default build).
     const uint32_t headerOverhead = 12;
     const uint32_t chunkBody = CHUNK_PAYLOAD - headerOverhead;
     uint32_t remaining = totalBytes;
@@ -794,8 +797,8 @@ static void SendChunkedOn(Ptr<Socket> socket, uint32_t senderTag,
     while (remaining > 0) {
         uint32_t thisChunk = std::min(chunkBody, remaining);
         SeqTsHeader seqTs;
-        uint32_t seq = senderTag;
-        if (chunkIdx == totalChunks - 1) seq |= 0x80000000u;
+        uint32_t seq = senderTag << 1;
+        if (chunkIdx == totalChunks - 1) seq |= 1u;
         seqTs.SetSeq(seq);
         Ptr<Packet> pkt = Create<Packet>(thisChunk);
         pkt->AddHeader(seqTs);
