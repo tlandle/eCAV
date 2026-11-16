@@ -813,6 +813,23 @@ class PerceptionManager:
                                getattr(self.cav_world, 'tick_id', '?'),
                                [tuple(round(float(v), 2) for v in b[:6]) for b in _yb])
             tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            if os.environ.get('PERC_TRACE') and self.vehicle is not None:
+                # per camera: detector boxes, 2D tracks, and (after the fusion below) fused objects so far
+                if i == 0:
+                    self._stage = {'yolo': [], 'tracks': [], 'fused': []}
+                self._stage['yolo'].append(int(len(yolo_detection.xyxy[i])))
+                self._stage['tracks'].append(int(np.asarray(tracking_detection).shape[0]))
+                # PERC_DUMP="dir,call0,call1,step": the camera images of every vehicle for those calls
+                _pd = os.environ.get('PERC_DUMP')
+                if _pd:
+                    try:
+                        _dir, _c0, _c1, _stp = _pd.split(',')
+                        if int(_c0) <= self.count <= int(_c1) and (self.count - int(_c0)) % int(_stp) == 0:
+                            os.makedirs(_dir, exist_ok=True)
+                            cv2.imwrite(os.path.join(_dir, "ego%s_call%03d_cam%d.jpg" % (self.id, self.count, i)),
+                                        cv2.cvtColor(rgb_images[i], cv2.COLOR_RGB2BGR))
+                    except Exception as _e:
+                        logging.getLogger("DetTrace").warning("perception dump failed: %s", _e)
             if _trace:
                 _tb = np.asarray(tracking_detection)
                 logging.getLogger("DetTrace").warning("[TRK2D] rsu_x=%.0f cam=%d boxes=%s", float(self.global_position[0]), i,
@@ -837,6 +854,8 @@ class PerceptionManager:
             # calculate the speed. current we retrieve from the server
             # directly.
             self.speed_retrieve(objects)
+            if os.environ.get('PERC_TRACE') and self.vehicle is not None:
+                self._stage['fused'].append(len(objects.get('vehicles', [])))
 
         self.client_metrics.update_tracking_time(
             total_tracking_time * 1000)
@@ -849,6 +868,8 @@ class PerceptionManager:
         # slightly different positions (3-5m offset).  Greedy NMS by center
         # distance keeps one detection per physical vehicle.
         objects = self._cross_camera_nms(objects, self._nms_distance_threshold)
+        if os.environ.get('PERC_TRACE') and self.vehicle is not None:
+            self._stage['nms'] = len(objects.get('vehicles', []))
 
         if self.camera_visualize:
             for (i, rgb_image) in enumerate(rgb_draw_images):
@@ -878,6 +899,11 @@ class PerceptionManager:
         objects = self.retrieve_traffic_lights(objects)
         self.objects = objects
         if os.environ.get('PERC_TRACE') and self.vehicle is not None:
+            _st = getattr(self, '_stage', {})
+            logging.getLogger("DetTrace").warning(
+                "[PERC-STAGE] call=%d ego=%s yolo=%s tracks=%s fused=%s nms=%s final=%d xy=%s", self.count, self.id,
+                _st.get('yolo'), _st.get('tracks'), _st.get('fused'), _st.get('nms'), len(objects.get('vehicles', [])),
+                [(round(o.location.x, 1), round(o.location.y, 1)) for o in objects.get('vehicles', [])])
             self._perception_trace(objects)
 
         return objects
