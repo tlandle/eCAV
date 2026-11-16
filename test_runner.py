@@ -106,11 +106,19 @@ ap.add_argument("--see-v2x-replay", type=str, default=None, choices=["sequential
 ap.add_argument("--behavior-kv", nargs="*", type=str, default=[],
                 help="key=value pairs set on every CAV's behavior block (hazard_response, "
                      "speed_adapt_target_kmh, ttc_graded_horizon_s); value parsed like --edge-kv")
-ap.add_argument("--vehicle-state", type=str, default=None, choices=["gt_visible", "gt_all"],
+ap.add_argument("--vehicle-state", type=str, default=None, choices=["gt_visible", "gt_all", "gt_noisy", "gt_model"],
                 help="Run every vehicle without its perception stack, on simulator ground truth: gt_visible keeps the "
                      "vehicles within the LiDAR range that are in line of sight of the roof sensor position, gt_all "
-                     "every vehicle in the world. Recorded as config_vehicle_state; not part of the run directory "
-                     "name, so use a stamp of its own.")
+                     "every vehicle in the world. gt_noisy and gt_model are gt_visible passed through a perception "
+                     "error model: independent misses and white position noise (--perception-noise), or the table "
+                     "fitted to a detection trace of the full pipeline (--perception-model). Recorded as "
+                     "config_vehicle_state; not part of the run directory name, so use a stamp of its own.")
+ap.add_argument("--perception-noise", type=float, nargs=2, default=None, metavar=("P_MISS", "SIGMA_M"),
+                help="gt_noisy: probability that a vehicle in view is dropped in a tick and the standard deviation of "
+                     "the position noise in metres. Recorded as config_perception_noise.")
+ap.add_argument("--perception-model", type=str, default=None,
+                help="gt_model: JSON table of scripts/ispass/perception_model_fit.py. Recorded as "
+                     "config_perception_model.")
 ap.add_argument("--local-prediction-steps", type=int, default=None,
                 help="Forecast horizon of every vehicle's own tracker and predictor in steps of 50 ms "
                      "(local_tracker.predictor.num_future_steps). The default is 10 steps, 0.5 s: the vehicle-side "
@@ -336,7 +344,7 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                backhaul_mu=None, backhaul_sigma=None,
                disable_backhaul=False,
                mac_type=None, mac_M=None, mac_p_keep=None, seed=None,
-               per_tick_age_log=False):
+               per_tick_age_log=False, rep=0):
     """Updates the YAML dictionary with the current sweep parameters.
 
     *compute_budget*: float (ms) or None (unlimited).  The default
@@ -521,9 +529,15 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
             for veh in edge.get("vehicles", []):
                 perc = veh.setdefault("sensing", {}).setdefault("perception", {})
                 perc["activate"] = False
-                if args.vehicle_state == "gt_visible":
+                if args.vehicle_state in ("gt_visible", "gt_noisy", "gt_model"):
                     perc["deactivate_range_m"] = float(perc.get("lidar", {}).get("range", 50))
                     perc["deactivate_line_of_sight"] = True
+                if args.vehicle_state == "gt_noisy":
+                    perc["deactivate_error_model"] = {"type": "independent", "p_miss": args.perception_noise[0],
+                                                      "pos_sigma_m": args.perception_noise[1], "seed": (seed or 0) * 1000 + int(rep)}
+                if args.vehicle_state == "gt_model":
+                    perc["deactivate_error_model"] = {"type": "calibrated", "seed": (seed or 0) * 1000 + int(rep),
+                                                      "file": os.path.abspath(args.perception_model)}
                 n_veh += 1
         print(f"    vehicle state {args.vehicle_state}: perception off on {n_veh} vehicles")
 
@@ -742,6 +756,8 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if gps_noise is not None: metrics["config_gps_noise_stddev"] = gps_noise
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
+    if args.perception_noise is not None: metrics["config_perception_noise"] = list(args.perception_noise)
+    if args.perception_model is not None: metrics["config_perception_model"] = args.perception_model
     if args.local_prediction_steps is not None: metrics["config_local_prediction_steps"] = args.local_prediction_steps
     if gps_dropout is not None: metrics["config_gps_dropout_pct"] = gps_dropout
     metrics["config_compute_budget_ms"] = compute_budget  # None = unlimited
@@ -865,7 +881,7 @@ try:
                    mac_M=mac_m,
                    mac_p_keep=mac_pk,
                    seed=SEED,
-                   per_tick_age_log=args.per_tick_age_log)
+                   per_tick_age_log=args.per_tick_age_log, rep=rep)
         with cfg_file.open("w") as f:
             yaml.safe_dump(patched, f, sort_keys=False)
 

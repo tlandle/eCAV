@@ -20,9 +20,10 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.abspath(os.pat
 sys.path.insert(0, HERE)
 import fidelity_reduce as fr   # noqa: E402
 DT = 0.05
-ARMS = ["gt_all", "gt_vis", "onboard"]; ENCS = ["open", "occ"]
-NAMES = {"gt_all": "all simulator state", "gt_vis": "ground truth in view", "onboard": "camera and LiDAR"}
-STATE = {"gt_all": "gt_all", "gt_vis": "gt_visible", "onboard": None}
+ARMS = ["gt_all", "gt_vis", "gt_noisy", "gt_model", "onboard"]; ENCS = ["open", "occ"]
+NAMES = {"gt_all": "all simulator state", "gt_vis": "ground truth in view", "gt_noisy": "independent errors",
+         "gt_model": "calibrated error model", "onboard": "camera and LiDAR"}
+STATE = {"gt_all": "gt_all", "gt_vis": "gt_visible", "gt_noisy": "gt_noisy", "gt_model": "gt_model", "onboard": None}
 
 
 def window_stats(pt):

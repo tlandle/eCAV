@@ -18,7 +18,7 @@
 #
 #   STAMP=ispass_den1 scripts/ispass/density_sweep.sh gate          # one run per cell
 #   STAMP=ispass_den1 REPS=30 scripts/ispass/density_sweep.sh full
-#   env: MS="4 8 16 32 64 128"  ARMS="gt_vis onboard"  ENCS="open occ"  REPS  LIDAR_NOISE  SPEED  EGO_Y  MAX_STEP  CARLA_PORT
+#   env: MS="4 8 16 32 64 128"  ARMS="gt_vis onboard"  ENCS="open occ"  REPS  LIDAR_NOISE  SPEED  EGO_Y  MAX_STEP  CARLA_PORT  TRACE  MODEL  NOISE
 set -u
 STAGE="${1:?gate|full}"; DRY="${2:-}"
 cd "$(dirname "$0")/../.."
@@ -41,10 +41,20 @@ HIDE=5946265674966002516,6337000252949488035,6180885027493966721,165378178391452
 # (-86.1, 29.3), 1.1 m from the head 6036580141546007417). The harness has hidden the four signal assemblies of the conflict
 # junction for the same reason since Oct 19 (HIDE above); the four assemblies of the second junction are hidden too.
 HIDE=$HIDE,6036580141546007417,3663578618683831388,12050226332585529187,4930559307141010704,4126283349862587052,7662298469676198566,1410771669709828659,8314392846370487945,585006360711733766,8374940585021404564,8209796319443785099,3273669445552054494
+# Perception error models between ground truth in view and the full pipeline (ARMS gt_noisy, gt_model): MODEL is the
+# table of scripts/ispass/perception_model_fit.py, fitted to the detection trace of onboard runs (TRACE=1 adds the
+# trace to the onboard arm). gt_noisy takes the marginal miss probability and position spread of the same table
+# (NOISE="p_miss sigma_m" overrides).
+MODEL="${MODEL:-paper_ispass/perception_model.json}"; TRACE="${TRACE:-0}"
+noise() { [[ -n "${NOISE:-}" ]] && { echo "$NOISE"; return; }
+  "$PY" -c "import json,sys; m=json.load(open(sys.argv[1]))['independent']; print(m['p_miss'], m['pos_sigma_m'])" "$MODEL"; }
 arm_args() { case "$1" in
-  gt_vis)  echo "--vehicle-state gt_visible" ;;
-  gt_all)  echo "--vehicle-state gt_all" ;;
-  onboard) echo "" ;; esac; }
+  gt_vis)   echo "--vehicle-state gt_visible" ;;
+  gt_all)   echo "--vehicle-state gt_all" ;;
+  gt_noisy) echo "--vehicle-state gt_noisy --perception-noise $(noise)" ;;
+  gt_model) echo "--vehicle-state gt_model --perception-model $MODEL" ;;
+  onboard)  echo "" ;; esac; }
+arm_env() { [[ "$1" == onboard && "$TRACE" == 1 ]] && echo "PERC_TRACE=1"; }
 enc_env() { case "$1" in
   open) echo "OCCLUDERS=0" ;;
   occ)  echo "OCCLUDERS=1" ;; esac; }
@@ -54,7 +64,7 @@ run_cell() {  # encounter arm M reps
              --carla-port "$PORT" --stamp "${STAMP}_$1_$2_m$3" $(arm_args "$2") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
              --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
              --scenario-env CROSS_TRIGGER_TTA=$SPEED:$TTA HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP
-                            BG_TRAFFIC=$3 $(enc_env "$1"))
+                            BG_TRAFFIC=$3 $(enc_env "$1") $(arm_env "$2"))
   echo "$(date '+%F %T') enc=$1 arm=$2 M=$3 reps=$4"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
   local t0=$(date +%s)
@@ -66,7 +76,7 @@ if [[ "$DRY" != "--dry-run" ]]; then
     echo "a runner or CARLA is active; aborting"; exit 1; fi
   if ls ecav/scenario_testing/config_yaml/*.yaml.bak >/dev/null 2>&1; then echo "a patched YAML backup remains; aborting"; exit 1; fi
   mkdir -p experiment_results/campaign_meta
-  { echo "stamp=$STAMP stage=$STAGE reps=$REPS ms=$MS arms=$ARMS encs=$ENCS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_density.txt"
+  { echo "stamp=$STAMP stage=$STAGE reps=$REPS ms=$MS arms=$ARMS encs=$ENCS lidar_noise=$LIDAR_NOISE speed=$SPEED ego_y=$EGO_Y local_steps=$LOCAL_STEPS tta=$TTA trace=$TRACE model=$MODEL"; git rev-parse HEAD; hostname; date -Is; } >> "experiment_results/campaign_meta/${STAMP}_density.txt"
 fi
 case "$STAGE" in
   gate) for e in $ENCS; do for m in $MS; do for a in $ARMS; do run_cell "$e" "$a" "$m" "${GATE_REPS:-1}"; done; done; done ;;
