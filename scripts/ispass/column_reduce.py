@@ -4,12 +4,13 @@
     python scripts/ispass/column_reduce.py <stamp> [--ns 1 2 4 8 16] [--csv cells.csv] [--runs-csv runs.csv]
 
 Every vehicle of the column is a vehicle of the run's simulation_metrics.json. A run is valid when its log has no
-exception, it has N vehicles, the vehicle state it recorded is the arm's, and the crossing car launched. Per cell:
+exception, it has N vehicles, the vehicle state it recorded is the arm's, and the crossing car launched (not
+required with --no-crossing, the queue-tail variant). Per cell:
   runs with a collision          at least one vehicle of the column collided (Wilson 95 % interval)
   collided vehicles per vehicle  vehicles that collided, over N times the valid runs: the exposure-normalized rate
   leader / followers             the same count for vehicle 1 (meets the crossing car) and for vehicles 2..N
-  partner                        collided vehicles whose first collision is with the crossing car, with another
-                                 vehicle of the column, or with anything else
+  partner                        collided vehicles whose first collision is with a scripted vehicle (the crossing car or the stopped
+                                 vehicle), with another vehicle of the column, or with anything else
   brake events per vehicle, mean speed, wall time per tick
 """
 import argparse, ast, csv, glob, json, math, os, sys
@@ -46,7 +47,7 @@ def launched(pt):
     return moved, float(np.mean(dt)) if dt else float("nan")
 
 
-def load(stamp, ns):
+def load(stamp, ns, no_crossing=False):
     rows = []
     for arm in ARMS:
         for n in ns:
@@ -57,7 +58,7 @@ def load(stamp, ns):
                 except (OSError, ValueError): rows.append(dict(arm=arm, n=n, rep=rep, valid=0)); continue
                 lp = os.path.join(rd, "runner_stdout.txt"); log = open(lp, errors="replace").read() if os.path.exists(lp) else ""
                 veh = d.get("vehicles") or {}; moved, tick_ms = launched(os.path.join(rd, "evaluation_output", "per_tick_age.csv"))
-                valid = ("error" not in d and "Traceback" not in log and len(veh) == n and d.get("config_vehicle_state") == STATE[arm] and moved)
+                valid = ("error" not in d and "Traceback" not in log and len(veh) == n and d.get("config_vehicle_state") == STATE[arm] and (moved or no_crossing))
                 focal = str(d.get("focal_vehicle_id")); ids = set(veh)
                 hit = {}; brakes = []; speeds = []
                 for vid, v in veh.items():
@@ -77,7 +78,8 @@ def load(stamp, ns):
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("stamp"); ap.add_argument("--ns", type=int, nargs="*", default=[1, 2, 4, 8, 16]); ap.add_argument("--csv"); ap.add_argument("--runs-csv")
-    a = ap.parse_args(); rows = load(a.stamp, a.ns); summ = []
+    ap.add_argument("--no-crossing", action="store_true", help="queue-tail variant: the crossing car does not launch")
+    a = ap.parse_args(); rows = load(a.stamp, a.ns, a.no_crossing); summ = []
     print(f"{'N':>3} {'arm':22s} runs valid  runs with a collision [95% CI]   collided/vehicle  leader  followers  crossing  column  other  brakes/veh  speed  tick ms")
     for n in a.ns:
         for arm in ARMS:

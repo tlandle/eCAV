@@ -410,6 +410,10 @@ class Scenario_3(BasicScenario):
         self._bg_radius = float(os.environ.get("BG_RADIUS", 150))
         self._bg_speed = float(os.environ.get("BG_SPEED", 6.0))
         self._bg_actors = []          # (actor, plan or None)
+        # QUEUE_TAIL_Y: a stopped vehicle in the connected vehicle's lane at this y, the tail of a queue. The
+        # vehicles that approach have to stop behind it (column study, scripts/ispass/column_sweep.sh).
+        self._queue_tail_y = os.environ.get("QUEUE_TAIL_Y")
+        self._queue_actors = []
         # OCCLUDERS=0: the parked trucks that hide the crossing car stay underground, so the
         # crossing car is in the connected vehicle's own sensor view on the approach.
         self._occluders = os.environ.get("OCCLUDERS", "1") != "0"
@@ -433,6 +437,7 @@ class Scenario_3(BasicScenario):
         # physics on and fall until the behavior tree lifts them, so nothing slow may run between
         # their spawn and the first tree tick (with 128 spawns after it the crossing car was
         # falling at 66 m/s when lifted and never drove).
+        self._spawn_queue_tail()
         self._spawn_background()
 
         # Spawn vehicles at the XML-defined transforms (z=-500 keeps them underground).
@@ -448,6 +453,7 @@ class Scenario_3(BasicScenario):
             actor.set_autopilot(False)           #  follower will drive via apply_control
 
         self.other_actors.extend(actor for actor, _ in self._bg_actors)   # removed with the scenario
+        self.other_actors.extend(self._queue_actors)
 
         for i in range(self.num_vehicle):
             car_transform = self.other_actors[i].get_transform()
@@ -515,6 +521,22 @@ class Scenario_3(BasicScenario):
                    >= (7.0 if (s.road_id, s.lane_id) == (wp.road_id, wp.lane_id) else 3.2) for s in spots):
                 spots.append(wp)
         return spots
+
+    def _spawn_queue_tail(self):
+        if not self._queue_tail_y:
+            return
+        ego_x = self.ego_vehicles[0].get_transform().location.x
+        wp = self._map.get_waypoint(carla.Location(ego_x, float(self._queue_tail_y), 0.5))
+        loc = wp.transform.location
+        tf = carla.Transform(carla.Location(loc.x, loc.y, loc.z + 0.4), wp.transform.rotation)
+        actor = CarlaDataProvider.request_new_actor("vehicle.toyota.prius", tf)
+        if actor is None:
+            raise RuntimeError(f"QUEUE_TAIL_Y={self._queue_tail_y}: the stopped vehicle did not spawn")
+        actor.set_simulate_physics(enabled=True)
+        actor.set_autopilot(False)
+        actor.apply_control(carla.VehicleControl(hand_brake=True))
+        self._queue_actors.append(actor)
+        print(f"[SCENARIO_3] queue tail: stopped vehicle {actor.id} at ({loc.x:.1f}, {loc.y:.1f})", flush=True)
 
     def _spawn_background(self):
         if self._bg_n <= 0:

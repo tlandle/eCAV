@@ -427,7 +427,10 @@ class MapManager(object):
         tl_list = world.get_actors().filter('traffic.traffic_light*')
 
         for tl_actor in tl_list:
-            tl_id = uuid.uuid4().hex[:4].upper()
+            # The id is the simulator's actor id, the same in every MapManager of a process: the cached
+            # lane table (_LANE_CROSS_CACHE) carries the traffic light id of each lane, and a random id per
+            # manager left every manager after the first with lanes whose light it could not find.
+            tl_id = "TL%d" % tl_actor.id
 
             base_transform = tl_actor.get_transform()
             base_rot = base_transform.rotation.yaw
