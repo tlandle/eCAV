@@ -8473,3 +8473,20 @@ Measured compute is 93 ms in the table arms and 70 ms in the live arm (not exami
 **Not yet done.** The 8-vehicle closed-loop validity check of Nov 13 (frame age, trajectories against one server), more than one secondary, secondaries on carla-ndm (CARLA is not installed there), and the perception scale rows with secondaries. The launcher change is untested on Azure. paper_ispass/scale_mh1_notes.md still carries the rejection text.
 
 **Paper repos.** Overleaf had pushed an edit to branch overleaf-2026-11-16-0259 because GitHub main was two commits ahead, so Overleaf never received those commits. Merged into main with his wording (Table I radio cell: "ns-3 5G-LENA, live co-simulation") and 512 clients kept; ecav_ispass_overleaf main dc5c440, ecav_ispass master f9cd141, 10 pages. Tyler has to pull GitHub changes in Overleaf.
+
+## 2026-11-15 22:27 ISPASS paper: perception-first narrative, page numbers, nine content pages (ecav_ispass 421dc96, overleaf 38e2569)
+
+**Tyler's point (Nov 15).** Perception on against off is the motivation for perception-enabled scale. With perception off a vehicle reads every road user from the simulator (tracking_manager.deactivate_mode, no line of sight or range check), so the occlusion that cooperation addresses is absent. Delay and the errors of the shared state are not the argument. A scale result without perception does not evaluate cooperative driving.
+
+**External review pasted by Tyler (work order).** (1) lead with why sensor-derived perception matters, (2) figure of tick time with and without perception from existing data, (3) ISPASS 2027 rules: nine pages of content, references unlimited beyond, page numbers required (confirmed on ispass.org/2027/submission), the Nov 15 PDF had its conclusion on page 10, (4) proposed new experiment: ground truth against sensor-derived state over traffic density.
+
+**Done in both paper repos.**
+- Page numbers (\pagestyle{plain} and the IEEEtran title page style). Content ends on page 9, references are page 10.
+- Introduction: two new paragraphs before age at use (simulator state hides the occlusion and the perception errors, a step with perception takes 6.6 to 7.8 times the step without at 8 to 32 vehicles). Contributions 2 and 3 reworded. Prior-platform paragraph shortened.
+- Abstract and conclusion: perception rows lead the scale sentence (128 vehicles on three hosts with perception, 512 clients without).
+- Requirements: reading simulator state is the first reason simplified evaluation misleads.
+- Scale table (tab:scale-cmp) replaced by fig:scale-cmp (figures/fig_scale_cmp.pdf, scripts/ispass/plot_scale_cmp.py); the on against off ratio and the 8 and 256 vehicle OpenCDA numbers are in the text.
+- Subsection VI-C retitled "Ground-truth state against sensor-derived state"; its closing paragraph leads with the lower success under the same delays (5 points on average, 4 and 8 with no added delay, 64 and 32 points for no identity rule and object sharing at 200 ms), matched age second.
+- Cuts for the limit, all commented with Nov 15 notes: sidelink engine and state-space tracker in Implementation, CADET detail, limitations merged into "Timing model", conclusion shortened, design subsections merged, camera and LiDAR replay numbers (1.93 m to 0.07 to 0.28 m, measured before the sensor frame wait) replaced by a statement without numbers.
+
+**Not done.** The density sweep (traffic M in 4, 8, 16, 32, arms ground truth, delayed ground truth, sensor-derived, local perception, 30 to 50 runs) needs a scenario with background traffic and a gate before launch. A perception-off, no-cooperation row on the occluded encounter has never been run. Multi-GPU validation on Azure is queued. Tyler must pull GitHub changes in Overleaf (branch overleaf-2026-11-16-0259 is merged into main).
