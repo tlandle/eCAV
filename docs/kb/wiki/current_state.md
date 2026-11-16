@@ -8740,3 +8740,22 @@ Not matched, to state with the numbers: one forward camera (1242 x 375, about 81
 **cetus.** tmp/cetus_speed.sh started 15:02: one vehicle, collision course launched in simulation time, 100 degree cameras, approach speed 40, 50, 60, 70 km/h (EGO_Y -90), both arms, 2 runs per cell (stamps ispass_spd<speed>): the speed up to which each state source avoids the collision. Watcher bq42b7vv7. The cetus worktree stayed at 0c7f0ef3 (the checkout of 29f968df aborted on the locally written perception_model.json; the trace there has no bearing).
 
 **Code since the last block (29f968df).** PERC-TRACE lines carry the bearing (b=); perception_model_fit.py --sector F keeps the forward sector (for a comparison with KITTI's single camera); scenario_3 QUEUE_TAIL_LANES.
+
+## 2026-11-16 15:35 Matched single-vehicle comparison by approach speed (gate); speed set with varied lead running on cetus
+
+**Speed gate on cetus (tmp/cetus_speed.sh; one vehicle, 100 degree cameras, crossing car on a collision course launched in simulation time at lead 3.72 s, EGO_Y -90; the two runs of each cell identical).**
+
+| speed (km/h) | ground truth in view: brake start, closest | camera and LiDAR: brake start, closest | collision |
+|---|---|---|---|
+| 40 | 1.30 s, 15.5 m | 1.70 s, 14.1 m | none |
+| 50 | 1.55 s, 16.1 m | 1.90 s, 13.0 m | none |
+| 60 | 1.80 s, 12.5 m | 2.15 s, 7.0 m | none |
+| 70 | 2.05 s, 6.0 m | 2.75 s, 3.1 m | camera and LiDAR only |
+
+Sensors brake 0.35 to 0.7 s later than ground truth; ground truth avoids the car through 70 km/h, camera and LiDAR through 60 km/h.
+
+**Lead variation (branch ladder 38703b6f, not yet in develop because ispass_colq2 runs from the main checkout).** CROSS_SYNC_JITTER=<s>: the lead of a run is drawn within plus or minus the value, seeded by the repetition (rep_<n> of the output directory); driver knob LEAD_JITTER. Merge into develop when atlas is idle.
+
+**cetus: ispass_spdj<speed> (tmp/cetus_speedset.sh, logs/cetus_speedset.log, started 15:32, worktree at 38703b6f).** Speeds 40 to 80 km/h, both arms, LEAD_JITTER 0.15, 10 runs per cell, trace with bearing. Watcher brnuv2jn5 writes paper_ispass/speed_runs.csv on cetus and copies it to atlas. The calibration tables of the 70 degree rig were moved to ~/ladcal_tables on cetus (they are committed in develop).
+
+**Deck (fifth copy, 23 slides, sent).** Slide 2d: closest distance against approach speed, both arms, gate.
