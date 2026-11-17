@@ -52,8 +52,9 @@ noise() { [[ -n "${NOISE:-}" ]] && { echo "$NOISE"; return; }
 #      degree gaps between the four cameras). GT_CAM=1: the ground-truth arms are also clipped to the camera coverage.
 # SYNC_LAUNCH=<speed_mps>: the main process launches the crossing car in simulation time, TTA seconds before the
 #      vehicle reaches the conflict point, at this constant speed (the scenario runner's wall-clock trigger is off).
-FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
-rig_args() { [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+# LIDAR_PPS: points per second of every vehicle LiDAR (unset: the value of the scenario YAML)
+FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"; LIDAR_PPS="${LIDAR_PPS:-}"
+rig_args() { [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "$LIDAR_PPS" ]] && echo -n "--lidar-points-per-second $LIDAR_PPS "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
   gt_vis)   echo "--vehicle-state gt_visible" ;;

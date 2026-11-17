@@ -83,7 +83,7 @@ def main():
     model = torch.hub.load("yolov5/", model="yolov5m", source="local"); model.eval()
     tr = os.path.join(a.root, "training")
     seqs = a.seqs if a.seqs else sorted(int(os.path.basename(p)) for p in glob.glob(os.path.join(tr, "image_02", "*")))
-    rec_d = np.zeros((len(DIST) - 1, 2)); rec_o = np.zeros((3, 2)); gaps = []; first_delay = []; n_frames = 0; n_fp = 0; n_det = 0
+    rec_d = np.zeros((len(DIST) - 1, 2)); rec_o = np.zeros((3, 2)); rec_do = np.zeros((len(DIST) - 1, 3, 2)); gaps = []; first_delay = []; n_frames = 0; n_fp = 0; n_det = 0
     err_r = []; per_seq = {}
     for s in seqs:
         P2, R, T = read_calib(os.path.join(tr, "calib", "%04d.txt" % s)); labels = read_labels(os.path.join(tr, "label_02", "%04d.txt" % s))
@@ -119,7 +119,7 @@ def main():
                 if det:
                     free.discard(best); u = xy / (np.linalg.norm(xy) or 1.0); e = np.array(dets[best]) - xy; err_r.append(float(e @ u))
                 rec_d[min(int(d // 10), len(DIST) - 2)] += (1, det); s_tot += 1; s_det += det
-                if lab["occ"] in (0, 1, 2): rec_o[lab["occ"]] += (1, det)
+                if lab["occ"] in (0, 1, 2): rec_o[lab["occ"]] += (1, det); rec_do[min(int(d // 10), len(DIST) - 2), lab["occ"]] += (1, det)
                 st = state.get(lab["track"])
                 if st is None or st[0] != k - 1:
                     if st is not None and st[1]: gaps.append(st[1])
@@ -149,6 +149,7 @@ def main():
     print("radial error of matched detections: mean %.2f m, sd %.2f m" % (np.mean(err_r), np.std(err_r)))
     json.dump(dict(source="KITTI tracking, training sequences %s" % seqs, frame_s=0.1, range_m=RANGE_M, dist_edges=DIST,
                    recall_by_distance=[[int(r[0]), int(r[1])] for r in rec_d], recall_by_occlusion=[[int(r[0]), int(r[1])] for r in rec_o],
+                   recall_by_distance_occlusion=[[[int(c[0]), int(c[1])] for c in r] for r in rec_do],
                    miss_runs=[int(x) for x in gaps], first_detection_delay=[int(x) for x in first_delay],
                    unmatched_per_call=n_fp / max(n_frames, 1), calls=n_frames, per_sequence=per_seq,
                    radial_error_mean_m=float(np.mean(err_r)), radial_error_sd_m=float(np.std(err_r))), open(a.out, "w"))
