@@ -598,6 +598,7 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         tmc = d.setdefault("carla_traffic_manager", {})
         # x and y limits, grid steps, vehicle count: 120 m around the route from (-85, -30) past the junction at (-85, 128)
         tmc["range"] = [[-205, 35, -60, 250, 7, 7, int(args.tm_traffic)]]; tmc["random"] = True
+        tmc["ignore_lights_percentage"] = 100   # signals off for the background: vehicles at a red light queue and hold the test vehicle
         tmc["port"] = 8010     # 8000 is held by the scenario runner's traffic manager, which this process cannot step
         print(f"    traffic manager background: {args.tm_traffic} driving vehicles")
 
