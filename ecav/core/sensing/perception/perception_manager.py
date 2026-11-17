@@ -1135,8 +1135,11 @@ class PerceptionManager:
         origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
         tf = target.get_transform()
         bb = target.bounding_box
+        # untagged meshes (label NONE) are road-surface pieces such as crosswalks, whose collision
+        # volume stands across the lane, so a ray passes through them as through the ground
         ground = (carla.CityObjectLabel.Roads, carla.CityObjectLabel.RoadLines,
-                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain)
+                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain,
+                  carla.CityObjectLabel.NONE)
         n = 0
         for sx, sy in ((0, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
             point = tf.transform(carla.Location(bb.location.x + sx * bb.extent.x * 0.9,
@@ -1211,8 +1214,11 @@ class PerceptionManager:
         origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
         tf = target.get_transform()
         bb = target.bounding_box
+        # untagged meshes (label NONE) are road-surface pieces such as crosswalks, whose collision
+        # volume stands across the lane, so a ray passes through them as through the ground
         ground = (carla.CityObjectLabel.Roads, carla.CityObjectLabel.RoadLines,
-                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain)
+                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain,
+                  carla.CityObjectLabel.NONE)
         for sx, sy in ((0, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
             point = tf.transform(carla.Location(bb.location.x + sx * bb.extent.x * 0.9,
                                                 bb.location.y + sy * bb.extent.y * 0.9, bb.location.z))
