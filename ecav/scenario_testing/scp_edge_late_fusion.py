@@ -230,7 +230,8 @@ def run_scenario(opt, scenario_params):
             import random as _random
             import re as _re
             _m = _re.findall(r"(?:run|rep)_(\d+)", str(getattr(opt, 'output_dir', '') or ''))
-            _seed = int(_m[-1]) if _m else 0
+            # the vehicle count enters the seed: a denser cell is then a new scene and not a superset of a sparser one
+            _seed = 1000 * int(scenario_params['carla_traffic_manager']['range'][0][-1]) + (int(_m[-1]) if _m else 0)
             _state = _random.getstate()
             _random.seed(_seed)
             _tm, _bg = scenario_manager.create_traffic_carla()
