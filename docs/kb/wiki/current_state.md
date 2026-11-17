@@ -8801,3 +8801,21 @@ Launch tick 243 gave a collision at 2.65 s in the first set (car not advanced) a
 **Deck (~/repos/ecav_ispass_eval_deck, 24 slides, local, not sent).** New slide 2e "Cause of the later brake with camera and LiDAR": three strips of the front camera at 1.5, 2.0, 2.2 s of a 70 km/h run (figs/pole_view.png from figs/src/, make_figs.py). Slide 2d still shows the gate and is replaced when ispass_spdk lands.
 
 **cetus queue.** tmp/lad_cal100.sh waits for the speed set's chain end, then runs ispass_ladcal100 (density_sweep.sh, FOV=100, trace with bearing, six densities, 8 runs each, camera and LiDAR arm). Purpose: error-model tables for the 100 degree rig and the comparison with KITTI restricted to the forward sector (perception_model_fit.py --sector 81). Log logs/lad_cal100.log, ends with "cal end".
+
+### Nov 16, 21:44: exact-lead speed set finished; column set ispass_colq2 found defective
+
+**Speed set ispass_spdk40..80 (cetus, ladder 1be23838, 100 runs, none invalid; table paper_ispass/speed_runs2.csv, supersedes speed_runs.csv).** One vehicle, 100 degree cameras, crossing car launched in simulation time, lead drawn per repetition within 0.15 s of 3.72 s (same ten leads in both arms; the leads of repetitions 7 and 10 round to the same 3.607 s and differ below 1 ms). Measured approach speed 37, 47, 56, 65, 77 km/h for commanded 40 to 80.
+- Ground truth in sensor view: collided 0, 0, 0, 0, 8 of 10. Median brake start 1.25, 1.50, 1.75, 1.95, 2.25 s after launch. Median closest distance 14.4, 16.2, 12.5, 5.7, 3.8 m.
+- Camera and LiDAR: collided 0, 1, 3, 10, 10 of 10. Median brake start 1.60, 1.90, 2.15, 2.75, 2.83 s. Median closest distance 13.3, 13.1, 7.0, 2.6, 2.8 m.
+- First detection: 41 to 46 m at 40 km/h, 44 to 50 m at 50 and 60 km/h, 30 to 35 m in 18 of 20 runs at 70 and 80 km/h (the other two: once at 46 m, then 10 frames without a detection). At 50 and 60 km/h up to 8 following detections are missing. The track is withdrawn for 0.3 to 0.5 s in 5 of these 20 runs and first published at 2.6 s in one. 4 of these 6 runs collide.
+- The first set overstated 60 km/h (8 of 10) because its repetitions were duplicates.
+
+**Deck (~/repos/ecav_ispass_eval_deck, 24 slides, local).** Slide 2d now shows the full set (figure spd_set: collisions of 10 runs and brake start against measured approach speed, tag measured). Slide 2e notes carry the numbers of this set. Narrative, slide 3 notes and the runs slide say that the column set is repeated after a detection fix.
+
+**Column set ispass_colq2 (atlas, 1 to 8 vehicles done, 16 running): not usable for collisions.** Partial reduce: follower collisions 0, 0, 0, 0, 4 with ground truth and 0, 0, 2, 15, 31 with camera and LiDAR at 1, 2, 4, 6, 8 vehicles. The leading vehicle touches the stopped vehicle in 47 of 49 valid camera and LiDAR runs (first impulse 22 to 588, all low speed). Cause found in the trace of ispass_colq2_onboard_n1 run 3:
+- The set stops a second vehicle in the neighbouring lane (TAIL_LANES=2). With two stopped vehicles side by side the in-lane one is detected in 18 of 116 calls between 10 and 30 m and the neighbour in 58 of 133. With one stopped vehicle (ispass_colq1, 70 degree rig) the in-lane one was detected in 177 of 177 calls and the vehicle stopped 9.4 m short.
+- The leading vehicle stops at 28 m, loses the detection, accelerates to 10 m/s, brakes hard at 10 m and stops 5.3 m (centre to centre) from the stopped vehicle. Below 6 m the stopped vehicle is detected in 9 of 201 calls, the track is not held, and the vehicle creeps into contact and pushes through.
+- Follower collisions are moving collisions between column vehicles (first impulse 4000 to 21600). Whether they follow from the leader's late hard brake is not traced.
+- Tick time is unaffected: 248 ms with ground truth and 582 ms with camera and LiDAR at 8 vehicles.
+
+**Next.** Find why two side-by-side vehicles give one detection and why nothing is detected below 6 m; fix on branch ladder; gate on cetus; rerun the column set on one code version; if the fix changes fusion, rerun the speed set and ispass_ladcal100 on the same code. ispass_ladcal100 started on cetus at 21:40. The 16-vehicle cell of ispass_colq2 is left to finish to learn whether 16-vehicle runs complete.
