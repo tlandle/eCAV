@@ -819,7 +819,7 @@ class PerceptionManager:
                 logging.getLogger("DetTrace").warning("[YOLO] rsu_x=%.0f cam=%d tick=%s boxes=%s", float(self.global_position[0]), i,
                                getattr(self.cav_world, 'tick_id', '?'),
                                [tuple(round(float(v), 2) for v in b[:6]) for b in _yb])
-            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i], camera=i)
             if os.environ.get('PERC_TRACE') and self.vehicle is not None:
                 # per camera: detector boxes, 2D tracks, and (after the fusion below) fused objects so far
                 if i == 0:
