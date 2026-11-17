@@ -30,12 +30,13 @@ PAT = re.compile(r"\[PERC-TRACE\] call=(\d+) ego=(\S+) actor=(-?\d+) d=([\d.]+) 
 DIST = [0, 10, 20, 30, 40, 50]; VIS = [2, 4, 5]; MIN = 30
 
 
+STAND_MPS = 0.5      # a vehicle under this speed counts as standing
 def dbin(d): return min(int(d // 10), len(DIST) - 2)
 def vbin(v): return next(i for i, hi in enumerate(VIS) if v <= hi)
 
 
 def load(stamps, sector=None):
-    """Per run: {(ego, actor): [(call, d, vis, det, er, et)]} and the unmatched detections per call."""
+    """Per run: {(ego, actor): [(call, d, vis, det, er, et, speed)]} and the unmatched detections per call."""
     runs = []
     for st in stamps:
         for f in sorted(glob.glob(os.path.join(ROOT, "experiment_results", "*", st + "*", "**", "runner_stdout.txt"), recursive=True)):
@@ -48,7 +49,7 @@ def load(stamps, sector=None):
                 if sector is not None and (m.group(10) is None or abs(float(m.group(10))) > sector / 2.0): continue   # outside the forward sector
                 if actor < 0: fp[(ego, call)] += 1; continue
                 er = float(m.group(7)); et = float(m.group(8))
-                seq[(ego, actor)].append((call, d, vis, det, er, et))
+                seq[(ego, actor)].append((call, d, vis, det, er, et, float(m.group(9))))
             if seq: runs.append((f, seq, fp, len(calls)))
     return runs
 
@@ -62,15 +63,17 @@ def main():
     cnt = {k: np.zeros((nd, nv, 2)) for k in ("first", "dd", "dm")}       # [..., 0] trials, [..., 1] detections
     er_by = [[] for _ in range(nd)]; et_by = [[] for _ in range(nd)]; pairs = []
     gaps = []; first_delay = []; rec_d = np.zeros((nd, 2)); rec_v = np.zeros((6, 2)); rec_dv = np.zeros((nd, 6, 2)); n_calls = 0; n_fp = 0
+    rec_dmv = np.zeros((nd, 2, 6, 2))      # distance bin, standing (0) or moving (1) at STAND_MPS, unblocked rays, (in view, detected)
     for f, seq, fp, calls in runs:
         n_calls += calls; n_fp += sum(fp.values())
         for key, rows in seq.items():
             rows.sort(); prev = None; gap = 0; since_view = None
-            for call, d, vis, det, er, et in rows:
+            for call, d, vis, det, er, et, spd in rows:
                 rec_v[vis] += (1, det)
                 if vis == 0:            # in range, not in line of sight: outside the model
                     prev = None; continue
                 i, j = dbin(d), vbin(vis); rec_d[i] += (1, det); rec_dv[i, vis] += (1, det)
+                if spd == spd: rec_dmv[i, int(spd >= STAND_MPS), vis] += (1, det)
                 cont = prev is not None and prev[0] == call - 1
                 if not cont:
                     if gap: gaps.append(gap)
@@ -119,11 +122,15 @@ def main():
     g = np.array(gaps) if gaps else np.array([0]); fd = np.array(first_delay) if first_delay else np.array([0])
     print("miss runs: n %d, median %.0f, p90 %.0f, max %d calls; calls from first view to first detection: median %.0f, p90 %.0f" % (
         len(gaps), np.median(g), np.percentile(g, 90), g.max(), np.median(fd), np.percentile(fd, 90)))
+    for mo, name in ((0, "standing"), (1, "moving")):
+        t = rec_dmv[:, mo].sum(axis=1)
+        print("recall by distance bin, %s vehicles:" % name, [round(float(r[1] / r[0]), 3) if r[0] else None for r in t], "samples", [int(r[0]) for r in t])
     print("unmatched detections per call: %.3f" % (n_fp / max(n_calls, 1)))
     if a.curves:
         json.dump(dict(dist_edges=DIST, recall_by_distance=[[int(r[0]), int(r[1])] for r in rec_d],
                        recall_by_rays=[[int(r[0]), int(r[1])] for r in rec_v],
-                       recall_by_distance_rays=[[[int(c[0]), int(c[1])] for c in r] for r in rec_dv], miss_runs=[int(x) for x in gaps],
+                       recall_by_distance_rays=[[[int(c[0]), int(c[1])] for c in r] for r in rec_dv],
+                       stand_mps=STAND_MPS, recall_by_distance_motion_rays=rec_dmv.astype(int).tolist(), miss_runs=[int(x) for x in gaps],
                        first_detection_delay=[int(x) for x in first_delay], unmatched_per_call=n_fp / max(n_calls, 1),
                        calls=n_calls), open(a.curves, "w"))
         print("wrote", a.curves)
