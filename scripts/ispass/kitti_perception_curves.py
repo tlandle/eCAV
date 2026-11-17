@@ -12,7 +12,7 @@ Velodyne sweep, with the recording's calibration in place of the simulator's sen
   3. LiDAR points (within RANGE_M of the sensor) projected into the image; for every 2D track the points inside its
      box, the platform's outlier filter (integer mode of |x| and |y|, plus or minus 3 m), at least 2 points, the mean
      of the points moved 1 m away from the sensor
-  4. the platform's deduplication (single linkage at NMS_M, the first detection of a cluster is kept)
+  4. no deduplication: the platform merges objects of different cameras only, and the recording has one camera
 A labelled Car, Van or Truck within RANGE_M counts as detected when a detection lies within 3 m of its centre, the rule
 of the simulator trace (perception_manager._perception_trace). Output: the curves of
 scripts/ispass/perception_model_fit.py --curves, with KITTI's occlusion level (0 fully visible, 1 partly, 2 largely
@@ -27,7 +27,7 @@ import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 sys.path.insert(0, ROOT)
-RANGE_M = 50.0; NMS_M = 5.0; MATCH_M = 3.0; DIST = [0, 10, 20, 30, 40, 50]; TYPES = ("Car", "Van", "Truck")
+RANGE_M = 50.0; MATCH_M = 3.0; DIST = [0, 10, 20, 30, 40, 50]; TYPES = ("Car", "Van", "Truck")
 
 
 def read_calib(path):
@@ -69,21 +69,8 @@ def fuse(tracks, pts, uvz):
         c = sel.mean(axis=0); r = float(np.hypot(c[0], c[1]))
         if r > 1e-3: c = c + np.array([c[0] / r, c[1] / r, 0.0])
         out.append((float(c[0]), float(c[1])))
-    # deduplication: single linkage at NMS_M, keep the first of each cluster
-    n = len(out); cid = list(range(n))
-    def find(i):
-        while cid[i] != i: cid[i] = cid[cid[i]]; i = cid[i]
-        return i
-    for i in range(n):
-        for j in range(i + 1, n):
-            if np.hypot(out[i][0] - out[j][0], out[i][1] - out[j][1]) < NMS_M:
-                a, b = find(i), find(j)
-                if a != b: cid[b] = a
-    seen, keep = set(), []
-    for i in range(n):
-        r = find(i)
-        if r not in seen: seen.add(r); keep.append(out[i])
-    return keep
+    # no deduplication: objects of one camera are never merged (perception_manager._cross_camera_nms)
+    return out
 
 
 def main():

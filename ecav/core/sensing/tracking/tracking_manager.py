@@ -92,6 +92,9 @@ class TrackingManager:
         if tracker_type == 'SORT':
             from ecav.core.sensing.tracking.sort_tracker import MultiObjectSORTTracker
             self.tracker = MultiObjectSORTTracker(max_age=5, min_matching_iou=0.3)
+            # one 2D tracker per camera: boxes of different cameras do not share an image plane,
+            # and a tracker fed by all cameras in turn matches a box of one camera to the track of another
+            self.trackers = {0: self.tracker}
 
         self.client_metrics = ClientMetrics(0)
 
@@ -112,11 +115,8 @@ class TrackingManager:
         """
         return a.get_location().distance(self.ego_pos.location)
 
-    def track(self, objects):
-        #if self.activate_mode:
-        return self.activate_mode(objects)
-        #else:
-        #    return self.deactivate_mode(objects)
+    def track(self, objects, camera=0):
+        return self.activate_mode(objects, camera)
 
     def deactivate_mode(self, objects, ego_pos):
         """
@@ -191,5 +191,9 @@ class TrackingManager:
 
         return matches
 
-    def activate_mode(self, objects):
-        return self.tracker.track(objects)
+    def activate_mode(self, objects, camera=0):
+        tracker = self.trackers.get(camera)
+        if tracker is None:
+            from ecav.core.sensing.tracking.sort_tracker import MultiObjectSORTTracker
+            tracker = self.trackers[camera] = MultiObjectSORTTracker(max_age=5, min_matching_iou=0.3)
+        return tracker.track(objects)

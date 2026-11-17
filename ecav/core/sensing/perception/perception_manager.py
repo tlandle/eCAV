@@ -819,7 +819,7 @@ class PerceptionManager:
                 logging.getLogger("DetTrace").warning("[YOLO] rsu_x=%.0f cam=%d tick=%s boxes=%s", float(self.global_position[0]), i,
                                getattr(self.cav_world, 'tick_id', '?'),
                                [tuple(round(float(v), 2) for v in b[:6]) for b in _yb])
-            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i])
+            tracking_detection = self.tracking_manager.track(yolo_detection.xyxy[i], camera=i)
             if os.environ.get('PERC_TRACE') and self.vehicle is not None:
                 # per camera: detector boxes, 2D tracks, and (after the fusion below) fused objects so far
                 if i == 0:
@@ -847,6 +847,7 @@ class PerceptionManager:
             logger.debug("Tracking Detection: %s", tracking_detection)
 
             lidar_fusion_start_time = time.time()
+            _before = {id(v): (v.location.x, v.location.y) for v in objects.get('vehicles', []) if v.location is not None}
             objects = o3d_camera_lidar_fusion_from_tracker(
                 objects,
                 tracking_detection,
@@ -856,6 +857,10 @@ class PerceptionManager:
                 self.cav_world.tick_id)
             lidar_fusion_end_time = time.time()
             total_lidar_fusion_time += lidar_fusion_end_time - lidar_fusion_start_time
+            # the camera each fused object comes from: the deduplication below compares objects of different cameras only
+            for v in objects.get('vehicles', []):
+                if v.location is not None and _before.get(id(v)) != (v.location.x, v.location.y):
+                    v.camera_index = i
             logger.debug("Objects after lidar fusion: %s", objects)
 
             # calculate the speed. current we retrieve from the server
@@ -949,6 +954,11 @@ class PerceptionManager:
         ground-plane center distance keeps the first detection per physical
         vehicle, suppressing later duplicates.
 
+        Two objects of the same camera are never merged: the detector has
+        already removed its own duplicates, and two vehicles side by side in
+        adjacent lanes are 3.5 m apart, below the distance threshold. An
+        object without a camera index is compared with every other object.
+
         Also records inter-source disagreement statistics for each cluster
         of detections that were merged, enabling analysis of when
         perception duplicates survive NMS and reach the tracker.
@@ -986,6 +996,11 @@ class PerceptionManager:
             if ra != rb:
                 cluster_id[rb] = ra
 
+        def same_camera(a, b):
+            ca = getattr(vehicles[a], "camera_index", None)
+            cb = getattr(vehicles[b], "camera_index", None)
+            return ca is not None and ca == cb
+
         for i in range(n):
             loc_i = vehicles[i].location
             if loc_i is None:
@@ -993,6 +1008,8 @@ class PerceptionManager:
             for j in range(i + 1, n):
                 loc_j = vehicles[j].location
                 if loc_j is None:
+                    continue
+                if same_camera(i, j):
                     continue
                 dist = ((loc_i.x - loc_j.x)**2
                         + (loc_i.y - loc_j.y)**2) ** 0.5
@@ -1030,12 +1047,24 @@ class PerceptionManager:
             if max_dist > 4.5:
                 self._camera_disagreement_nms_leaks += 1
 
-        # Keep first detection per cluster (greedy NMS)
-        keep = set()
-        for root, indices in clusters.items():
-            keep.add(indices[0])
+        # Greedy NMS in detection order: an object is dropped when an object
+        # already kept, from a different camera, lies within the threshold.
+        keep = []
+        for i in range(n):
+            loc_i = vehicles[i].location
+            dup = False
+            if loc_i is not None:
+                for j in keep:
+                    loc_j = vehicles[j].location
+                    if loc_j is None or same_camera(i, j):
+                        continue
+                    if ((loc_i.x - loc_j.x)**2 + (loc_i.y - loc_j.y)**2) ** 0.5 < distance_threshold:
+                        dup = True
+                        break
+            if not dup:
+                keep.append(i)
 
-        objects["vehicles"] = [v for i, v in enumerate(vehicles) if i in keep]
+        objects["vehicles"] = [vehicles[i] for i in keep]
         return objects
 
     def _filter_detections_near_excluded_vehicles(self, objects, exclusion_radius=15.0):
@@ -1106,8 +1135,11 @@ class PerceptionManager:
         origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
         tf = target.get_transform()
         bb = target.bounding_box
+        # untagged meshes (label NONE) are road-surface pieces such as crosswalks, whose collision
+        # volume stands across the lane, so a ray passes through them as through the ground
         ground = (carla.CityObjectLabel.Roads, carla.CityObjectLabel.RoadLines,
-                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain)
+                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain,
+                  carla.CityObjectLabel.NONE)
         n = 0
         for sx, sy in ((0, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
             point = tf.transform(carla.Location(bb.location.x + sx * bb.extent.x * 0.9,
@@ -1182,8 +1214,11 @@ class PerceptionManager:
         origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
         tf = target.get_transform()
         bb = target.bounding_box
+        # untagged meshes (label NONE) are road-surface pieces such as crosswalks, whose collision
+        # volume stands across the lane, so a ray passes through them as through the ground
         ground = (carla.CityObjectLabel.Roads, carla.CityObjectLabel.RoadLines,
-                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain)
+                  carla.CityObjectLabel.Ground, carla.CityObjectLabel.Terrain,
+                  carla.CityObjectLabel.NONE)
         for sx, sy in ((0, 0), (1, 1), (1, -1), (-1, 1), (-1, -1)):
             point = tf.transform(carla.Location(bb.location.x + sx * bb.extent.x * 0.9,
                                                 bb.location.y + sy * bb.extent.y * 0.9, bb.location.z))
