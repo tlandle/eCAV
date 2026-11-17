@@ -1198,7 +1198,7 @@ class ScenarioManager:
                     ego_vehicle_bp.set_attribute('color', color)
 
             vehicle = self.world.spawn_actor(ego_vehicle_bp, spawn_transform)
-            vehicle.set_autopilot(True, 8000)
+            vehicle.set_autopilot(True, int(traffic_config.get('port', 8000)))
 
             if 'vehicle_speed_perc' in vehicle_config:
                 tm.vehicle_percentage_speed_difference(
@@ -1305,7 +1305,7 @@ class ScenarioManager:
             if not vehicle:
                 continue
 
-            vehicle.set_autopilot(True, 8000)
+            vehicle.set_autopilot(True, int(traffic_config.get('port', 8000)))
             tm.auto_lane_change(vehicle, traffic_config['auto_lane_change'])
 
 						# hazard behavior for traffic
@@ -1342,7 +1342,9 @@ class ScenarioManager:
         """
         logger.info('Spawning CARLA traffic flow.')
         traffic_config = self.scenario_params['carla_traffic_manager']
-        tm = self.client.get_trafficmanager()
+        # the traffic manager is stepped by the process that ticks the world only when it is a server in that
+        # process; a port that another client (the scenario runner, 8000) holds gives a remote handle instead
+        tm = self.client.get_trafficmanager(int(traffic_config.get('port', 8000)))
 
         tm.set_global_distance_to_leading_vehicle(
             traffic_config['global_distance'])

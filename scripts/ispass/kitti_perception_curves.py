@@ -27,6 +27,7 @@ import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 sys.path.insert(0, ROOT)
+STAND_MPS = 0.5; SPEED_WIN = 5      # standing under this speed; speed over this many frames (0.1 s each) either side
 RANGE_M = 50.0; MATCH_M = 3.0; DIST = [0, 10, 20, 30, 40, 50]; TYPES = ("Car", "Van", "Truck")
 
 
@@ -39,6 +40,46 @@ def read_calib(path):
     R = np.eye(4); R[:3, :3] = c["R_rect"].reshape(3, 3)
     T = np.eye(4); T[:3, :4] = c["Tr_velo_cam"].reshape(3, 4)
     return P2, R, T
+
+
+def track_speeds(tr, s, labels):
+    """World speed of every labelled vehicle per frame, {(frame, track): m/s}, from the recording's GPS/IMU pose (oxts):
+    the label position is taken to a fixed frame through the calibration and the pose, and the speed is its displacement
+    over up to SPEED_WIN frames either side. A track with one frame in that window and a sequence without a pose file
+    have no entry."""
+    op = os.path.join(tr, "oxts", "%04d.txt" % s)
+    if not os.path.exists(op): return {}
+    c = {}
+    for line in open(os.path.join(tr, "calib", "%04d.txt" % s)):
+        k, *v = line.replace(":", " ").split()
+        c[k] = np.array([float(x) for x in v])
+    def hom(m):
+        o = np.eye(4); o[:3, :4] = m.reshape(3, 4); return o
+    R = np.eye(4); R[:3, :3] = c["R_rect"].reshape(3, 3)
+    cam_to_imu = np.linalg.inv(R @ hom(c["Tr_velo_cam"]) @ hom(c["Tr_imu_velo"]))
+    poses = []; scale = None; er = 6378137.0
+    for line in open(op):
+        lat, lon, alt, roll, pitch, yaw = [float(x) for x in line.split()[:6]]
+        if scale is None: scale = np.cos(lat * np.pi / 180.0)
+        cr, sr, cp, sp, cy, sy = np.cos(roll), np.sin(roll), np.cos(pitch), np.sin(pitch), np.cos(yaw), np.sin(yaw)
+        Rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]]); Ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+        Rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+        P = np.eye(4); P[:3, :3] = Rz @ Ry @ Rx
+        P[:3, 3] = [scale * lon * np.pi * er / 180.0, scale * er * np.log(np.tan((90.0 + lat) * np.pi / 360.0)), alt]
+        poses.append(P)
+    pos = collections.defaultdict(dict)
+    for k, labs in labels.items():
+        if k >= len(poses): continue
+        for lab in labs:
+            x = lab["cam"].copy(); x[1] -= lab["h"] / 2.0
+            pos[lab["track"]][k] = (poses[k] @ cam_to_imu @ np.r_[x, 1.0])[:2]
+    out = {}
+    for t, fr in pos.items():
+        ks = sorted(fr)
+        for k in ks:
+            win = [x for x in ks if abs(x - k) <= SPEED_WIN]
+            if win[-1] > win[0]: out[(k, t)] = float(np.linalg.norm(fr[win[-1]] - fr[win[0]]) / (0.1 * (win[-1] - win[0])))
+    return out
 
 
 def read_labels(path):
@@ -83,10 +124,11 @@ def main():
     model = torch.hub.load("yolov5/", model="yolov5m", source="local"); model.eval()
     tr = os.path.join(a.root, "training")
     seqs = a.seqs if a.seqs else sorted(int(os.path.basename(p)) for p in glob.glob(os.path.join(tr, "image_02", "*")))
-    rec_d = np.zeros((len(DIST) - 1, 2)); rec_o = np.zeros((3, 2)); rec_do = np.zeros((len(DIST) - 1, 3, 2)); gaps = []; first_delay = []; n_frames = 0; n_fp = 0; n_det = 0
+    rec_d = np.zeros((len(DIST) - 1, 2)); rec_o = np.zeros((3, 2)); rec_do = np.zeros((len(DIST) - 1, 3, 2)); rec_dmo = np.zeros((len(DIST) - 1, 2, 3, 2)); gaps = []; first_delay = []; n_frames = 0; n_fp = 0; n_det = 0
     err_r = []; per_seq = {}
     for s in seqs:
         P2, R, T = read_calib(os.path.join(tr, "calib", "%04d.txt" % s)); labels = read_labels(os.path.join(tr, "label_02", "%04d.txt" % s))
+        speeds = track_speeds(tr, s, labels)
         cam_to_velo = np.linalg.inv(R @ T); proj = P2 @ R @ T
         frames = sorted(glob.glob(os.path.join(tr, "image_02", "%04d" % s, "*.png")))
         if a.max_frames: frames = frames[:a.max_frames]
@@ -120,6 +162,8 @@ def main():
                     free.discard(best); u = xy / (np.linalg.norm(xy) or 1.0); e = np.array(dets[best]) - xy; err_r.append(float(e @ u))
                 rec_d[min(int(d // 10), len(DIST) - 2)] += (1, det); s_tot += 1; s_det += det
                 if lab["occ"] in (0, 1, 2): rec_o[lab["occ"]] += (1, det); rec_do[min(int(d // 10), len(DIST) - 2), lab["occ"]] += (1, det)
+                spd = speeds.get((k, lab["track"]))
+                if spd is not None and lab["occ"] in (0, 1, 2): rec_dmo[min(int(d // 10), len(DIST) - 2), int(spd >= STAND_MPS), lab["occ"]] += (1, det)
                 st = state.get(lab["track"])
                 if st is None or st[0] != k - 1:
                     if st is not None and st[1]: gaps.append(st[1])
@@ -142,6 +186,9 @@ def main():
     print("frames %d, labelled vehicles within %.0f m %d, recall %.3f, detections per frame %.2f, unmatched per frame %.2f" % (
         n_frames, RANGE_M, tot[0], tot[1] / max(tot[0], 1), n_det / max(n_frames, 1), n_fp / max(n_frames, 1)))
     print("recall by distance bin:", [round(float(r[1] / r[0]), 3) if r[0] else None for r in rec_d], "samples", [int(r[0]) for r in rec_d])
+    for mo, name in ((0, "standing"), (1, "moving")):
+        t = rec_dmo[:, mo].sum(axis=1)
+        print("recall by distance bin, %s vehicles:" % name, [round(float(r[1] / r[0]), 3) if r[0] else None for r in t], "samples", [int(r[0]) for r in t])
     print("recall by occlusion level 0, 1, 2:", [round(float(r[1] / r[0]), 3) if r[0] else None for r in rec_o], "samples", [int(r[0]) for r in rec_o])
     g = np.array(gaps) if gaps else np.array([0]); fd = np.array(first_delay) if first_delay else np.array([0])
     print("miss runs: n %d, median %.0f, p90 %.0f, max %d frames of 0.1 s; frames from first view to first detection: median %.0f, p90 %.0f" % (
@@ -150,6 +197,7 @@ def main():
     json.dump(dict(source="KITTI tracking, training sequences %s" % seqs, frame_s=0.1, range_m=RANGE_M, dist_edges=DIST,
                    recall_by_distance=[[int(r[0]), int(r[1])] for r in rec_d], recall_by_occlusion=[[int(r[0]), int(r[1])] for r in rec_o],
                    recall_by_distance_occlusion=[[[int(c[0]), int(c[1])] for c in r] for r in rec_do],
+                   stand_mps=STAND_MPS, recall_by_distance_motion_occlusion=rec_dmo.astype(int).tolist(),
                    miss_runs=[int(x) for x in gaps], first_detection_delay=[int(x) for x in first_delay],
                    unmatched_per_call=n_fp / max(n_frames, 1), calls=n_frames, per_sequence=per_seq,
                    radial_error_mean_m=float(np.mean(err_r)), radial_error_sd_m=float(np.std(err_r))), open(a.out, "w"))
