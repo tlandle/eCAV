@@ -8819,3 +8819,15 @@ Launch tick 243 gave a collision at 2.65 s in the first set (car not advanced) a
 - Tick time is unaffected: 248 ms with ground truth and 582 ms with camera and LiDAR at 8 vehicles.
 
 **Next.** Find why two side-by-side vehicles give one detection and why nothing is detected below 6 m; fix on branch ladder; gate on cetus; rerun the column set on one code version; if the fix changes fusion, rerun the speed set and ispass_ladcal100 on the same code. ispass_ladcal100 started on cetus at 21:40. The 16-vehicle cell of ispass_colq2 is left to finish to learn whether 16-vehicle runs complete.
+
+### Nov 16, 21:49: cause of the missing in-lane vehicle found and fixed on ladder; fix gate running on cetus
+
+**Cause.** PerceptionManager._cross_camera_nms merged every pair of fused objects within cross_camera_nms_threshold (5 m), also two objects of one camera. Two vehicles side by side in adjacent lanes are 3.5 m apart, so one of them was removed (stage trace of ispass_colq2_onboard_n1 run 3: front camera 2 detector boxes, 2 fused objects, 1 after the deduplication, between 10 and 30 m). The function is shared by vehicles and roadside units, so earlier sets with vehicles in adjacent lanes were affected as well (density sets, ispass_ladcal).
+
+**Fix (branch ladder d4451f86, pushed; not in develop).** Each fused object carries camera_index, the camera that produced or last updated it. The deduplication drops an object only against an already kept object of a different camera. Objects without camera_index keep the old rule. Tested in isolation on five cases (two lanes one camera: both kept; one car two cameras: one kept; two lanes plus a duplicate from a second camera: two kept).
+
+**Effect on finished sets.** In the speed set ispass_spdk 949 of 20738 calls (12 to 32 per run, from call 4) have a camera with two or more fused objects and a deduplication that removed one, so the set must be rerun on the fixed code. ispass_ladcal100 (started 21:40 on 1be23838) was stopped by PID at 21:47 during its first cell, the patched YAML restored from its backup (backup equal to HEAD), no process left.
+
+**Still open: nothing detected below 6 m.** With the vehicle 5.4 m (centre to centre) behind the stopped vehicle the front camera still has 2 detector boxes and 2 tracks, and the fused objects lie at (-101.5, 72.1) and (-86.5, 101.7), 24 and 45 m away. The LiDAR points selected for the boxes are not on the near vehicle. Not diagnosed. With one stopped vehicle the vehicle stops 9.4 m short and never enters this zone.
+
+**Gate running (cetus, tmp/cetus_fix_gate.sh, logs/cetus_fix_gate.log, started 21:49, watcher b1o7hfdxr).** ispass_colfixg: queue tail in two lanes, 1, 4, 8 vehicles, both arms, 2 runs per cell. ispass_spdfixg60: crossing encounter at 60 km/h, leads of repetitions 1 to 3, both arms. Reference for the second: ground truth brake start 1.80, 1.85, 1.75 s, camera and LiDAR 2.10, 2.70 (collision), 2.10 s on 1be23838.
