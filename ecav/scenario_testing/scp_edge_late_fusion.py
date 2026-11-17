@@ -225,8 +225,18 @@ def run_scenario(opt, scenario_params):
         # driving background traffic under CARLA's traffic manager, created here because this process owns the tick
         # (carla_traffic_manager.range in the YAML, test_runner.py --tm-traffic; empty by default)
         if scenario_params.get('carla_traffic_manager', {}).get('range'):
+            # spawn points, models and speeds are drawn per repetition (the run_<n> or rep_<n> part of the output
+            # directory), so that the repetitions of a cell are different traffic scenes and each of them still repeats
+            import random as _random
+            import re as _re
+            _m = _re.findall(r"(?:run|rep)_(\d+)", str(getattr(opt, 'output_dir', '') or ''))
+            _seed = int(_m[-1]) if _m else 0
+            _state = _random.getstate()
+            _random.seed(_seed)
             _tm, _bg = scenario_manager.create_traffic_carla()
-            print(f'[TM-TRAFFIC] {len(_bg)} background vehicles driving under the traffic manager', flush=True)
+            _tm.set_random_device_seed(_seed)
+            _random.setstate(_state)
+            print(f'[TM-TRAFFIC] {len(_bg)} background vehicles driving under the traffic manager, seed {_seed}', flush=True)
 
         other_vehicles = []
 
