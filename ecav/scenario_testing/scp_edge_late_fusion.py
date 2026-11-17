@@ -222,6 +222,11 @@ def run_scenario(opt, scenario_params):
                     ego_vehicle = vehicle
             num_actors = len(vehicles) + len(walkers)
         print(f'Found all {num_actors} actors')
+        # driving background traffic under CARLA's traffic manager, created here because this process owns the tick
+        # (carla_traffic_manager.range in the YAML, test_runner.py --tm-traffic; empty by default)
+        if scenario_params.get('carla_traffic_manager', {}).get('range'):
+            _tm, _bg = scenario_manager.create_traffic_carla()
+            print(f'[TM-TRAFFIC] {len(_bg)} background vehicles driving under the traffic manager', flush=True)
 
         other_vehicles = []
 

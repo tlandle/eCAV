@@ -54,6 +54,9 @@ noise() { [[ -n "${NOISE:-}" ]] && { echo "$NOISE"; return; }
 #      vehicle reaches the conflict point, at this constant speed (the scenario runner's wall-clock trigger is off).
 # LIDAR_PPS: points per second of every vehicle LiDAR (unset: the value of the scenario YAML)
 FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"; LIDAR_PPS="${LIDAR_PPS:-}"
+# BG_MODE=tm: the M background road users drive under CARLA's traffic manager (test_runner.py --tm-traffic) and none is
+#      parked by the scenario. Unset: the scenario's own background (scenario_3.py, BG_TRAFFIC), mostly standing.
+BG_MODE="${BG_MODE:-}"
 rig_args() { [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "$LIDAR_PPS" ]] && echo -n "--lidar-points-per-second $LIDAR_PPS "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
@@ -69,10 +72,10 @@ enc_env() { case "$1" in
 run_cell() {  # encounter arm M reps
   local cmd=(test_runner.py -t scp_edge_late_fusion --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --ego-counts 1 --repetitions "$4" --per-tick-age-log --self-id-radius 1
-             --carla-port "$PORT" --stamp "${STAMP}_$1_$2_m$3" $(arm_args "$2") $(rig_args "$2") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
+             --carla-port "$PORT" --stamp "${STAMP}_$1_$2_m$3" $(arm_args "$2") $(rig_args "$2") $([[ "$BG_MODE" == tm ]] && echo "--tm-traffic $3") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
              --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
              --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP
-                            BG_TRAFFIC=$3 $(enc_env "$1") $(arm_env "$2"))
+                            BG_TRAFFIC=$([[ "$BG_MODE" == tm ]] && echo 0 || echo "$3") $(enc_env "$1") $(arm_env "$2"))
   echo "$(date '+%F %T') enc=$1 arm=$2 M=$3 reps=$4"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
   local t0=$(date +%s)

@@ -136,6 +136,10 @@ ap.add_argument("--local-prediction-steps", type=int, default=None,
                      "(local_tracker.predictor.num_future_steps). The default is 10 steps, 0.5 s: the vehicle-side "
                      "stack is a short-horizon fallback beside edge forecasts of prediction_steps. A study of the "
                      "vehicle alone sets it to the edge's horizon. Recorded as config_local_prediction_steps.")
+ap.add_argument("--tm-traffic", type=int, default=None,
+                help="Number of background vehicles that drive under CARLA's traffic manager, spawned on lane waypoints "
+                     "within 120 m of the vehicle's route (carla_traffic_manager.range, random models). Recorded as "
+                     "config_tm_traffic; not part of the run directory name.")
 ap.add_argument("--lidar-points-per-second", type=int, default=None,
                 help="Points per second of every vehicle LiDAR (perception.lidar.points_per_second); the points of one "
                      "sweep are this value over the rotation frequency. Recorded as config_lidar_points_per_second; "
@@ -590,6 +594,13 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 veh.setdefault("local_tracker", {}).setdefault("predictor", {})["num_future_steps"] = int(args.local_prediction_steps)
         print(f"    local forecast horizon {args.local_prediction_steps} steps on every vehicle")
 
+    if args.tm_traffic is not None:
+        tmc = d.setdefault("carla_traffic_manager", {})
+        # x and y limits, grid steps, vehicle count: 120 m around the route from (-85, -30) past the junction at (-85, 128)
+        tmc["range"] = [[-205, 35, -60, 250, 7, 7, int(args.tm_traffic)]]; tmc["random"] = True
+        tmc["port"] = 8010     # 8000 is held by the scenario runner's traffic manager, which this process cannot step
+        print(f"    traffic manager background: {args.tm_traffic} driving vehicles")
+
     if args.lidar_points_per_second is not None:
         n_lid = 0
         for edge in d.get("scenario", {}).get("edge_list", []):
@@ -807,6 +818,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if gps_noise is not None: metrics["config_gps_noise_stddev"] = gps_noise
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
     if args.lidar_points_per_second is not None: metrics["config_lidar_points_per_second"] = args.lidar_points_per_second
+    if args.tm_traffic is not None: metrics["config_tm_traffic"] = args.tm_traffic
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
     if args.spawn_gap_jitter: metrics["config_spawn_gap_jitter"] = args.spawn_gap_jitter
