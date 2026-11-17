@@ -61,7 +61,7 @@ def main():
     nd, nv = len(DIST) - 1, len(VIS)
     cnt = {k: np.zeros((nd, nv, 2)) for k in ("first", "dd", "dm")}       # [..., 0] trials, [..., 1] detections
     er_by = [[] for _ in range(nd)]; et_by = [[] for _ in range(nd)]; pairs = []
-    gaps = []; first_delay = []; rec_d = np.zeros((nd, 2)); rec_v = np.zeros((6, 2)); n_calls = 0; n_fp = 0
+    gaps = []; first_delay = []; rec_d = np.zeros((nd, 2)); rec_v = np.zeros((6, 2)); rec_dv = np.zeros((nd, 6, 2)); n_calls = 0; n_fp = 0
     for f, seq, fp, calls in runs:
         n_calls += calls; n_fp += sum(fp.values())
         for key, rows in seq.items():
@@ -70,7 +70,7 @@ def main():
                 rec_v[vis] += (1, det)
                 if vis == 0:            # in range, not in line of sight: outside the model
                     prev = None; continue
-                i, j = dbin(d), vbin(vis); rec_d[i] += (1, det)
+                i, j = dbin(d), vbin(vis); rec_d[i] += (1, det); rec_dv[i, vis] += (1, det)
                 cont = prev is not None and prev[0] == call - 1
                 if not cont:
                     if gap: gaps.append(gap)
@@ -122,7 +122,8 @@ def main():
     print("unmatched detections per call: %.3f" % (n_fp / max(n_calls, 1)))
     if a.curves:
         json.dump(dict(dist_edges=DIST, recall_by_distance=[[int(r[0]), int(r[1])] for r in rec_d],
-                       recall_by_rays=[[int(r[0]), int(r[1])] for r in rec_v], miss_runs=[int(x) for x in gaps],
+                       recall_by_rays=[[int(r[0]), int(r[1])] for r in rec_v],
+                       recall_by_distance_rays=[[[int(c[0]), int(c[1])] for c in r] for r in rec_dv], miss_runs=[int(x) for x in gaps],
                        first_detection_delay=[int(x) for x in first_delay], unmatched_per_call=n_fp / max(n_calls, 1),
                        calls=n_calls), open(a.curves, "w"))
         print("wrote", a.curves)
