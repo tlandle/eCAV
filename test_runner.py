@@ -136,6 +136,10 @@ ap.add_argument("--local-prediction-steps", type=int, default=None,
                      "(local_tracker.predictor.num_future_steps). The default is 10 steps, 0.5 s: the vehicle-side "
                      "stack is a short-horizon fallback beside edge forecasts of prediction_steps. A study of the "
                      "vehicle alone sets it to the edge's horizon. Recorded as config_local_prediction_steps.")
+ap.add_argument("--lidar-points-per-second", type=int, default=None,
+                help="Points per second of every vehicle LiDAR (perception.lidar.points_per_second); the points of one "
+                     "sweep are this value over the rotation frequency. Recorded as config_lidar_points_per_second; "
+                     "not part of the run directory name.")
 ap.add_argument("--lidar-noise-std", type=float, default=None,
                 help="LiDAR range noise standard deviation in metres (CARLA noise_stddev) for every LiDAR of the "
                      "scenario, vehicles and RSUs. The scenario YAMLs carry 0.0; recorded as config_lidar_noise_std. "
@@ -586,6 +590,14 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 veh.setdefault("local_tracker", {}).setdefault("predictor", {})["num_future_steps"] = int(args.local_prediction_steps)
         print(f"    local forecast horizon {args.local_prediction_steps} steps on every vehicle")
 
+    if args.lidar_points_per_second is not None:
+        n_lid = 0
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                lid = veh.setdefault("sensing", {}).setdefault("perception", {}).setdefault("lidar", {})
+                lid["points_per_second"] = int(args.lidar_points_per_second); n_lid += 1
+        print(f"    LiDAR points per second {args.lidar_points_per_second} on {n_lid} vehicles")
+
     if args.lidar_noise_std is not None:
         # every LiDAR of the scenario (vehicles and RSUs) gets the same range noise
         def _lidar_noise(node):
@@ -794,6 +806,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if loss is not None: metrics["config_packet_loss_pct"] = loss
     if gps_noise is not None: metrics["config_gps_noise_stddev"] = gps_noise
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
+    if args.lidar_points_per_second is not None: metrics["config_lidar_points_per_second"] = args.lidar_points_per_second
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
     if args.spawn_gap_jitter: metrics["config_spawn_gap_jitter"] = args.spawn_gap_jitter
