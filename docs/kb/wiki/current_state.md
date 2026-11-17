@@ -8926,3 +8926,19 @@ Launch tick 243 gave a collision at 2.65 s in the first set (car not advanced) a
 **Running.** cetus gate ispass_ladtmg (tmp/lad_tm_gate.sh, log logs/lad_tm_gate.log, ends with "tmg end"): BG_MODE=tm, M 4 8 16 32 64, 2 runs each, camera and LiDAR arm with trace. Watcher bb0rvii8u. The full recalibration waits for the gate table and Tyler's go.
 
 **Deck.** Slide 1c notes state the parked background and the rerun; runs slide row "Error model calibration with driving background traffic" is Running. 25 slides, validated, local.
+
+### Nov 17, 14:10 (atlas clock): driving-traffic gates, signals off, per-run seeds, calibration set launched
+
+**Gate 1 (ispass_ladtmg, signals obeyed).** No collision in 10 runs. From 16 background vehicles up the traffic manager's vehicles stop at red signals and the test vehicle waits behind them at y 100 to 110 (junction at y 128) for 80 to 250 s per run: test vehicle standing 10, 11, 60 to 65, 68, 70 to 71 percent at M 4, 8, 16, 32, 64; samples of standing vehicles 4, 40, 64, 67, 59 percent. The signal meshes are hidden in this scenario, the signal actors still act on traffic manager vehicles.
+
+**Fix (ladder c71bc80c).** `--tm-traffic` sets `ignore_lights_percentage` 100 in the traffic manager block. Default 0 unchanged.
+
+**Gate 2 (ispass_ladtmh, signals off).** M 4, 8, 16, 32: ticks about 920, 1070, 1090, 1520, test vehicle standing 12 to 13 percent, samples of standing vehicles 4 to 6 percent, no collision, wall 287 to 379 s per cell of 2 runs. Forward sector recall at 10 to 20, 20 to 30, 30 to 40 m: 0.99, 0.95 to 0.98, 0.95 to 1.00 in every cell; 40 to 50 m has few samples (0 of 20, 0.26 of 84, 0.70 of 240). M 64 gridlocks the junction: run 1 stood from perception call 400 to the step limit (12,475 ticks), run 2 took 4,282 ticks. Density range for the calibration set: 4 to 32.
+
+**Repetitions were one scene.** The YAML seed is 11, so the repetitions of a cell spawned the same vehicles at the same places (identical trace at call 40 in run 1 and run 2). The parked set (BG_SEED 7) has the same property. Fix (ladder 83f3e876, 935b2a33): the traffic hook in scp_edge_late_fusion.py seeds the spawn draw and the traffic manager with 1000 times the vehicle count plus the repetition number from the output directory, and restores the random state.
+
+**Real recordings stand about half the time.** KITTI tracking with GPS/IMU pose (oxts archive downloaded to /media/atlas/HDD/Datasets/KITTI_tracking/training/oxts): 52.5 percent of labelled vehicle samples within 50 m are under 0.5 m/s (47 percent at 30 to 50 m); the recording vehicle stands in 16.5 percent of frames. kitti_perception_curves.py and perception_model_fit.py now store detection by distance, motion and visibility (ladder b667080f; KITTI file replaced, shared keys identical). KITTI recall at 10 to 50 m: moving 0.918, 0.836, 0.787, 0.748; standing 0.942, 0.810, 0.702, 0.684. Moving and fully visible: 95, 96, 92, 87 percent.
+
+**Running.** cetus tmp/lad_caltm.sh (log logs/lad_caltm.log): stamp ispass_ladcaltm, BG_MODE=tm, M 4 8 16 24 32, FOV 100, trace. Stage 1 is 3 runs per density, then tmp/tm_seed_check.py (fails on a collision, test vehicle standing over 35 percent, or over 3000 ticks), then resume to 10 runs per density. Ends with "caltm end" or "caltm aborting". After it: refit perception_model_fov100.json and the curves (ring and --sector 81), rebuild deck slides 1a to 1c.
+
+**Merged.** develop contains ladder through b667080f.
