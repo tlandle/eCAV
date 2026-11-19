@@ -35,11 +35,28 @@ def dbin(d): return min(int(d // 10), len(DIST) - 2)
 def vbin(v): return next(i for i, hi in enumerate(VIS) if v <= hi)
 
 
-def load(stamps, sector=None):
+def run_valid(run_dir, route_end_y):
+    """A run counts for the fit when the test vehicle had no collision and reached the end of its route."""
+    import csv, json
+    try:
+        if int(json.load(open(os.path.join(run_dir, "simulation_metrics.json"))).get("focal_collisions") or 0) > 0:
+            return "collision"
+        y = None
+        for r in csv.DictReader(open(os.path.join(run_dir, "evaluation_output", "per_tick_age.csv"))):
+            if r.get("ego_y"): y = float(r["ego_y"])
+        return None if (y is not None and y >= route_end_y) else "route not completed"
+    except (OSError, ValueError) as e:
+        return "unreadable (%s)" % type(e).__name__
+
+
+def load(stamps, sector=None, valid_only=False, route_end_y=140.0):
     """Per run: {(ego, actor): [(call, d, vis, det, er, et, speed)]} and the unmatched detections per call."""
-    runs = []
+    runs = []; dropped = collections.Counter()
     for st in stamps:
         for f in sorted(glob.glob(os.path.join(ROOT, "experiment_results", "*", st + "*", "**", "runner_stdout.txt"), recursive=True)):
+            if valid_only:
+                why = run_valid(os.path.dirname(f), route_end_y)
+                if why: dropped[why] += 1; continue
             seq = collections.defaultdict(list); fp = collections.Counter(); calls = set()
             for line in open(f, errors="replace"):
                 m = PAT.search(line)
@@ -51,13 +68,16 @@ def load(stamps, sector=None):
                 er = float(m.group(7)); et = float(m.group(8))
                 seq[(ego, actor)].append((call, d, vis, det, er, et, float(m.group(9))))
             if seq: runs.append((f, seq, fp, len(calls)))
+    if valid_only: print("runs kept %d, dropped %d %s" % (len(runs), sum(dropped.values()), dict(dropped)))
     return runs
 
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("stamps", nargs="+"); ap.add_argument("--out", required=True); ap.add_argument("--curves")
     ap.add_argument("--sector", type=float, default=None, help="keep only vehicles and detections within this forward sector in degrees (traces with a bearing), e.g. 81 for a comparison with one forward camera")
-    a = ap.parse_args(); runs = load(a.stamps, a.sector)
+    ap.add_argument("--valid-only", action="store_true", help="drop runs in which the test vehicle collided or did not reach the end of its route")
+    ap.add_argument("--route-end-y", type=float, default=140.0, help="with --valid-only: the y the test vehicle must reach (calibration route: 140)")
+    a = ap.parse_args(); runs = load(a.stamps, a.sector, a.valid_only, a.route_end_y)
     if not runs: sys.exit("no [PERC-TRACE] lines under the given stamps")
     nd, nv = len(DIST) - 1, len(VIS)
     cnt = {k: np.zeros((nd, nv, 2)) for k in ("first", "dd", "dm")}       # [..., 0] trials, [..., 1] detections
