@@ -8984,3 +8984,21 @@ Launch tick 243 gave a collision at 2.65 s in the first set (car not advanced) a
 **Consequence.** If the gates pass, the calibration set (50 runs), the refit, slides 1a to 1c and the speed set are all rerun with LIDAR_Z=2.4; ispass_ladcaltm and the tables fitted on it are superseded. The gate table goes to Tyler before the full sets.
 
 **Also asked by Tyler (Nov 19):** which paper to present in a 45 minute systems-lab talk on Nov 20. Recommendation given: the safety envelope paper with Khonsu as the closing section. No deck built yet.
+
+### Nov 19, 12:59: raised-mount gates; rear camera inside the vehicle body; second rig parameter; lab talk deck
+
+**Near-field gate at LIDAR_Z=2.4 (atlas, ispass_ladnfz, M=32 and M=8, 2 runs each, no collision).** Forward 81 degrees: 0 to 10 m 145 of 145 detected, 10 to 15 m 268 of 268, 15 to 30 m 93 %, 30 to 50 m 70 %. Old mount in the same scene (ispass_ladnf, M=32 run 1): 0 to 10 m 56 of 93. Full ring within 10 m 427 of 605 (71 %) against 104 of 317. Unmatched detections per call 2.25 against 1.52.
+
+**Speed gate at LIDAR_Z=2.4 (cetus, ispass_spdp40..80, repetition 1, tmp/spdp_gate.csv): failed.** At 60, 70, 80 km/h the camera and LiDAR arm brakes to a stop at y about -36, long before the junction (launch tick 286, 260, 243 against 242, 206, 180 in the ground-truth arm). The brake is for track 5, an object 5.3 m behind and 2.4 m beside the vehicle that travels with it (per_tick_age.csv: brake_track_id 5, gt_brake_class self_ghost). 40 and 50 km/h are tick-identical to the old mount.
+- Cause: the rear camera is mounted at x=-1.5, z=1.7, inside the body of the Nissan Patrol (half length 2.30 m, top 1.86 m). The dumped view (scratchpad nf_dump, cam3) shows the interior, the rear frame and the spare wheel. YOLO reports 1 to 3 vehicle boxes there in most calls. With the LiDAR at 1.9 m those boxes held no LiDAR points (fused count unchanged after camera 3, e.g. [0, 5, 5, 5]); with the LiDAR at 2.4 m the ground behind the vehicle returns points and the boxes become objects ([0, 5, 5, 7]).
+- The old-mount stamp ispass_spdn holds 8 runs (40 to 70 km/h, repetition 1), not 6.
+- The rig positions in the scenario files (front 1.5, sides 1.5 outside the centre line, rear -1.5, all at z=1.7, LiDAR 1.9) fit a lower and shorter car than the Patrol that scenario_3_occluded.xml spawns. The same scenario files and vehicle serve the SenSys runs; not examined.
+
+**Code (ladder 06a03071, develop bd72bcdd, pushed).** test_runner.py --rear-camera-x (camera with yaw 180 in perception.camera.positions, recorded as config_rear_camera_x), REAR_CAM_X in column_sweep.sh and density_sweep.sh. Defaults unchanged.
+
+**Running (started 12:58).**
+- cetus: ispass_spdq40..80 (tmp/cetus_speedgate5.sh, logs/cetus_speedgate5.log): LIDAR_Z=2.4 REAR_CAM_X=-2.5, repetition 1 of every cell. Output tmp/spdq_gate.csv; tmp/spd_prof.py <stem> prints the first slow-down tick per run.
+- atlas: ispass_ladnfy (scratchpad atlas_nfy.sh, logs/atlas_nfy.log): calibration scenes M=32 and M=8, 2 runs each, same rig, camera dumps of calls 100 to 106 in scratchpad nf_dump2.
+- Pass criteria: no slow-down before the launch in the sensor arm, forward detection within 10 m at the level of ispass_ladnfz, no object within 8 m behind the vehicle that travels with it.
+
+**Lab talk (Tyler, Nov 20, 45 minutes, systems labs).** Tyler chose one paper; deck built for the safety envelope paper only: ~/repos/safety_envelope_lab_talk/ (build_deck.py, 42 slides with 5 backups, validated, rendered, sent to Tyler as pptx and pdf). Title slide has only Tyler's name. Memory: reference_safety_envelope_lab_talk.md.
