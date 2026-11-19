@@ -140,6 +140,11 @@ ap.add_argument("--tm-traffic", type=int, default=None,
                 help="Number of background vehicles that drive under CARLA's traffic manager, spawned on lane waypoints "
                      "within 120 m of the vehicle's route (carla_traffic_manager.range, random models). Recorded as "
                      "config_tm_traffic; not part of the run directory name.")
+ap.add_argument("--rear-camera-x", type=float, default=None,
+                help="Longitudinal position in metres of every vehicle's rear camera (the camera with yaw 180 in "
+                     "perception.camera.positions). The scenario default of -1.5 is inside the body of the Nissan "
+                     "Patrol (half length 2.3 m), where the camera sees the spare wheel. Recorded as "
+                     "config_rear_camera_x; not part of the run directory name.")
 ap.add_argument("--lidar-z", type=float, default=None,
                 help="Height in metres of every vehicle LiDAR above the vehicle's origin (perception.lidar.mount_z). "
                      "The code default is 1.9, which is 4 cm above the roof of the Nissan Patrol. Recorded as "
@@ -606,6 +611,18 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         tmc["port"] = 8010     # 8000 is held by the scenario runner's traffic manager, which this process cannot step
         print(f"    traffic manager background: {args.tm_traffic} driving vehicles")
 
+    if args.rear_camera_x is not None:
+        n_cam = 0
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                cam = veh.setdefault("sensing", {}).setdefault("perception", {}).setdefault("camera", {})
+                pos = [list(p) for p in (cam.get("positions") or [])]
+                for p in pos:
+                    if abs(float(p[3])) == 180.0:
+                        p[0] = float(args.rear_camera_x); n_cam += 1
+                cam["positions"] = pos
+        print(f"    rear camera at x = {args.rear_camera_x} m on {n_cam} vehicles")
+
     if args.lidar_z is not None:
         n_lid = 0
         for edge in d.get("scenario", {}).get("edge_list", []):
@@ -832,6 +849,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
     if args.lidar_points_per_second is not None: metrics["config_lidar_points_per_second"] = args.lidar_points_per_second
     if args.lidar_z is not None: metrics["config_lidar_z"] = args.lidar_z
+    if args.rear_camera_x is not None: metrics["config_rear_camera_x"] = args.rear_camera_x
     if args.tm_traffic is not None: metrics["config_tm_traffic"] = args.tm_traffic
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
