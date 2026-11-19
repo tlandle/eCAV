@@ -57,7 +57,7 @@ FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"; LIDAR_PPS
 # BG_MODE=tm: the M background road users drive under CARLA's traffic manager (test_runner.py --tm-traffic) and none is
 #      parked by the scenario. Unset: the scenario's own background (scenario_3.py, BG_TRAFFIC), mostly standing.
 BG_MODE="${BG_MODE:-}"
-rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "$LIDAR_PPS" ]] && echo -n "--lidar-points-per-second $LIDAR_PPS "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "$LIDAR_PPS" ]] && echo -n "--lidar-points-per-second $LIDAR_PPS "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
   gt_vis)   echo "--vehicle-state gt_visible" ;;
