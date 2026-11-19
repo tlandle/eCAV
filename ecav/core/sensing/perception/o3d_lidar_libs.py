@@ -7,6 +7,7 @@ and processing by utilizing open3d.
 # Author: CARLA Team, Runsheng Xu <rxx3386@ucla.edu>
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+import os
 import time
 import carla
 
@@ -356,7 +357,9 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
     """
 
 
-    #logger.debug("track shape: ", track.shape)
+    # FUSION_TRACE=1: per 2D track box, the LiDAR points inside it and where the box is placed, to find why a
+    # tracked box gives no object or an object away from the vehicle
+    _ft = [] if os.environ.get('FUSION_TRACE') else None
     for i in range(track.shape[0]):
         detection = track[i]
         x1, y1, x2, y2 = int(detection[0]), int(detection[1]), int(detection[2]), int(detection[3])
@@ -378,7 +381,14 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
         #logger.debug("select points shape: ", select_points.shape)
 
         if select_points.shape[0] == 0:
+            if _ft is not None:
+                _ft.append((x1, y1, x2, y2, 0))
             continue
+        if _ft is not None:
+            _rng = np.hypot(select_points[:, 0], select_points[:, 1])
+            _fr = [x1, y1, x2, y2, int(select_points.shape[0]), int((_rng < 3.0).sum()),
+                   round(float(np.median(_rng)), 1)]
+            _ft.append(_fr)
 
         # filter out the outlier
         # Handle scipy mode() API change - newer versions return scalar, older return array
@@ -391,8 +401,11 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
                         (np.abs(select_points[:, 1]) > y_common - 3) & \
                         (np.abs(select_points[:, 1]) < y_common + 3)
         select_points = select_points[points_inlier]
-
-        #logger.debug("select points shape after inlier: ", select_points.shape)
+        if _ft is not None:
+            _fr += [int(x_common), int(y_common), int(select_points.shape[0])]
+            if select_points.shape[0]:
+                _c = select_points.mean(axis=0)
+                _fr += [round(float(_c[0]), 1), round(float(_c[1]), 1)]
 
         if select_points.shape[0] < 2:
             continue
@@ -483,4 +496,7 @@ def o3d_camera_lidar_fusion_from_tracker(objects,
                 else:
                     objects['static'] = [static_obstacle]
 
+    if _ft is not None:
+        # box x1 y1 x2 y2, points in the box, of those within 3 m, median range, mode x, mode y, inliers, mean x y
+        logging.getLogger("DetTrace").warning("[FUSION-TRACE] %s", _ft)
     return objects
