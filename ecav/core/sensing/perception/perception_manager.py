@@ -244,7 +244,9 @@ class LidarSensor:
 
         # spawn sensor
         if global_position is None:
-            spawn_point = carla.Transform(carla.Location(x=-0.5, z=1.9))
+            # mount_z: height of the LiDAR above the vehicle's origin. 1.9 m is 4 cm above the roof of the
+            # Nissan Patrol, where 69 % of the beams hit the own vehicle (2026-11-19)
+            spawn_point = carla.Transform(carla.Location(x=-0.5, z=float(config_yaml.get('mount_z', 1.9))))
         else:
             spawn_point = carla.Transform(carla.Location(x=global_position[0],
                                                          y=global_position[1],
@@ -463,6 +465,8 @@ class PerceptionManager:
             from ecav.core.sensing.perception.perception_error_model import PerceptionErrorModel
             self.error_model = PerceptionErrorModel(_em, seed=getattr(self, 'id', 0) or 0)
         self._lidar_range_m = float((config_yaml.get('lidar') or {}).get('range', 50))
+        # the line-of-sight rays start at the LiDAR's height
+        self._lidar_mount_z = float((config_yaml.get('lidar') or {}).get('mount_z', 1.9))
         # deactivate_camera_coverage: the ground-truth list keeps only the vehicles whose centre lies inside
         # the horizontal field of view of one of the configured cameras, so a ground-truth arm has the
         # coverage of the camera rig (four 70 degree cameras leave 20 degree gaps between neighbours).
@@ -1132,7 +1136,7 @@ class PerceptionManager:
         """How many of the five rays of _in_line_of_sight reach the target (0 to 5)."""
         world = self.carla_world
         own = self.vehicle.get_transform()
-        origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
+        origin = carla.Location(own.location.x, own.location.y, own.location.z + self._lidar_mount_z)
         tf = target.get_transform()
         bb = target.bounding_box
         # untagged meshes (label NONE) are road-surface pieces such as crosswalks, whose collision
@@ -1211,7 +1215,7 @@ class PerceptionManager:
         object. Rays go to the centre and the four mid-height corners of the bounding box."""
         world = self.carla_world
         own = self.vehicle.get_transform()
-        origin = carla.Location(own.location.x, own.location.y, own.location.z + 1.9)
+        origin = carla.Location(own.location.x, own.location.y, own.location.z + self._lidar_mount_z)
         tf = target.get_transform()
         bb = target.bounding_box
         # untagged meshes (label NONE) are road-surface pieces such as crosswalks, whose collision
