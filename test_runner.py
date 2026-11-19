@@ -140,6 +140,10 @@ ap.add_argument("--tm-traffic", type=int, default=None,
                 help="Number of background vehicles that drive under CARLA's traffic manager, spawned on lane waypoints "
                      "within 120 m of the vehicle's route (carla_traffic_manager.range, random models). Recorded as "
                      "config_tm_traffic; not part of the run directory name.")
+ap.add_argument("--lidar-z", type=float, default=None,
+                help="Height in metres of every vehicle LiDAR above the vehicle's origin (perception.lidar.mount_z). "
+                     "The code default is 1.9, which is 4 cm above the roof of the Nissan Patrol. Recorded as "
+                     "config_lidar_z; not part of the run directory name.")
 ap.add_argument("--lidar-points-per-second", type=int, default=None,
                 help="Points per second of every vehicle LiDAR (perception.lidar.points_per_second); the points of one "
                      "sweep are this value over the rotation frequency. Recorded as config_lidar_points_per_second; "
@@ -602,6 +606,14 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         tmc["port"] = 8010     # 8000 is held by the scenario runner's traffic manager, which this process cannot step
         print(f"    traffic manager background: {args.tm_traffic} driving vehicles")
 
+    if args.lidar_z is not None:
+        n_lid = 0
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                lid = veh.setdefault("sensing", {}).setdefault("perception", {}).setdefault("lidar", {})
+                lid["mount_z"] = float(args.lidar_z); n_lid += 1
+        print(f"    LiDAR mount height {args.lidar_z} m on {n_lid} vehicles")
+
     if args.lidar_points_per_second is not None:
         n_lid = 0
         for edge in d.get("scenario", {}).get("edge_list", []):
@@ -819,6 +831,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if gps_noise is not None: metrics["config_gps_noise_stddev"] = gps_noise
     if args.lidar_noise_std is not None: metrics["config_lidar_noise_std"] = args.lidar_noise_std
     if args.lidar_points_per_second is not None: metrics["config_lidar_points_per_second"] = args.lidar_points_per_second
+    if args.lidar_z is not None: metrics["config_lidar_z"] = args.lidar_z
     if args.tm_traffic is not None: metrics["config_tm_traffic"] = args.tm_traffic
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
