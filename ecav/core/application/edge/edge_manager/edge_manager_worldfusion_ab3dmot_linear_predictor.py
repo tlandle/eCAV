@@ -253,6 +253,32 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # if the service took no time. lut_n fixes the sender count the radio
         # table is sampled at (the NS3_LUT_N environment override still wins).
         self._compute_delay_mode = str(cfg.get("compute_delay", "measured")).lower()
+        # Execution-time record shared between conditions (ISPASS ablation):
+        #   ECAV_COMPUTE_POOL_RECORD=<dir>  a measured run writes the execution
+        #     time of each invocation to <dir>/lat<ms>_run<k>.txt, one per line.
+        #   compute_delay=replay            each invocation takes its execution
+        #     time from the record of the same delay cell and repetition in
+        #     ECAV_COMPUTE_POOL=<dir>, by invocation index, so a condition that
+        #     changes only the radio keeps the execution times of the measured
+        #     run. A run longer than its record repeats the record from index 5.
+        self._compute_pool = None
+        self._compute_pool_i = 0
+        self._compute_pool_record = None
+        import re as _re, sys as _sys
+        _argv = " ".join(_sys.argv)
+        _mr = _re.search(r"run_(\d+)", _argv); _ml = _re.search(r"/lat_(\d+)_", _argv)
+        _pool_key = "lat%s_run%s.txt" % (_ml.group(1) if _ml else "0", _mr.group(1) if _mr else "0")
+        if self._compute_delay_mode == "replay":
+            _pp = os.path.join(os.environ["ECAV_COMPUTE_POOL"], _pool_key)
+            with open(_pp) as _pf:
+                self._compute_pool = [float(x) for x in _pf.read().split()]
+            if len(self._compute_pool) < 10:
+                raise RuntimeError("execution-time record %s has %d rows" % (_pp, len(self._compute_pool)))
+            print(f"[WorldFusion Edge] compute_delay=replay: {len(self._compute_pool)} execution times from {_pp}")
+        elif self._compute_delay_mode == "measured" and os.environ.get("ECAV_COMPUTE_POOL_RECORD"):
+            os.makedirs(os.environ["ECAV_COMPUTE_POOL_RECORD"], exist_ok=True)
+            self._compute_pool_record = os.path.join(os.environ["ECAV_COMPUTE_POOL_RECORD"], _pool_key)
+            open(self._compute_pool_record, "w").close()
         # With the ns-3 table on, the configured delay (--latencies) is otherwise
         # not applied. True adds it to the table uplink sample.
         self._lut_plus_configured = bool(cfg.get("lut_plus_configured", False))
@@ -1004,6 +1030,14 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                     dl_ms = 0.0
             if getattr(self, '_compute_delay_mode', 'measured') == 'zero':
                 compute_ms = 0.0
+            elif self._compute_pool is not None:
+                _i = self._compute_pool_i
+                _n = len(self._compute_pool)
+                compute_ms = self._compute_pool[_i if _i < _n else 5 + (_i - _n) % (_n - 5)]
+                self._compute_pool_i += 1
+            elif self._compute_pool_record:
+                with open(self._compute_pool_record, "a") as _pf:
+                    _pf.write("%.3f\n" % compute_ms)
             if self._occupancy.enabled:
                 self._occupancy.occupy(tick, compute_ms)
             self._composed_rows.append(

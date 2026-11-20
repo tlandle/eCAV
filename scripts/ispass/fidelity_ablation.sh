@@ -34,6 +34,10 @@ arch_args() { case "$1" in
 # RADIO=live resolves the radio of conditions C and D with the running ns-3 process in place
 # of the tables (radio=live, LUT_N senders); LIVE_IDX is the connected vehicle's sender slot.
 RADIO="${RADIO:-table}"; LIVE_IDX="${LIVE_IDX:-0}"
+# Intermediate fusion with RADIO=live: the step is slow while ns-3 runs and the GPU pass measures shorter than in
+# the conditions without ns-3. Condition B therefore records the execution time of every invocation per delay cell
+# and repetition (POOL), and the live condition D replays that record (compute_delay=replay).
+POOL="${POOL:-$PWD/experiment_results/campaign_meta/${STAMP:-ispass_fid}_compute_pool}"
 live_kv() { [[ "$RADIO" == live ]] && echo " radio=live live_idx=$LIVE_IDX"; return 0; }
 arch_cond_kv() { [[ "$1" == inter ]] || return 0; case "$2" in
   B) echo "service_occupancy=${OCC:-off}" ;;
@@ -50,6 +54,7 @@ run_cell() {  # geom arch cond lut_n reps
   local ckv; ckv="$(cond_kv "$3" "$4")"; [[ "$2" == inter ]] && ckv="${ckv/ lut_dl=true/}"
   # live radio: use_ns3_lut=true is the manager's default; leaving it out keeps the name under 255 bytes with live_idx
   [[ "$RADIO" == live && "$2" == inter ]] && ckv="${ckv/ use_ns3_lut=true/}"
+  [[ "$RADIO" == live && "$2" == inter && "$3" == D ]] && ckv="${ckv/compute_delay=measured/compute_delay=replay}"
   local cmd=(test_runner.py -t "$g" $(arch_args "$2") --latencies $LATS --latency-distribution fixed --speeds $SPEED
              --ego-counts 1 --repetitions "$5" --per-tick-age-log --self-id-radius 1 --carla-port "$PORT" --stamp "$STAMP"
              --edge-kv prediction_steps=60 $ckv $(arch_cond_kv "$2" "$3") --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
@@ -57,6 +62,8 @@ run_cell() {  # geom arch cond lut_n reps
   # live ns-3 steps take minutes of wall time at start-up; the scenario runner's 10 s watchdog would end the cross traffic
   local live=0; [[ "$RADIO" == live && "$2" == inter && ( "$3" == C || "$3" == D ) ]] && live=1
   (( live )) && cmd+=(SR_TIMEOUT_S=3600)
+  [[ "$2" == inter && "$3" == B ]] && cmd+=(ECAV_COMPUTE_POOL_RECORD="$POOL")
+  (( live )) && [[ "$3" == D ]] && cmd+=(ECAV_COMPUTE_POOL="$POOL")
   echo "$(date '+%F %T') $1 $2 $3 n=$4 reps=$5 lats=$LATS radio=$RADIO idx=$LIVE_IDX"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
   "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3
