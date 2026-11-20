@@ -48,6 +48,8 @@ run_cell() {  # geom arch cond lut_n reps
   set -- "$@"; local g a; read -r g a <<< "$(geom_args "$1")"
   # the intermediate-fusion manager does not read lut_dl; leaving it out keeps the run directory name under 255 bytes
   local ckv; ckv="$(cond_kv "$3" "$4")"; [[ "$2" == inter ]] && ckv="${ckv/ lut_dl=true/}"
+  # live radio: use_ns3_lut=true is the manager's default; leaving it out keeps the name under 255 bytes with live_idx
+  [[ "$RADIO" == live && "$2" == inter ]] && ckv="${ckv/ use_ns3_lut=true/}"
   local cmd=(test_runner.py -t "$g" $(arch_args "$2") --latencies $LATS --latency-distribution fixed --speeds $SPEED
              --ego-counts 1 --repetitions "$5" --per-tick-age-log --self-id-radius 1 --carla-port "$PORT" --stamp "$STAMP"
              --edge-kv prediction_steps=60 $ckv $(arch_cond_kv "$2" "$3") --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
