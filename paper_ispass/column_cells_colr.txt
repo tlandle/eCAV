@@ -1,0 +1,11 @@
+# ispass_colr, full column set on the corrected rig (LIDAR_Z=2.4 REAR_CAM_X=-2.5 FOV=100), queue tail TAIL_Y=60 TAIL_LANES=2 MAX_STEP=700 GAP_JITTER=2.5, 10 runs per cell
+# N 1, 4, 8: cetus (RTX 3080 Ti), ended 2026-11-19 21:39. N 16: atlas (RTX 4080 Super), ended 2026-11-19 20:21. scripts/ispass/column_reduce.py ispass_colr --no-crossing
+  N arm                    runs valid  runs with a collision [95% CI]   collided/vehicle  leader  followers  crossing  column  other  brakes/veh  speed  tick ms
+  1 ground truth in view     10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0        14.0    1.5      133
+  1 camera and LiDAR         10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0         9.0    1.5      265
+  4 ground truth in view     10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0         7.5    2.2      255
+  4 camera and LiDAR         10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0         9.8    2.1      550
+  8 ground truth in view     10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0         7.1    2.4      420
+  8 camera and LiDAR         10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0         7.7    2.3      932
+ 16 ground truth in view     10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0         4.0    2.4      507
+ 16 camera and LiDAR         10    10    0 of 10  [0.00,0.28]               0.000          0          0         0       0      0        10.9    2.3     1211
