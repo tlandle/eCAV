@@ -9105,3 +9105,25 @@ Launch tick 243 gave a collision at 2.65 s in the first set (car not advanced) a
 **Running on atlas since 16:32 (scratchpad atlas_fid11gate.sh, logs/fid11gate.log, ends with "chain end").** ispass_fid11gate: straight crossing, intermediate fusion, 24 senders live, conditions C and D, added delay 0, 1200, 1800 ms, one run per cell, slot 0 then slot 21 (12 runs). Checks per run: no Traceback in runner_stdout.txt, conflict rows in per_tick_age.csv. Rig is the scenario-file rig, as ispass_fid10.
 
 **Plan put to Tyler (full sets wait for his go).** (1) Ablation rerun for intermediate fusion on one code version: A, B (140 runs) and C, D live at slots 0 and 21 (280 runs, about 33 h on atlas). (2) Table of Section VII-A: intermediate fusion at 31 senders cannot stay on the tables. (3) Coupled against independent counterfactual. (4) OpenCDA matched resolution and frame rule (Azure hosts). (5) Fidelity ladder middle arms. cetus idle.
+
+### Nov 20, 18:59: live ns-3 ablation gates passed after three fixes; full chain ispass_fid11 launched on atlas (Tyler's go)
+
+**Tyler (Nov 20): "go ahead, run it"** for the ablation rerun proposed in the previous block.
+
+**Gate 1 (ispass_fid11gate, straight crossing, intermediate fusion, live ns-3 at 24 senders, 1 run per cell).** Condition C valid in all six runs (no Traceback, conflict rows 678 to 907). Slot 0: downlink 48 ms mean, 49 p95, 0 % dropped, p99 age 200 / 1350 / 2000 ms at 0 / 1200 / 1800 ms added delay, all succeed. Slot 21: downlink 102 to 104 ms mean, 255 p95, 59 to 60 % dropped, p99 age 800 / 1950 / 2550 ms, collision at 1800. Condition D did not start: run directory name 266 bytes. Fix 37a478af: use_ns3_lut=true left out of live runs (manager default), name 252 bytes.
+
+**Confound found (gate 1 D rerun and two B probes).** Measured execution time on atlas is 94 to 100 ms in condition B and 70 to 72 ms in condition D with live ns-3 (the ns-3 step of about 750 ms precedes the GPU pass, which then runs with no other GPU work). Same gap as the unexplained 93 against 70 ms of ispass_rfcl2 on Nov 15. Fix 06f7298d: ECAV_COMPUTE_POOL_RECORD (condition B writes the execution time of every invocation to <pool>/lat<ms>_run<k>.txt) and compute_delay=replay with ECAV_COMPUTE_POOL (live condition D replays the record of the same delay cell and repetition by invocation index). fidelity_ablation.sh sets both; pool at experiment_results/campaign_meta/<stamp>_compute_pool.
+
+**Defect found (gate 2).** The run's command line carries ..._lat_<ms>_<hash>_rep_<k>, not run_<k>. The record key fell back to lat0_run0 for every run, and **the live radio seed code had the same wrong pattern since Nov 12: every repetition of every live closed-loop run (ispass_rfcl, ispass_rfcl2) used ns-3 stream 0.** The paper's radio closed-loop paragraph (10 live runs at 16 and at 24 senders) rests on one stream. Fix 99c69a1b: both parse _rep_<k> and _lat_<ms>_, assert when a record is requested, and the manager prints slot and seed. The slot pattern is not caused by the shared stream: the standalone bench traces with seeds 0 and 1 show the same served slots.
+
+**Gate 3 (ispass_fid11gate3, 2 repetitions, 0 and 1200 ms, slot 21): passed.** Four record files (139 to 148 rows), each D run replays the file of its cell and repetition, mean execution time equal to B's in every pair (100, 98, 96, 97 ms), ns-3 seed 1 and 2. Slot 21 with seed 1: 56 to 58 % dropped, with seed 2: 39 to 44 %.
+
+**Full chain, started 18:58 (scratchpad atlas_fid11.sh, logs/fid11.log, pid in tmp/fid11_chain.pid, ends with "chain end"; develop 5b4fd4b5).** Stamp ispass_fid11, straight crossing, 10 runs per cell, added delay 0 800 1200 1500 1800 2100 2400 ms, scenario-file rig as ispass_fid10.
+1. intermediate fusion A, B (140 runs, B records).
+2. intermediate fusion C, D live at 24 senders, slot 0 (140 runs).
+3. the same, slot 21 (140 runs).
+4. I2V and prediction sharing, A to D with the tables at 24 senders (560 runs): the fid10 curves predate the perception and tracker changes merged on Nov 19.
+5. ispass_rfcl4: radio closed loop, left turn, tables, tables with loss, live at 16 and 24 senders, 10 runs (60 runs), replaces ispass_rfcl2.
+About 57 h, ends Monday morning. No edit or merge in the main checkout until it ends.
+
+**To do when sets land.** Reducer: fidelity_reduce.py cond_of has to read compute_delay=replay as measured and radio=live as radio on, and key cells by live_idx. Per live run: no Traceback, conflict rows. Fig. 8 and Section VII-B text (execution time on atlas about 95 ms, was 145 ms on cetus), Table IV column at 31 contributors, radio closed-loop paragraph. Port the Fig. 4 legend label ("several hosts") to scripts/ispass/plot_scale_cmp.py and paper_ispass/fig_scale_cmp.pdf.
