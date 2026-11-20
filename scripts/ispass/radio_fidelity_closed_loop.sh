@@ -36,7 +36,7 @@ run_cell() {  # model n reps
   local t0=$(date +%s)
   "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3
   echo "$(date '+%F %T') $1 n=$2 wall $(( $(date +%s) - t0 )) s"
-  for p in $(pgrep -f "^$HOME/ns3_cv2x/ns-3-dev-5glena/build/scratch/ns3-dev-nr_v2x_cosim_server-default --shm-path=/dev/shm/ecav_ns3_cosim_[0-9]+_edge"); do kill -9 "$p"; done
+  for p in $(pgrep -f "^$HOME/ns3_cv2x/ns-3-dev-5glena/build[a-z-]*/scratch/ns3-dev-nr_v2x_cosim_server[a-z-]* --shm-path=/dev/shm/ecav_ns3_cosim_[0-9]+_edge"); do kill -9 "$p"; done
 }
 if [[ "$DRY" != "--dry-run" ]]; then
   if pgrep -f "^$PY test_runner.py" >/dev/null || pgrep -f "^$HOME/carla-0.9.15/CarlaUE4/Binaries/Linux/CarlaUE4-Linux-Shipping" >/dev/null; then
