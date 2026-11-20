@@ -266,7 +266,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         self._compute_pool_record = None
         import re as _re, sys as _sys
         _argv = " ".join(_sys.argv)
-        _mr = _re.search(r"run_(\d+)", _argv); _ml = _re.search(r"/lat_(\d+)_", _argv)
+        # the output directory of a run ends in ..._lat_<ms>_<hash>_rep_<k>
+        _mr = _re.search(r"_rep_(\d+)", _argv); _ml = _re.search(r"_lat_(\d+)_", _argv)
+        if self._compute_delay_mode == "replay" or os.environ.get("ECAV_COMPUTE_POOL_RECORD"):
+            assert _mr and _ml, "delay cell and repetition not found in the command line: %s" % _argv
         _pool_key = "lat%s_run%s.txt" % (_ml.group(1) if _ml else "0", _mr.group(1) if _mr else "0")
         if self._compute_delay_mode == "replay":
             _pp = os.path.join(os.environ["ECAV_COMPUTE_POOL"], _pool_key)
@@ -625,10 +628,13 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
                 xy = self._managed_xy()
                 origin = xy[0] if xy else (0.0, 0.0)
             # ns-3 random stream: ECAV_RADIO_SEED, else the repetition index
-            # of the run directory (.../run_<k>), so paired seeds differ.
+            # of the run's output directory (..._rep_<k>), so paired seeds differ.
+            # (Until Nov 20 the pattern was run_<k>, which the output directory
+            # does not contain, so every repetition used stream 0.)
             import re as _re, sys as _sys
-            _m = _re.search(r"run_(\d+)", " ".join(_sys.argv))
+            _m = _re.search(r"_rep_(\d+)", " ".join(_sys.argv))
             _seed = int(os.environ.get("ECAV_RADIO_SEED", _m.group(1) if _m else "0"))
+            print(f"[WorldFusion Edge] live radio: {n_ue} senders, managed CAV in slot {self._live_idx}, ns-3 seed {_seed}")
             self._radio_live = Ns3LiveSampler(
                 n_ue, self._dl_bytes_override or 16896, origin, dt_s=float(self.dt),
                 seed=_seed, tag=f"edge{os.getpid()}",
