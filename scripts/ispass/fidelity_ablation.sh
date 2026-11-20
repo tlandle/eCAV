@@ -31,10 +31,14 @@ arch_args() { case "$1" in
   inter) echo "--baselines wf --anchoring on" ;; esac; }
 # Intermediate fusion only: the feature message size on both links (MSG_B, bytes) in the
 # network-aware conditions, and service occupancy (OCC=on|off) in the compute-aware conditions.
+# RADIO=live resolves the radio of conditions C and D with the running ns-3 process in place
+# of the tables (radio=live, LUT_N senders); LIVE_IDX is the connected vehicle's sender slot.
+RADIO="${RADIO:-table}"; LIVE_IDX="${LIVE_IDX:-0}"
+live_kv() { [[ "$RADIO" == live ]] && echo " radio=live live_idx=$LIVE_IDX"; return 0; }
 arch_cond_kv() { [[ "$1" == inter ]] || return 0; case "$2" in
   B) echo "service_occupancy=${OCC:-off}" ;;
-  C) echo "msg_b=${MSG_B:-16896}" ;;
-  D) echo "service_occupancy=${OCC:-off} msg_b=${MSG_B:-16896}" ;; esac; }
+  C) echo "msg_b=${MSG_B:-16896}$(live_kv)" ;;
+  D) echo "service_occupancy=${OCC:-off} msg_b=${MSG_B:-16896}$(live_kv)" ;; esac; }
 cond_kv() { local n="$2"; case "$1" in
   A) echo "compute_delay=zero use_ns3_lut=false lut_dl=false" ;;
   B) echo "compute_delay=measured use_ns3_lut=false lut_dl=false" ;;
@@ -48,8 +52,13 @@ run_cell() {  # geom arch cond lut_n reps
              --ego-counts 1 --repetitions "$5" --per-tick-age-log --self-id-radius 1 --carla-port "$PORT" --stamp "$STAMP"
              --edge-kv prediction_steps=60 $ckv $(arch_cond_kv "$2" "$3") --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
              --scenario-env "$a" HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=-90 EGO_DRIVE_DISTANCE=400 SCENARIO_MAX_STEP=900)
-  echo "$(date '+%F %T') $1 $2 $3 n=$4 reps=$5 lats=$LATS"
-  if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; else "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3; fi
+  # live ns-3 steps take minutes of wall time at start-up; the scenario runner's 10 s watchdog would end the cross traffic
+  local live=0; [[ "$RADIO" == live && "$2" == inter && ( "$3" == C || "$3" == D ) ]] && live=1
+  (( live )) && cmd+=(SR_TIMEOUT_S=3600)
+  echo "$(date '+%F %T') $1 $2 $3 n=$4 reps=$5 lats=$LATS radio=$RADIO idx=$LIVE_IDX"
+  if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
+  "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3
+  if (( live )); then for p in $(pgrep -f "^$HOME/ns3_cv2x/ns-3-dev-5glena/build[a-z-]*/scratch/ns3-dev-nr_v2x_cosim_server[a-z-]* --shm-path=/dev/shm/ecav_ns3_cosim_[0-9]+_edge"); do kill -9 "$p"; done; fi
 }
 if [[ "$DRY" != "--dry-run" ]]; then
   if pgrep -f "^$PY test_runner.py" >/dev/null || pgrep -f "^$HOME/carla-0.9.15/CarlaUE4/Binaries/Linux/CarlaUE4-Linux-Shipping" >/dev/null; then

@@ -28,12 +28,17 @@ logger = logging.getLogger(__name__)
 
 class Ns3LiveSampler:
     def __init__(self, n_ue: int, dl_bytes: int, origin_xy: Tuple[float, float],
-                 dt_s: float = 0.05, seed: int = 0, tag: str = ""):
+                 dt_s: float = 0.05, seed: int = 0, tag: str = "",
+                 managed_index: int = 0):
         from ecav.core.networking.ns3_cosim.ns3_bridge import NS3Bridge
         self.n_ue = max(1, int(n_ue))
         self.dl_bytes = int(dl_bytes)
         self.origin = (float(origin_xy[0]), float(origin_xy[1]))
         self.dt_s = float(dt_s)
+        # Sender slot of the managed CAV (edge option live_idx). Under a
+        # saturated downlink the ns-3 scheduler serves the senders unequally
+        # by slot, so the slot decides whether the managed CAV is served.
+        self.managed_index = min(max(0, int(managed_index)), self.n_ue - 1)
         os.environ["UU_DL_PAYLOAD_BYTES"] = str(self.dl_bytes)
         os.environ["NS_GLOBAL_VALUE"] = f"RngRun={int(seed) + 1}"
         self._bridge = NS3Bridge(max_vehicles=self.n_ue, mode="uu_uplink",
@@ -54,7 +59,7 @@ class Ns3LiveSampler:
         self._tick = None
         self._ul: List[Tuple[float, bool]] = []
         self._dl: List[Tuple[float, bool]] = []
-        self.rows: List[Tuple] = []      # (tick, ul_ms, ul_ok, dl_ms, dl_ok, wall_ms) of sender 0
+        self.rows: List[Tuple] = []      # (tick, ul_ms, ul_ok, dl_ms, dl_ok, wall_ms) of the managed CAV's slot
         self.wall_ms_total = 0.0
         self.steps = 0
         logger.info("Ns3LiveSampler: %d senders, DL %d B, gNB at (%.1f, %.1f), start-up %.0f s",
@@ -70,6 +75,8 @@ class Ns3LiveSampler:
             road, lane, s0, v = self._bg[i]
             s = ((s0 + v * t + 120.0) % 240.0) - 120.0
             out.append([s, lane, 1.5] if road == 0 else [lane, s, 1.5])
+        if self.managed_index and managed_xy:
+            out[0], out[self.managed_index] = out[self.managed_index], out[0]
         return out
 
     def resolve(self, tick: int, managed_xy: Sequence[Tuple[float, float]], ul_bytes: int) -> None:
@@ -90,19 +97,21 @@ class Ns3LiveSampler:
                 self._ul[r.tx_id] = (float(r.delay_ms), bool(r.delivered))
             elif r.tx_id == 0xFFFE and r.rx_id < self.n_ue:
                 self._dl[r.rx_id] = (float(r.delay_ms), bool(r.delivered))
-        self.rows.append((int(tick), self._ul[0][0], self._ul[0][1],
-                          self._dl[0][0], self._dl[0][1], wall))
+        m = self.managed_index
+        self.rows.append((int(tick), self._ul[m][0], self._ul[m][1],
+                          self._dl[m][0], self._dl[m][1], wall))
 
     def uplink(self, tick, managed_xy, ul_bytes) -> Tuple[float, bool]:
         """Uplink of this step as the table path composes it: the delay of the
         slowest sender whose message completed, and whether the managed CAV's
-        (sender 0) message completed."""
+        message completed."""
         self.resolve(tick, managed_xy, ul_bytes)
         done = [r[0] for r in self._ul if r[1]]
-        return (max(done) if done else 0.0), bool(self._ul[0][1])
+        return (max(done) if done else 0.0), bool(self._ul[self.managed_index][1])
 
-    def downlink(self, tick, managed_xy, ul_bytes, idx: int = 0) -> Tuple[float, bool]:
+    def downlink(self, tick, managed_xy, ul_bytes, idx: Optional[int] = None) -> Tuple[float, bool]:
         self.resolve(tick, managed_xy, ul_bytes)
+        idx = self.managed_index if idx is None else idx
         return self._dl[min(idx, self.n_ue - 1)]
 
     def metrics(self) -> dict:

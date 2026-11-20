@@ -267,7 +267,10 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         #   msg_b=<int>       uplink and downlink message size for either model,
         #     in place of the feature tensor's size and the serialized size of
         #     the predictions (the tables' feature cell is 16896 B).
+        #   live_idx=<int>    radio=live only: the sender slot of the managed
+        #     CAV among the lut_n senders (default 0).
         self._radio_model = str(cfg.get("radio", "table")).lower()
+        self._live_idx = int(cfg.get("live_idx", 0) or 0)
         self._lut_loss = str(cfg.get("lut_loss", "false")).lower() in ("true", "1", "on", "yes")
         self._dl_bytes_override = int(cfg["msg_b"]) if cfg.get("msg_b", None) else None
         self._radio_live = None           # built on first use (needs the RSU position)
@@ -602,7 +605,8 @@ class WorldFusionEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             _seed = int(os.environ.get("ECAV_RADIO_SEED", _m.group(1) if _m else "0"))
             self._radio_live = Ns3LiveSampler(
                 n_ue, self._dl_bytes_override or 16896, origin, dt_s=float(self.dt),
-                seed=_seed, tag=f"edge{os.getpid()}")
+                seed=_seed, tag=f"edge{os.getpid()}",
+                managed_index=self._live_idx)
             atexit.register(self._radio_live.shutdown)
         return self._radio_live
 
