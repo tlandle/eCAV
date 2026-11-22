@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """Wall-clock time per tick against vehicle count, without and with camera and LiDAR perception:
-OpenCDA 0.1.3 on one host, eCAV on one host, eCAV with the vehicle clients on two more hosts.
+OpenCDA 0.1.3 on one host, eCAV on one host, eCAV on several hosts (vehicle clients on two more
+hosts and, with perception, the inference service on a fourth).
 
     python scripts/ispass/plot_scale_cmp.py            # writes paper_ispass/fig_scale_cmp.pdf
 
@@ -17,12 +18,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 N = [8, 16, 32, 64, 128, 256, 512]
 OFF = {"OpenCDA": (N[:6], [162, 378, 918, 2155, 4913, 14038]),
        "one host": (N[:6], [66, 104, 210, 435, 1066, 2383]),
-       "three hosts": (N[3:], [338, 698, 1504, 4001])}
+       "several hosts": (N[3:], [338, 698, 1504, 4001])}
 ON = {"OpenCDA": (N[:4], [1612, 3342, 7237, 15245]),
       "one host": (N[:3], [436, 806, 1568]),
-      "three hosts": (N[:5], [367, 639, 1214, 2499, 4490])}
+      "several hosts": (N[:5], [367, 639, 1214, 2499, 4490])}
 STYLE = {"OpenCDA": dict(color="#6e6e6e", marker="x", ls="-"), "one host": dict(color="#2a78d6", marker="o", ls="-"),
-         "three hosts": dict(color="#eb6834", marker="s", ls="--")}
+         "several hosts": dict(color="#eb6834", marker="s", ls="--")}
 plt.rcParams.update({"font.size": 7, "axes.labelsize": 7, "xtick.labelsize": 7, "ytick.labelsize": 7, "legend.fontsize": 7,
                      "axes.titlesize": 7, "axes.spines.top": False, "axes.spines.right": False, "axes.linewidth": 0.5,
                      "grid.color": "#e3e3e3", "grid.linewidth": 0.4, "lines.linewidth": 1.0, "lines.markersize": 3,

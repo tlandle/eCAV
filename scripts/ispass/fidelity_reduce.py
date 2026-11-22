@@ -42,9 +42,19 @@ def arch_of(path):
 
 
 def cond_of(kv):
-    c = str(kv.get("compute_delay", "")).lower() == "measured"
-    r = bool(kv.get("use_ns3_lut", False)) or bool(kv.get("lut_dl", False))
+    # replay charges the execution times recorded in the compute condition, live steps ns-3 in the run
+    c = str(kv.get("compute_delay", "")).lower() in ("measured", "replay")
+    r = bool(kv.get("use_ns3_lut", False)) or bool(kv.get("lut_dl", False)) or radio_of(kv)[0] == "live"
     return {(False, False): "A", (True, False): "B", (False, True): "C", (True, True): "D"}[(c, r)]
+
+
+def radio_of(kv):
+    """Radio model of a run and the sender slot of the connected vehicle (live ns-3 serves senders by slot)."""
+    if str(kv.get("radio", "table")).lower() == "live":
+        return "live", int(kv.get("live_idx", 0) or 0)
+    if bool(kv.get("use_ns3_lut", False)) or bool(kv.get("lut_dl", False)):
+        return "table", 0
+    return "", 0
 
 
 def wilson(k, n, z=1.96):
@@ -158,11 +168,13 @@ def load(stamp, root):
         age = reduce_run(pt) if os.path.exists(pt) else {}
         att = attribution(pt) if os.path.exists(pt) else {}
         edges = list((m.get("edges") or {}).values()); comp = (edges[0].get("composed_delay") if edges else None) or {}
+        rad = (edges[0].get("radio_model") if edges else None) or {}
+        radio, slot = radio_of(kv)
         # a brake that a non-conflict track caused is a false brake and fails the run, whatever
         # class the run's own labeler gave it
         fb = int(r.get("focal_fp_episodes", 0) > 0 or att.get("false_brake", 0))
         rows.append(dict(
-            geom=geom, arch=arch, cond=cond_of(kv), lut_n=int(kv.get("lut_n", 0) or 0), lat=int(r.get("lat", 0) or 0), rep=int(r["rep"]),
+            geom=geom, arch=arch, cond=cond_of(kv), radio=radio, slot=slot, lut_n=int(kv.get("lut_n", 0) or 0), lat=int(r.get("lat", 0) or 0), rep=int(r["rep"]),
             s_op=int(r["s_op"]) if not att.get("false_brake", 0) else 0,
             collided=int(r.get("focal_collisions", 0) > 0), ghost=int(r.get("focal_ghost_episodes", 0) > 0),
             fbrake=fb,
@@ -170,6 +182,8 @@ def load(stamp, root):
             coverage=age.get("conflict_coverage", float("nan")),
             in_budget=within_budget(pt, BUDGET_MS[geom]) if os.path.exists(pt) else float("nan"),
             compute=comp.get("compute_ms_mean", 0.0), ul=comp.get("ul_ms_mean", 0.0), dl=comp.get("dl_ms_mean", 0.0),
+            dl_p95=comp.get("dl_ms_p95", float("nan")),
+            dl_drop=(rad.get("dl", 0) / rad["dl_sent"]) if rad.get("dl_sent") else 0.0,
             tp_onset=att.get("tp_onset", float("nan")), first_ms=att.get("first_ms", float("nan")), first_class=att.get("first_class", ""),
             other_first=att.get("other_first", float("nan")), min_sep=att.get("min_sep", float("nan"))))
     return rows
@@ -182,11 +196,12 @@ def nm(v):
 
 def summarize(rows):
     out = []
-    keys = sorted({(r["geom"], r["arch"], r["cond"], r["lut_n"], r["lat"]) for r in rows},
-                  key=lambda k: (k[0], k[4], ARCH_ORDER.index(k[1]), k[3] if k[2] in "CD" else -1, COND_ORDER.index(k[2])))
+    kf = lambda r: (r["geom"], r["arch"], r["cond"], r["lut_n"], r["lat"], r["radio"], r["slot"])
+    keys = sorted({kf(r) for r in rows},
+                  key=lambda k: (k[0], k[4], ARCH_ORDER.index(k[1]), k[3] if k[2] in "CD" else -1, COND_ORDER.index(k[2]), k[5], k[6]))
     rng = np.random.default_rng(0)
-    for g, a, c, n, lat in keys:
-        cell = [r for r in rows if (r["geom"], r["arch"], r["cond"], r["lut_n"], r["lat"]) == (g, a, c, n, lat)]
+    for g, a, c, n, lat, radio, slot in keys:
+        cell = [r for r in rows if kf(r) == (g, a, c, n, lat, radio, slot)]
         # paired reference: the idealized condition of the same architecture at the same added delay
         base = {r["rep"]: r["s_op"] for r in rows if (r["geom"], r["arch"], r["cond"], r["lat"]) == (g, a, "A", lat)}
         k = sum(r["s_op"] for r in cell); lo, hi = wilson(k, len(cell))
@@ -200,12 +215,13 @@ def summarize(rows):
         sep_m, sep_lo, sep_hi = med_rng([r["min_sep"] for r in cell])
         classes = [r["first_class"] for r in cell if r["first_class"]]
         first_class = max(set(classes), key=classes.count) if classes else ""
-        out.append(dict(geom=g, arch=a, cond=c, lut_n=n, lat=lat, n=len(cell), s_op=k / len(cell), lo=lo, hi=hi,
+        out.append(dict(geom=g, arch=a, cond=c, radio=radio, slot=slot, lut_n=n, lat=lat, n=len(cell), s_op=k / len(cell), lo=lo, hi=hi,
                         d_vs_A=dm, d_lo=dlo, d_hi=dhi, n_pairs=len(d),
                         collided=nm([r["collided"] for r in cell]), ghost=nm([r["ghost"] for r in cell]), fbrake=nm([r["fbrake"] for r in cell]),
                         p99_age=nm([r["p99"] for r in cell]), brake_age=nm([r["brake_age"] for r in cell]),
                         in_budget=nm([r["in_budget"] for r in cell]), coverage=nm([r["coverage"] for r in cell]),
                         compute_ms=nm([r["compute"] for r in cell]), ul_ms=nm([r["ul"] for r in cell]), dl_ms=nm([r["dl"] for r in cell]),
+                        dl_p95_ms=nm([r["dl_p95"] for r in cell]), dl_drop=nm([r["dl_drop"] for r in cell]),
                         tp_brake_ms=tp_m, tp_brake_min=tp_lo, tp_brake_max=tp_hi,
                         no_tp_brake=nm([float(r["tp_onset"] != r["tp_onset"]) for r in cell]),
                         min_sep_m=sep_m, min_sep_min=sep_lo, min_sep_max=sep_hi,
@@ -215,14 +231,14 @@ def summarize(rows):
 
 
 def print_table(summ):
-    print(f"{'geometry':<18}{'architecture':<22}{'cond':<12}{'lat':>4}{'N':>3}{'n':>4}  {'S_op [95% CI]':<20}{'vs A [95% CI]':<24}"
-          f"{'coll':>5}{'ghost':>6}{'fbrk':>5}{'p99 age':>8}{'brk age':>8}{'in bud':>7}{'cov':>6}{'comp':>6}{'ul':>6}{'dl':>6}"
+    print(f"{'geometry':<18}{'architecture':<22}{'cond':<12}{'radio':<9}{'lat':>4}{'N':>3}{'n':>4}  {'S_op [95% CI]':<20}{'vs A [95% CI]':<24}"
+          f"{'coll':>5}{'ghost':>6}{'fbrk':>5}{'p99 age':>8}{'brk age':>8}{'in bud':>7}{'cov':>6}{'comp':>6}{'ul':>6}{'dl':>6}{'dl p95':>7}{'drop':>6}"
           f"  {'TP brake ms [range]':<22}{'noTP':>5}  {'min sep m [range]':<19}{'first hazard':<20}{'other 1st':>9}")
     for s in summ:
         dv = "" if s["d_vs_A"] != s["d_vs_A"] else f"{s['d_vs_A']:+.2f} [{s['d_lo']:+.2f},{s['d_hi']:+.2f}]"
-        print(f"{s['geom']:<18}{s['arch']:<22}{s['cond'] + ' ' + COND_NAME[s['cond']]:<12}{s['lat']:>4}{s['lut_n'] or '':>3}{s['n']:>4}  "
+        print(f"{s['geom']:<18}{s['arch']:<22}{s['cond'] + ' ' + COND_NAME[s['cond']]:<12}{(s['radio'] + (' s' + str(s['slot']) if s['radio'] == 'live' else '')):<9}{s['lat']:>4}{s['lut_n'] or '':>3}{s['n']:>4}  "
               f"{s['s_op']:.2f} [{s['lo']:.2f},{s['hi']:.2f}]   {dv:<24}{s['collided']:>5.2f}{s['ghost']:>6.2f}{s['fbrake']:>5.2f}{s['p99_age']:>8.0f}{s['brake_age']:>8.0f}"
-              f"{s['in_budget']:>7.2f}{s['coverage']:>6.2f}{s['compute_ms']:>6.0f}{s['ul_ms']:>6.0f}{s['dl_ms']:>6.0f}"
+              f"{s['in_budget']:>7.2f}{s['coverage']:>6.2f}{s['compute_ms']:>6.0f}{s['ul_ms']:>6.0f}{s['dl_ms']:>6.0f}{s['dl_p95_ms']:>7.0f}{s['dl_drop']:>6.2f}"
               f"  {s['tp_brake_ms']:>5.0f} [{s['tp_brake_min']:.0f},{s['tp_brake_max']:.0f}]".ljust(0)
               + f"{'':>1}".ljust(max(0, 24 - len(f"  {s['tp_brake_ms']:>5.0f} [{s['tp_brake_min']:.0f},{s['tp_brake_max']:.0f}]")))
               + f"{s['no_tp_brake']:>5.2f}  " + f"{s['min_sep_m']:.1f} [{s['min_sep_min']:.1f},{s['min_sep_max']:.1f}]".ljust(19)

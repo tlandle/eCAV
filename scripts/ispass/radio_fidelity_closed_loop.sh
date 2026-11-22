@@ -8,7 +8,12 @@
 #
 #   table       tables, delay only (what the edge managers do with use_ns3_lut)
 #   table_loss  tables, delay and the table's delivery ratio (lut_loss=true)
-#   live        radio=live: one ns-3 step per simulation step, lut_n senders
+#   live        radio=live: one ns-3 step per simulation step, lut_n senders, the connected vehicle in
+#               sender slot 0. live:<k> puts it in slot k (the ns-3 scheduler serves senders by slot).
+# The table arm records the execution time of every forecast per repetition
+# (experiment_results/campaign_meta/<stamp>_compute_pool/n<N>) and the live arms replay the record
+# (compute_delay=replay), so both radio models charge the same execution times: with the ns-3
+# step ahead of the GPU pass, the measured time of a live run is lower than in a table run.
 set -uo pipefail
 STAGE="${1:?gate|full}"; DRY="${2:-}"
 cd "$(dirname "$0")/../.."
@@ -20,17 +25,21 @@ HIDE=5946265674966002516,6337000252949488035,6180885027493966721,165378178391452
 model_kv() { case "$1" in
   table)      echo "" ;;
   table_loss) echo "lut_loss=true" ;;
-  live)       echo "radio=live" ;; esac; }
+  live*)      local k="${1#live}"; k="${k#:}"; echo "radio=live live_idx=${k:-0}" ;; esac; }
+POOL="${POOL:-$PWD/experiment_results/campaign_meta/${STAMP}_compute_pool}"
 run_cell() {  # model n reps
+  # live: use_ns3_lut=true is the manager's default; leaving it out keeps the run directory name under 255 bytes
+  local ckv="compute_delay=measured use_ns3_lut=true"; [[ "$1" == live* ]] && ckv="compute_delay=replay"
   local cmd=(test_runner.py -t openscenario_3_edge_late_fusion --baselines wf --anchoring on --latencies $LATS
              --latency-distribution fixed --speeds 70 --ego-counts 1 --repetitions "$3" --per-tick-age-log
              --self-id-radius 1 --carla-port "$PORT" --stamp "$STAMP"
-             --edge-kv prediction_steps=60 compute_delay=measured use_ns3_lut=true lut_n=$2 lut_plus_configured=true
+             --edge-kv prediction_steps=60 $ckv lut_n=$2 lut_plus_configured=true
                        msg_b=$DL_BYTES $(model_kv "$1")
              --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
              --scenario-env CROSS_TRIGGER_TTA=70:4.77 HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=-90 EGO_DRIVE_DISTANCE=400 SCENARIO_MAX_STEP=900)
   # live ns-3 steps take minutes of wall time at start-up; the scenario runner's 10 s watchdog would end the cross traffic
-  [[ "$1" == live ]] && cmd+=(SR_TIMEOUT_S=3600)
+  [[ "$1" == live* ]] && cmd+=(SR_TIMEOUT_S=3600 ECAV_COMPUTE_POOL="$POOL/n$2")
+  [[ "$1" == table ]] && cmd+=(ECAV_COMPUTE_POOL_RECORD="$POOL/n$2")
   echo "$(date '+%F %T') $1 n=$2 reps=$3"
   if [[ "$DRY" == "--dry-run" ]]; then echo "$PY ${cmd[*]}"; return; fi
   local t0=$(date +%s)

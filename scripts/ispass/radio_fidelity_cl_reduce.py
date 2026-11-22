@@ -21,7 +21,9 @@ ORDER = ["table", "table_loss", "live"]
 
 
 def model_of(kv):
-    if str(kv.get("radio", "table")).lower() == "live": return "live"
+    if str(kv.get("radio", "table")).lower() == "live":
+        k = int(kv.get("live_idx", 0) or 0)     # sender slot of the connected vehicle
+        return "live" if k == 0 else f"live:{k}"
     return "table_loss" if str(kv.get("lut_loss", "false")).lower() in ("true", "1") else "table"
 
 
@@ -56,7 +58,7 @@ def main():
     rows = load(a.stamp, a.root); rng = np.random.default_rng(0); out = []
     for n in sorted({r["n"] for r in rows}):
         base = {r["rep"]: r for r in rows if r["n"] == n and r["model"] == "table"}
-        for mdl in ORDER:
+        for mdl in ORDER + sorted({r["model"] for r in rows if r["model"] not in ORDER}):
             cell = [r for r in rows if r["n"] == n and r["model"] == mdl]
             if not cell: continue
             k = sum(r["s_op"] for r in cell); lo, hi = wilson(k, len(cell))
