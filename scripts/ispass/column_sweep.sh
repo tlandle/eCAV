@@ -46,6 +46,7 @@ rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH CROSS_SYNC_JITTER=${LEAD_JITTER:-0}"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
+  gt_all)  echo "--vehicle-state gt_all" ;;      # every road user of the simulator: no range limit, no line-of-sight test
   onboard) echo "" ;; esac; }
 run_cell() {  # arm N reps
   local cmd=(test_runner.py -t "$SCEN" --ego-counts "$2" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0

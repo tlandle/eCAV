@@ -18,6 +18,7 @@ LOCAL_STEPS="${LOCAL_STEPS:-60}"; TTC_JITTER="${TTC_JITTER:-0.15}"; TRACE="${TRA
 rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "${CAM_RES:-}" ]] && echo -n "--camera-resolution $CAM_RES "; [[ -n "${LIDAR_DROPOFF:-}" ]] && echo -n "--lidar-dropoff $LIDAR_DROPOFF "; [[ -n "${TM:-}" ]] && echo -n "--tm-traffic $TM "; [[ -n "${DET_SIZE:-}" ]] && echo -n "--detector-input-size $DET_SIZE "; }
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
+  gt_all)  echo "--vehicle-state gt_all" ;;      # every road user of the simulator: no range limit, no line-of-sight test
   onboard) echo "" ;; esac; }
 run_cell() {  # arm closing_speed reps
   local cmd=(test_runner.py -t highway_merge_edge_late_fusion --ego-counts 1 --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
