@@ -176,7 +176,12 @@ class MLManager(object):
             return self._detect_yolo_distributed(rgb_images)
         else:
             t0 = time.time()
-            result = self.object_detector(rgb_images)
+            # ml_manager.yolo_input_size: detector input size (long side, pixels); unset keeps the model default
+            _size = self.config.get('yolo_input_size', None)
+            if _size is not None:
+                result = self.object_detector(rgb_images, size=int(_size))
+            else:
+                result = self.object_detector(rgb_images)
             t1 = time.time()
             self._dist_timing_rows.append({
                 'tick': self._tick,

@@ -122,6 +122,14 @@ ap.add_argument("--camera-fov", type=float, default=None,
                 help="Horizontal field of view in degrees of every vehicle camera (perception.camera.fov). The code "
                      "default is 70: four cameras at 0, 90, 180 and 270 degrees then leave 20 degree gaps between "
                      "neighbours. Recorded as config_camera_fov; not part of the run directory name.")
+ap.add_argument("--camera-resolution", type=int, nargs=2, default=None, metavar=("W", "H"),
+                help="Image size in pixels of every vehicle camera (perception.camera.image_width and image_height). "
+                     "Unset: the scenario file's size. Recorded as config_camera_resolution; not part of the run "
+                     "directory name.")
+ap.add_argument("--detector-input-size", type=int, default=None,
+                help="Input size in pixels (long side) of the YOLOv5 detector (ml_manager.yolo_input_size). Unset: "
+                     "the model's default of 640. Recorded as config_detector_input_size; not part of the run "
+                     "directory name.")
 ap.add_argument("--gt-camera-coverage", action="store_true", default=False,
                 help="With --vehicle-state gt_visible, gt_noisy or gt_model: also clip the ground-truth list to the "
                      "horizontal coverage of the vehicle's cameras. Recorded as config_gt_camera_coverage.")
@@ -597,6 +605,18 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 cam["fov"] = float(args.camera_fov); n_cam += 1
         print(f"    camera field of view {args.camera_fov} degrees on {n_cam} vehicles")
 
+    if args.camera_resolution is not None:
+        n_cam = 0
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                cam = veh.setdefault("sensing", {}).setdefault("perception", {}).setdefault("camera", {})
+                cam["image_width"], cam["image_height"] = int(args.camera_resolution[0]), int(args.camera_resolution[1]); n_cam += 1
+        print(f"    camera resolution {args.camera_resolution[0]} x {args.camera_resolution[1]} on {n_cam} vehicles")
+
+    if args.detector_input_size is not None:
+        d.setdefault("ml_manager", {})["yolo_input_size"] = int(args.detector_input_size)
+        print(f"    detector input size {args.detector_input_size}")
+
     if args.local_prediction_steps is not None:
         for edge in d.get("scenario", {}).get("edge_list", []):
             for veh in edge.get("vehicles", []):
@@ -853,6 +873,8 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if args.tm_traffic is not None: metrics["config_tm_traffic"] = args.tm_traffic
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
+    if args.camera_resolution is not None: metrics["config_camera_resolution"] = list(args.camera_resolution)
+    if args.detector_input_size is not None: metrics["config_detector_input_size"] = args.detector_input_size
     if args.spawn_gap_jitter: metrics["config_spawn_gap_jitter"] = args.spawn_gap_jitter
     if args.gt_camera_coverage: metrics["config_gt_camera_coverage"] = True
     if args.perception_noise is not None: metrics["config_perception_noise"] = list(args.perception_noise)

@@ -38,7 +38,7 @@ HIDE=5946265674966002516,6337000252949488035,6180885027493966721,165378178391452
 FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
 # GAP_JITTER=<m>: every follower starts up to this much farther behind its predecessor, drawn per repetition.
 GAP_JITTER="${GAP_JITTER:-}"
-rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$GAP_JITTER" ]] && echo -n "--spawn-gap-jitter $GAP_JITTER "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$GAP_JITTER" ]] && echo -n "--spawn-gap-jitter $GAP_JITTER "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "${CAM_RES:-}" ]] && echo -n "--camera-resolution $CAM_RES "; [[ -n "${DET_SIZE:-}" ]] && echo -n "--detector-input-size $DET_SIZE "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
 # LEAD_JITTER=<s>: with SYNC_LAUNCH, the lead of each repetition is drawn within plus or minus this value (seeded).
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH CROSS_SYNC_JITTER=${LEAD_JITTER:-0}"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
