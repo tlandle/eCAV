@@ -27,6 +27,8 @@ def slots():
     """Start poses (x, y, yaw) of vehicles 2..16, in filling order."""
     m = carla.Map("Town03", open(XODR).read()); out = []
     for lane in (0, 1):
+        if lane * PER_LANE >= max(NS):
+            break
         for k in range(PER_LANE):
             if lane == 0 and k == 0: continue            # the scenario runner's vehicle
             wp = m.get_waypoint(carla.Location(-84.8, LEAD_Y - k * SPACING, 0.0))
@@ -40,6 +42,17 @@ def slots():
 
 
 def main():
+    # Variant for a column that meets the crossing car at speed (the leader then starts at EGO_SPAWN_Y, farther
+    # south, and the followers have to start behind it):
+    #   gen_column_scenario.py --name scp_colx60 --lead-y -90 --per-lane 4 --ns 4 8 --speed 60
+    import argparse
+    global NAME, NS, LEAD_Y, PER_LANE, SPEED, SPACING
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--name", default=NAME); ap.add_argument("--ns", type=int, nargs="+", default=NS)
+    ap.add_argument("--lead-y", type=float, default=LEAD_Y); ap.add_argument("--per-lane", type=int, default=PER_LANE)
+    ap.add_argument("--speed", type=int, default=SPEED); ap.add_argument("--spacing", type=float, default=SPACING)
+    a = ap.parse_args()
+    NAME, NS, LEAD_Y, PER_LANE, SPEED, SPACING = a.name, a.ns, a.lead_y, a.per_lane, a.speed, a.spacing
     text = subprocess.run(["git", "show", f"HEAD:ecav/scenario_testing/config_yaml/{BASE}.yaml"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
     head, sep, block = text.partition("      vehicles:\n")
     assert sep and block.startswith("        - <<: *vehicle_base\n          name: cav1\n"), "unexpected vehicle block"
