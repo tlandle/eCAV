@@ -1237,6 +1237,13 @@ class ScenarioManager:
             label_list = list(self.bp_class_sample_prob.keys())
             prob = [self.bp_class_sample_prob[itm] for itm in label_list]
 
+        # carla_traffic_manager.exclude_models: substrings of blueprint ids the background never uses. An encounter
+        # scenario names its scripted conflict car by model (the per-tick log's conflict-actor rule), so the
+        # background must not contain that model.
+        _excl = [str(x) for x in (traffic_config.get('exclude_models', None) or [])]
+        if _excl and not self.use_multi_class_bp:
+            ego_vehicle_random_list = [bp for bp in ego_vehicle_random_list if not any(x in bp.id for x in _excl)]
+
         # if not random select, we always choose lincoln.mkz with green color
         color = '0, 255, 0'
         default_model = 'vehicle.lincoln.mkz_2017'

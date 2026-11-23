@@ -122,6 +122,10 @@ ap.add_argument("--camera-fov", type=float, default=None,
                 help="Horizontal field of view in degrees of every vehicle camera (perception.camera.fov). The code "
                      "default is 70: four cameras at 0, 90, 180 and 270 degrees then leave 20 degree gaps between "
                      "neighbours. Recorded as config_camera_fov; not part of the run directory name.")
+ap.add_argument("--tm-exclude", nargs="*", default=None,
+                help="With --tm-traffic: substrings of vehicle blueprint ids the driving background never uses "
+                     "(carla_traffic_manager.exclude_models), e.g. tesla when the scripted conflict car is a Tesla. "
+                     "Recorded as config_tm_exclude.")
 ap.add_argument("--lidar-dropoff", type=float, nargs=3, default=None, metavar=("GENERAL", "LIMIT", "ZERO"),
                 help="Drop-off of every vehicle LiDAR: dropoff_general_rate, dropoff_intensity_limit and "
                      "dropoff_zero_intensity (CARLA's defaults are 0.45 0.8 0.4). Unset: the scenario file's values "
@@ -642,7 +646,9 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         tmc["range"] = [[-205, 35, -60, 250, 7, 7, int(args.tm_traffic)]]; tmc["random"] = True
         tmc["ignore_lights_percentage"] = 100   # signals off for the background: vehicles at a red light queue and hold the test vehicle
         tmc["port"] = 8010     # 8000 is held by the scenario runner's traffic manager, which this process cannot step
-        print(f"    traffic manager background: {args.tm_traffic} driving vehicles")
+        if args.tm_exclude:
+            tmc["exclude_models"] = list(args.tm_exclude)
+        print(f"    traffic manager background: {args.tm_traffic} driving vehicles, excluded models {args.tm_exclude}")
 
     if args.rear_camera_x is not None:
         n_cam = 0
@@ -885,6 +891,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if args.lidar_z is not None: metrics["config_lidar_z"] = args.lidar_z
     if args.rear_camera_x is not None: metrics["config_rear_camera_x"] = args.rear_camera_x
     if args.tm_traffic is not None: metrics["config_tm_traffic"] = args.tm_traffic
+    if args.tm_exclude: metrics["config_tm_exclude"] = list(args.tm_exclude)
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
     if args.camera_resolution is not None: metrics["config_camera_resolution"] = list(args.camera_resolution)
