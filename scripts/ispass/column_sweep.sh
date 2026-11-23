@@ -28,7 +28,7 @@ SPEED="${SPEED:-40}"; EGO_Y="${EGO_Y:--30}"; MAX_STEP="${MAX_STEP:-1400}"; LOCAL
 #                TAIL_LANES=2 also stops a vehicle in the neighbouring lane (for 16 vehicles, two lanes of 8)
 BG="${BG:-0}"; TAIL_Y="${TAIL_Y:-}"
 TRACE="${TRACE:-0}"   # 1: detection trace of the camera and LiDAR arm (PERC_TRACE, perception_manager)
-variant_env() { [[ "$BG" != 0 ]] && echo -n "BG_TRAFFIC=$BG "; [[ -n "$TAIL_Y" ]] && echo -n "QUEUE_TAIL_Y=$TAIL_Y QUEUE_TAIL_LANES=${TAIL_LANES:-1} "; [[ "$TRACE" == 1 ]] && echo -n "PERC_TRACE=1 "; echo -n "${EXTRA_ENV:-}"; }   # EXTRA_ENV: further KEY=VALUE pairs for the scenario process
+variant_env() { [[ "$BG" != 0 ]] && echo -n "BG_TRAFFIC=$BG "; [[ -n "$TAIL_Y" ]] && echo -n "QUEUE_TAIL_Y=$TAIL_Y QUEUE_TAIL_LANES=${TAIL_LANES:-1} "; [[ "$TRACE" == 1 ]] && echo -n "PERC_TRACE=1 "; [[ "${COLUMN_TRACE:-0}" == 1 ]] && echo -n "COLUMN_TRACE=1 "; echo -n "${EXTRA_ENV:-}"; }   # EXTRA_ENV: further KEY=VALUE pairs for the scenario process
 # signal assemblies of the conflict junction and of the junction the column passes before it (density_sweep.sh)
 HIDE=5946265674966002516,6337000252949488035,6180885027493966721,16537817839145246163,16697564674962583843,6207999516011777620,2654350897737485752,16235826325815247835,4815558027215542490,1415910357169383613,4380901688286554368,5034201441472765163,8005252838334864825,10145647440276496614,9929740016222508988,7518384223988529276,6036580141546007417,3663578618683831388,12050226332585529187,4930559307141010704,4126283349862587052,7662298469676198566,1410771669709828659,8314392846370487945,585006360711733766,8374940585021404564,8209796319443785099,3273669445552054494
 # FOV: horizontal field of view of every vehicle camera in degrees (unset: the code default of 70, which leaves 20
@@ -38,18 +38,22 @@ HIDE=5946265674966002516,6337000252949488035,6180885027493966721,165378178391452
 FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
 # GAP_JITTER=<m>: every follower starts up to this much farther behind its predecessor, drawn per repetition.
 GAP_JITTER="${GAP_JITTER:-}"
-rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$GAP_JITTER" ]] && echo -n "--spawn-gap-jitter $GAP_JITTER "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+# SCEN: scenario of the cell (scp_column: straight crossing; ltp_column: left turn at the same junction,
+#       scripts/ispass/gen_left_turn_scenario.py). DRIVE_DIST: metres the vehicle drives before the scenario ends.
+SCEN="${SCEN:-scp_column}"; DRIVE_DIST="${DRIVE_DIST:-340}"
+rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$GAP_JITTER" ]] && echo -n "--spawn-gap-jitter $GAP_JITTER "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "${CAM_RES:-}" ]] && echo -n "--camera-resolution $CAM_RES "; [[ -n "${LIDAR_DROPOFF:-}" ]] && echo -n "--lidar-dropoff $LIDAR_DROPOFF "; [[ -n "${TM:-}" ]] && echo -n "--tm-traffic $TM --tm-exclude ${TM_EXCLUDE:-tesla} "; [[ -n "${DET_SIZE:-}" ]] && echo -n "--detector-input-size $DET_SIZE "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
 # LEAD_JITTER=<s>: with SYNC_LAUNCH, the lead of each repetition is drawn within plus or minus this value (seeded).
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH CROSS_SYNC_JITTER=${LEAD_JITTER:-0}"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
+  gt_all)  echo "--vehicle-state gt_all" ;;      # every road user of the simulator: no range limit, no line-of-sight test
   onboard) echo "" ;; esac; }
 run_cell() {  # arm N reps
-  local cmd=(test_runner.py -t scp_column --ego-counts "$2" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
+  local cmd=(test_runner.py -t "$SCEN" --ego-counts "$2" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --repetitions "$3" --per-tick-age-log --self-id-radius 1
              --carla-port "$PORT" --stamp "${STAMP}_$1_n$2" $(arm_args "$1") $(rig_args "$1") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
-             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
-             --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=340 SCENARIO_MAX_STEP=$MAX_STEP OCCLUDERS=0 $(variant_env))
+             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0 $([[ -n "${FOLLOW_GAP:-}" ]] && echo "follow_gap_s=$FOLLOW_GAP")
+             --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=$DRIVE_DIST SCENARIO_MAX_STEP=$MAX_STEP OCCLUDERS=0 $(variant_env))
   echo "$(date '+%F %T') arm=$1 N=$2 reps=$3"
   local t0=$(date +%s)
   "$PY" "${cmd[@]}" 2>&1 | grep -E "Sweep completed|abort|Error|Traceback|void" | tail -3

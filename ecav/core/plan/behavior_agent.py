@@ -225,6 +225,19 @@ class BehaviorAgent(object):
 
         # safety related
         self.safety_time = config_yaml['safety_time']
+        # follow_gap_s (seconds, unset by default): time gap held behind a vehicle that moves ahead in the
+        # same direction. Unset, the direct-observation check below treats every vehicle on the path within
+        # collision_time_ahead as a hazard at its current position, whatever its speed, so a follower brakes
+        # fully behind a lead that drives at its own speed and a column cannot hold a gap below that horizon.
+        # Set, such a lead is left to the forecast check (which brakes when the gap would close within the
+        # horizon) and to a speed cap that holds the gap.
+        _fg = config_yaml.get('follow_gap_s', None)
+        self.follow_gap_s = float(_fg) if _fg is not None else None
+        self._follow_lead = None      # (bumper gap m, lead speed m/s) of the nearest moving lead this step
+        self._follow_gaps = []        # bumper gap to the nearest object on the path, one entry per planning step
+        self._follow_miss = 0         # planning steps since the object was last observed (its gap is coasted meanwhile)
+        self._follow_obj = None       # the object the gap samples belong to
+        self._follow_rate = 0.0       # its last closing speed, m/s
         self.emergency_param = config_yaml['emergency_param']
         # Hazard response while the RSS proper response is active:
         #   'stop'        -> emergency stop (target 0, brake 1.0), today's behaviour
@@ -892,6 +905,9 @@ class BehaviorAgent(object):
         vehicle_state = False
         min_distance = 1000
         target_vehicle = None
+        _ttc_before = self.ttc
+        if not adjacent_check:
+            self._follow_lead = None
 
         #logger.debug(adjacent_check)
         #logger.debug("generated predictions: %s" %self.generated_predictions)
@@ -954,6 +970,42 @@ class BehaviorAgent(object):
                 if distance < min_distance:
                     min_distance = distance
                     target_vehicle = vehicle
+
+        if self.follow_gap_s is not None and not adjacent_check:
+            # Range-rate rule for the nearest object on the path. Its closing speed is the change of the observed
+            # gap over 0.25 s, and its own speed is the ego's speed minus the closing speed. An object that moves
+            # (2 m/s or more) is a lead: it is no hazard at its current position, the emergency brake is commanded
+            # when the time to contact falls below 1.5 s or the deceleration needed to keep the gap open exceeds
+            # 3 m/s^2, and the speed cap of the normal branch holds the time gap follow_gap_s behind it.
+            # A lead that was observed stays a lead through missed observations: for up to 1 s its gap is coasted
+            # at the last closing speed. Without this a single missed detection cleared the samples, and the lead's
+            # return was handled as a standing object (full brake), which made followers on camera and LiDAR brake
+            # behind a lead that drove on.
+            _observed = target_vehicle is not None
+            if _observed and self._follow_gaps and abs(self._follow_gaps[-1] - min_distance) > 4.0:
+                self._follow_gaps = []; self._follow_miss = 0          # another object became the nearest
+            if _observed:
+                self._follow_gaps = (self._follow_gaps + [min_distance])[-6:]
+                self._follow_miss = 0; self._follow_obj = target_vehicle
+            elif len(self._follow_gaps) == 6 and self._follow_miss < 20:
+                self._follow_miss += 1
+                self._follow_gaps = (self._follow_gaps + [max(0.0, self._follow_gaps[-1] - self._follow_rate * 0.05)])[-6:]
+            else:
+                self._follow_gaps = []; self._follow_miss = 0; self._follow_obj = None
+            if len(self._follow_gaps) == 6:
+                if _observed or self._follow_miss == 0:
+                    self._follow_rate = (self._follow_gaps[0] - self._follow_gaps[-1]) / 0.25
+                _closing = self._follow_rate
+                _lead_speed = self._ego_speed / 3.6 - _closing
+                if _lead_speed >= 2.0:
+                    _gap = self._follow_gaps[-1]
+                    self._follow_lead = (_gap, _lead_speed)
+                    if _closing > 0.5 and (_gap / _closing < 1.5 or _closing * _closing / (2.0 * max(_gap, 0.1)) > 3.0):
+                        vehicle_state = True; target_vehicle = self._follow_obj; min_distance = _gap
+                        self.ttc = min(_ttc_before, _gap / _closing)
+                    else:
+                        vehicle_state = False; target_vehicle = None; min_distance = 1000
+                        self.ttc = _ttc_before
 
         # Pass 2: Edge/local prediction collision check
         _edge_coll_this_tick = False
@@ -1034,6 +1086,14 @@ class BehaviorAgent(object):
                 obs_speed = ((p1.x - p0.x)**2 + (p1.y - p0.y)**2)**0.5 / time_step
             else:
                 obs_speed = 0.0
+
+            if self.follow_gap_s is not None and not adjacent_check and len(pred_traj) >= 2 and obs_speed >= 2.0:
+                # a vehicle that drives in the ego's direction: ahead, the range-rate rule above answers for it
+                # without the tracker's speed; behind, it keeps its own gap, and braking for its forecast along the
+                # ego's path would stop the ego in front of it
+                _ey = math.radians(self._ego_pos.rotation.yaw)
+                if ((p1.x - p0.x) * math.cos(_ey) + (p1.y - p0.y) * math.sin(_ey)) / (obs_speed * time_step) > 0.9:
+                    continue
 
             # Candidate futures: multimodal predictors (MTR) attach all
             # modes + scores; check the top-K by score and act on the
@@ -2742,6 +2802,15 @@ class BehaviorAgent(object):
             # otherwise resume full speed (e.g. the left-turn hazard branch
             # past its 3 m floor)
             target_speed = self._graded_hazard_speed_kmh()
+        if self.follow_gap_s is not None and self._follow_lead is not None:
+            # hold the time gap behind a moving lead: at the gap the cap is the lead's speed, closer it is lower
+            _gap, _ls = self._follow_lead
+            _want = 2.0 + self.follow_gap_s * self._ego_speed / 3.6
+            if _gap < _want:
+                _cap = max(0.0, (_ls + 0.5 * (_gap - _want)) * 3.6)
+                target_speed = min(target_speed if target_speed else self.max_speed - self.speed_lim_dist, _cap)
+                if target_speed <= 0.0:
+                    target_speed = 0.01      # 0 would select the default speed below; the controller brakes to a crawl
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)

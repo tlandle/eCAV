@@ -22,6 +22,7 @@ with ttc 1.9 s, clearance 3.0 m, non-age response 0.28 s, ego braking 6 m/s^2.
 Environment knobs (test_runner --scenario-env KEY=VALUE):
     CLOSING_SPEED_MPS   closing speed at the cut-in, m/s (default 10)
     CUTIN_TTC_S         time to the clearance at the cut-in (1.9)
+    CUTIN_TTC_JITTER_S  per repetition, CUTIN_TTC_S is drawn within plus or minus this value (0)
     CLEARANCE_M         clearance distance (3.0)
     EGO_BRAKING_MPS2    design deceleration (6.0), reported only
     NON_AGE_RESPONSE_S  design response time (0.28), reported only
@@ -179,6 +180,14 @@ class Scenario_HighwayMerge(BasicScenario):
         self.ego_speed = self.ego_max_speed_kmh / 3.6
         self.closing = _env_float("CLOSING_SPEED_MPS", 10.0)
         self.ttc = _env_float("CUTIN_TTC_S", 1.9)
+        # CUTIN_TTC_JITTER_S: the time to the clearance at the cut-in is drawn within plus or minus this
+        # value, seeded by the repetition number (ECAV_RUN_REP, set by test_runner), so repetitions sample
+        # the encounter around the design point and two arms of one repetition share the draw.
+        _jit = _env_float("CUTIN_TTC_JITTER_S", 0.0)
+        if _jit > 0:
+            import random
+            self.ttc += random.Random(104729 * int(os.environ.get("ECAV_RUN_REP", 0) or 0) + 11).uniform(-_jit, _jit)
+            print(f"{TAG} cut-in time to clearance drawn: {self.ttc:.3f} s", flush=True)
         self.clearance = _env_float("CLEARANCE_M", 3.0)
         self.braking = _env_float("EGO_BRAKING_MPS2", 6.0)
         self.response = _env_float("NON_AGE_RESPONSE_S", 0.28)

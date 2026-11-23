@@ -94,6 +94,34 @@ class SyncCrossLaunch:
                 self.car.get_location().y, adv), flush=True)
 
 
+class ColumnTrace:
+    """COLUMN_TRACE=1: one row per vehicle and tick in <run dir>/column_trace.csv (position, speed, controls).
+
+    The per-tick age log follows the focal vehicle only. A column study needs every vehicle: the gap each
+    one holds when the crossing car launches, when it starts to brake, and how hard.
+    """
+
+    def __init__(self, run_dir=""):
+        self.fh = None
+        if os.environ.get("COLUMN_TRACE", "0") == "1" and run_dir:
+            self.fh = open(os.path.join(str(run_dir), "column_trace.csv"), "w")
+            self.fh.write("step,index,actor_id,x,y,speed_mps,throttle,brake\n")
+
+    def step(self, edge_list, step):
+        if self.fh is None:
+            return
+        import math
+        k = 0
+        for edge in edge_list:
+            for vm in edge.vehicle_manager_list:
+                v = vm.vehicle
+                loc, vel, ctl = v.get_location(), v.get_velocity(), v.get_control()
+                self.fh.write("%d,%d,%d,%.2f,%.2f,%.3f,%.2f,%.2f\n" % (
+                    step, k, v.id, loc.x, loc.y, math.hypot(vel.x, vel.y), ctl.throttle, ctl.brake))
+                k += 1
+        self.fh.flush()
+
+
 def exec_scenario_runner(scenario_params):
     """
     Execute the ScenarioRunner process
@@ -283,6 +311,9 @@ def run_scenario(opt, scenario_params):
         spectator_bird_pitch = -90
 
         sync_launch = SyncCrossLaunch(getattr(opt, 'output_dir', ''))
+        column_trace = ColumnTrace(getattr(opt, 'output_dir', ''))
+        _column_v0 = float(os.environ.get("COLUMN_INITIAL_SPEED_MPS", 0) or 0)
+        _column_hold = max(1, int(os.environ.get("COLUMN_SPEED_HOLD_TICKS", 30) or 30))
         flag = True
         while flag:
             # Determine continue condition and command based on mode
@@ -296,6 +327,21 @@ def run_scenario(opt, scenario_params):
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
             sync_launch.step(ego_cav, step)
+            if _column_v0 > 0 and step in (0, _column_hold):
+                # COLUMN_INITIAL_SPEED_MPS: every vehicle starts at this speed along its lane, so a column keeps
+                # the pitch of its start positions. From a standing start each follower waits for the vehicle
+                # ahead and the column reaches the junction with gaps of several seconds. The speed is held for
+                # COLUMN_SPEED_HOLD_TICKS (30) and then released: a vehicle that is only given a velocity loses a
+                # third of it while its drivetrain engages, and the followers brake for that dip.
+                for _edge in edge_list:
+                    for _vm in _edge.vehicle_manager_list:
+                        if step == 0:
+                            _vm.vehicle.enable_constant_velocity(carla.Vector3D(_column_v0, 0.0, 0.0))
+                        else:
+                            _vm.vehicle.disable_constant_velocity()
+                print("[COLUMN] step %d: speed %.1f m/s %s on every vehicle" % (
+                    step, _column_v0, "held" if step == 0 else "released"), flush=True)
+            column_trace.step(edge_list, step)
             print("bird view following")
 
             # Bird view following
