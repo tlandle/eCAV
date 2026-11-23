@@ -9232,3 +9232,27 @@ About 57 h, ends Monday morning. No edit or merge in the main checkout until it 
 **Files.** sec5_wt paper_ispass/resolution_runs_1280.csv (per-run table); cetus ~/sec5_wt tmp/resh_runs.csv, logs/resh_runs.txt, logs/resh_prof.txt; launchers tmp/cetus_resgate.sh, tmp/cetus_resfull.sh.
 
 **Directed next (coordinator, from Tyler).** The open scene makes the arms equal by construction once the camera is sharp. Scenes get driving background traffic (--tm-traffic), CARLA's default LiDAR drop-off (new knob --lidar-dropoff 0.45 0.8 0.4, LIDAR_DROPOFF in the sweeps), every gate at 640 and 1280. Order: column with the crossing car in the congested junction (1, 2, 4, 8, 16 in one lane, 56 and 65 km/h, headway as the knob), then left turn and cut-in. Built so far on sec5ext: single-lane column generator (--follow-lane, scp_colh60/70_{2,4,8,16}ego at 20 m standing pitch), COLUMN_TRACE per-vehicle trace and column_trace_reduce.py, ltp_column (left turn) with left_turn_calibrate.py, cutin_sweep.sh with CUTIN_TTC_JITTER_S, encounter_reduce.py with sight-line class shares and a slow-down check before the launch.
+
+## 2026-11-22 22:18 Azure scale campaign mh3 launched (branch multiedge 481ae273); gates and defects found on the way
+
+**Tyler (Nov 22, 22:00): make sure to run everything.**
+
+**Gates on Azure (multiedge_wt/experiment_results/ispass_scale/azg*).**
+- 64 vehicles, no perception, exact localization: one edge on one host 401 ms (edge step 110), two edges of 32 on one host 376 ms (edge step 92, per edge 76 and 79), two edges on three hosts 297 ms. Planner positions identical to 0.01 m between one edge and two.
+- 256 vehicles, eight edges, three hosts (azg2_n256_mh): tick 802 ms (single edge mh1: 1504), edge step 216 ms on the critical path (per edge 115 to 192), client compute 52 %.
+- 64 vehicles with perception, two edges, clients on two hosts, one inference replica on carla-ndm (azg2_p64): tick 2160 ms (mh2 with one edge: 2499), client step 89.5 % (frame wait), edge step 184 ms.
+
+**Defects found and fixed in the launcher (all on multiedge).**
+- Edge port 50054+k reached 50061, the orchestrator's push port, with eight edges: the eighth edge could not bind, still registered, and its actors called the orchestrator (Edge_ActorRegister not implemented). Ports now 50054 for edge 0 and 50062+k, at most 38 edges, and a failed bind fails the run (753997c4).
+- Clients that die at start-up with the traffic manager "bind error" (same load as the rpc::timeout case, nobody holds the port) are restarted, and a client that never reaches its actor client fails the run at once (c04200f6). In azg2_p64 eight clients of the last batch died on try 1 and four on try 2.
+- Port guard covers traffic manager ports to 9999 and every host reserves 50051-51300 for a multi-host run (481ae273).
+- SCALE_GEN_EXTRA adds generator arguments to every run of a sweep (7f0980c2). Server arrays 2048 (cb937230, binary rebuilt on atlas).
+- Generator: fourth placement rule (8 m spacing, 40 m segments, 50 m routes) holds 1,069 vehicles on Town06; scenarios up to 700 vehicles byte-identical (20395efe). 1,024 vehicles give 32 edges.
+- OpenCDA harness: --camera WIDTH HEIGHT FOV and CAMERA in the sweep (f4da11cc), OpenCDA files not modified.
+- Do not edit scripts/ispass/launch_scale.sh or scale_sweep.sh in multiedge_wt while the campaign runs (bash reads a running script from disk).
+
+**Campaign (scratchpad az_mh3.sh, log multiedge_wt/logs/azmh3.log, started 22:17, watcher btuzd3c06, ends with "mh3 parts end").** SCALE_GEN_EXTRA="--edge-size 32". Order: mhprepl R=1 (8 to 64) and R=4 (8 to 128) with carla-ndm, then carla-ndm deallocated; percep (one host 8, 16, 32); dense, mhdense, mhstrong, mhequiv; client VMs deallocated; matched comparison (stamp mh3nw: percep with ECAV_SENSOR_SYNC=0; OpenCDA at 8, 16, 32 with CAMERA="640 480 70", results to experiment_results/ispass_scale/mh3_opencda_matched). The A10 node stays on at the end for the 1,024-vehicle runs (script az_n1024.sh not written yet), which must deallocate it and append "chain end" to azmh3.log. The Section V fork waits for that line before it uses the A10 node for 1280-pixel column cells.
+
+**1,024 vehicles, plan.** A10: orchestrator, CARLA, 32 edges, RSUs. Clients: 256 each on carla-client3/4 plus carla-client1/2 if Tyler adds the key (commands given to him twice), else 512 on carla-ndm (672 GB, 40 cores). Vehicle push ports reach 51124 and overlap the RSU push range only on a shared host (RSUs run on the A10).
+
+**Section V fork, interim (branch sec5ext).** Resolution set done: 0 of 20 collisions at 1280 pixels at 56 and 65 km/h (640: 2 and 10 of 10). Column: the planner has no time-gap rule (3.9 to 4.2 s gaps from a standing start), start-at-speed knob under test. 1280 pixels does not fit 4 vehicles on atlas (16 GB, 6.7 GB held by the desktop session) or cetus.
