@@ -9537,3 +9537,22 @@ Branch `sec5ext` 6236cb95 (tables `paper_ispass/column_rerun_gap1p0_*`, 30-run v
 - **Reading:** the first vehicle's collision rate does not depend on the column length (67 of 120). Followers add collisions from 2 vehicles on, at positions 2 and 3 only, and the count does not grow from 4 to 8 vehicles. The 10-run version (4, 2, 7, 10 collided vehicles) overstated the trend from 4 to 8.
 - **Paper paragraph (Section V, Column):** states the four first-vehicle counts of 30, the follower runs 4, 6, 6 at positions 2 or 3, no collision at 1280 by 960 with 1 and 2 vehicles (10 runs each, cetus `ispass_cr10h60`), and one follower collision in 23 multi-vehicle lead collisions at a 1.5 s gap (set B). The brake-time split of the 10-run version is commented out.
 - **Pending (Section V worker):** 1280 by 960 cells with 4 and 8 vehicles on the A10 node since 13:52 (gate passed: valid, 274 s, 10.0 GB GPU), end about 17:45, then the worker deallocates edge-server. Occluded cut-in full set on cetus. The 1280 sentence and a cut-in sentence follow when they land.
+
+## 2026-11-23 14:25 Section V stream: column set B rerun, 30 runs per camera and LiDAR cell in set A, A10 node in use
+
+**Column set B, rerun with the coasting rule (atlas sec5_run d8bb6b12, ispass_cr15s60 and ispass_cr15s70, 180 runs, all valid, ended 11:42).** Both ground-truth arms 0 collided vehicles. Camera and LiDAR 640x480: 56 km/h 5, 1, 2 runs of 10 with a collision at 1, 2, 4 vehicles (lead only); 65 km/h 10, 10, 10 of 10, one follower (position 2) with 4 vehicles. Gap at the launch in the camera and LiDAR arm 30.4 m and 1.65 s, 26.1 m and 1.45 s at 56 km/h; 35.6 m and 1.71 s, 32.5 m and 1.52 s at 65 km/h. Lead decision (column_lead_brake.py, median): 56 km/h 0.60 to 0.70 s unrestricted, 1.75 to 1.80 s in view, 2.10 to 2.38 s camera and LiDAR; 65 km/h 0.80 to 0.90, 1.98 to 2.05, 2.70 to 2.75 s. Files paper_ispass/column_gap1p5_* (sec5ext 7a72977e).
+
+**Set A, camera and LiDAR arm, 30 runs per cell (repetitions 11 to 30 at 1, 2, 8 vehicles ended 13:41, at 4 vehicles 14:23; same code and settings as ispass_cr10s60; all 120 valid).**
+
+| vehicles | first vehicle collides | runs with a follower collision | follower vehicles | collided vehicles per ten runs | lead decision, median s |
+|---|---|---|---|---|---|
+| 1 | 17 of 30 | 0 | 0 | 5.7 | 2.60 |
+| 2 | 13 of 30 | 4 | 4 | 5.7 | 2.33 |
+| 4 | 20 of 30 | 6 | 7 | 9.0 | 2.65 |
+| 8 | 17 of 30 | 6 | 7 | 8.0 | 2.55 |
+
+Every follower collision is in a run in which the first vehicle collides. The first vehicle's collision rate does not depend on column length (17, 13, 20, 17 of 30), so the coordinator's check 1 is answered: sampling noise at ten runs. Ground-truth arms stay at 10 runs per cell (0 collisions, deterministic to the tick across repetitions of one lead draw). Files paper_ispass/column_gap1p0_{cells,runs,pos}.csv, column_gap1p0_table.txt, column_gap1p0_lead_brake.csv.
+
+**A10 node (edge-server), handed over 13:35.** Own tree ~/sec5_a10 (run code of d8bb6b12, scenario runner copied from atlas because ~/scenario_runner_atlas fails under Python 3.10 with getchildren; first gate run invalid for that reason and removed). Gate passed 13:52: 4 vehicles at 1280x960, 56 km/h, 1.0 s gap, valid, launch at step 130, gap 20.9 m and 1.01 s, 274 s per run, peak GPU memory 10.0 GB. Running since 13:52 (~/sec5_a10/tmp/a10_col.sh full, log logs/a10_col_full.log, "chain end"): 10 runs each of 4 and 8 vehicles at 56 km/h (ispass_cr10h60) and 4 vehicles at 56 and 65 km/h with the 1.5 s gap (ispass_cr15h60, ispass_cr15h70). To do when it ends: mirror results to atlas, az vm deallocate -g CARLA-SERVER_GROUP -n edge-server, verify with az vm list -d, by 23:00 at the latest.
+
+**Running.** cetus: occluded cut-in full set (tmp/cetus_cuto_full.sh).
