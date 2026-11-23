@@ -168,13 +168,21 @@ def main():
         res["setup_s"] = round(time.time() - t_start, 1)
         wall, world, veh = [], [], []
         planner_exc, first_tb = 0, ""
+        percep_exc = 0
         peak_rss = peak_carla = peak_gpu = 0
         for t in range(a.ticks + a.skip):
             t0 = time.perf_counter()
             sm.tick()
             t1 = time.perf_counter()
             for c in cavs:
-                c.update_info()
+                try:
+                    c.update_info()
+                except IndexError:
+                    # OpenCDA's camera-LiDAR fusion reads the LiDAR buffer twice in one detection. A scan that
+                    # arrives between the two reads changes the point count and the mask no longer fits.
+                    # The update is repeated once on the new scan; the count is reported.
+                    percep_exc += 1
+                    c.update_info()
                 try:
                     control = c.run_step()
                 except IndexError:
@@ -199,7 +207,7 @@ def main():
                    tick_ms=dict(mean=round(float(np.mean(wall)), 1), p50=q(wall, 50), p95=q(wall, 95), p99=q(wall, 99)),
                    world_ms=dict(mean=round(float(np.mean(world)), 1), p50=q(world, 50)),
                    vehicles_ms=dict(mean=round(float(np.mean(veh)), 1), p50=q(veh, 50)),
-                   planner_exceptions=planner_exc, planner_exception_first=first_tb[-600:],
+                   perception_exceptions=percep_exc, planner_exceptions=planner_exc, planner_exception_first=first_tb[-600:],
                    sim_s_per_wall_s=round(50.0 / float(np.mean(wall)), 3),
                    peak_client_rss_gb=round(peak_rss, 2), peak_carla_rss_gb=round(peak_carla, 2), peak_gpu_mb=peak_gpu,
                    speeds_mps_end=round(float(np.mean([np.hypot(c.vehicle.get_velocity().x, c.vehicle.get_velocity().y)

@@ -64,7 +64,7 @@ for part in $PARTS; do case $part in
       scripts/ispass/perception_replicas.sh stop $PERC_HOST; done; done ;;
   mhpercep) for n in ${MH_PN:-8 16 32 64}; do perc_start; one ${STAMP}_mhpdense_n$n -n $n -r 2 -p shared -s 300 -H "$(split $n)"; perc_stop ${STAMP}_mhpdense_n$n; done ;;
   dense)  for n in 8 16 32 64 128 256; do one ${STAMP}_dense_n$n -n $n -r 2 -p off -s $(steps $n); done ;;
-  spread) for n in 8 16 32 64 128 256 512; do one ${STAMP}_spread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread"; done ;;
+  spread) for n in ${SPREAD_NS:-8 16 32 64 128 256 512}; do one ${STAMP}_spread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread"; done ;;
   seq)    for n in 8 16 32; do one ${STAMP}_seqdense_n$n -n $n -r 2 -p off -s 300 -m seq
                                one ${STAMP}_seqspread_n$n -n $n -r 20 -p off -s 300 -m seq -g "--layout spread"; done ;;
   percep) # shared YOLO inference service on the GPU host, restarted per run so its log covers one run;

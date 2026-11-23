@@ -34,7 +34,8 @@
 #                   (ecav.py without -d) on the orchestrator host, same scenario files
 # Environment: SCALE_GEN_EXTRA (generator arguments added to every run of a sweep, e.g. "--edge-size 32"),
 # SCALE_WT (worktree on every host, default $HOME/scale_wt), SCALE_ACT (shell line that activates the
-# Python env on every host), SCALE_CARLA_ROOT (default $HOME/carla-0.9.15), BATCH (clients started per wave, 16).
+# Python env on every host), SCALE_CARLA_ROOT (default $HOME/carla-0.9.15), BATCH (clients started per wave, 16),
+# SCALE_START_TRIES (restarts of a client that died on the traffic manager at start-up, 3).
 #
 # Every host needs: the worktree at $WT with generated proto stubs and, on the orchestrator, the
 # ecloud_server binary; the opencda310 env; CARLA's PythonAPI under $CARLA_ROOT. Hosts must reach
@@ -259,7 +260,7 @@ k=1; while (( k < N )); do
   # can die on set_random_device_seed before it has created anything. Under the same load a client can also fail
   # to create its own traffic manager server ("bind error"). Such a client is started again. A client that has
   # not reached its actor client after the retries fails the run here, not 15 minutes later at the first tick.
-  for try in 1 2 3; do
+  for try in $(seq 1 ${SCALE_START_TRIES:-3}); do
     bad=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || { grep -Eq 'rpc::timeout|bind error' $L/veh_\$i.log && echo \$i; }; done" | tr '\n' ' ')
     [[ -z "${bad// }" ]] && break
     log "clients ${bad}died on the traffic manager at start-up: starting them again (try $try)"
