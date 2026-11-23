@@ -183,8 +183,10 @@ def main(argv=None):
     percep = a.perception == "on"
 
     xodr = find_xodr(a.xodr)
-    for spacing, min_route in ((a.spacing, a.min_route), (10.0, 120.0), (9.0, 100.0)):
-        sl = slots(xodr, spacing, a.route_len, a.min_seg, a.centre, min_route)
+    # the last rule (8 m spacing, 40 m segments, 50 m routes) holds 1,069 vehicles on Town06; the rules before it 700
+    for spacing, min_route, min_seg in ((a.spacing, a.min_route, a.min_seg), (10.0, 120.0, a.min_seg),
+                                        (9.0, 100.0, a.min_seg), (8.0, 50.0, min(a.min_seg, 40.0))):
+        sl = slots(xodr, spacing, a.route_len, min_seg, a.centre, min_route)
         if len(sl) >= N:
             break
     else:
