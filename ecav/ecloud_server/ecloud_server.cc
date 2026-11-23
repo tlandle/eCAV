@@ -62,7 +62,8 @@
 #define SLOW_CAR_COUNT 0
 #define SPECTATOR_INDEX 0
 #define VERBOSE_PRINT_COUNT 5
-#define MAX_CARS 512
+// vehicles plus RSUs: the reply arrays are indexed up to numCars_, which counts both
+#define MAX_CARS 1024
 #define INVALID_TIME 0
 #define TICK_ID_INVALID -1
 #define VEHICLE_UPDATE_BATCH_SIZE 32

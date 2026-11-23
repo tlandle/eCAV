@@ -23,6 +23,7 @@ along the critical path, the client that reports last in that tick:
 Clocks: all rows use time.time() of the logging process, so cross-process rows need
 synchronised clocks (one host, or chrony between hosts). --row prints one table row.
 """
+import bisect
 import glob
 import os
 import re
@@ -62,7 +63,9 @@ def main():
     d = sys.argv[1].rstrip("/")
     skip = int(sys.argv[sys.argv.index("--skip") + 1]) if "--skip" in sys.argv else 5
     orch = "".join(open(f, errors="ignore").read() for f in glob.glob(f"{d}/*/orch.log"))
-    edge = "".join(open(f, errors="ignore").read() for f in glob.glob(f"{d}/*/edge.log"))
+    # one edge writes edge.log, several write edge_<k>.log; every tick line carries its edge index
+    edge = "".join(open(f, errors="ignore").read()
+                   for f in glob.glob(f"{d}/*/edge.log") + glob.glob(f"{d}/*/edge_*.log"))
     wall, world = {}, {}
     order = []
     for m in re.finditer(r"SCALE_TOWN06\] tick (\d+) wall=(\d+)ms clients=(\d+)ms world=(\d+)ms", orch):
@@ -75,10 +78,22 @@ def main():
                          r"(?: \| t_start=([\d.]+) t_sent=([\d.]+) t_done=([\d.]+))?", orch):
         srv.append((int(m.group(1)), int(m.group(4)),
                     *(float(g) if g else None for g in m.groups()[4:7])))
-    edg = {}
-    for m in re.finditer(r"EDGE TICK (\d+)\].*?t_recv=([\d.]+) t_dequeued=([\d.]+) t_pushed=([\d.]+) "
+    edg = {}      # tick -> {edge index: times}
+    for m in re.finditer(r"EDGE TICK (\d+)\](?: edge=(\d+))?.*?t_recv=([\d.]+) t_dequeued=([\d.]+) t_pushed=([\d.]+) "
                          r"t_first=([\d.]+) t_last=([\d.]+) t_step=([\d.]+) t_reported=([\d.]+)", edge):
-        edg[int(m.group(1))] = [float(g) for g in m.groups()[1:]]
+        edg.setdefault(int(m.group(1)), {})[int(m.group(2) or 0)] = [float(g) for g in m.groups()[2:]]
+    # vehicle and RSU index bounds of the edges, printed by the generator into launch.log
+    launch0 = open(f"{d}/launch.log", errors="ignore").read() if os.path.exists(f"{d}/launch.log") else ""
+    def _bounds(tag):
+        found = re.findall(rf"^{tag}=([\d,]+)$", launch0, re.M)
+        return [int(x) for x in found[-1].split(",")] if found else None
+    vb, rb = _bounds("EDGE_BOUNDS"), _bounds("EDGE_RSU_BOUNDS")
+    def edge_of(label, index):
+        bnd = rb if label == "RSU" else vb
+        if not bnd:
+            return 0
+        return max(0, min(bisect.bisect_right(bnd, index) - 1, len(bnd) - 2))
+    edge_steps = {}      # edge index -> step durations in ms
     cli = {}      # tick -> list of (t_recv, t_start, t_built, t_sent, label, index)
     nv = nr = 0
     comp = []
@@ -110,8 +125,13 @@ def main():
         if step is None or step < skip or tk not in edg or tk not in cli:
             continue
         w, _, wd = wall[step]
-        e_recv, e_deq, e_push, e_first, e_last, e_step, e_rep = edg[tk]
-        c = max(cli[tk], key=lambda r: r[3])
+        # the tick ends when the last edge has stepped: that edge and its own clients are the critical path
+        ek, et = max(edg[tk].items(), key=lambda kv: kv[1][5])
+        e_recv, e_deq, e_push, e_first, e_last, e_step, e_rep = et
+        for k2, v2 in edg[tk].items():
+            edge_steps.setdefault(k2, []).append((v2[5] - v2[4]) * 1000)
+        own = [r for r in cli[tk] if edge_of(r[4], r[5]) == ek] or cli[tk]
+        c = max(own, key=lambda r: r[3])
         last_is_rsu += (c[4] == "RSU")
         seg = {
             "orchestrator -> edge": e_recv - t0,
@@ -155,6 +175,7 @@ def main():
             client_compute_all_mean=st.mean(comp) if comp else None,
             client_compute_all_p99=pct(comp, .99) if comp else None,
             first_tick_s=first, cpu_busy=busy,
+            edge_step_by_edge={k2: st.mean(v2) for k2, v2 in sorted(edge_steps.items())},
             layout=gen.group(1) if gen else None,
             neighbours_sense=float(gen.group(3)) if gen else None,
             neighbours_recipient=float(gen.group(5)) if gen else None,
@@ -172,6 +193,8 @@ def main():
         a, b, c = stats(rows[n])
         share = 100 * a / wm if walls else float("nan")
         print(f"    {n:<22} mean {a:7.1f}  p50 {b:7.1f}  p99 {c:7.1f} ms  {share:5.1f} %")
+    if len(edge_steps) > 1:
+        print("  edge step by edge (mean ms): " + "  ".join(f"{k2}: {st.mean(v2):.0f}" for k2, v2 in sorted(edge_steps.items())))
     if comp:
         print(f"  vehicle client compute, all clients: mean {st.mean(comp):.1f}  p50 {pct(comp, .5):.1f}  p99 {pct(comp, .99):.1f} ms")
     print(f"  last reporter was an RSU in {last_is_rsu} of {len(walls)} ticks")

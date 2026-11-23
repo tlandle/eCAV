@@ -77,7 +77,7 @@ def run_scenario(opt, scenario_params):
         scenario_params = add_current_time(scenario_params)
         if getattr(opt, 'output_dir', None):
             scenario_params['run_output_dir'] = opt.output_dir
-        n_egos = len(scenario_params['scenario']['edge_list'][0]['vehicles'])
+        n_egos = sum(len(edge['vehicles']) for edge in scenario_params['scenario']['edge_list'] if 'vehicles' in edge)
 
         cav_world = CavWorld(apply_ml=opt.apply_ml, config=scenario_params,
                              litserve=getattr(opt, 'litserve', False))

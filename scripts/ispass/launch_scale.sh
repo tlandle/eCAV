@@ -212,10 +212,18 @@ fi
 bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
 wait_log "$ORCH" orch "start [0-9]+ vehicle containers" 300 || fail "orchestrator did not come up"
 log "orchestrator up"
-EARGS="-e 0 -P 50054"; [[ $MULTI == 1 ]] && EARGS="$EARGS -O $ORCH_IP -o 50051"
-bg "$EDGE" edge "python -u ecav/ecav2/edge_process.py $EARGS"
-wait_log "$EDGE" edge "registered successfully" 180 || fail "edge did not register"
-log "edge registered"
+# one edge process per entry of the scenario's edge_list (generator option --edges, passed with -g); edge k
+# listens on 50054+k and logs to edge_<k>.log, or to edge.log when there is one edge
+KE=$(grep -o '^EDGES=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); KE=${KE:-1}
+edge_log() { (( KE > 1 )) && echo "edge_$1" || echo edge; }
+for e in $(seq 0 $((KE - 1))); do
+  EARGS="-e $e -P $((50054 + e))"; [[ $MULTI == 1 ]] && EARGS="$EARGS -O $ORCH_IP -o 50051"
+  bg "$EDGE" "$(edge_log $e)" "python -u ecav/ecav2/edge_process.py $EARGS"
+done
+for e in $(seq 0 $((KE - 1))); do
+  wait_log "$EDGE" "$(edge_log $e)" "registered successfully" 180 || fail "edge $e did not register"
+done
+log "$KE edge process(es) registered"
 
 # vehicle client 0 spawns every ego; the others attach to theirs
 host_of() { local k=$1 e h r; for e in $(tr ',' ' ' <<< "$VLIST"); do h=${e%%:*}; r=${e##*:}; (( k >= ${r%-*} && k <= ${r#*-} )) && { echo "$h"; return; }; done; }

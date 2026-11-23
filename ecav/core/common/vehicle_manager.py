@@ -49,7 +49,7 @@ from ecav.core.tracking.ab3dmot_format import vehicles_to_ab3dmot_dets
 from ecav.core.prediction.linear_predictor_manager import LinearPredictorManager
 from ecav.core.map.map_manager import MapManager
 from ecav.core.common.data_dumper import DataDumper
-from ecav.core.common.misc import compute_distance
+from ecav.core.common.misc import compute_distance, edge_actor_config
 from ecav.scenario_testing.utils.yaml_utils import load_yaml
 from ecav.scenario_testing.utils.route_parser import RouteParser
 from ecav.client_metrics import ClientMetrics
@@ -200,11 +200,11 @@ class VehicleManager(object):
 
             if is_edge:
                 assert('edge_list' in self.scenario_params['scenario'])
-                # TODO: support multiple edges...
-                cav_config = self.scenario_params['scenario']['edge_list'][0]['vehicles'][vehicle_index]
+                # vehicle_index is global over the edges of edge_list
+                edge_config, cav_config = edge_actor_config(self.scenario_params, 'vehicles', vehicle_index)
                 logger.debug(cav_config)
-                edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
-                    if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
+                edge_sets_destination = edge_config['edge_sets_destination'] \
+                    if 'edge_sets_destination' in edge_config else False
 
             else:
                 assert False, "no known vehicle indexing format found"
@@ -228,11 +228,11 @@ class VehicleManager(object):
             # helper to transfer to spawn transform
             if is_edge:
                 assert('edge_list' in self.scenario_params['scenario'])
-                # TODO: support multiple edges...
-                cav_config = self.scenario_params['scenario']['edge_list'][0]['vehicles'][vehicle_index]
+                # vehicle_index is global over the edges of edge_list
+                edge_config, cav_config = edge_actor_config(self.scenario_params, 'vehicles', vehicle_index)
                 logger.debug(cav_config)
-                edge_sets_destination = self.scenario_params['scenario']['edge_list'][0]['edge_sets_destination'] \
-                    if 'edge_sets_destination' in self.scenario_params['scenario']['edge_list'][0] else False
+                edge_sets_destination = edge_config['edge_sets_destination'] \
+                    if 'edge_sets_destination' in edge_config else False
 
             else:
                 assert False, "no known vehicle indexing format found"
@@ -261,9 +261,9 @@ class VehicleManager(object):
                     self.route = None  # Multi-waypoint route if available
 
                     if edge_sets_destination:
-                        self.destination['x'] = self.scenario_params['scenario']['edge_list'][0]['destination'][0]
-                        self.destination['y'] = self.scenario_params['scenario']['edge_list'][0]['destination'][1]
-                        self.destination['z'] = self.scenario_params['scenario']['edge_list'][0]['destination'][2]
+                        self.destination['x'] = edge_config['destination'][0]
+                        self.destination['y'] = edge_config['destination'][1]
+                        self.destination['z'] = edge_config['destination'][2]
                     elif 'route_file' in cav_config:
                         # Load route from XML file
                         import os
