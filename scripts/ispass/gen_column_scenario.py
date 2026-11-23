@@ -30,14 +30,23 @@ def slots():
     if FOLLOW_LANE:
         # one lane, any length: follower k stands k * SPACING metres behind the leader along the lane, through
         # the junction and the bend south of road 3 (the straightest predecessor at every 1 m step)
-        wp = m.get_waypoint(carla.Location(-84.8, LEAD_Y, 0.0)); assert wp.road_id == 3 and wp.lane_id == -1
-        dist = 0.0
-        for k in range(1, max(NS)):
+        # With --per-lane P below the largest N, vehicles P+1.. fill the lane to the right, abreast of the first P.
+        import math
+        wp = m.get_waypoint(carla.Location(-84.8, LEAD_Y, 0.0)); assert abs(wp.transform.location.x + 84.9) < 0.6, wp.transform.location
+        dist = 0.0; lane0 = [wp]
+        for k in range(1, min(PER_LANE, max(NS))):
             while dist < k * SPACING - 1e-6:
                 prev = wp.previous(1.0); assert prev, "the lane ends behind the leader"
                 wp = min(prev, key=lambda w: abs(((w.transform.rotation.yaw - wp.transform.rotation.yaw + 180) % 360) - 180)); dist += 1.0
-            t = wp.transform
-            out.append((round(t.location.x, 2), round(t.location.y, 2), round(t.rotation.yaw % 360, 1)))
+            lane0.append(wp)
+        for w in lane0[1:]:
+            t = w.transform; out.append((round(t.location.x, 2), round(t.location.y, 2), round(t.rotation.yaw % 360, 1)))
+        for w in lane0[:max(0, max(NS) - PER_LANE)]:
+            t = w.transform; yaw = math.radians(t.rotation.yaw)
+            r = m.get_waypoint(carla.Location(t.location.x - 3.5 * math.sin(yaw), t.location.y + 3.5 * math.cos(yaw), 0.0))
+            off = math.hypot(r.transform.location.x - t.location.x, r.transform.location.y - t.location.y)
+            assert 3.0 < off < 4.0 and abs(((r.transform.rotation.yaw - t.rotation.yaw + 180) % 360) - 180) < 5, ("no lane to the right", t.location, off)
+            out.append((round(r.transform.location.x, 2), round(r.transform.location.y, 2), round(r.transform.rotation.yaw % 360, 1)))
         return out
     for lane in (0, 1):
         if lane * PER_LANE >= max(NS):
@@ -67,7 +76,7 @@ def main():
     ap.add_argument("--follow-lane", action="store_true", help="one lane of any length: followers stand along the lane behind the leader")
     a = ap.parse_args()
     NAME, NS, LEAD_Y, PER_LANE, SPEED, SPACING, FOLLOW_LANE = a.name, a.ns, a.lead_y, a.per_lane, a.speed, a.spacing, a.follow_lane
-    if FOLLOW_LANE:
+    if FOLLOW_LANE and a.per_lane == 8 and "--per-lane" not in sys.argv:
         PER_LANE = max(NS)
     text = subprocess.run(["git", "show", f"HEAD:ecav/scenario_testing/config_yaml/{BASE}.yaml"], cwd=ROOT, capture_output=True, text=True, check=True).stdout
     head, sep, block = text.partition("      vehicles:\n")

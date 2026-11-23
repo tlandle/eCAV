@@ -313,6 +313,7 @@ def run_scenario(opt, scenario_params):
         sync_launch = SyncCrossLaunch(getattr(opt, 'output_dir', ''))
         column_trace = ColumnTrace(getattr(opt, 'output_dir', ''))
         _column_v0 = float(os.environ.get("COLUMN_INITIAL_SPEED_MPS", 0) or 0)
+        _column_hold = max(1, int(os.environ.get("COLUMN_SPEED_HOLD_TICKS", 30) or 30))
         flag = True
         while flag:
             # Determine continue condition and command based on mode
@@ -326,15 +327,20 @@ def run_scenario(opt, scenario_params):
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
             sync_launch.step(ego_cav, step)
-            if step == 0 and _column_v0 > 0:
+            if _column_v0 > 0 and step in (0, _column_hold):
                 # COLUMN_INITIAL_SPEED_MPS: every vehicle starts at this speed along its lane, so a column keeps
                 # the pitch of its start positions. From a standing start each follower waits for the vehicle
-                # ahead and the column reaches the junction with gaps of several seconds.
+                # ahead and the column reaches the junction with gaps of several seconds. The speed is held for
+                # COLUMN_SPEED_HOLD_TICKS (30) and then released: a vehicle that is only given a velocity loses a
+                # third of it while its drivetrain engages, and the followers brake for that dip.
                 for _edge in edge_list:
                     for _vm in _edge.vehicle_manager_list:
-                        _fwd = _vm.vehicle.get_transform().get_forward_vector()
-                        _vm.vehicle.set_target_velocity(carla.Vector3D(_fwd.x * _column_v0, _fwd.y * _column_v0, 0.0))
-                print("[COLUMN] initial speed %.1f m/s on every vehicle" % _column_v0, flush=True)
+                        if step == 0:
+                            _vm.vehicle.enable_constant_velocity(carla.Vector3D(_column_v0, 0.0, 0.0))
+                        else:
+                            _vm.vehicle.disable_constant_velocity()
+                print("[COLUMN] step %d: speed %.1f m/s %s on every vehicle" % (
+                    step, _column_v0, "held" if step == 0 else "released"), flush=True)
             column_trace.step(edge_list, step)
             print("bird view following")
 

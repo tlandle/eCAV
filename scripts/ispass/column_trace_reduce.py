@@ -7,8 +7,8 @@ A cell is <stem><speed>_<arm>_n<N>. Position 1 is the leading vehicle, which mee
 column_trace.csv (one row per vehicle and tick), the [SYNC LAUNCH] line and simulation_metrics.json:
   gap at launch      centre distance to the vehicle ahead when the crossing car launches, and the time gap
                      (centre distance minus the vehicle length of 4.6 m, over the follower's speed)
-  brake start        seconds from the launch to the first tick with brake >= 0.1
-  peak deceleration  largest speed loss over 0.2 s after the launch, as m/s^2
+  brake start        seconds from the launch to the first of three consecutive ticks with brake >= 0.5
+  peak deceleration  largest speed loss over 0.5 s after the launch, as m/s^2
   collided           the vehicle has a collision in the run (binary), and whether its first contact is the crossing
                      car, another vehicle of the column, or something else
 A run is valid when its log has no exception, it has N vehicles, the recorded vehicle state is the arm's and the
@@ -28,7 +28,7 @@ def as_obj(x):
     return x or {}
 
 
-def load_run(rd, arm, n):
+def load_run(rd, arm, n, per_lane=10 ** 6):
     out = dict(valid=0)
     try: d = json.load(open(os.path.join(rd, "simulation_metrics.json")))
     except (OSError, ValueError): return out, []
@@ -47,32 +47,34 @@ def load_run(rd, arm, n):
     for k in range(n):
         tk = T[k]; steps = sorted(s for s in tk if s >= launch); x, y, v, _, aid = tk[launch]
         gap = tgap = float("nan")
-        if k > 0:
+        if k % per_lane > 0:
             px, py = T[k - 1][launch][0], T[k - 1][launch][1]; gap = math.hypot(px - x, py - y); tgap = (gap - LENGTH) / v if v > 0.5 else float("nan")
-        b = next((s for s in steps if tk[s][3] >= 0.1), None)
+        # brake start: the first of three consecutive ticks with brake >= 0.5 (speed control uses lighter braking)
+        b = next((s for s in steps if all(s + i in tk and tk[s + i][3] >= 0.5 for i in range(3))), None)
         # within 10 s of the launch and before the last second of the run (the scenario's end stops every vehicle)
         last = max(tk) - 20
-        dec = max([(tk[s][2] - tk[s + 4][2]) / (4 * DT) for s in steps if s + 4 in tk and s <= launch + 200 and s + 4 <= last] or [float("nan")])
+        dec = max([(tk[s][2] - tk[s + 10][2]) / (10 * DT) for s in steps if s + 10 in tk and s <= launch + 200 and s + 10 <= last] or [float("nan")])
         vv = veh.get(ids.get(str(aid), ""), {}); s_ = as_obj(vv.get("safety")); hit = isinstance(s_, dict) and int(s_.get("collision_count", 0) or 0) > 0
         partner = ""
         if hit:
             hist = as_obj(s_.get("collision_history")); first = hist[0] if hist else {}
             other = str(first.get("other_actor_id")); typ = str(first.get("other_type_id", ""))
             partner = "column" if other in col_ids else ("crossing" if typ.startswith("vehicle.") else "other")
-        pos.append(dict(position=k + 1, gap_m=gap, time_gap_s=tgap, speed_at_launch=v, brake_start_s=(b - launch) * DT if b is not None else float("nan"),
+        pos.append(dict(position=k % per_lane + 1, lane=k // per_lane + 1, gap_m=gap, time_gap_s=tgap, speed_at_launch=v, brake_start_s=(b - launch) * DT if b is not None else float("nan"),
                         peak_decel=dec, collided=int(hit), partner=partner))
     out = dict(valid=1, launch=launch, collided=sum(p["collided"] for p in pos), any=int(any(p["collided"] for p in pos)),
-               lead=pos[0]["collided"], followers=sum(p["collided"] for p in pos[1:]), with_column=sum(1 for p in pos if p["partner"] == "column"),
-               with_crossing=sum(1 for p in pos if p["partner"] == "crossing"), first_follower=next((p["position"] for p in pos[1:] if p["collided"]), 0),
-               min_time_gap=float(np.nanmin([p["time_gap_s"] for p in pos[1:]])) if n > 1 else float("nan"),
-               med_gap=float(np.nanmedian([p["gap_m"] for p in pos[1:]])) if n > 1 else float("nan"),
-               med_time_gap=float(np.nanmedian([p["time_gap_s"] for p in pos[1:]])) if n > 1 else float("nan"), lead_speed=pos[0]["speed_at_launch"])
+               lead=sum(p["collided"] for p in pos if p["position"] == 1), followers=sum(p["collided"] for p in pos if p["position"] > 1), with_column=sum(1 for p in pos if p["partner"] == "column"),
+               with_crossing=sum(1 for p in pos if p["partner"] == "crossing"), first_follower=min([p["position"] for p in pos if p["position"] > 1 and p["collided"]] or [0]),
+               min_time_gap=float(np.nanmin([p["time_gap_s"] for p in pos if p["position"] > 1])) if n > 1 else float("nan"),
+               med_gap=float(np.nanmedian([p["gap_m"] for p in pos if p["position"] > 1])) if n > 1 else float("nan"),
+               med_time_gap=float(np.nanmedian([p["time_gap_s"] for p in pos if p["position"] > 1])) if n > 1 else float("nan"), lead_speed=pos[0]["speed_at_launch"])
     return out, pos
 
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("stem"); ap.add_argument("--speeds", type=int, nargs="+", default=[60, 70])
     ap.add_argument("--ns", type=int, nargs="+", default=[2, 4, 8, 16]); ap.add_argument("--csv"); ap.add_argument("--runs-csv"); ap.add_argument("--pos-csv")
+    ap.add_argument("--per-lane", type=int, default=10 ** 6, help="vehicles per lane: larger N fill a second lane, positions count within a lane")
     a = ap.parse_args(); runs = []; poss = []; cells = []
     for spd in a.speeds:
         for n in a.ns:
@@ -82,7 +84,7 @@ def main():
                                    if not os.path.exists(os.path.join(os.path.dirname(p), "evaluation_output", "column_trace.csv"))]):
                     rd = os.path.dirname(f)
                     if os.path.basename(rd) == "evaluation_output": rd = os.path.dirname(rd)      # the trace lies beside the per-tick log
-                    rep = int(os.path.basename(rd).split("_")[-1]); r, pos = load_run(rd, arm, n)
+                    rep = int(os.path.basename(rd).split("_")[-1]); r, pos = load_run(rd, arm, n, a.per_lane)
                     runs.append(dict(speed=spd, n=n, arm=arm, rep=rep, **r)); poss += [dict(speed=spd, n=n, arm=arm, rep=rep, **p) for p in pos]
     print(f"{'km/h':>4} {'N':>3} {'arm':8s} runs valid  with collision  collided veh  lead  followers (rear-end)  first follower pos  gap m  time gap s (median, min)  lead speed")
     for spd in a.speeds:
@@ -105,7 +107,7 @@ def main():
                 pp = [p for p in poss if (p["speed"], p["n"], p["arm"]) == (spd, n, arm)]
                 if not pp: continue
                 line = []
-                for k in range(1, n + 1):
+                for k in range(1, min(n, a.per_lane) + 1):
                     q = [p for p in pp if p["position"] == k]
                     line.append("%d: %.2f|%.1f|%d" % (k, np.nanmedian([p["brake_start_s"] for p in q]) if any(p["brake_start_s"] == p["brake_start_s"] for p in q) else float("nan"),
                                                      np.nanmedian([p["peak_decel"] for p in q]), sum(p["collided"] for p in q)))
