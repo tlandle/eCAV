@@ -24,7 +24,7 @@ plt.rcParams.update({"font.size": 7, "axes.labelsize": 7, "xtick.labelsize": 7, 
                      "axes.titlesize": 7, "axes.spines.top": False, "axes.spines.right": False, "axes.linewidth": 0.5,
                      "grid.color": "#e3e3e3", "grid.linewidth": 0.4, "lines.linewidth": 1.0, "lines.markersize": 3,
                      "xtick.major.width": 0.5, "ytick.major.width": 0.5, "pdf.fonttype": 42})
-fig, (a, b) = plt.subplots(1, 2, figsize=(3.45, 1.65))
+fig, (a, b) = plt.subplots(1, 2, figsize=(3.45, 1.5))
 for arm, lab, colr, mk, ls in ARMS:
     xs, col, md, lo, hi = [], [], [], [], []
     for s in SPEEDS:
@@ -42,8 +42,8 @@ for ax in (a, b):
 a.set_ylabel("runs with a collision", labelpad=1); a.set_ylim(-0.5, 10.8); a.set_yticks([0, 2, 4, 6, 8, 10]); a.set_title("(a) collisions", pad=2)
 b.set_ylabel("brake start (s)", labelpad=1); b.set_ylim(0.3, 3.2); b.set_title("(b) brake start", pad=2)
 h, l = a.get_legend_handles_labels()
-fig.legend(h, l, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.52, 1.03), columnspacing=0.8, handlelength=2.0, handletextpad=0.3,
+fig.legend(h, l, loc="upper center", ncol=2, frameon=False, bbox_to_anchor=(0.5, 1.03), columnspacing=0.6, handlelength=1.8, handletextpad=0.3,
            labelspacing=0.2)
-fig.subplots_adjust(left=0.105, right=0.99, bottom=0.215, top=0.70, wspace=0.36)
+fig.subplots_adjust(left=0.105, right=0.99, bottom=0.235, top=0.68, wspace=0.36)
 out = os.path.join(ROOT, "paper_ispass", "fig_speed.pdf")
 fig.savefig(out); print("wrote", out)
