@@ -235,6 +235,9 @@ class BehaviorAgent(object):
         self.follow_gap_s = float(_fg) if _fg is not None else None
         self._follow_lead = None      # (bumper gap m, lead speed m/s) of the nearest moving lead this step
         self._follow_gaps = []        # bumper gap to the nearest object on the path, one entry per planning step
+        self._follow_miss = 0         # planning steps since the object was last observed (its gap is coasted meanwhile)
+        self._follow_obj = None       # the object the gap samples belong to
+        self._follow_rate = 0.0       # its last closing speed, m/s
         self.emergency_param = config_yaml['emergency_param']
         # Hazard response while the RSS proper response is active:
         #   'stop'        -> emergency stop (target 0, brake 1.0), today's behaviour
@@ -974,23 +977,35 @@ class BehaviorAgent(object):
             # (2 m/s or more) is a lead: it is no hazard at its current position, the emergency brake is commanded
             # when the time to contact falls below 1.5 s or the deceleration needed to keep the gap open exceeds
             # 3 m/s^2, and the speed cap of the normal branch holds the time gap follow_gap_s behind it.
-            if target_vehicle is None:
-                self._follow_gaps = []
-            else:
-                if self._follow_gaps and abs(self._follow_gaps[-1] - min_distance) > 4.0:
-                    self._follow_gaps = []          # another object became the nearest
+            # A lead that was observed stays a lead through missed observations: for up to 1 s its gap is coasted
+            # at the last closing speed. Without this a single missed detection cleared the samples, and the lead's
+            # return was handled as a standing object (full brake), which made followers on camera and LiDAR brake
+            # behind a lead that drove on.
+            _observed = target_vehicle is not None
+            if _observed and self._follow_gaps and abs(self._follow_gaps[-1] - min_distance) > 4.0:
+                self._follow_gaps = []; self._follow_miss = 0          # another object became the nearest
+            if _observed:
                 self._follow_gaps = (self._follow_gaps + [min_distance])[-6:]
-                if len(self._follow_gaps) == 6:
-                    _closing = (self._follow_gaps[0] - self._follow_gaps[-1]) / 0.25
-                    _lead_speed = self._ego_speed / 3.6 - _closing
-                    if _lead_speed >= 2.0:
-                        _gap = min_distance
-                        self._follow_lead = (_gap, _lead_speed)
-                        if _closing > 0.5 and (_gap / _closing < 1.5 or _closing * _closing / (2.0 * max(_gap, 0.1)) > 3.0):
-                            self.ttc = min(_ttc_before, _gap / _closing)
-                        else:
-                            vehicle_state = False; target_vehicle = None; min_distance = 1000
-                            self.ttc = _ttc_before
+                self._follow_miss = 0; self._follow_obj = target_vehicle
+            elif len(self._follow_gaps) == 6 and self._follow_miss < 20:
+                self._follow_miss += 1
+                self._follow_gaps = (self._follow_gaps + [max(0.0, self._follow_gaps[-1] - self._follow_rate * 0.05)])[-6:]
+            else:
+                self._follow_gaps = []; self._follow_miss = 0; self._follow_obj = None
+            if len(self._follow_gaps) == 6:
+                if _observed or self._follow_miss == 0:
+                    self._follow_rate = (self._follow_gaps[0] - self._follow_gaps[-1]) / 0.25
+                _closing = self._follow_rate
+                _lead_speed = self._ego_speed / 3.6 - _closing
+                if _lead_speed >= 2.0:
+                    _gap = self._follow_gaps[-1]
+                    self._follow_lead = (_gap, _lead_speed)
+                    if _closing > 0.5 and (_gap / _closing < 1.5 or _closing * _closing / (2.0 * max(_gap, 0.1)) > 3.0):
+                        vehicle_state = True; target_vehicle = self._follow_obj; min_distance = _gap
+                        self.ttc = min(_ttc_before, _gap / _closing)
+                    else:
+                        vehicle_state = False; target_vehicle = None; min_distance = 1000
+                        self.ttc = _ttc_before
 
         # Pass 2: Edge/local prediction collision check
         _edge_coll_this_tick = False
