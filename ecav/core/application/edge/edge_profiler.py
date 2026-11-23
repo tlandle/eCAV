@@ -370,13 +370,16 @@ class EdgeProfiler:
 
     def _start_component(self, name: str):
         """Internal: start component timing"""
-        if torch.cuda.is_available():
+        # Synchronize only when this process already has a CUDA context. An edge process without GPU work
+        # (late fusion with the linear predictor) would otherwise create a context for this call alone, and
+        # that creation fails at every tick when the simulator has filled the GPU (128 vehicles with cameras).
+        if torch.cuda.is_available() and torch.cuda.is_initialized():
             torch.cuda.synchronize()
         self._timer_stack.append((name, time.perf_counter()))
 
     def _end_component(self, name: str):
         """Internal: end component timing"""
-        if torch.cuda.is_available():
+        if torch.cuda.is_available() and torch.cuda.is_initialized():
             torch.cuda.synchronize()
 
         if not self._timer_stack or self._timer_stack[-1][0] != name:
