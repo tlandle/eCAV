@@ -215,7 +215,8 @@ if [[ $MODE == seq ]]; then
   sleep 10; collect; killall_hosts
   grep -h "SUMMARY" "$OUT"/*/orch.log | tee -a "$OUT/launch.log"; log "done: $OUT"; exit 0
 fi
-bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
+# with SCALE_TICKER=1 the orchestrator paces its own start-up ticks (one per vehicle, ecav/scenario_testing/scale_town06.py)
+bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} ECAV_STARTUP_TICKER=${SCALE_TICKER:-0} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
 wait_log "$ORCH" orch "start [0-9]+ vehicle containers" 300 || fail "orchestrator did not come up"
 log "orchestrator up"
 # SCALE_TICKER=1: one process ticks the world every SCALE_TICK_PERIOD seconds during start-up and the clients wait
