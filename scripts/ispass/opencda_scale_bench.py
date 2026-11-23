@@ -80,6 +80,9 @@ def main():
     ap.add_argument("--speed-kmh", type=int, default=40)
     ap.add_argument("--port", type=int, default=2000)
     ap.add_argument("--version", default="0.9.12", help="OpenCDA blueprint naming switch; 0.9.12 names hold on 0.9.15")
+    ap.add_argument("--camera", type=int, nargs=3, metavar=("WIDTH", "HEIGHT", "FOV"), default=None,
+                    help="camera image size in pixels and horizontal field of view in degrees. Unset: OpenCDA's own "
+                         "cameras (CARLA's default 800x600, 100 degrees). Set to eCAV's values for a matched comparison")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
     percep = a.perception == "on"
@@ -95,6 +98,34 @@ def main():
         # also with LiDAR visualization off. The window is not used then, so its creation is skipped.
         import opencda.core.sensing.perception.perception_manager as _pm
         _pm.o3d_visualizer_init = lambda actor_id: None
+        if a.camera:
+            # OpenCDA's CameraSensor sets only the field of view. The subclass repeats its constructor with the
+            # image size and field of view given here. OpenCDA's files are not modified.
+            import weakref
+            _Cam, (_w, _h, _fov) = _pm.CameraSensor, a.camera
+
+            class _SizedCamera(_Cam):
+                def __init__(self, vehicle, world, relative_position, global_position):
+                    if vehicle is not None:
+                        world = vehicle.get_world()
+                    blueprint = world.get_blueprint_library().find('sensor.camera.rgb')
+                    blueprint.set_attribute('fov', str(_fov))
+                    blueprint.set_attribute('image_size_x', str(_w))
+                    blueprint.set_attribute('image_size_y', str(_h))
+                    spawn_point = self.spawn_point_estimation(relative_position, global_position)
+                    if vehicle is not None:
+                        self.sensor = world.spawn_actor(blueprint, spawn_point, attach_to=vehicle)
+                    else:
+                        self.sensor = world.spawn_actor(blueprint, spawn_point)
+                    self.image = None
+                    self.timstamp = None
+                    self.frame = 0
+                    weak_self = weakref.ref(self)
+                    self.sensor.listen(lambda event: _Cam._on_rgb_image_event(weak_self, event))
+                    self.image_width = int(self.sensor.attributes['image_size_x'])
+                    self.image_height = int(self.sensor.attributes['image_size_y'])
+
+            _pm.CameraSensor = _SizedCamera
 
     sl, spacing = load_slots(a.gen, a.n, a.layout)
     params = OmegaConf.load("opencda/scenario_testing/config_yaml/default.yaml")
@@ -133,6 +164,7 @@ def main():
         sm.client.set_timeout(600.0)
         cavs = sm.create_vehicle_manager(application=["single"])
         res["spawned"] = len(cavs)
+        res["camera"] = a.camera or "OpenCDA default (800x600, 100 degrees)"
         res["setup_s"] = round(time.time() - t_start, 1)
         wall, world, veh = [], [], []
         planner_exc, first_tb = 0, ""

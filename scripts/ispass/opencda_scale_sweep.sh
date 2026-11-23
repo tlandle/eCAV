@@ -3,7 +3,8 @@
 # Run on the benchmark host from any directory:
 #   OPENCDA=~/competitors/OpenCDA GEN=~/scale_wt/scripts/ispass/gen_scale_town06.py \
 #   OUT=~/competitors/results/run1 scripts/ispass/opencda_scale_sweep.sh
-# Variables: NS (vehicle counts), LAYOUTS, PERCEPTION (on|off), MAPMGR (on|off), TICKS, PY, CARLA_ROOT.
+# Variables: NS (vehicle counts), LAYOUTS, PERCEPTION (on|off), MAPMGR (on|off), TICKS, PY, CARLA_ROOT,
+# CAMERA ("width height fov" for the bench's --camera, e.g. "640 480 70"; the tag then ends in _cam<width>).
 # 300 ticks up to 128 vehicles and 100 above, as in scripts/ispass/scale_sweep.sh.
 set -uo pipefail
 OPENCDA="${OPENCDA:?OpenCDA checkout}"; GEN="${GEN:?gen_scale_town06.py}"; OUT="${OUT:?output directory}"
@@ -25,13 +26,14 @@ start_carla() {
 cd "$OPENCDA"
 for layout in $LAYOUTS; do for n in $NS; do
   tag="opencda_${layout}_n${n}_perc${PERCEPTION}_map${MAPMGR}"
+  CAMARGS=""; [[ -n "${CAMERA:-}" ]] && { CAMARGS="--camera $CAMERA"; tag="${tag}_cam${CAMERA%% *}"; }
   [[ -s "$OUT/$tag.json" ]] && grep -q '"completed": true' "$OUT/$tag.json" && continue
   ticks=300; (( n > 128 )) && ticks=100
   [[ -n "${TICKS:-}" ]] && ticks=$TICKS     # fewer ticks where a tick takes many seconds (perception at 64 and above)
   start_carla
   echo "$(date '+%F %T') $tag ticks=$ticks"
   timeout "${RUN_TIMEOUT:-5400}" "$PY" "$BENCH" --gen "$GEN" -n "$n" --layout "$layout" --perception "$PERCEPTION" \
-    --map-manager "$MAPMGR" --ticks "$ticks" --out "$OUT/$tag.json" > "$OUT/$tag.log" 2>&1
+    --map-manager "$MAPMGR" --ticks "$ticks" $CAMARGS --out "$OUT/$tag.json" > "$OUT/$tag.log" 2>&1
   echo "$(date '+%F %T') $tag exit $? $(grep -o '"tick_ms": {[^}]*}' "$OUT/$tag.json" 2>/dev/null | tr -d '\n ')"
 done; done
 stop_carla
