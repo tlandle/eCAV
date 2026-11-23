@@ -9168,3 +9168,26 @@ About 57 h, ends Monday morning. No edit or merge in the main checkout until it 
 **CARLA scale-out status told to Tyler.** Clients and the inference service distribute. Rendering stays on one GPU and bounds the perception rows. Primary and secondary CARLA servers pass on one host (same GPU, 467 against 447 ms), a secondary on a second host delivers no frames (not diagnosed, Nov 16).
 
 **Chain.** ispass_rfcl5 on its last cell (live:21 at 24 senders, started 19:53), ispass_occ5 follows.
+
+## 2026-11-22 20:28 Scale benchmark with several edges: branch multiedge (worktree multiedge_wt), gate passed on cetus, not merged
+
+**Tyler (Nov 22).** The edge process should not handle 512 vehicles. Each edge owns up to about 32 vehicles. A 150 m edge view makes no sense.
+
+**What already supported K edges.** C++ server (mappings, registration, tick barrier over all edges), proto, edge_process.py (-e k -P port), start_actors.sh. What did not: Python lookups of a global vehicle or RSU index inside edge_list[0], counts from the first edge, launch_scale.sh starting one edge, scale_breakdown.py keeping one edge record per tick.
+
+**Branch multiedge (98671a7b, 68697b3b; worktree multiedge_wt; develop untouched while ispass_rfcl5 runs).**
+- ecav/core/common/misc.py edge_actor_config(scenario, kind, global index) -> (edge config, actor config). Used in vehicle_manager.py (two lookups and the edge destination) and ecloud_actor_client.py (RSU config, name, id, edge_sets_destination).
+- sim_api.py: vehicle_count and rsu_count summed over edges. create_edge_manager and create_edge_manager_from_scenario_runner use a running global vehicle offset. scale_town06.py counts egos over all edges.
+- gen_scale_town06.py: --edge-size M gives ceil(N / M) compact groups (the longer side of a group's bounding box is cut until the count is reached), one edge_list entry per group, vehicle and RSU order contiguous per edge, RSU joins the edge with the nearest vehicle. --one-edge keeps that order on one edge for comparison. Prints EDGES=, EDGE_BOUNDS=, EDGE_RSU_BOUNDS=. Without the option the YAML and XML are byte-identical to develop (64 and 512 dense, 128 spread with perception).
+- launch_scale.sh: one edge process per edge on the edge host, port 50054+k, log edge_<k>.log (edge.log with one edge), waits for every registration.
+- edge_process.py: edge=<k> in the [EDGE TICK] line. scale_breakdown.py: per-edge records, the edge whose step ends last and its own clients form the critical path, per-edge mean step printed and in the JSON.
+- ecloud_server.cc: MAX_CARS 512 -> 1024. numCars_ counts vehicles plus RSUs, so the 512-vehicle run with 2 RSUs wrote past repliedCars_/repliedRsus. The binary has to be rebuilt on the orchestrator host before a 512 run.
+- The exact-state edge keeps its 50 m ground-truth range around its own vehicles and RSUs (a detection_range_m option was added and removed on Tyler's word).
+
+**Split at paper sizes (dense, --edge-size 32).** 512: 16 edges of 32 (regions 45 to 200 m by 7 to 196 m). 256: 8 edges. Density: 35 vehicles within 50 m of a vehicle, 174 within 150 m at 512.
+
+**Gate (cetus, 16 vehicles, 2 RSUs, no perception, exact localization, 200 ticks; experiment_results/ispass_scale/megate2_* in the worktree).** One edge twice, then four edges of four vehicles. All three finish, no Traceback, four edges register 4 or 5 actors each. Planner positions identical to 0.01 m over 200 ticks between the two one-edge runs and between one edge and four edges. Tick 98.7 / 100.1 / 98.7 ms, edge step 18.1 / 18.3 / 17.4 ms on the critical path, per-edge step 12 to 15 ms. At 16 vehicles the edge does not bound the tick, so the gate shows function, not gain.
+
+**cetus set-up for the distributed path.** ~/multiedge_wt is an rsync of tracked files without weights. The atlas server binary needs glibc 2.38 (cetus has 2.35), so the server was built on cetus in /tmp/ecloud_build after moving the tracked ecloud*.pb.* files out of the source directory (they come from a newer protobuf). Stubs by python ecav.py --build. scenario_runner and sort copied from ~/ladder_wt. CARLA on cetus stopped after the gate.
+
+**Open.** Merge multiedge into develop when no set runs in the main checkout. Rerun of the no-perception scale rows (64 to 512, one host and three hosts) with --edge-size 32 needs the Azure hosts, a server rebuild on the orchestrator host, and Tyler's go. Paper Section VI-A still reports the 52 % edge step of the single-edge run. scale_sweep.sh does not pass --edge-size yet.
