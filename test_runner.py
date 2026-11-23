@@ -797,6 +797,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
         scenario_name = f"{scenario_name}_{ego_count}ego"
     cmd = [sys.executable, "ecav.py", "-t", scenario_name, "--apply_ml", "--output_dir", str(eval_dir)]
     _env = dict(os.environ)
+    _env["ECAV_RUN_REP"] = str(rep)      # repetition number, for scenario knobs that draw one value per repetition
     if args.cross_trigger_dist is not None:
         _env["CROSS_TRIGGER_DIST"] = str(args.cross_trigger_dist)
     for kv in args.scenario_env:
