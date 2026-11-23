@@ -18,7 +18,7 @@ import argparse, ast, csv, glob, json, math, os, re
 import numpy as np
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-ARMS = ["gt_vis", "onboard"]; STATE = {"gt_vis": "gt_visible", "onboard": None}; LENGTH = 4.6; DT = 0.05
+ARMS = ["gt_all", "gt_vis", "onboard"]; STATE = {"gt_all": "gt_all", "gt_vis": "gt_visible", "onboard": None}; LENGTH = 4.6; DT = 0.05
 
 
 def as_obj(x):

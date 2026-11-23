@@ -14,7 +14,7 @@ CELLS = [int(x) for x in _a[_a.index("--cells") + 1:(_a.index("--cell-dir") if "
 CELL_DIR = _a[_a.index("--cell-dir") + 1] if "--cell-dir" in _a else "{stem}{cell}_{arm}_n1"
 rows_out = []
 for spd in CELLS:
-  for arm in ("gt_vis", "onboard"):
+  for arm in ("gt_all", "gt_vis", "onboard"):
     for f in sorted(glob.glob("experiment_results/*/" + CELL_DIR.format(stem=stem, cell=spd, arm=arm) + "/**/evaluation_output/per_tick_age.csv", recursive=True)):
         rd = os.path.dirname(os.path.dirname(f)); rep = int(os.path.basename(rd).split("_")[-1])
         a = fr.attribution(f); d = json.load(open(os.path.join(rd, "simulation_metrics.json")))
@@ -57,7 +57,7 @@ for spd in CELLS:
 with open(out, "w", newline="") as fh:
     w = csv.DictWriter(fh, fieldnames=list(rows_out[0].keys())); w.writeheader(); w.writerows(rows_out)
 for spd in CELLS:
-    for arm in ("gt_vis", "onboard"):
+    for arm in ("gt_all", "gt_vis", "onboard"):
         r = [x for x in rows_out if x["speed"] == spd and x["arm"] == arm and not x["bad"]]
         if not r: continue
         on = [x["onset_s"] for x in r if x["onset_s"] == x["onset_s"]]
