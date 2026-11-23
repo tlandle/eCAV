@@ -9351,3 +9351,27 @@ Mean tick (ms), dense layout, 22 runs, none failed:
 - Cost on atlas per 10 runs: 1 vehicle 7 / 7 / 10 min (unrestricted / in view / camera and LiDAR), 2: 8 / 8 / 13, 4: 11 / 11 / 18, 8: 18 / 15 / 30.
 
 **Congested junction, 70 nominal (65 km/h), 16 background vehicles, drop-off on, 10 scenes (cetus, ispass_ch16l70 and ispass_ch16h70).** Collided with the crossing car: unrestricted 0, in view 0, 640 3 (scenes 3, 8, 9), 1280 0. Collided with a background vehicle: 0, 1 (scene 7), 0, 1 (scene 5). Brake start 1.05, 2.00, 2.75, 2.00 s. Scenes 1, 7, 8: the vehicle is slowed by traffic before the launch in at least one arm and the launch tick differs across arms. On the seven scenes with one shared launch: 0, 0, 2, 0. encounter_reduce.py now records the first collision partner (bada5b37). 60 and 80 nominal running.
+
+## 2026-11-23 05:26 Section V stream: column set B landed (1.5 s gap, 56 and 65 km/h)
+
+**Set B (atlas sec5_run d5732979, stamps ispass_cq15s60 and ispass_cq15s70, 180 runs, all valid).** One lane, 28 m pitch at 56 km/h and 32 m at 65 km/h, start speed held 2 s, lead from y -21, follow_gap_s 1.3, drop-off on, 640x480, no background traffic. Ended 05:23.
+
+| km/h | vehicles | unrestricted ground truth | ground truth in view | camera and LiDAR: runs with a collision | collided vehicles | lead | rear-end |
+|---|---|---|---|---|---|---|---|
+| 56 | 1 | 0 of 10 | 0 of 10 | 4 of 10 | 4 | 4 | n/a |
+| 56 | 2 | 0 of 10 | 0 of 10 | 2 of 10 | 2 | 2 | 0 |
+| 56 | 4 | 0 of 10 | 0 of 10 | 5 of 10 | 5 | 5 | 0 |
+| 65 | 1 | 0 of 10 | 0 of 10 | 10 of 10 | 10 | 10 | n/a |
+| 65 | 2 | 0 of 10 | 0 of 10 | 10 of 10 | 10 | 10 | 0 |
+| 65 | 4 | 0 of 10 | 0 of 10 | 10 of 10 | 11 | 10 | 1 (position 2) |
+
+- Gap at the launch, ground-truth arms: 29.6 to 30.3 m and 1.59 to 1.65 s at 56 km/h, 32.3 to 35.7 m and 1.51 to 1.71 s at 65 km/h.
+- Gap at the launch, camera and LiDAR arm: not the nominal gap. 2 vehicles at 56 km/h 36.7 m with the follower almost stopped (time gap 8.2 s median, 4.7 s minimum); 2 vehicles at 65 km/h 40.5 m and 3.7 s; 4 vehicles at 56 km/h 16.4 m median with a 9.7 s median time gap; only 4 vehicles at 65 km/h holds 31.7 m and 1.48 s. The followers brake before the launch in this arm.
+- Cause in the harness: under follow_gap_s an object on the path without six consecutive gap samples is handled as a hazard at its current position (full brake with a latch of at least 1 s). With ground truth the lead is in every sample. With camera and LiDAR at 28 to 32 m a missed detection of the lead clears the samples, and its return triggers the brake. At 20 m (set A) the follower held the nominal gap. So the wider gap shows unexpected braking of followers on sensor data, and the size of that effect depends on this rule.
+- Reading. At a 1.5 s gap a lead collision almost never reaches the second vehicle (1 rear-end in 37 lead collisions). Collided vehicles do not grow with column length (56 km/h: 4, 2, 5; 65 km/h: 10, 10, 11). Both ground-truth arms complete every run.
+- Lead brake start in the 4-vehicle cells at 65 km/h reads 0.30 s in every arm (control trace), again a brake that is not for the crossing car; use the attributed onset for the lead.
+- Files: sec5_wt paper_ispass/column_gap1p5_{cells,runs,pos}.csv and column_gap1p5_table.txt (sec5ext e3dfe207).
+
+**Both column sets together.** Runs with either ground truth: 0 collided vehicles in 400 runs. Camera and LiDAR at 640x480: lead collisions at the single-vehicle rate (2 to 6 of 10 at 56 km/h, 10 of 10 at 65 km/h); a secondary rear-end collision by the second vehicle in 6 of 12 lead collisions at a 1.0 s gap and in 1 of 37 at 1.5 s; no collision from position 3 on. The claim "collided vehicles grow with column length under perception and not under ground truth" holds only as: one more vehicle is exposed once a second vehicle follows within 1.0 s.
+
+**Next on atlas (running).** Left-turn gate ispass_ltg40..80 (ltp_column, calibrated leads, three arms, drop-off on, one run per cell) and one 1280 run at 70 nominal, from sec5_run at e3dfe207.
