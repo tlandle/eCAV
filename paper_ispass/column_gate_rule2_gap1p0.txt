@@ -1,0 +1,24 @@
+km/h   N arm      runs valid  with collision  collided veh  lead  followers (rear-end)  first follower pos  gap m  time gap s (median, min)  lead speed
+  60   2 gt_all      1     1    0 of 1            0         0     0 (0)            []                  20.2   1.00  1.00              15.4
+  60   2 gt_vis      1     1    0 of 1            0         0     0 (0)            []                  20.2   1.00  1.00              15.4
+  60   2 onboard     1     1    0 of 1            0         0     0 (0)            []                  20.2   1.00  1.00              15.4
+  60   4 gt_all      1     1    0 of 1            0         0     0 (0)            []                  20.8   1.01  0.97              15.6
+  60   4 gt_vis      1     1    0 of 1            0         0     0 (0)            []                  20.8   1.01  0.97              15.6
+  60   4 onboard     1     1    0 of 1            0         0     0 (0)            []                  20.8   1.01  0.97              15.6
+  60   8 gt_all      1     1    0 of 1            0         0     0 (0)            []                  20.0   0.99  0.96              15.6
+  60   8 gt_vis      1     1    0 of 1            0         0     0 (0)            []                  20.0   0.99  0.96              15.6
+  60   8 onboard     1     1    1 of 1            2         1     1 (1)            [2]                 20.1   1.00  0.93              15.6
+
+by position (median over valid runs): brake start s after launch | peak deceleration m/s^2 | collided count
+60 km/h N=2 gt_all: 1: 0.70|19.6|0  2: 1.30|15.8|0
+60 km/h N=2 gt_vis: 1: 1.85|19.5|0  2: 2.40|15.7|0
+60 km/h N=2 onboard: 1: 2.10|19.5|0  2: 2.85|16.0|0
+60 km/h N=4 gt_all: 1: 0.70|18.7|0  2: 1.30|15.8|0  3: 1.95|15.7|0  4: 2.85|15.8|0
+60 km/h N=4 gt_vis: 1: 1.80|19.8|0  2: 2.30|16.2|0  3: 3.05|15.7|0  4: 4.10|15.8|0
+60 km/h N=4 onboard: 1: 2.25|19.6|0  2: 3.05|15.8|0  3: 3.90|15.9|0  4: 4.95|8.3|0
+60 km/h N=8 gt_all: 1: 0.70|19.7|0  2: 1.35|15.9|0  3: 1.70|16.2|0  4: 2.60|16.4|0  5: 3.05|15.8|0  6: 3.65|16.1|0  7: 4.35|9.5|0  8: 0.00|16.3|0
+60 km/h N=8 gt_vis: 1: 1.85|19.5|0  2: 2.45|16.9|0  3: 3.05|15.7|0  4: 3.70|15.7|0  5: 4.15|10.2|0  6: 5.25|7.4|0  7: 5.90|1.3|0  8: 0.00|16.3|0
+60 km/h N=8 onboard: 1: 2.65|18.8|1  2: 3.55|15.7|1  3: 4.05|15.7|0  4: 4.85|15.5|0  5: 5.50|15.8|0  6: 6.20|15.8|0  7: 7.25|11.2|0  8: 8.65|1.5|0
+wrote tmp/ispass_cr10g_cells.csv
+wrote tmp/ispass_cr10g_runs.csv
+wrote tmp/ispass_cr10g_pos.csv
