@@ -13,6 +13,7 @@ every vehicle and the edge manager itself.
 """
 import asyncio
 import os
+import subprocess
 import time
 from multiprocessing import Process
 
@@ -35,9 +36,72 @@ def exec_scenario_runner(scenario_params):
     runner.destroy()
 
 
+def _wait_for_ticker_frames():
+    """Start-up with an external ticker (ECAV_STARTUP_TICKER=1, scripts/ispass/startup_ticker.py).
+
+    ScenarioRunner ticks the world from every vehicle client while the client loads the world and creates its
+    scenario. With several hundred clients those ticks arrive in bursts, and two frames in quick succession stop
+    the simulator's stream threads (CARLA 0.9.15, ServerSession::Write in synchronous mode). With the ticker one
+    process advances the world at a fixed period, and a tick requested by this client becomes a wait for the
+    ticker's next frame. A vehicle client does not tick the world after start-up, where the orchestrator does.
+    """
+    import carla
+    wait_s = float(os.environ.get("ECAV_STARTUP_TICK_WAIT_S", 120))
+
+    def _next_frame(world, *_args):
+        return world.wait_for_tick(wait_s).frame
+
+    carla.World.tick = _next_frame
+
+
+def _unsent_stream_bytes(stream_port):
+    """Bytes the kernel still holds for the simulator's streaming sockets on this host (0 with a remote simulator)."""
+    try:
+        out = subprocess.run(["ss", "-Htn", "sport", "=", f":{stream_port}"], capture_output=True, text=True,
+                             timeout=20).stdout
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    return sum(int(f[2]) for f in (line.split() for line in out.splitlines()) if len(f) >= 3 and f[2].isdigit())
+
+
+def _pace_world_ticks():
+    """Orchestrator side of the start-up ticker (ECAV_STARTUP_TICKER=1).
+
+    create_edge_manager_from_scenario_runner ticks the world once per vehicle, in direct succession. With 1,024
+    clients connected that stopped the simulator's stream threads at the seventh tick: a stream session that gets a
+    frame before its previous write has completed spins in its strand (CARLA 0.9.15, synchronous mode). Until the
+    edge manager is ready, a tick of this process waits until the simulator's streaming sockets hold no unsent data
+    and until ECAV_STARTUP_TICK_GAP_S, and twice the duration of the last tick, have passed since the last frame.
+    Returns the original carla.World.tick for the caller to restore.
+    """
+    import carla
+    orig = carla.World.tick
+    gap = float(os.environ.get("ECAV_STARTUP_TICK_GAP_S", 0.5))
+    port = int(os.environ.get("ECAV_CARLA_STREAM_PORT", 2001))
+    last = {"end": 0.0, "dt": 0.0}
+
+    def _paced(world, *args):
+        t_wait = time.time()
+        while _unsent_stream_bytes(port) and time.time() - t_wait < 30.0:
+            time.sleep(0.2)
+        rest = last["end"] + max(gap, 2.0 * last["dt"]) - time.time()
+        if rest > 0:
+            time.sleep(rest)
+        t0 = time.time()
+        frame = orig(world, *args)
+        last["end"] = time.time()
+        last["dt"] = last["end"] - t0
+        return frame
+
+    carla.World.tick = _paced
+    return orig
+
+
 def run_vehicle(opt, scenario_params):
     """One distributed vehicle client: ScenarioRunner with this vehicle index."""
     assert opt.distributed, "Must run in distributed mode when specifying vehicle index"
+    if os.environ.get("ECAV_STARTUP_TICKER") == "1":
+        _wait_for_ticker_frames()
     try:
         exec_scenario_runner(scenario_params)
     except Exception:
@@ -77,7 +141,7 @@ def run_scenario(opt, scenario_params):
         scenario_params = add_current_time(scenario_params)
         if getattr(opt, 'output_dir', None):
             scenario_params['run_output_dir'] = opt.output_dir
-        n_egos = len(scenario_params['scenario']['edge_list'][0]['vehicles'])
+        n_egos = sum(len(edge['vehicles']) for edge in scenario_params['scenario']['edge_list'] if 'vehicles' in edge)
 
         cav_world = CavWorld(apply_ml=opt.apply_ml, config=scenario_params,
                              litserve=getattr(opt, 'litserve', False))
@@ -104,9 +168,15 @@ def run_scenario(opt, scenario_params):
 
         world_dt = scenario_params['world']['fixed_delta_seconds']
         edge_dt = scenario_params['edge_base']['edge_dt']
-        edge_list = scenario_manager.create_edge_manager_from_scenario_runner(
-            application=['edge'], edge_dt=edge_dt, world_dt=world_dt,
-            ego_vehicle=egos, other_vehicles=[])
+        orig_tick = _pace_world_ticks() if opt.distributed and os.environ.get("ECAV_STARTUP_TICKER") == "1" else None
+        try:
+            edge_list = scenario_manager.create_edge_manager_from_scenario_runner(
+                application=['edge'], edge_dt=edge_dt, world_dt=world_dt,
+                ego_vehicle=egos, other_vehicles=[])
+        finally:
+            if orig_tick is not None:
+                import carla
+                carla.World.tick = orig_tick
         print(f"{TAG} edge manager ready after {time.time() - t0:.1f} s", flush=True)
 
         eval_manager = EvaluationManager(

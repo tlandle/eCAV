@@ -787,7 +787,7 @@ class EdgeProcess:
         t_reported = time.time()
         # absolute times (epoch s) so scale_breakdown.py can line the edge up with the
         # orchestrator and the clients; durations in ms for reading the log directly
-        print(f"[EDGE TICK {tick_id}] push={(t_pushed - t_dequeued) * 1000:.0f}ms | "
+        print(f"[EDGE TICK {tick_id}] edge={self.edge_index} push={(t_pushed - t_dequeued) * 1000:.0f}ms | "
               f"wait_actors={(t_last_report - t_pushed) * 1000:.0f}ms | "
               f"edge_step={(t_step - t_last_report) * 1000:.0f}ms | "
               f"report={(t_reported - t_step) * 1000:.0f}ms | "

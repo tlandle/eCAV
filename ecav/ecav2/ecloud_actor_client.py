@@ -32,6 +32,7 @@ from ecav.core.common.rsu_manager import RSUManager
 from ecav.scenario_testing.utils.yaml_utils import load_yaml
 from ecav.core.application.edge.networking import NetworkEmulator
 from ecav.core.common.ecloud_config import EcloudConfig, eDoneBehavior, eLocationType
+from ecav.core.common.misc import edge_actor_config
 from ecav.ecloud_server.ecloud_comms import EcloudClient, ecloud_run_push_server
 from ecav.ecav2 import pred_blobs
 
@@ -157,8 +158,11 @@ class Ecav2ActorClient:
         if 'edge_list' in scenario_yaml['scenario']:
             self.is_edge = True
             time.sleep(5)
-            self.edge_sets_destination = scenario_yaml['scenario']['edge_list'][0]['edge_sets_destination'] \
-                if 'edge_sets_destination' in scenario_yaml['scenario']['edge_list'][0] else False
+            # vehicle_index is global over the edges of edge_list
+            _own_edge, _ = edge_actor_config(
+                scenario_yaml, 'vehicles' if self.actor_type == ecloud.ActorType.VEHICLE else 'rsus', self.vehicle_index)
+            self.edge_sets_destination = _own_edge['edge_sets_destination'] \
+                if 'edge_sets_destination' in _own_edge else False
 
         if self.opt.apply_ml:
             await asyncio.sleep(self.vehicle_index + 1)
@@ -170,7 +174,7 @@ class Ecav2ActorClient:
             self.actor_id = self.vehicle_manager.vehicle.id
             self.vid = self.vehicle_manager.vid
         elif self.actor_type == ecloud.ActorType.RSU:
-            rsu_config = scenario_yaml['scenario']['edge_list'][0]['rsus'][self.vehicle_index]
+            _, rsu_config = edge_actor_config(scenario_yaml, 'rsus', self.vehicle_index)
             client = carla.Client(CARLA_IP, scenario_yaml['world']['client_port'])
             client.set_timeout(10.0)
             world = client.get_world()
@@ -182,8 +186,8 @@ class Ecav2ActorClient:
                                 cav_world,
                                 scenario_yaml['current_time'],
                                 data_dumping=self.verbose_updates)
-            self.vid = scenario_yaml['scenario']['edge_list'][0]['rsus'][self.vehicle_index]['name']
-            self.actor_id = scenario_yaml['scenario']['edge_list'][0]['rsus'][self.vehicle_index]['id']
+            self.vid = rsu_config['name']
+            self.actor_id = rsu_config['id']
             self.vehicle_manager = self.rsu_manager # for common handling below
 
         if self.is_edge:

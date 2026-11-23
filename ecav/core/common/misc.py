@@ -264,3 +264,19 @@ def get_speed_sumo(sumo2carla_ids, carla_id):
             return vehicle_speed
 
     return -1
+
+
+def edge_actor_config(scenario_params, kind, index):
+    """Resolve a global vehicle or RSU index to (edge config, actor config).
+
+    ``kind`` is 'vehicles' or 'rsus'. Global indices are contiguous in
+    ``edge_list`` order (``ScenarioManager.compute_edge_mappings``), so the
+    first edge holds indices 0..n0-1, the second n0..n0+n1-1, and so on.
+    """
+    offset = index
+    for edge in scenario_params['scenario']['edge_list']:
+        actors = edge[kind] if kind in edge and edge[kind] is not None else []
+        if offset < len(actors):
+            return edge, actors[offset]
+        offset -= len(actors)
+    raise IndexError(f"{kind} index {index} is not in any edge of edge_list")

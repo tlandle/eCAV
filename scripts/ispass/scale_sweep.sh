@@ -19,7 +19,7 @@ steps() { (( $1 > 128 )) && echo 100 || echo 300; }
 one() { local tag=$1; shift
   [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; return; }
   for try in 1 2; do rm -rf experiment_results/ispass_scale/$tag
-    if timeout 5400 $L "$@" -o $HOST -t $tag > /dev/null 2>&1; then break; fi; echo "$(date '+%T') $tag attempt $try failed"; done
+    if timeout ${RUN_TIMEOUT:-5400} $L "$@" -o $HOST -t $tag > /dev/null 2>&1; then break; fi; echo "$(date '+%T') $tag attempt $try failed"; done
   echo "$(date '+%T') $tag: $(grep -h SUMMARY experiment_results/ispass_scale/$tag/launch.log | tail -1)"; }
 { git rev-parse HEAD; date -Is; } > experiment_results/ispass_scale/${STAMP}_meta.txt
 # vehicle index ranges for launch_scale.sh -H: N clients split evenly over CLIENT_HOSTS
@@ -64,7 +64,7 @@ for part in $PARTS; do case $part in
       scripts/ispass/perception_replicas.sh stop $PERC_HOST; done; done ;;
   mhpercep) for n in ${MH_PN:-8 16 32 64}; do perc_start; one ${STAMP}_mhpdense_n$n -n $n -r 2 -p shared -s 300 -H "$(split $n)"; perc_stop ${STAMP}_mhpdense_n$n; done ;;
   dense)  for n in 8 16 32 64 128 256; do one ${STAMP}_dense_n$n -n $n -r 2 -p off -s $(steps $n); done ;;
-  spread) for n in 8 16 32 64 128 256 512; do one ${STAMP}_spread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread"; done ;;
+  spread) for n in ${SPREAD_NS:-8 16 32 64 128 256 512}; do one ${STAMP}_spread_n$n -n $n -r 20 -p off -s $(steps $n) -g "--layout spread"; done ;;
   seq)    for n in 8 16 32; do one ${STAMP}_seqdense_n$n -n $n -r 2 -p off -s 300 -m seq
                                one ${STAMP}_seqspread_n$n -n $n -r 20 -p off -s 300 -m seq -g "--layout spread"; done ;;
   percep) # shared YOLO inference service on the GPU host, restarted per run so its log covers one run;

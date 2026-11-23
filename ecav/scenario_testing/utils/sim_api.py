@@ -742,12 +742,12 @@ class ScenarioManager:
             logger.debug("'ecloud' in YAML specified %s cars", self.vehicle_count)
 
         elif 'edge_list' in scenario_params['scenario']:
-            # TODO: support multiple edges...
+            # vehicle and RSU counts are totals over the edges of edge_list
             self.is_edge = True
-            if 'vehicles' in scenario_params['scenario']['edge_list'][0]:
-                self.vehicle_count = len(scenario_params['scenario']['edge_list'][0]['vehicles'])
-            if 'rsus' in scenario_params['scenario']['edge_list'][0]:
-                self.rsu_count = len(scenario_params['scenario']['edge_list'][0]['rsus'])
+            self.vehicle_count = sum(len(edge['vehicles']) for edge in scenario_params['scenario']['edge_list']
+                                     if 'vehicles' in edge)
+            self.rsu_count = sum(len(edge['rsus']) for edge in scenario_params['scenario']['edge_list']
+                                 if 'rsus' in edge)
 
         elif 'single_cav_list' in scenario_params['scenario']:
             self.vehicle_count = len(scenario_params['scenario']['single_cav_list'])
@@ -1488,7 +1488,8 @@ class ScenarioManager:
 
         config_yaml = self.scenario_params
         logger.info(json.dumps(OmegaConf.to_container(config_yaml, resolve=True)))
-        # create edges
+        # create edges; vehicle indices are global over the edges (compute_edge_mappings)
+        vehicle_offset = 0
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
 
@@ -1519,13 +1520,14 @@ class ScenarioManager:
                     logger.debug("Creating VehicleManager for vehicle %s", index)
                     # Multi-ego support: first vehicle uses pre-spawned ego,
                     # subsequent vehicles spawn from their config spawn_position
+                    global_index = vehicle_offset + index
                     if isinstance(ego_vehicle, list):
-                        v = ego_vehicle[index] if index < len(ego_vehicle) else None
+                        v = ego_vehicle[global_index] if global_index < len(ego_vehicle) else None
                     else:
-                        v = ego_vehicle if index == 0 else None
+                        v = ego_vehicle if global_index == 0 else None
 
                     vehicle_manager = VehicleManager(
-                          vehicle=v, vehicle_index=index, config_yaml=config_yaml, application=application,
+                          vehicle=v, vehicle_index=global_index, config_yaml=config_yaml, application=application,
                           carla_world=self.world,
                           carla_map=self.carla_map, cav_world=self.cav_world,
                           current_time=self.scenario_params['current_time'],
@@ -1553,7 +1555,7 @@ class ScenarioManager:
                         vehicle_manager.connected = False
                         vehicle_manager.agent._anchoring = False
                         edge_manager.add_non_member(vehicle_manager)
-                    self.vehicle_managers[index] = vehicle_manager
+                    self.vehicle_managers[global_index] = vehicle_manager
 
                     vehicle_manager.update_info()
                     vehicle_manager.set_destination(
@@ -1562,6 +1564,7 @@ class ScenarioManager:
                       clean=True)
 
 
+            vehicle_offset += len(edge['vehicles']) if 'vehicles' in edge else 0
             try:
               self.tick_world()
               logger.debug("World ticked")
@@ -1610,7 +1613,8 @@ class ScenarioManager:
 
         config_yaml = self.scenario_params
         logger.info(json.dumps(OmegaConf.to_container(config_yaml, resolve=True)))
-        # create edges
+        # create edges; vehicle indices are global over the edges (compute_edge_mappings)
+        vehicle_offset = 0
         for e, edge in enumerate(
                 self.scenario_params['scenario']['edge_list']):
 
@@ -1650,13 +1654,14 @@ class ScenarioManager:
                     logger.debug("Creating VehicleManager for vehicle %s", index)
                     # Multi-ego support: first vehicle uses pre-spawned ego,
                     # subsequent vehicles spawn from their config spawn_position
+                    global_index = vehicle_offset + index
                     if isinstance(ego_vehicle, list):
-                        v = ego_vehicle[index] if index < len(ego_vehicle) else None
+                        v = ego_vehicle[global_index] if global_index < len(ego_vehicle) else None
                     else:
-                        v = ego_vehicle if index == 0 else None
+                        v = ego_vehicle if global_index == 0 else None
 
                     vehicle_manager = VehicleManager(
-                          vehicle=v, vehicle_index=index, config_yaml=config_yaml, application=application,
+                          vehicle=v, vehicle_index=global_index, config_yaml=config_yaml, application=application,
                           carla_world=self.world,
                           carla_map=self.carla_map, cav_world=self.cav_world,
                           current_time=self.scenario_params['current_time'],
@@ -1701,7 +1706,7 @@ class ScenarioManager:
                         vehicle_manager.connected = False
                         vehicle_manager.agent._anchoring = False
                         edge_manager.add_non_member(vehicle_manager)
-                    self.vehicle_managers[index] = vehicle_manager
+                    self.vehicle_managers[global_index] = vehicle_manager
 
 
                     # Get destination from vehicle_manager (handles route_file, destination, etc.)
@@ -1717,6 +1722,7 @@ class ScenarioManager:
                     print(f"[SPAWN LOOP] vm_idx={index} complete", flush=True)
 
 
+            vehicle_offset += len(edge['vehicles']) if 'vehicles' in edge else 0
             try:
               self.tick_world()
               logger.debug("World ticked")

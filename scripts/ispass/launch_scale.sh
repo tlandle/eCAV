@@ -32,8 +32,11 @@
 #   -g ARGS         extra generator arguments, quoted (e.g. -g "--layout spread --rsus 12")
 #   -m dist|seq     dist (default): one process per actor. seq: the sequential single process
 #                   (ecav.py without -d) on the orchestrator host, same scenario files
-# Environment: SCALE_WT (worktree on every host, default $HOME/scale_wt), SCALE_ACT (shell line that activates the
-# Python env on every host), SCALE_CARLA_ROOT (default $HOME/carla-0.9.15), BATCH (clients started per wave, 16).
+# Environment: SCALE_GEN_EXTRA (generator arguments added to every run of a sweep, e.g. "--edge-size 32"),
+# SCALE_WT (worktree on every host, default $HOME/scale_wt), SCALE_ACT (shell line that activates the
+# Python env on every host), SCALE_CARLA_ROOT (default $HOME/carla-0.9.15), BATCH (clients started per wave, 16),
+# SCALE_START_TRIES (restarts of a client that died on the traffic manager or stalled at start-up, 3),
+# SCALE_START_WAIT (seconds a start-up wave may take before its silent clients count as stalled, 600).
 #
 # Every host needs: the worktree at $WT with generated proto stubs and, on the orchestrator, the
 # ecloud_server binary; the opencda310 env; CARLA's PythonAPI under $CARLA_ROOT. Hosts must reach
@@ -80,7 +83,7 @@ bg() { local h=$1 n=$2; shift 2; on "$h" "mkdir -p $L && (setsid nohup $* > $L/$
 wait_log() { $SSH "$1" "cd $WT && timeout $4 bash -c 'until grep -Eq \"$3\" $L/$2.log 2>/dev/null; do sleep 2; done'" \
              || { log "TIMEOUT waiting for /$3/ in $2.log on $1"; return 1; }; }
 HOSTS=$(printf '%s\n' "$ORCH" "$CARLA" "$EDGE" "$RSUH" $(tr ',' '\n' <<< "$VLIST" | sed 's/:.*//') | sort -u)
-killall_hosts() { for h in $HOSTS; do $SSH "$h" "P=\$( { pgrep -f '^python -u ecav'; pgrep -f '^\./ecav/ecloud_server/ecloud_server'; } | sort -u); [ -n \"\$P\" ] && kill -9 \$P; true"; done; }
+killall_hosts() { for h in $HOSTS; do $SSH "$h" "P=\$( { pgrep -f '^python -u ecav'; pgrep -f '^python scripts/ispass/startup_ticker.py'; pgrep -f '^\./ecav/ecloud_server/ecloud_server'; } | sort -u); [ -n \"\$P\" ] && kill -9 \$P; true"; done; }
 collect() { for h in $HOSTS; do mkdir -p "$OUT/${h##*@}"; scp -q $SSHO "$h:${WT/\$HOME\//}/$L/*.log" "$OUT/${h##*@}/" 2>/dev/null; done; }
 # a failed run can leave the simulator unusable (see the send-buffer note below): the next run restarts it
 fail() { log "FAILED: $*"; collect; killall_hosts; $SSH "$CARLA" "rm -f /tmp/scale_carla_layout"; exit 1; }
@@ -91,9 +94,12 @@ if [[ -n "$EPS" ]]; then
   NEP=$(tr ',' '\n' <<< "$EPS" | grep -c .); log "perception replicas ($NEP): $EPS"
 fi
 killall_hosts
+# Logs of an earlier run with the same tag stay on the hosts, and collect would copy them into the results of this
+# run (a retry with another client placement left 456 client logs of earlier attempts in mh3_mh4dense_n1024).
+for h in $HOSTS; do $SSH "$h" "cd $WT && if [ -d $L ]; then mv $L $L.prev_\$(date +%s); fi"; done
 
 # host firewall rule used below: simulator ports (2000-2002, secondaries 3000-3999), client RPC and push ports
-NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 2000:2002,3000:3999,8000:8999,50051:51300 ! -s $NET -j DROP"
+NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 2000:2002,3000:3999,8000:9999,50051:51300 ! -s $NET -j DROP"
 # addresses: one host means localhost everywhere; several hosts means private IPs and a cloud_config rewrite
 ip_of() { $SSH "$1" "hostname -I | cut -d' ' -f1"; }
 if [[ $(wc -l <<< "$HOSTS") -eq 1 ]]; then CARLA_IP=localhost; MULTI=0
@@ -119,6 +125,9 @@ else
   # The rule is not persistent (gone after a restart of the VM).
   : # RULE is defined before this block
   for h in $HOSTS; do $SSH "$h" "sudo iptables -C $RULE 2>/dev/null || sudo iptables -I $RULE" || fail "port guard on $h"; done
+  # the orchestration, edge and push ports lie inside the range the kernel hands to outgoing connections; reserve
+  # them so that no connection takes the port of a server that starts later (traffic manager ports 8000+k are below it)
+  for h in $HOSTS; do $SSH "$h" "sudo sysctl -q -w net.ipv4.ip_local_reserved_ports=50051-51300" || fail "reserved ports on $h"; done
   # CARLA 0.9.15 in synchronous mode: a stream write that has not completed when the next frame's message is queued
   # for the same client makes a streaming worker spin forever (ServerSession::Write waits inside the strand that
   # must run the completion). On loopback a write completes at once. To a remote client it completes only when the
@@ -185,7 +194,7 @@ elif ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
 fi
 
 # scenario files: generated on the orchestrator, copied to the other hosts (clients read the XML, the YAML comes from the server)
-on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $GP --carla-host $CARLA_IP $GEN" | tee -a "$OUT/launch.log" || fail "generator"
+on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $GP --carla-host $CARLA_IP $GEN ${SCALE_GEN_EXTRA:-}" | tee -a "$OUT/launch.log" || fail "generator"
 # the spread layout chooses its own RSU count
 RG=$(grep -o '^RSUS=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); [[ -n "$RG" ]] && R=$RG
 if [[ $MULTI == 1 && $P == shared && -z "$EPS" ]]; then
@@ -209,13 +218,37 @@ if [[ $MODE == seq ]]; then
   sleep 10; collect; killall_hosts
   grep -h "SUMMARY" "$OUT"/*/orch.log | tee -a "$OUT/launch.log"; log "done: $OUT"; exit 0
 fi
-bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
+# with SCALE_TICKER=1 the orchestrator paces its own start-up ticks (one per vehicle, ecav/scenario_testing/scale_town06.py)
+bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} ECAV_STARTUP_TICKER=${SCALE_TICKER:-0} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
 wait_log "$ORCH" orch "start [0-9]+ vehicle containers" 300 || fail "orchestrator did not come up"
 log "orchestrator up"
-EARGS="-e 0 -P 50054"; [[ $MULTI == 1 ]] && EARGS="$EARGS -O $ORCH_IP -o 50051"
-bg "$EDGE" edge "python -u ecav/ecav2/edge_process.py $EARGS"
-wait_log "$EDGE" edge "registered successfully" 180 || fail "edge did not register"
-log "edge registered"
+# SCALE_TICKER=1: one process ticks the world every SCALE_TICK_PERIOD seconds during start-up and the clients wait
+# for its frames (scripts/ispass/startup_ticker.py). Ticks from a wave of starting clients arrive in bursts, and
+# two frames in quick succession stop the simulator's stream threads (seen at 716 of 1,024 clients).
+# Client 0 spawns one ego per frame while it is the only client, so until it is done the ticker runs at
+# SCALE_TICK_PERIOD0 (1,024 egos at a 1 s period do not fit the wait for client 0).
+TICKENV=""
+ticker_stop() { $SSH "$CARLA" "for p in \$(pgrep -f '^python scripts/ispass/startup_ticker.py'); do kill \$p; done; true"; }
+if [[ ${SCALE_TICKER:-0} == 1 ]]; then TICKENV="env ECAV_STARTUP_TICKER=1 "
+  bg "$CARLA" ticker0 "python scripts/ispass/startup_ticker.py localhost 2000 ${SCALE_TICK_PERIOD0:-0.3}"; log "start-up ticker on $CARLA"; fi
+# one edge process per entry of the scenario's edge_list (generator option --edge-size, passed with -g or
+# SCALE_GEN_EXTRA). Edge 0 listens on 50054 and edge k on 50062+k: 50061 is the orchestrator's push port and
+# the vehicle push ports start at 50101, so up to 38 edges fit. Logs go to edge_<k>.log, or to edge.log when
+# there is one edge
+KE=$(grep -o '^EDGES=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); KE=${KE:-1}
+(( KE <= 38 )) || fail "$KE edges: the edge port range holds 38"
+edge_log() { (( KE > 1 )) && echo "edge_$1" || echo edge; }
+edge_port() { (( $1 == 0 )) && echo 50054 || echo $((50062 + $1)); }
+for e in $(seq 0 $((KE - 1))); do
+  EARGS="-e $e -P $(edge_port $e)"; [[ $MULTI == 1 ]] && EARGS="$EARGS -O $ORCH_IP -o 50051"
+  bg "$EDGE" "$(edge_log $e)" "python -u ecav/ecav2/edge_process.py $EARGS"
+done
+for e in $(seq 0 $((KE - 1))); do
+  wait_log "$EDGE" "$(edge_log $e)" "registered successfully" 180 || fail "edge $e did not register"
+  # an edge that cannot bind its port still registers with the orchestrator, and its actors then call the wrong server
+  $SSH "$EDGE" "cd $WT && ! grep -q 'Failed to add port' $L/$(edge_log $e).log" || fail "edge $e could not bind port $(edge_port $e)"
+done
+log "$KE edge process(es) registered"
 
 # vehicle client 0 spawns every ego; the others attach to theirs
 host_of() { local k=$1 e h r; for e in $(tr ',' ' ' <<< "$VLIST"); do h=${e%%:*}; r=${e##*:}; (( k >= ${r%-*} && k <= ${r#*-} )) && { echo "$h"; return; }; done; }
@@ -224,34 +257,53 @@ veh_range() { local h=$1 lo=$2 hi=$3
   # with -Y, client i gets endpoint i mod R in its environment; without it the variable stays unset
   local pre=""; [[ -n "$EPS" ]] && pre="EP=($(tr ',' ' ' <<< "$EPS")); "
   local envp=""; [[ -n "$EPS" ]] && envp="env ECAV_YOLO_ENDPOINT=\${EP[\$((i % \${#EP[@]}))]} "
-  on "$h" "mkdir -p $L && ${pre}for i in \$(seq $lo $hi); do (setsid nohup ${envp}python -u ecav.py $ML -v 0.9.15 -d -i \$i -T \$((8000 + i)) > $L/veh_\$i.log 2>&1 < /dev/null &); done"; }
+  on "$h" "mkdir -p $L && ${pre}for i in \$(seq $lo $hi); do (setsid nohup ${envp}${TICKENV}python -u ecav.py $ML -v 0.9.15 -d -i \$i -T \$((8000 + i)) > $L/veh_\$i.log 2>&1 < /dev/null &); done"; }
 # wait until every client lo..hi on one host has either reached its actor client or raised
-batch_wait() { $SSH "$1" "cd $WT && timeout 600 bash -c 'until ( for i in \$(seq $2 $3); do grep -Eq \"spawning Ecav2ActorClient|Traceback\" $L/veh_\$i.log 2>/dev/null || exit 1; done ); do sleep 2; done'" \
+batch_wait() { $SSH "$1" "cd $WT && timeout ${SCALE_START_WAIT:-600} bash -c 'until ( for i in \$(seq $2 $3); do grep -Eq \"spawning Ecav2ActorClient|Traceback\" $L/veh_\$i.log 2>/dev/null || exit 1; done ); do sleep 2; done'" \
                || { log "TIMEOUT waiting for clients $2..$3 on $1"; return 1; }; }
+# clients lo..hi on one host that have neither reached their actor client nor raised
+stalled() { $SSH "$1" "cd $WT && for i in \$(seq $2 $3); do grep -Eq 'spawning Ecav2ActorClient|Traceback' $L/veh_\$i.log 2>/dev/null || echo \$i; done" | tr '\n' ' '; }
 veh_range "$(host_of 0)" 0 0
 wait_log "$(host_of 0)" veh_0 "spawning Ecav2ActorClient" $((120 + N)) || fail "client 0 did not spawn the egos"
 log "client 0 spawned the egos"
+if [[ ${SCALE_TICKER:-0} == 1 ]]; then ticker_stop
+  bg "$CARLA" ticker "python scripts/ispass/startup_ticker.py localhost 2000 ${SCALE_TICK_PERIOD:-1.0}"; fi
 k=1; while (( k < N )); do
   h=$(host_of $k); hi=$(( k + BATCH - 1 < N - 1 ? k + BATCH - 1 : N - 1 ))
   while [[ $(host_of $hi) != "$h" ]]; do hi=$(( hi - 1 )); done
   veh_range "$h" $k $hi
-  batch_wait "$h" $k $hi || fail "clients $k..$hi did not start"
+  batch_wait "$h" $k $hi || true
   # Every client is a remote user of client 0's traffic manager (the scenario YAML gives all of them port 8000),
   # and that RPC has a fixed 2 s timeout. With many sensors in the world the simulator answers slowly and a client
-  # can die on set_random_device_seed before it has created anything. Such a client is started again.
-  for try in 1 2 3; do
-    bad=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || { grep -q 'rpc::timeout' $L/veh_\$i.log && echo \$i; }; done" | tr '\n' ' ')
+  # can die on set_random_device_seed before it has created anything. Under the same load a client can also fail
+  # to create its own traffic manager server ("bind error"). Such a client is started again. A client that has
+  # not reached its actor client after the retries fails the run here, not 15 minutes later at the first tick.
+  # A client can also stall without an error after another client of its wave died (seen at "Preparing scenario").
+  # A client that shows neither its actor client nor a traceback within the wait is stopped and started again.
+  for try in $(seq 1 ${SCALE_START_TRIES:-3}); do
+    st=$(stalled "$h" $k $hi)
+    for i in $st; do log "client $i stalled at start-up: $($SSH "$h" "cd $WT && tail -1 $L/veh_$i.log | cut -c1-120")"
+      $SSH "$h" "for p in \$(pgrep -f '^python -u ecav.py .* -i $i -T '); do kill -9 \$p; done; true"; done
+    bad=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || { grep -Eq 'rpc::timeout|bind error' $L/veh_\$i.log && echo \$i; }; done" | tr '\n' ' ')$st
+    bad=$(tr ' ' '\n' <<< "$bad" | sort -un | tr '\n' ' ')
     [[ -z "${bad// }" ]] && break
-    log "clients ${bad}timed out on the traffic manager RPC: starting them again (try $try)"
+    log "clients ${bad}died on the traffic manager at start-up: starting them again (try $try)"
+    # who holds the traffic manager port of a client that could not bind it
+    for i in $bad; do $SSH "$h" "ss -ltnp 2>/dev/null | grep -E ':$((8000 + i)) ' | cut -c1-160" | sed "s/^/    port $((8000 + i)): /" | tee -a "$OUT/launch.log"; done
     for i in $bad; do $SSH "$h" "cd $WT && mv $L/veh_$i.log $L/veh_$i.log.rpc_timeout$try"; veh_range "$h" $i $i; done
-    batch_wait "$h" $k $hi || fail "clients $k..$hi did not start"
+    batch_wait "$h" $k $hi || true
   done
+  dead=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || echo \$i; done" | tr '\n' ' ')
+  [[ -z "${dead// }" ]] || fail "clients ${dead}did not reach their actor client"
   log "clients $k..$hi started on $h"; k=$(( hi + 1 ))
 done
 EPA=($(tr ',' ' ' <<< "$EPS"))
 for j in $(seq 0 $((R - 1))); do
   rpre=""; [[ -n "$EPS" ]] && rpre="env ECAV_YOLO_ENDPOINT=${EPA[$((j % ${#EPA[@]}))]} "
   bg "$RSUH" "rsu_$j" "${rpre}python -u ecav/ecav2/ecloud_actor_client.py $ML -v 0.9.15 -i $j"; done
+if [[ ${SCALE_TICKER:-0} == 1 ]]; then
+  ticker_stop
+  log "start-up ticker stopped: $($SSH "$CARLA" "cd $WT && tail -1 $L/ticker.log | cut -c1-80")"; fi
 log "all clients started after $(( $(date +%s) - T0 )) s; waiting for the run"
 wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 |Caught exception" $((600 + 4 * N)) || fail "no first tick"
 $SSH "$ORCH" "cd $WT && grep -q 'Caught exception' $L/orch.log" && fail "orchestrator raised before the first tick: $($SSH "$ORCH" "cd $WT && grep -m1 'Caught exception' $L/orch.log")"
