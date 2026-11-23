@@ -65,22 +65,23 @@ def load_run(rd, arm, n, per_lane=10 ** 6):
     out = dict(valid=1, launch=launch, collided=sum(p["collided"] for p in pos), any=int(any(p["collided"] for p in pos)),
                lead=sum(p["collided"] for p in pos if p["position"] == 1), followers=sum(p["collided"] for p in pos if p["position"] > 1), with_column=sum(1 for p in pos if p["partner"] == "column"),
                with_crossing=sum(1 for p in pos if p["partner"] == "crossing"), first_follower=min([p["position"] for p in pos if p["position"] > 1 and p["collided"]] or [0]),
-               min_time_gap=float(np.nanmin([p["time_gap_s"] for p in pos if p["position"] > 1])) if n > 1 else float("nan"),
-               med_gap=float(np.nanmedian([p["gap_m"] for p in pos if p["position"] > 1])) if n > 1 else float("nan"),
-               med_time_gap=float(np.nanmedian([p["time_gap_s"] for p in pos if p["position"] > 1])) if n > 1 else float("nan"), lead_speed=pos[0]["speed_at_launch"])
+               min_time_gap=float(np.nanmin([p["time_gap_s"] for p in pos if p["position"] > 1])) if any(p["position"] > 1 for p in pos) else float("nan"),
+               med_gap=float(np.nanmedian([p["gap_m"] for p in pos if p["position"] > 1])) if any(p["position"] > 1 for p in pos) else float("nan"),
+               med_time_gap=float(np.nanmedian([p["time_gap_s"] for p in pos if p["position"] > 1])) if any(p["position"] > 1 for p in pos) else float("nan"), lead_speed=pos[0]["speed_at_launch"])
     return out, pos
 
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("stem"); ap.add_argument("--speeds", type=int, nargs="+", default=[60, 70])
     ap.add_argument("--ns", type=int, nargs="+", default=[2, 4, 8, 16]); ap.add_argument("--csv"); ap.add_argument("--runs-csv"); ap.add_argument("--pos-csv")
+    ap.add_argument("--root", default=ROOT, help="checkout that holds experiment_results (default: the one of the script)")
     ap.add_argument("--per-lane", type=int, default=10 ** 6, help="vehicles per lane: larger N fill a second lane, positions count within a lane")
     a = ap.parse_args(); runs = []; poss = []; cells = []
     for spd in a.speeds:
         for n in a.ns:
             for arm in ARMS:
-                for f in sorted(glob.glob(os.path.join(ROOT, "experiment_results", "*", f"{a.stem}{spd}_{arm}_n{n}", "**", "column_trace.csv"), recursive=True)
-                                + [p for p in glob.glob(os.path.join(ROOT, "experiment_results", "*", f"{a.stem}{spd}_{arm}_n{n}", "**", "runner_stdout.txt"), recursive=True)
+                for f in sorted(glob.glob(os.path.join(a.root, "experiment_results", "*", f"{a.stem}{spd}_{arm}_n{n}", "**", "column_trace.csv"), recursive=True)
+                                + [p for p in glob.glob(os.path.join(a.root, "experiment_results", "*", f"{a.stem}{spd}_{arm}_n{n}", "**", "runner_stdout.txt"), recursive=True)
                                    if not os.path.exists(os.path.join(os.path.dirname(p), "evaluation_output", "column_trace.csv"))]):
                     rd = os.path.dirname(f)
                     if os.path.basename(rd) == "evaluation_output": rd = os.path.dirname(rd)      # the trace lies beside the per-tick log
