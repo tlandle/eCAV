@@ -9394,3 +9394,26 @@ Branch `multiedge` (worktree `multiedge_wt`), commit 16f4b3e1. Results in `multi
 - **128 vehicles with perception failed four times in the post chain** (clients die on `set_random_device_seed`, one client hangs at "Preparing scenario"). Launcher change 16f4b3e1: a client without actor client and without traceback after SCALE_START_WAIT is stopped and started again. `scale_sweep.sh` takes RUN_TIMEOUT.
 - **Follow-up chain (scratchpad az_p128.sh) launched 05:27:** starts edge-server, carla-client3, carla-client4, carla-ndm. 128 vehicles with perception, 4 replicas, BATCH=1, then 1,024 vehicles dense on three hosts. Deallocates all four VMs and writes "azure free". Must end before the 01:00 auto-shutdown of Nov 24.
 - **Paper:** Section VI-A rewritten in the working copy of `~/repos/ecav_ispass_overleaf` (not committed). The 128-vehicle and 1,024-vehicle sentences, the figure and the abstract, introduction and conclusion numbers wait for the two cells.
+
+## 2026-11-23 05:34 Section V stream: congested junction with four arms landed (16 background vehicles)
+
+**Set (cetus ~/sec5_wt, stamps ispass_ch16l60/70/80 for unrestricted ground truth, ground truth in view and camera and LiDAR at 640x480, ispass_ch16h60/70/80 for 1280x960; 120 runs, none invalid; ended 05:33).** Junction crossing with 16 driving background vehicles (no Tesla), LiDAR drop-off 0.45 0.8 0.4, 10 scenes per cell, same scenes across arms. Merged per-run table with collision partner and shared-scene flag: sec5_wt paper_ispass/three_level_congested_runs.csv (sec5ext c978bf19).
+
+| nominal (measured) km/h | measure | unrestricted ground truth | ground truth in view | camera and LiDAR 640 | camera and LiDAR 1280 |
+|---|---|---|---|---|---|
+| 60 (56) | collided with the crossing car, of 10 | 0 | 0 | 1 | 0 |
+| 60 (56) | collided with a background vehicle | 1 | 1 | 1 | 1 |
+| 60 (56) | brake start after the launch, median s | 0.60 | 1.70 | 2.15 | 1.70 |
+| 70 (65) | collided with the crossing car | 0 | 0 | 3 | 0 |
+| 70 (65) | collided with a background vehicle | 0 | 1 | 0 | 1 |
+| 70 (65) | brake start | 1.05 | 2.00 | 2.75 | 2.00 |
+| 80 (77) | collided with the crossing car | 0 | 3 | 8 | 5 |
+| 80 (77) | collided with a background vehicle | 1 | 1 | 1 | 0 |
+| 80 (77) | brake start | 1.35 | 2.15 | 2.80 | 2.23 |
+
+- Shared scenes (all four arms launch within 2 ticks of each other and no arm slowed before the launch): 6, 7, 6 of 10 at 60, 70, 80 nominal. Collisions with the crossing car on those: 60: 0, 0, 1, 0 of 6; 70: 0, 0, 2, 0 of 7; 80: 0, 1, 5, 3 of 6.
+- Sight-line classes of the crossing car between launch and brake (camera and LiDAR arms): fully visible 7 to 13 % at 60 and 70, 36 to 38 % at 80; partly occluded 60 to 92 %; largely occluded 0 to 3 %.
+- Reading. The ordering of the open junction holds with traffic and drop-off: unrestricted ground truth never hits the crossing car and brakes 0.8 to 1.1 s before the sensor-view arms; ground truth in view and 1280 agree (0, 0, 3 against 0, 0, 5); 640 is later and collides from 56 km/h. Fewer 640 collisions than in the open junction at 65 km/h (3 against 10) because traffic slows the vehicle in part of the scenes. Collisions with background vehicles occur in every arm (0 or 1 of 10 per cell), the unrestricted arm included.
+- Cost on cetus per run: unrestricted and in view 68 to 109 s, 640 108 to 157 s, 1280 157 to 170 s.
+
+**Running.** atlas: left-turn gate (sec5_run e3dfe207). cetus: cut-in gate (cutin_sweep.sh, five closing speeds, three arms, one run each), then one 1280 run of the 2-vehicle column for GPU memory (tmp/cetus_cut_gate.sh).
