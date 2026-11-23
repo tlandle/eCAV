@@ -28,7 +28,7 @@ SPEED="${SPEED:-40}"; EGO_Y="${EGO_Y:--30}"; MAX_STEP="${MAX_STEP:-1400}"; LOCAL
 #                TAIL_LANES=2 also stops a vehicle in the neighbouring lane (for 16 vehicles, two lanes of 8)
 BG="${BG:-0}"; TAIL_Y="${TAIL_Y:-}"
 TRACE="${TRACE:-0}"   # 1: detection trace of the camera and LiDAR arm (PERC_TRACE, perception_manager)
-variant_env() { [[ "$BG" != 0 ]] && echo -n "BG_TRAFFIC=$BG "; [[ -n "$TAIL_Y" ]] && echo -n "QUEUE_TAIL_Y=$TAIL_Y QUEUE_TAIL_LANES=${TAIL_LANES:-1} "; [[ "$TRACE" == 1 ]] && echo -n "PERC_TRACE=1 "; echo -n "${EXTRA_ENV:-}"; }   # EXTRA_ENV: further KEY=VALUE pairs for the scenario process
+variant_env() { [[ "$BG" != 0 ]] && echo -n "BG_TRAFFIC=$BG "; [[ -n "$TAIL_Y" ]] && echo -n "QUEUE_TAIL_Y=$TAIL_Y QUEUE_TAIL_LANES=${TAIL_LANES:-1} "; [[ "$TRACE" == 1 ]] && echo -n "PERC_TRACE=1 "; [[ "${COLUMN_TRACE:-0}" == 1 ]] && echo -n "COLUMN_TRACE=1 "; echo -n "${EXTRA_ENV:-}"; }   # EXTRA_ENV: further KEY=VALUE pairs for the scenario process
 # signal assemblies of the conflict junction and of the junction the column passes before it (density_sweep.sh)
 HIDE=5946265674966002516,6337000252949488035,6180885027493966721,16537817839145246163,16697564674962583843,6207999516011777620,2654350897737485752,16235826325815247835,4815558027215542490,1415910357169383613,4380901688286554368,5034201441472765163,8005252838334864825,10145647440276496614,9929740016222508988,7518384223988529276,6036580141546007417,3663578618683831388,12050226332585529187,4930559307141010704,4126283349862587052,7662298469676198566,1410771669709828659,8314392846370487945,585006360711733766,8374940585021404564,8209796319443785099,3273669445552054494
 # FOV: horizontal field of view of every vehicle camera in degrees (unset: the code default of 70, which leaves 20

@@ -94,6 +94,34 @@ class SyncCrossLaunch:
                 self.car.get_location().y, adv), flush=True)
 
 
+class ColumnTrace:
+    """COLUMN_TRACE=1: one row per vehicle and tick in <run dir>/column_trace.csv (position, speed, controls).
+
+    The per-tick age log follows the focal vehicle only. A column study needs every vehicle: the gap each
+    one holds when the crossing car launches, when it starts to brake, and how hard.
+    """
+
+    def __init__(self, run_dir=""):
+        self.fh = None
+        if os.environ.get("COLUMN_TRACE", "0") == "1" and run_dir:
+            self.fh = open(os.path.join(str(run_dir), "column_trace.csv"), "w")
+            self.fh.write("step,index,actor_id,x,y,speed_mps,throttle,brake\n")
+
+    def step(self, edge_list, step):
+        if self.fh is None:
+            return
+        import math
+        k = 0
+        for edge in edge_list:
+            for vm in edge.vehicle_manager_list:
+                v = vm.vehicle
+                loc, vel, ctl = v.get_location(), v.get_velocity(), v.get_control()
+                self.fh.write("%d,%d,%d,%.2f,%.2f,%.3f,%.2f,%.2f\n" % (
+                    step, k, v.id, loc.x, loc.y, math.hypot(vel.x, vel.y), ctl.throttle, ctl.brake))
+                k += 1
+        self.fh.flush()
+
+
 def exec_scenario_runner(scenario_params):
     """
     Execute the ScenarioRunner process
@@ -283,6 +311,7 @@ def run_scenario(opt, scenario_params):
         spectator_bird_pitch = -90
 
         sync_launch = SyncCrossLaunch(getattr(opt, 'output_dir', ''))
+        column_trace = ColumnTrace(getattr(opt, 'output_dir', ''))
         flag = True
         while flag:
             # Determine continue condition and command based on mode
@@ -296,6 +325,7 @@ def run_scenario(opt, scenario_params):
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
             sync_launch.step(ego_cav, step)
+            column_trace.step(edge_list, step)
             print("bird view following")
 
             # Bird view following
