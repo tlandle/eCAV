@@ -253,14 +253,20 @@ k=1; while (( k < N )); do
   batch_wait "$h" $k $hi || fail "clients $k..$hi did not start"
   # Every client is a remote user of client 0's traffic manager (the scenario YAML gives all of them port 8000),
   # and that RPC has a fixed 2 s timeout. With many sensors in the world the simulator answers slowly and a client
-  # can die on set_random_device_seed before it has created anything. Such a client is started again.
+  # can die on set_random_device_seed before it has created anything. Under the same load a client can also fail
+  # to create its own traffic manager server ("bind error"). Such a client is started again. A client that has
+  # not reached its actor client after the retries fails the run here, not 15 minutes later at the first tick.
   for try in 1 2 3; do
-    bad=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || { grep -q 'rpc::timeout' $L/veh_\$i.log && echo \$i; }; done" | tr '\n' ' ')
+    bad=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || { grep -Eq 'rpc::timeout|bind error' $L/veh_\$i.log && echo \$i; }; done" | tr '\n' ' ')
     [[ -z "${bad// }" ]] && break
-    log "clients ${bad}timed out on the traffic manager RPC: starting them again (try $try)"
+    log "clients ${bad}died on the traffic manager at start-up: starting them again (try $try)"
+    # who holds the traffic manager port of a client that could not bind it
+    for i in $bad; do $SSH "$h" "ss -ltnp 2>/dev/null | grep -E ':$((8000 + i)) ' | cut -c1-160" | sed "s/^/    port $((8000 + i)): /" | tee -a "$OUT/launch.log"; done
     for i in $bad; do $SSH "$h" "cd $WT && mv $L/veh_$i.log $L/veh_$i.log.rpc_timeout$try"; veh_range "$h" $i $i; done
     batch_wait "$h" $k $hi || fail "clients $k..$hi did not start"
   done
+  dead=$($SSH "$h" "cd $WT && for i in \$(seq $k $hi); do grep -q 'spawning Ecav2ActorClient' $L/veh_\$i.log || echo \$i; done" | tr '\n' ' ')
+  [[ -z "${dead// }" ]] || fail "clients ${dead}did not reach their actor client"
   log "clients $k..$hi started on $h"; k=$(( hi + 1 ))
 done
 EPA=($(tr ',' ' ' <<< "$EPS"))
