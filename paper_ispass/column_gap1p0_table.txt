@@ -1,32 +1,30 @@
-/home/atlas/TrafficSimulator_eCloud/ecloudsim_distributed_sandbox/sec5_run/scripts/ispass/column_trace_reduce.py:95: RuntimeWarning: All-NaN slice encountered
-  med = lambda key: float(np.nanmedian([r[key] for r in ok])) if ok else float("nan")
 km/h   N arm      runs valid  with collision  collided veh  lead  followers (rear-end)  first follower pos  gap m  time gap s (median, min)  lead speed
   60   1 gt_all     10    10    0 of 10           0         0     0 (0)            []                   nan    nan   nan              15.5
   60   1 gt_vis     10    10    0 of 10           0         0     0 (0)            []                   nan    nan   nan              15.5
-  60   1 onboard    10    10    3 of 10           3         3     0 (0)            []                   nan    nan   nan              15.5
+  60   1 onboard    10    10    4 of 10           4         4     0 (0)            []                   nan    nan   nan              15.5
   60   2 gt_all     10    10    0 of 10           0         0     0 (0)            []                  20.1   1.00  0.99              15.4
   60   2 gt_vis     10    10    0 of 10           0         0     0 (0)            []                  20.1   1.00  0.99              15.4
-  60   2 onboard    10    10    2 of 10           3         2     1 (1)            [2]                 20.1   1.00  0.99              15.4
+  60   2 onboard    10    10    2 of 10           2         2     0 (0)            []                  20.1   1.00  0.99              15.4
   60   4 gt_all     10    10    0 of 10           0         0     0 (0)            []                  20.8   1.01  0.95              15.6
   60   4 gt_vis     10    10    0 of 10           0         0     0 (0)            []                  20.8   1.01  0.95              15.6
-  60   4 onboard    10    10    4 of 10           6         4     2 (2)            [2, 2]              20.9   1.02  0.96              15.6
+  60   4 onboard    10    10    5 of 10           7         5     2 (2)            [2]                 20.8   1.01  0.95              15.6
   60   8 gt_all     10    10    0 of 10           0         0     0 (0)            []                  20.0   0.99  0.96              15.6
   60   8 gt_vis     10    10    0 of 10           0         0     0 (0)            []                  20.0   0.99  0.96              15.6
-  60   8 onboard    10    10    6 of 10           9         6     3 (4)            [2, 2, 2]           20.1   1.00  0.67              15.6
+  60   8 onboard    10    10    6 of 10          10         6     4 (5)            [2, 2, 2]           20.1   1.00  0.93              15.6
 
 by position (median over valid runs): brake start s after launch | peak deceleration m/s^2 | collided count
 60 km/h N=1 gt_all: 1: 0.70|19.6|0
 60 km/h N=1 gt_vis: 1: 1.35|19.0|0
-60 km/h N=1 onboard: 1: 1.35|19.6|3
+60 km/h N=1 onboard: 1: 1.35|19.6|4
 60 km/h N=2 gt_all: 1: 0.68|19.5|0  2: 1.25|15.7|0
 60 km/h N=2 gt_vis: 1: 1.85|19.6|0  2: 2.50|16.2|0
-60 km/h N=2 onboard: 1: 2.20|19.7|2  2: 3.08|15.8|1
+60 km/h N=2 onboard: 1: 2.23|19.7|2  2: 3.08|15.8|0
 60 km/h N=4 gt_all: 1: 0.70|18.7|0  2: 1.30|15.8|0  3: 1.98|15.7|0  4: 2.85|15.8|0
 60 km/h N=4 gt_vis: 1: 1.85|19.8|0  2: 2.30|16.2|0  3: 3.10|15.7|0  4: 4.10|15.8|0
-60 km/h N=4 onboard: 1: 2.25|19.6|4  2: 3.00|15.9|2  3: 3.83|16.0|0  4: 4.88|8.3|0
-60 km/h N=8 gt_all: 1: 0.70|19.7|0  2: 1.35|15.9|0  3: 1.70|16.2|0  4: 2.60|16.4|0  5: 3.05|15.8|0  6: 3.65|16.1|0  7: 4.35|9.2|0  8: 0.00|16.3|0
+60 km/h N=4 onboard: 1: 2.48|19.6|5  2: 3.23|15.8|1  3: 4.05|16.1|1  4: 5.08|8.3|0
+60 km/h N=8 gt_all: 1: 0.70|19.7|0  2: 1.35|15.9|0  3: 1.70|16.2|0  4: 2.60|16.4|0  5: 3.05|15.8|0  6: 3.65|16.1|0  7: 4.35|9.5|0  8: 0.00|16.3|0
 60 km/h N=8 gt_vis: 1: 1.85|19.5|0  2: 2.45|16.9|0  3: 3.05|15.7|0  4: 3.70|15.7|0  5: 4.15|10.2|0  6: 5.25|7.4|0  7: 5.90|1.3|0  8: 0.00|16.3|0
-60 km/h N=8 onboard: 1: 2.65|18.9|6  2: 3.30|15.8|3  3: 3.83|16.2|0  4: 4.62|15.8|0  5: 5.30|15.7|0  6: 6.05|15.0|0  7: 0.00|16.6|0  8: 0.05|16.9|0
-wrote tmp/ispass_cq10s_cells.csv
-wrote tmp/ispass_cq10s_runs.csv
-wrote tmp/ispass_cq10s_pos.csv
+60 km/h N=8 onboard: 1: 2.62|19.5|6  2: 3.40|15.8|3  3: 3.88|15.7|1  4: 4.70|15.5|0  5: 5.35|11.3|0  6: 6.10|4.1|0  7: 7.20|0.6|0  8: 8.62|1.5|0
+wrote tmp/ispass_cr10s_cells.csv
+wrote tmp/ispass_cr10s_runs.csv
+wrote tmp/ispass_cr10s_pos.csv

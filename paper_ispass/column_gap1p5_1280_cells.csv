@@ -1,0 +1,5 @@
+speed,n,arm,runs,valid,runs_with_collision,collided_vehicles,lead,followers,with_column,med_gap,med_time_gap,min_time_gap,lead_speed
+60,1,onboard,10,10,0,0,0,0,0,nan,nan,nan,15.885
+60,2,onboard,10,10,0,0,0,0,0,30.35032289778809,1.653265351206953,1.6334080138065488,15.6385
+70,1,onboard,10,10,0,0,0,0,0,nan,nan,nan,18.603
+70,2,onboard,10,10,1,1,1,0,0,35.64027497088091,1.711528174397933,1.7002581277716986,18.599
