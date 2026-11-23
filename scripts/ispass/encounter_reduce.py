@@ -28,7 +28,21 @@ for spd in CELLS:
         row = dict(speed=spd, arm=arm, rep=rep, collided=int(d["focal_collisions"] > 0), onset_s=on/1000, min_sep=a["min_sep"], lead=float(m.group(1)) if m else nan,
                    advanced_m=float(adv.group(1)) if adv else nan, launch_tick=launch, v_approach=float(rows[launch][0]["ego_speed_mps"]) if launch else nan,
                    track_s=nan, track_gap_ticks=nan, in_range_s=nan, det_s=nan, det_d=nan, bearing=nan, missed=nan, bad=int("Traceback" in log or launch is None),
-                   pre_dip=0, vis_full=nan, vis_part=nan, vis_large=nan, vis_none=nan, vis_calls=0)
+                   pre_dip=0, vis_full=nan, vis_part=nan, vis_large=nan, vis_none=nan, vis_calls=0, hit_conflict=0, hit_other=0)
+        # partner of the vehicle's first collision: the scripted conflict car (the only Tesla of the scene) or anything else
+        _v = (d.get("vehicles") or {}).get(str(d.get("focal_vehicle_id")), {}); _s = _v.get("safety")
+        if isinstance(_s, str):
+            import ast
+            try: _s = ast.literal_eval(_s)
+            except Exception: _s = {}
+        if isinstance(_s, dict) and int(_s.get("collision_count", 0) or 0) > 0:
+            _h = _s.get("collision_history")
+            if isinstance(_h, str):
+                import ast
+                try: _h = ast.literal_eval(_h)
+                except Exception: _h = []
+            _t = str((_h[0] if _h else {}).get("other_type_id", ""))
+            row["hit_conflict" if "tesla" in _t else "hit_other"] = 1
         # slow-down before the launch: speed more than 1 m/s below its running maximum once 80 % of the launch speed is reached
         if launch is not None:
             v_l = float(rows[launch][0]["ego_speed_mps"]); run_max = 0.0
@@ -62,8 +76,8 @@ for spd in CELLS:
         if not r: continue
         on = [x["onset_s"] for x in r if x["onset_s"] == x["onset_s"]]
         vs = [x for x in r if x["vis_calls"]]
-        print("cell %d %-8s runs %2d distinct %2d collided %2d brake start median %.2f s (min %.2f, max %.2f) closest median %.1f m (min %.1f)  approach %.1f m/s (min %.1f) slowed before launch %d  visible full/part/large/none %s" % (
-            spd, arm, len(r), len({(x["launch_tick"], x["advanced_m"]) for x in r}), sum(x["collided"] for x in r), np.median(on) if on else float("nan"), min(on) if on else float("nan"), max(on) if on else float("nan"),
+        print("cell %d %-8s runs %2d distinct %2d collided %2d (conflict car %d, other %d) brake start median %.2f s (min %.2f, max %.2f) closest median %.1f m (min %.1f)  approach %.1f m/s (min %.1f) slowed before launch %d  visible full/part/large/none %s" % (
+            spd, arm, len(r), len({(x["launch_tick"], x["advanced_m"]) for x in r}), sum(x["collided"] for x in r), sum(x["hit_conflict"] for x in r), sum(x["hit_other"] for x in r), np.median(on) if on else float("nan"), min(on) if on else float("nan"), max(on) if on else float("nan"),
             np.median([x["min_sep"] for x in r]), min(x["min_sep"] for x in r), np.median([x["v_approach"] for x in r]), min(x["v_approach"] for x in r), sum(x["pre_dip"] for x in r),
             ("%.2f/%.2f/%.2f/%.2f" % tuple(np.mean([x[k] for x in vs]) for k in ("vis_full", "vis_part", "vis_large", "vis_none"))) if vs else "-"))
 print("invalid runs:", sum(x["bad"] for x in rows_out), "of", len(rows_out))
