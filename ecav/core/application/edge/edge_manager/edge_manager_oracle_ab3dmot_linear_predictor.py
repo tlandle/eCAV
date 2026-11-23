@@ -177,12 +177,6 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
         # forecasts per tick, which was half of the edge step at 32 vehicles.
         _rr = cfg.get("recipient_range_m", None)
         self.recipient_range_m = float(_rr) if _rr is not None else None
-        # Optional ground-truth range around the edge's vehicles and RSUs (edge
-        # config detection_range_m, metres; unset: 50 m, as before). With
-        # several edges a vehicle receives the forecasts of another edge's
-        # vehicles only inside this range of a vehicle or RSU of its own edge.
-        _dr = cfg.get("detection_range_m", None)
-        self.detection_range_m = float(_dr) if _dr is not None else 50.0
 
         # AB3DMOT tracker — persistent across ticks (jitter-buffer arch)
         self.anchoring = cfg.get("anchoring", True)
@@ -278,7 +272,7 @@ class OracleEdge(AB3DMOTStateTransferMixin, _BaseEdgeManager):
             carla_snapshot: dict keyed by actor.id for metrics
             excluded_snapshot: dict of non-detectable vehicle types
         """
-        DETECTION_RANGE = self.detection_range_m
+        DETECTION_RANGE = 50.0
         # Ground truth within range of any managed sensor: the CAVs and the
         # RSUs. Anchoring on the CAVs alone (until 2026-10-16) made the
         # oracle blind to a crossing car 13 m from an RSU until the focal

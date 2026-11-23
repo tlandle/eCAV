@@ -137,6 +137,17 @@ def _drop_overlaps(sl, along=7.0, across=2.5):
     return kept
 
 
+def split_groups(sl, k):
+    """Split the slots into k compact groups of near-equal size: cut the longer side of the bounding box."""
+    if k <= 1:
+        return [sl]
+    xs, ys = [p["x"] for p in sl], [p["y"] for p in sl]
+    axis = "x" if max(xs) - min(xs) >= max(ys) - min(ys) else "y"
+    order = sorted(sl, key=lambda p: (p[axis], p["x"], p["y"]))
+    cut = round(len(sl) * (k // 2) / k)
+    return split_groups(order[:cut], k // 2) + split_groups(order[cut:], k - k // 2)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-n", "--num-egos", type=int, required=True)
@@ -153,15 +164,14 @@ def main(argv=None):
     ap.add_argument("--rsu-radius", type=float, default=100.0, help="spread layout: every vehicle within this distance of an RSU")
     ap.add_argument("--sense-range", type=float, default=None, help="metres; default the base YAML's vehicle lidar range; 0 unlimited")
     ap.add_argument("--recipient-range", type=float, default=150.0, help="metres; 0 unlimited")
-    ap.add_argument("--edge-detection-range", type=float, default=None,
-                    help="metres of ground truth around an edge's own vehicles and RSUs (exact-state edge manager). "
-                         "Unset: the manager's 50 m. With several edges a vehicle receives the forecasts of another "
-                         "edge's vehicles only inside this range of some vehicle or RSU of its own edge")
-    ap.add_argument("--edges", type=int, default=None,
-                    help="split the vehicles and RSUs over this many edges, one edge process each. The vehicles are "
-                         "ordered along x and each edge takes a band with an equal vehicle count. Unset: one edge and "
-                         "the vehicle order of earlier runs. --edges 1 gives one edge with the banded order, for "
-                         "comparing one edge against several on the same vehicle indices")
+    ap.add_argument("--edge-size", type=int, default=None,
+                    help="largest number of vehicles one edge owns. The vehicles are split into ceil(N / size) compact "
+                         "groups of near-equal size (the longer side of a group's bounding box is cut until the count is "
+                         "reached), one edge process per group, and every RSU joins the edge whose vehicles are nearest. "
+                         "Unset: one edge and the vehicle order of earlier runs")
+    ap.add_argument("--one-edge", action="store_true",
+                    help="with --edge-size: keep the vehicle and RSU order of the groups and attach all of them to one "
+                         "edge, for comparing one edge against several on the same vehicle indices")
     ap.add_argument("--exact-localization", action="store_true",
                     help="vehicles localize from the simulator's transform (no GNSS and no noise): for comparing two deployments")
     ap.add_argument("--carla-host", default="localhost", help="CARLA host as the clients reach it (scenario_runner.host, world.client_host)")
@@ -186,14 +196,20 @@ def main(argv=None):
         sl = [order[int(i * len(order) / N)] for i in range(N)]
     else:
         sl = sl[:N]
-    K = a.edges or 1
-    if not 1 <= K <= N:
-        sys.exit(f"--edges {K}: need 1 to {N} edges")
-    if a.edges is not None:
+    groups = [sl]
+    if a.edge_size is not None:
+        if a.edge_size < 1:
+            sys.exit("--edge-size must be at least 1")
         # Global vehicle indices are contiguous per edge (sim_api.compute_edge_mappings), and client k
-        # drives ego hero<k>, so the slots are ordered by band before the XML and the YAML are written.
-        sl = sorted(sl, key=lambda p: (p["x"], p["y"]))
-    bounds = [round(k * N / K) for k in range(K + 1)]
+        # drives ego hero<k>, so the slots are ordered by group before the XML and the YAML are written.
+        groups = split_groups(sl, math.ceil(N / a.edge_size))
+        sl = [p for grp in groups for p in grp]
+    bounds = [0]
+    for grp in groups:
+        bounds.append(bounds[-1] + len(grp))
+    if a.one_edge:
+        bounds = [0, N]
+    K = len(bounds) - 1
 
     # ---- scenario XML: one ego entry per vehicle, role names hero, hero1, hero2, ...
     lines = ['<?xml version="1.0"?>', "<scenarios>",
@@ -273,23 +289,23 @@ def main(argv=None):
         R = len(rsu_pos)
     else:
         rsu_pos = [[float(a.centre[0] - 47.5 * (R - 1) + 95.0 * j), 155.0, 7.0] for j in range(R)]
-    if a.edges is not None:
-        rsu_pos.sort(key=lambda q: q[0])      # RSU indices are contiguous per edge as well
+    # RSU indices are contiguous per edge as well: every RSU joins the group with the nearest vehicle
+    rsu_group = [min(range(len(groups)), key=lambda k: min(math.hypot(p["x"] - q[0], p["y"] - q[1]) for p in groups[k]))
+                 for q in rsu_pos]
+    rsu_pos = [q for _, q in sorted(zip(rsu_group, rsu_pos), key=lambda t: t[0])]
+    rsu_group.sort()
     rsus = []
     for j in range(R):
         r = {key: val for key, val in rt.items() if key not in ("sensing", "name", "spawn_position", "id")}
         r.update(sensing=r_sensing, name=f"rsu{j + 1}", id=-(j + 1), spawn_position=rsu_pos[j])
         rsus.append(r)
-    # ---- edges: band k holds vehicles bounds[k]..bounds[k+1]-1 and the RSUs between its x cuts
-    cuts = [(sl[b - 1]["x"] + sl[b]["x"]) / 2.0 for b in bounds[1:-1]]
-    rsu_bounds = [0] + [sum(1 for q in rsu_pos if q[0] < c) for c in cuts] + [R]
+    # ---- edges: edge k holds vehicles bounds[k]..bounds[k+1]-1 and the RSUs of its group
+    rsu_bounds = [0, R] if K == 1 else [sum(1 for k in rsu_group if k < e) for e in range(K)] + [R]
     edges = []
     for k in range(K):
         own = {"vehicles": vehicles[bounds[k]:bounds[k + 1]], "rsus": rsus[rsu_bounds[k]:rsu_bounds[k + 1]]}
         e = {key: own.get(key, val) for key, val in edge.items()}      # key order of the base block
         e["max_capacity"] = max(len(e["vehicles"]), 10)
-        if a.edge_detection_range is not None:
-            e["detection_range_m"] = a.edge_detection_range
         edges.append(e)
     d["scenario"]["edge_list"] = edges
 
