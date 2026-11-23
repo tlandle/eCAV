@@ -9603,3 +9603,30 @@ With the cetus cells (1 and 2 vehicles, 60 runs) the 1280 arm of the column has 
 - **Commits:** ecav_ispass_overleaf c54782a (main), ecav_ispass 3912e24 (master), both pushed.
 - **Still running (Section V worker):** two vehicles abreast at the junction crossing, three sources at 640 on atlas, 1280 on cetus, 56 and 65 km/h, 10 runs per cell. Not in the paper until the set lands and is valid.
 - **Open:** sec5ext not pushed to origin (credential scan first, after its sets end). multiedge and sec5ext not merged into develop (no merge while a set runs in the main checkout). Left turn invalid, column with driving background traffic not gated.
+
+## 2026-11-23 18:18 Section V stream: two-abreast cell is not valid; stream state at hand-back
+
+**Two vehicles abreast at the junction crossing (atlas sec5_run 955d4473, ispass_cab60/70, three arms at 640x480, 60 runs, all valid as runs; cetus ispass_cabh60/70, camera and LiDAR at 1280x960, 20 runs).** Collided of 10, first vehicle (lane of the earlier sets) and second vehicle (lane to its right):
+
+| km/h | arm | first vehicle | second vehicle |
+|---|---|---|---|
+| 56 | unrestricted ground truth | 0 | 4 (crossing car) |
+| 56 | ground truth in view | 0 | 4 (crossing car) |
+| 56 | camera and LiDAR 640 | 3 | 8 |
+| 56 | camera and LiDAR 1280 | 0 | 0 |
+| 65 | unrestricted ground truth | 0 | 2 (crossing car) |
+| 65 | ground truth in view | 3 (the other vehicle) | 6 |
+| 65 | camera and LiDAR 640 | 10 | 10 |
+| 65 | camera and LiDAR 1280 | 3 | 1 |
+
+- The cell fails the zero-age rule: the second vehicle collides with unrestricted ground truth. Trace of ispass_cab60 gt_all run 1: the first vehicle brakes and stops at y 97, the second drives through the junction at 15.7 m/s without braking. The launch is timed for the first vehicle's lane; the car reaches the second lane 0.26 s later, so at the second vehicle's arrival the car is predicted 3.5 m short of it, outside the planner's 2.5 m margin, and the planner proceeds. With the lead jitter of 0.15 s it is hit in 2 to 4 of 10 runs.
+- Retraction: the earlier note that the second-lane lead of the two-lane 16-vehicle cell collided "most likely because the lead abreast blocks its line of sight" is wrong. It collides with unrestricted ground truth too, so it is the timing of the launch against the planner's margin, not occlusion. Do not use the two-abreast numbers or that explanation in the paper. A valid cell needs the launch timed for the second vehicle's lane (and then a check that the first vehicle completes).
+- Files: sec5_wt paper_ispass/abreast_{cells,runs,pos}.csv (sec5ext, kept as a record). column_trace_reduce.py now handles cells without followers and takes --root (868fee75).
+
+**Stream state at hand-back (18:25).** atlas, cetus: no CARLA, no runner, no patched YAML backup. Azure: every VM deallocated (edge-server at 17:14). Branch sec5ext holds all code and reduced tables; frozen run worktree sec5_run (detached at 955d4473) holds the atlas run directories and the A10 mirror (a10_mirror/, experiment_results/). cetus ~/sec5_wt holds the cetus run directories.
+
+**Valid sets delivered (paper_ispass on sec5ext).** three_level_open_runs.csv (open junction, four sources, 200 runs); three_level_congested_runs.csv (16 background vehicles, four sources, 120 runs); column_gap1p0_* (56 km/h, 1.0 s gap; 30 camera and LiDAR runs and 10 ground-truth runs per cell) with column_gap1p0_lead_brake.csv; column_gap1p5_* (56 and 65 km/h, 1.5 s gap, 10 runs per cell); column_gap1p0_1280_* and column_gap1p5_1280_* (1280x960, 100 runs); cutin_occluded_runs.csv (200 runs, no effect of the state source); resolution_runs_1280.csv (superseded by three_level_open_runs.csv).
+
+**Not valid or not done.** Left turn (gate: wall contact at 70 nominal with every source, no separation at 50 and 60). Two abreast (above). Column with driving background traffic (not gated). 1.0 s gap at 65 km/h and 8 vehicles at a 1.5 s gap (road and planner limits, see 23:55 and 05:46 entries).
+
+**Knobs added in this stream, all default-off.** test_runner.py --camera-resolution, --detector-input-size, --lidar-dropoff, --tm-exclude, ECAV_RUN_REP in the scenario environment; column_sweep.sh CAM_RES, DET_SIZE, LIDAR_DROPOFF, TM, SCEN, DRIVE_DIST, FOLLOW_GAP, COLUMN_TRACE, arm gt_all; scp_edge_late_fusion.py COLUMN_TRACE, COLUMN_INITIAL_SPEED_MPS, COLUMN_SPEED_HOLD_TICKS; behavior_agent.py follow_gap_s (range-rate following with a coasted gap); scenario_highway_merge.py CUTIN_TTC_JITTER_S; sim_api.py carla_traffic_manager.exclude_models; gen_column_scenario.py --follow-lane, --per-lane, --lead-y, --spacing, --speed, --name, --ns. sec5ext is not merged into develop.
