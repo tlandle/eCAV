@@ -32,7 +32,8 @@
 #   -g ARGS         extra generator arguments, quoted (e.g. -g "--layout spread --rsus 12")
 #   -m dist|seq     dist (default): one process per actor. seq: the sequential single process
 #                   (ecav.py without -d) on the orchestrator host, same scenario files
-# Environment: SCALE_WT (worktree on every host, default $HOME/scale_wt), SCALE_ACT (shell line that activates the
+# Environment: SCALE_GEN_EXTRA (generator arguments added to every run of a sweep, e.g. "--edge-size 32"),
+# SCALE_WT (worktree on every host, default $HOME/scale_wt), SCALE_ACT (shell line that activates the
 # Python env on every host), SCALE_CARLA_ROOT (default $HOME/carla-0.9.15), BATCH (clients started per wave, 16).
 #
 # Every host needs: the worktree at $WT with generated proto stubs and, on the orchestrator, the
@@ -185,7 +186,7 @@ elif ! $SSH "$CARLA" "ss -ltn | grep -q ':2000 '"; then
 fi
 
 # scenario files: generated on the orchestrator, copied to the other hosts (clients read the XML, the YAML comes from the server)
-on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $GP --carla-host $CARLA_IP $GEN" | tee -a "$OUT/launch.log" || fail "generator"
+on "$ORCH" "python scripts/ispass/gen_scale_town06.py -n $N --rsus $R --perception $GP --carla-host $CARLA_IP $GEN ${SCALE_GEN_EXTRA:-}" | tee -a "$OUT/launch.log" || fail "generator"
 # the spread layout chooses its own RSU count
 RG=$(grep -o '^RSUS=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); [[ -n "$RG" ]] && R=$RG
 if [[ $MULTI == 1 && $P == shared && -z "$EPS" ]]; then
