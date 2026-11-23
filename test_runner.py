@@ -122,6 +122,10 @@ ap.add_argument("--camera-fov", type=float, default=None,
                 help="Horizontal field of view in degrees of every vehicle camera (perception.camera.fov). The code "
                      "default is 70: four cameras at 0, 90, 180 and 270 degrees then leave 20 degree gaps between "
                      "neighbours. Recorded as config_camera_fov; not part of the run directory name.")
+ap.add_argument("--lidar-dropoff", type=float, nargs=3, default=None, metavar=("GENERAL", "LIMIT", "ZERO"),
+                help="Drop-off of every vehicle LiDAR: dropoff_general_rate, dropoff_intensity_limit and "
+                     "dropoff_zero_intensity (CARLA's defaults are 0.45 0.8 0.4). Unset: the scenario file's values "
+                     "(no drop-off). Recorded as config_lidar_dropoff; not part of the run directory name.")
 ap.add_argument("--camera-resolution", type=int, nargs=2, default=None, metavar=("W", "H"),
                 help="Image size in pixels of every vehicle camera (perception.camera.image_width and image_height). "
                      "Unset: the scenario file's size. Recorded as config_camera_resolution; not part of the run "
@@ -605,6 +609,15 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
                 cam["fov"] = float(args.camera_fov); n_cam += 1
         print(f"    camera field of view {args.camera_fov} degrees on {n_cam} vehicles")
 
+    if args.lidar_dropoff is not None:
+        n_lid = 0
+        for edge in d.get("scenario", {}).get("edge_list", []):
+            for veh in edge.get("vehicles", []):
+                lid = veh.setdefault("sensing", {}).setdefault("perception", {}).setdefault("lidar", {})
+                lid["dropoff_general_rate"], lid["dropoff_intensity_limit"], lid["dropoff_zero_intensity"] = (float(x) for x in args.lidar_dropoff)
+                n_lid += 1
+        print(f"    LiDAR drop-off {args.lidar_dropoff} on {n_lid} vehicles")
+
     if args.camera_resolution is not None:
         n_cam = 0
         for edge in d.get("scenario", {}).get("edge_list", []):
@@ -875,6 +888,7 @@ def run_once(baseline, anchoring, lat_ms, spd_kmh, loss, gps_noise, gps_dropout,
     if args.vehicle_state is not None: metrics["config_vehicle_state"] = args.vehicle_state
     if args.camera_fov is not None: metrics["config_camera_fov"] = args.camera_fov
     if args.camera_resolution is not None: metrics["config_camera_resolution"] = list(args.camera_resolution)
+    if args.lidar_dropoff is not None: metrics["config_lidar_dropoff"] = list(args.lidar_dropoff)
     if args.detector_input_size is not None: metrics["config_detector_input_size"] = args.detector_input_size
     if args.spawn_gap_jitter: metrics["config_spawn_gap_jitter"] = args.spawn_gap_jitter
     if args.gt_camera_coverage: metrics["config_gt_camera_coverage"] = True

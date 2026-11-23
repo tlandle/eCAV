@@ -15,7 +15,7 @@ PY="${PY:-$HOME/anaconda3/envs/opencda310/bin/python}"
 export PYTHONPATH="$HOME/carla-0.9.15/PythonAPI/carla:${PYTHONPATH:-}"
 CS="${CS:-4 7 10 13 16}"; ARMS="${ARMS:-gt_vis onboard}"; SPEED="${SPEED:-97}"; LIDAR_NOISE="${LIDAR_NOISE:-0.02}"
 LOCAL_STEPS="${LOCAL_STEPS:-60}"; TTC_JITTER="${TTC_JITTER:-0.15}"; TRACE="${TRACE:-1}"; FOV="${FOV:-}"
-rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "${CAM_RES:-}" ]] && echo -n "--camera-resolution $CAM_RES "; [[ -n "${DET_SIZE:-}" ]] && echo -n "--detector-input-size $DET_SIZE "; }
+rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "${CAM_RES:-}" ]] && echo -n "--camera-resolution $CAM_RES "; [[ -n "${LIDAR_DROPOFF:-}" ]] && echo -n "--lidar-dropoff $LIDAR_DROPOFF "; [[ -n "${TM:-}" ]] && echo -n "--tm-traffic $TM "; [[ -n "${DET_SIZE:-}" ]] && echo -n "--detector-input-size $DET_SIZE "; }
 arm_args() { case "$1" in
   gt_vis)  echo "--vehicle-state gt_visible" ;;
   onboard) echo "" ;; esac; }
