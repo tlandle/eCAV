@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 """Wall-clock time per tick against vehicle count, without and with camera and LiDAR perception:
 OpenCDA 0.1.3 on one host, eCAV on one host, eCAV on several hosts (vehicle clients on two more
-hosts and, with perception, the inference service on a fourth).
+hosts and, with perception, the inference service on a fourth; 1,024 vehicles: clients on four hosts,
+mh3_mh4dense_n1024).
 
     python scripts/ispass/plot_scale_cmp.py            # writes paper_ispass/fig_scale_cmp.pdf
 
@@ -17,10 +18,10 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter, NullFormatter
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-N = [8, 16, 32, 64, 128, 256, 512]
+N = [8, 16, 32, 64, 128, 256, 512, 1024]
 OFF = {"OpenCDA": (N[:6], [162, 378, 918, 2155, 4913, 14038]),
        "one host": (N[:6], [63, 101, 201, 395, 834, 1704]),
-       "several hosts": (N[3:], [307, 502, 817, 1516])}
+       "several hosts": (N[3:], [307, 502, 817, 1516, 4512])}
 ON = {"OpenCDA": (N[:3], [1290, 2726, 5695]),
       "one host": (N[:3], [435, 812, 1559]),
       "several hosts": (N[:5], [354, 657, 1190, 2131, 4749])}
@@ -34,7 +35,7 @@ fig, axs = plt.subplots(1, 2, figsize=(3.45, 1.5), sharey=True)
 for ax, data, ttl in zip(axs, (OFF, ON), ("without perception", "cameras and LiDAR")):
     for k, (x, y) in data.items():
         ax.plot(x, [v / 1000 for v in y], label=("OpenCDA" if k == "OpenCDA" else "ours, " + k), **STYLE[k])
-    ax.set_xscale("log", base=2); ax.set_yscale("log"); ax.set_xticks(N); ax.set_xlim(6, 700); ax.set_ylim(0.04, 30)
+    ax.set_xscale("log", base=2); ax.set_yscale("log"); ax.set_xticks(N); ax.set_xlim(6, 1400); ax.set_ylim(0.04, 30)
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}")); ax.xaxis.set_minor_formatter(NullFormatter())
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}")); ax.yaxis.set_minor_formatter(NullFormatter())
     ax.tick_params(axis="x", labelrotation=60, pad=1); ax.grid(True); ax.set_axisbelow(True)
@@ -42,6 +43,6 @@ for ax, data, ttl in zip(axs, (OFF, ON), ("without perception", "cameras and LiD
 axs[0].set_ylabel("time per tick (s)", labelpad=1)
 h, l = axs[0].get_legend_handles_labels()
 fig.legend(h, l, loc="upper center", ncol=3, frameon=False, bbox_to_anchor=(0.54, 1.01), columnspacing=1.0, handlelength=1.8, handletextpad=0.4)
-fig.subplots_adjust(left=0.115, right=0.995, bottom=0.28, top=0.76, wspace=0.08)
+fig.subplots_adjust(left=0.115, right=0.995, bottom=0.31, top=0.76, wspace=0.08)
 out = os.path.join(ROOT, "paper_ispass", "fig_scale_cmp.pdf")
 fig.savefig(out); print("wrote", out)

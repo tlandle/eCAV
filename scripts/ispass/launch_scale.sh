@@ -94,6 +94,9 @@ if [[ -n "$EPS" ]]; then
   NEP=$(tr ',' '\n' <<< "$EPS" | grep -c .); log "perception replicas ($NEP): $EPS"
 fi
 killall_hosts
+# Logs of an earlier run with the same tag stay on the hosts, and collect would copy them into the results of this
+# run (a retry with another client placement left 456 client logs of earlier attempts in mh3_mh4dense_n1024).
+for h in $HOSTS; do $SSH "$h" "cd $WT && if [ -d $L ]; then mv $L $L.prev_\$(date +%s); fi"; done
 
 # host firewall rule used below: simulator ports (2000-2002, secondaries 3000-3999), client RPC and push ports
 NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 2000:2002,3000:3999,8000:9999,50051:51300 ! -s $NET -j DROP"
