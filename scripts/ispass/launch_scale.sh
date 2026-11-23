@@ -221,9 +221,12 @@ log "orchestrator up"
 # SCALE_TICKER=1: one process ticks the world every SCALE_TICK_PERIOD seconds during start-up and the clients wait
 # for its frames (scripts/ispass/startup_ticker.py). Ticks from a wave of starting clients arrive in bursts, and
 # two frames in quick succession stop the simulator's stream threads (seen at 716 of 1,024 clients).
+# Client 0 spawns one ego per frame while it is the only client, so until it is done the ticker runs at
+# SCALE_TICK_PERIOD0 (1,024 egos at a 1 s period do not fit the wait for client 0).
 TICKENV=""
+ticker_stop() { $SSH "$CARLA" "for p in \$(pgrep -f '^python scripts/ispass/startup_ticker.py'); do kill \$p; done; true"; }
 if [[ ${SCALE_TICKER:-0} == 1 ]]; then TICKENV="env ECAV_STARTUP_TICKER=1 "
-  bg "$CARLA" ticker "python scripts/ispass/startup_ticker.py localhost 2000 ${SCALE_TICK_PERIOD:-1.0}"; log "start-up ticker on $CARLA"; fi
+  bg "$CARLA" ticker0 "python scripts/ispass/startup_ticker.py localhost 2000 ${SCALE_TICK_PERIOD0:-0.3}"; log "start-up ticker on $CARLA"; fi
 # one edge process per entry of the scenario's edge_list (generator option --edge-size, passed with -g or
 # SCALE_GEN_EXTRA). Edge 0 listens on 50054 and edge k on 50062+k: 50061 is the orchestrator's push port and
 # the vehicle push ports start at 50101, so up to 38 edges fit. Logs go to edge_<k>.log, or to edge.log when
@@ -259,6 +262,8 @@ stalled() { $SSH "$1" "cd $WT && for i in \$(seq $2 $3); do grep -Eq 'spawning E
 veh_range "$(host_of 0)" 0 0
 wait_log "$(host_of 0)" veh_0 "spawning Ecav2ActorClient" $((120 + N)) || fail "client 0 did not spawn the egos"
 log "client 0 spawned the egos"
+if [[ ${SCALE_TICKER:-0} == 1 ]]; then ticker_stop
+  bg "$CARLA" ticker "python scripts/ispass/startup_ticker.py localhost 2000 ${SCALE_TICK_PERIOD:-1.0}"; fi
 k=1; while (( k < N )); do
   h=$(host_of $k); hi=$(( k + BATCH - 1 < N - 1 ? k + BATCH - 1 : N - 1 ))
   while [[ $(host_of $hi) != "$h" ]]; do hi=$(( hi - 1 )); done
@@ -293,7 +298,7 @@ for j in $(seq 0 $((R - 1))); do
   rpre=""; [[ -n "$EPS" ]] && rpre="env ECAV_YOLO_ENDPOINT=${EPA[$((j % ${#EPA[@]}))]} "
   bg "$RSUH" "rsu_$j" "${rpre}python -u ecav/ecav2/ecloud_actor_client.py $ML -v 0.9.15 -i $j"; done
 if [[ ${SCALE_TICKER:-0} == 1 ]]; then
-  $SSH "$CARLA" "for p in \$(pgrep -f '^python scripts/ispass/startup_ticker.py'); do kill \$p; done; true"
+  ticker_stop
   log "start-up ticker stopped: $($SSH "$CARLA" "cd $WT && tail -1 $L/ticker.log | cut -c1-80")"; fi
 log "all clients started after $(( $(date +%s) - T0 )) s; waiting for the run"
 wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 |Caught exception" $((600 + 4 * N)) || fail "no first tick"
