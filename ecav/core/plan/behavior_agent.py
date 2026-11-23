@@ -225,6 +225,15 @@ class BehaviorAgent(object):
 
         # safety related
         self.safety_time = config_yaml['safety_time']
+        # follow_gap_s (seconds, unset by default): time gap held behind a vehicle that moves ahead in the
+        # same direction. Unset, the direct-observation check below treats every vehicle on the path within
+        # collision_time_ahead as a hazard at its current position, whatever its speed, so a follower brakes
+        # fully behind a lead that drives at its own speed and a column cannot hold a gap below that horizon.
+        # Set, such a lead is left to the forecast check (which brakes when the gap would close within the
+        # horizon) and to a speed cap that holds the gap.
+        _fg = config_yaml.get('follow_gap_s', None)
+        self.follow_gap_s = float(_fg) if _fg is not None else None
+        self._follow_lead = None      # (bumper gap m, lead speed m/s) of the nearest moving lead this step
         self.emergency_param = config_yaml['emergency_param']
         # Hazard response while the RSS proper response is active:
         #   'stop'        -> emergency stop (target 0, brake 1.0), today's behaviour
@@ -892,6 +901,8 @@ class BehaviorAgent(object):
         vehicle_state = False
         min_distance = 1000
         target_vehicle = None
+        if not adjacent_check:
+            self._follow_lead = None
 
         #logger.debug(adjacent_check)
         #logger.debug("generated predictions: %s" %self.generated_predictions)
@@ -919,6 +930,18 @@ class BehaviorAgent(object):
             collision_free = self._collision_check.collision_circle_check(
                 rx, ry, ryaw, vehicle, self._ego_speed / 3.6, self._map,
                 adjacent_check=adjacent_check, world=self._draw_world)
+
+            if not collision_free and self.follow_gap_s is not None and not adjacent_check:
+                # a lead that moves ahead in the ego's direction: no hazard at its current position
+                _lv = vehicle.get_velocity(); _ls = math.hypot(_lv.x, _lv.y)
+                _ey = math.radians(self._ego_pos.rotation.yaw); _el = self._ego_pos.location; _ll = vehicle.get_location()
+                _ahead = (_ll.x - _el.x) * math.cos(_ey) + (_ll.y - _el.y) * math.sin(_ey)
+                if _ls >= 2.0 and _ahead > 0.0 and (_lv.x * math.cos(_ey) + _lv.y * math.sin(_ey)) / _ls > 0.9:
+                    _oh = float(vehicle.bounding_box.extent.x) if getattr(vehicle, 'bounding_box', None) is not None else 1.5
+                    _gap = positive(dist(vehicle) - (float(self.vehicle.bounding_box.extent.x) + _oh))
+                    if self._follow_lead is None or _gap < self._follow_lead[0]:
+                        self._follow_lead = (_gap, _ls)
+                    continue
 
             if not collision_free:
                 vehicle_state = True
@@ -2742,6 +2765,15 @@ class BehaviorAgent(object):
             # otherwise resume full speed (e.g. the left-turn hazard branch
             # past its 3 m floor)
             target_speed = self._graded_hazard_speed_kmh()
+        if self.follow_gap_s is not None and self._follow_lead is not None:
+            # hold the time gap behind a moving lead: at the gap the cap is the lead's speed, closer it is lower
+            _gap, _ls = self._follow_lead
+            _want = 2.0 + self.follow_gap_s * self._ego_speed / 3.6
+            if _gap < _want:
+                _cap = max(0.0, (_ls + 0.5 * (_gap - _want)) * 3.6)
+                target_speed = min(target_speed if target_speed else self.max_speed - self.speed_lim_dist, _cap)
+                if target_speed <= 0.0:
+                    target_speed = 0.01      # 0 would select the default speed below; the controller brakes to a crawl
         target_speed, target_loc = self._local_planner.run_step(
             rx, ry, rk, target_speed=self.max_speed - self.speed_lim_dist
             if not target_speed else target_speed)

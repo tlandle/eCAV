@@ -51,7 +51,7 @@ run_cell() {  # arm N reps
   local cmd=(test_runner.py -t "$SCEN" --ego-counts "$2" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --repetitions "$3" --per-tick-age-log --self-id-radius 1
              --carla-port "$PORT" --stamp "${STAMP}_$1_n$2" $(arm_args "$1") $(rig_args "$1") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
-             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0
+             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0 $([[ -n "${FOLLOW_GAP:-}" ]] && echo "follow_gap_s=$FOLLOW_GAP")
              --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=$DRIVE_DIST SCENARIO_MAX_STEP=$MAX_STEP OCCLUDERS=0 $(variant_env))
   echo "$(date '+%F %T') arm=$1 N=$2 reps=$3"
   local t0=$(date +%s)
