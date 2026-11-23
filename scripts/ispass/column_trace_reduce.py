@@ -33,7 +33,8 @@ def load_run(rd, arm, n):
     try: d = json.load(open(os.path.join(rd, "simulation_metrics.json")))
     except (OSError, ValueError): return out, []
     log = open(os.path.join(rd, "runner_stdout.txt"), errors="replace").read()
-    m = re.search(r"\[SYNC LAUNCH\] step=(\d+)", log); tr = os.path.join(rd, "column_trace.csv")
+    m = re.search(r"\[SYNC LAUNCH\] step=(\d+)", log); tr = os.path.join(rd, "evaluation_output", "column_trace.csv")
+    if not os.path.exists(tr): tr = os.path.join(rd, "column_trace.csv")
     veh = d.get("vehicles") or {}
     if "error" in d or "Traceback" in log or len(veh) != n or d.get("config_vehicle_state") != STATE[arm] or not m or not os.path.exists(tr):
         return out, []
@@ -49,7 +50,9 @@ def load_run(rd, arm, n):
         if k > 0:
             px, py = T[k - 1][launch][0], T[k - 1][launch][1]; gap = math.hypot(px - x, py - y); tgap = (gap - LENGTH) / v if v > 0.5 else float("nan")
         b = next((s for s in steps if tk[s][3] >= 0.1), None)
-        dec = max([(tk[s][2] - tk[s + 4][2]) / (4 * DT) for s in steps if s + 4 in tk] or [float("nan")])
+        # within 10 s of the launch and before the last second of the run (the scenario's end stops every vehicle)
+        last = max(tk) - 20
+        dec = max([(tk[s][2] - tk[s + 4][2]) / (4 * DT) for s in steps if s + 4 in tk and s <= launch + 200 and s + 4 <= last] or [float("nan")])
         vv = veh.get(ids.get(str(aid), ""), {}); s_ = as_obj(vv.get("safety")); hit = isinstance(s_, dict) and int(s_.get("collision_count", 0) or 0) > 0
         partner = ""
         if hit:
@@ -76,8 +79,10 @@ def main():
             for arm in ARMS:
                 for f in sorted(glob.glob(os.path.join(ROOT, "experiment_results", "*", f"{a.stem}{spd}_{arm}_n{n}", "**", "column_trace.csv"), recursive=True)
                                 + [p for p in glob.glob(os.path.join(ROOT, "experiment_results", "*", f"{a.stem}{spd}_{arm}_n{n}", "**", "runner_stdout.txt"), recursive=True)
-                                   if not os.path.exists(os.path.join(os.path.dirname(p), "column_trace.csv"))]):
-                    rd = os.path.dirname(f); rep = int(os.path.basename(rd).split("_")[-1]); r, pos = load_run(rd, arm, n)
+                                   if not os.path.exists(os.path.join(os.path.dirname(p), "evaluation_output", "column_trace.csv"))]):
+                    rd = os.path.dirname(f)
+                    if os.path.basename(rd) == "evaluation_output": rd = os.path.dirname(rd)      # the trace lies beside the per-tick log
+                    rep = int(os.path.basename(rd).split("_")[-1]); r, pos = load_run(rd, arm, n)
                     runs.append(dict(speed=spd, n=n, arm=arm, rep=rep, **r)); poss += [dict(speed=spd, n=n, arm=arm, rep=rep, **p) for p in pos]
     print(f"{'km/h':>4} {'N':>3} {'arm':8s} runs valid  with collision  collided veh  lead  followers (rear-end)  first follower pos  gap m  time gap s (median, min)  lead speed")
     for spd in a.speeds:

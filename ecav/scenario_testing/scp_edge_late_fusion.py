@@ -312,6 +312,7 @@ def run_scenario(opt, scenario_params):
 
         sync_launch = SyncCrossLaunch(getattr(opt, 'output_dir', ''))
         column_trace = ColumnTrace(getattr(opt, 'output_dir', ''))
+        _column_v0 = float(os.environ.get("COLUMN_INITIAL_SPEED_MPS", 0) or 0)
         flag = True
         while flag:
             # Determine continue condition and command based on mode
@@ -325,6 +326,15 @@ def run_scenario(opt, scenario_params):
             print("about to set ego cav")
             ego_cav = edge_list[0].vehicle_manager_list[0].vehicle
             sync_launch.step(ego_cav, step)
+            if step == 0 and _column_v0 > 0:
+                # COLUMN_INITIAL_SPEED_MPS: every vehicle starts at this speed along its lane, so a column keeps
+                # the pitch of its start positions. From a standing start each follower waits for the vehicle
+                # ahead and the column reaches the junction with gaps of several seconds.
+                for _edge in edge_list:
+                    for _vm in _edge.vehicle_manager_list:
+                        _fwd = _vm.vehicle.get_transform().get_forward_vector()
+                        _vm.vehicle.set_target_velocity(carla.Vector3D(_fwd.x * _column_v0, _fwd.y * _column_v0, 0.0))
+                print("[COLUMN] initial speed %.1f m/s on every vehicle" % _column_v0, flush=True)
             column_trace.step(edge_list, step)
             print("bird view following")
 
