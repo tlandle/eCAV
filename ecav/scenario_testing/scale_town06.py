@@ -35,9 +35,29 @@ def exec_scenario_runner(scenario_params):
     runner.destroy()
 
 
+def _wait_for_ticker_frames():
+    """Start-up with an external ticker (ECAV_STARTUP_TICKER=1, scripts/ispass/startup_ticker.py).
+
+    ScenarioRunner ticks the world from every vehicle client while the client loads the world and creates its
+    scenario. With several hundred clients those ticks arrive in bursts, and two frames in quick succession stop
+    the simulator's stream threads (CARLA 0.9.15, ServerSession::Write in synchronous mode). With the ticker one
+    process advances the world at a fixed period, and a tick requested by this client becomes a wait for the
+    ticker's next frame. A vehicle client does not tick the world after start-up, where the orchestrator does.
+    """
+    import carla
+    wait_s = float(os.environ.get("ECAV_STARTUP_TICK_WAIT_S", 120))
+
+    def _next_frame(world, *_args):
+        return world.wait_for_tick(wait_s).frame
+
+    carla.World.tick = _next_frame
+
+
 def run_vehicle(opt, scenario_params):
     """One distributed vehicle client: ScenarioRunner with this vehicle index."""
     assert opt.distributed, "Must run in distributed mode when specifying vehicle index"
+    if os.environ.get("ECAV_STARTUP_TICKER") == "1":
+        _wait_for_ticker_frames()
     try:
         exec_scenario_runner(scenario_params)
     except Exception:
