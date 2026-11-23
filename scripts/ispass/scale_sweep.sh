@@ -19,7 +19,7 @@ steps() { (( $1 > 128 )) && echo 100 || echo 300; }
 one() { local tag=$1; shift
   [[ -f experiment_results/ispass_scale/$tag/launch.log ]] && grep -q "done:" experiment_results/ispass_scale/$tag/launch.log && { echo "$tag exists"; return; }
   for try in 1 2; do rm -rf experiment_results/ispass_scale/$tag
-    if timeout 5400 $L "$@" -o $HOST -t $tag > /dev/null 2>&1; then break; fi; echo "$(date '+%T') $tag attempt $try failed"; done
+    if timeout ${RUN_TIMEOUT:-5400} $L "$@" -o $HOST -t $tag > /dev/null 2>&1; then break; fi; echo "$(date '+%T') $tag attempt $try failed"; done
   echo "$(date '+%T') $tag: $(grep -h SUMMARY experiment_results/ispass_scale/$tag/launch.log | tail -1)"; }
 { git rev-parse HEAD; date -Is; } > experiment_results/ispass_scale/${STAMP}_meta.txt
 # vehicle index ranges for launch_scale.sh -H: N clients split evenly over CLIENT_HOSTS
