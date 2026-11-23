@@ -83,7 +83,7 @@ bg() { local h=$1 n=$2; shift 2; on "$h" "mkdir -p $L && (setsid nohup $* > $L/$
 wait_log() { $SSH "$1" "cd $WT && timeout $4 bash -c 'until grep -Eq \"$3\" $L/$2.log 2>/dev/null; do sleep 2; done'" \
              || { log "TIMEOUT waiting for /$3/ in $2.log on $1"; return 1; }; }
 HOSTS=$(printf '%s\n' "$ORCH" "$CARLA" "$EDGE" "$RSUH" $(tr ',' '\n' <<< "$VLIST" | sed 's/:.*//') | sort -u)
-killall_hosts() { for h in $HOSTS; do $SSH "$h" "P=\$( { pgrep -f '^python -u ecav'; pgrep -f '^\./ecav/ecloud_server/ecloud_server'; } | sort -u); [ -n \"\$P\" ] && kill -9 \$P; true"; done; }
+killall_hosts() { for h in $HOSTS; do $SSH "$h" "P=\$( { pgrep -f '^python -u ecav'; pgrep -f '^python scripts/ispass/startup_ticker.py'; pgrep -f '^\./ecav/ecloud_server/ecloud_server'; } | sort -u); [ -n \"\$P\" ] && kill -9 \$P; true"; done; }
 collect() { for h in $HOSTS; do mkdir -p "$OUT/${h##*@}"; scp -q $SSHO "$h:${WT/\$HOME\//}/$L/*.log" "$OUT/${h##*@}/" 2>/dev/null; done; }
 # a failed run can leave the simulator unusable (see the send-buffer note below): the next run restarts it
 fail() { log "FAILED: $*"; collect; killall_hosts; $SSH "$CARLA" "rm -f /tmp/scale_carla_layout"; exit 1; }
@@ -218,6 +218,12 @@ fi
 bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
 wait_log "$ORCH" orch "start [0-9]+ vehicle containers" 300 || fail "orchestrator did not come up"
 log "orchestrator up"
+# SCALE_TICKER=1: one process ticks the world every SCALE_TICK_PERIOD seconds during start-up and the clients wait
+# for its frames (scripts/ispass/startup_ticker.py). Ticks from a wave of starting clients arrive in bursts, and
+# two frames in quick succession stop the simulator's stream threads (seen at 716 of 1,024 clients).
+TICKENV=""
+if [[ ${SCALE_TICKER:-0} == 1 ]]; then TICKENV="env ECAV_STARTUP_TICKER=1 "
+  bg "$CARLA" ticker "python scripts/ispass/startup_ticker.py localhost 2000 ${SCALE_TICK_PERIOD:-1.0}"; log "start-up ticker on $CARLA"; fi
 # one edge process per entry of the scenario's edge_list (generator option --edge-size, passed with -g or
 # SCALE_GEN_EXTRA). Edge 0 listens on 50054 and edge k on 50062+k: 50061 is the orchestrator's push port and
 # the vehicle push ports start at 50101, so up to 38 edges fit. Logs go to edge_<k>.log, or to edge.log when
@@ -244,7 +250,7 @@ veh_range() { local h=$1 lo=$2 hi=$3
   # with -Y, client i gets endpoint i mod R in its environment; without it the variable stays unset
   local pre=""; [[ -n "$EPS" ]] && pre="EP=($(tr ',' ' ' <<< "$EPS")); "
   local envp=""; [[ -n "$EPS" ]] && envp="env ECAV_YOLO_ENDPOINT=\${EP[\$((i % \${#EP[@]}))]} "
-  on "$h" "mkdir -p $L && ${pre}for i in \$(seq $lo $hi); do (setsid nohup ${envp}python -u ecav.py $ML -v 0.9.15 -d -i \$i -T \$((8000 + i)) > $L/veh_\$i.log 2>&1 < /dev/null &); done"; }
+  on "$h" "mkdir -p $L && ${pre}for i in \$(seq $lo $hi); do (setsid nohup ${envp}${TICKENV}python -u ecav.py $ML -v 0.9.15 -d -i \$i -T \$((8000 + i)) > $L/veh_\$i.log 2>&1 < /dev/null &); done"; }
 # wait until every client lo..hi on one host has either reached its actor client or raised
 batch_wait() { $SSH "$1" "cd $WT && timeout ${SCALE_START_WAIT:-600} bash -c 'until ( for i in \$(seq $2 $3); do grep -Eq \"spawning Ecav2ActorClient|Traceback\" $L/veh_\$i.log 2>/dev/null || exit 1; done ); do sleep 2; done'" \
                || { log "TIMEOUT waiting for clients $2..$3 on $1"; return 1; }; }
@@ -286,6 +292,9 @@ EPA=($(tr ',' ' ' <<< "$EPS"))
 for j in $(seq 0 $((R - 1))); do
   rpre=""; [[ -n "$EPS" ]] && rpre="env ECAV_YOLO_ENDPOINT=${EPA[$((j % ${#EPA[@]}))]} "
   bg "$RSUH" "rsu_$j" "${rpre}python -u ecav/ecav2/ecloud_actor_client.py $ML -v 0.9.15 -i $j"; done
+if [[ ${SCALE_TICKER:-0} == 1 ]]; then
+  $SSH "$CARLA" "for p in \$(pgrep -f '^python scripts/ispass/startup_ticker.py'); do kill \$p; done; true"
+  log "start-up ticker stopped: $($SSH "$CARLA" "cd $WT && tail -1 $L/ticker.log | cut -c1-80")"; fi
 log "all clients started after $(( $(date +%s) - T0 )) s; waiting for the run"
 wait_log "$ORCH" orch "SCALE_TOWN06. tick 0 |Caught exception" $((600 + 4 * N)) || fail "no first tick"
 $SSH "$ORCH" "cd $WT && grep -q 'Caught exception' $L/orch.log" && fail "orchestrator raised before the first tick: $($SSH "$ORCH" "cd $WT && grep -m1 'Caught exception' $L/orch.log")"
