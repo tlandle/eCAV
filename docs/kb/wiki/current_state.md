@@ -9573,3 +9573,23 @@ With the cetus cells (1 and 2 vehicles, 60 runs) the 1280 arm of the column has 
 **Azure.** Results mirrored to atlas before shutdown: run directories under sec5_run/experiment_results (1,320 files, 40 per-tick logs, 40 column traces, same count as on the node), logs and reduced tables under sec5_run/a10_mirror/. az vm deallocate -g CARLA-SERVER_GROUP -n edge-server issued 17:14, az vm list -d at 17:15: edge-server, carla-client1 to 4, carla-ndm, carla-gpu-client1 and 2, carla-server and ansible-vm all "VM deallocated". ~/sec5_a10 stays on the node's disk (about 0.5 GB with results); nothing under ~/scale_wt or ~/carla-0.9.15 was changed.
 
 **Still running.** cetus: occluded cut-in full set (tmp/cetus_cuto_full.sh).
+
+## 2026-11-23 17:17 Section V stream: occluded cut-in set landed; two-abreast cells running
+
+**Cut-in with the occluding truck (cetus ~/sec5_wt ebeed3ec, cutin_sweep.sh with OCCLUDER=1, 97 km/h, time to the clearance drawn within plus or minus 0.15 s per repetition; stamps ispass_cuto for unrestricted ground truth, ground truth in view and camera and LiDAR at 640x480, ispass_cutoh for 1280x960; 200 runs, none invalid; ended 16:25).**
+
+| closing speed m/s | unrestricted ground truth | ground truth in view | camera and LiDAR 640 | camera and LiDAR 1280 |
+|---|---|---|---|---|
+| 4 | 0 of 10 | 0 of 10 | 0 of 10 | 0 of 10 |
+| 7 | 0 | 0 | 0 | 0 |
+| 10 | 0 | 0 | 0 | 0 |
+| 13 | 0 | 0 | 0 | 0 |
+| 16 | 6 of 10 | 6 of 10 | 6 of 10 | 6 of 10 |
+
+- Brake start (median, seconds after the scenario start): 5.70, 5.20, 4.95, 4.90, 4.85 unrestricted; 5.68, 5.20, 4.95, 4.90, 4.85 in view; 5.75, 8.65, 4.95, 4.95, 5.00 at 640; 5.70, 8.68, 4.95, 4.90, 4.95 at 1280. At 7 m/s both camera and LiDAR arms brake for the intruder about 3.5 s later than the ground-truth arms and end 12 to 19 m behind it (closest distance), without a collision.
+- Reading. The four state sources give the same collision outcome at every closing speed. At 16 m/s the cut-in exceeds what the planner can brake for with any source (6 of 10 with unrestricted ground truth), so that cell fails the zero-age rule and shows no effect of the state source. The intruder is in range and in view during the approach, so neither the range limit nor a late first detection applies. The cut-in is a geometry in which the state source does not change the outcome.
+- File: sec5_wt paper_ispass/cutin_occluded_runs.csv (200 rows, sec5ext 955d4473). The unoccluded gate (ispass_cutg, one run per cell) agreed.
+
+**Running since 17:17.** Two vehicles abreast at the junction crossing (scp_colab60/70_2ego: the second vehicle in the lane to the right of the first, which stands between it and the crossing car; start at speed, drop-off on): atlas sec5_run 955d4473, stamp ispass_cab60/70, three arms at 640x480, 10 runs per cell (scratchpad sec5/atlas_abreast.sh, "abreast end"); cetus stamp ispass_cabh60/70, camera and LiDAR at 1280x960 (tmp/cetus_abreast_h.sh). Origin: the dropped two-lane 16-vehicle cell, where the second-lane lead hit the crossing car with ground truth in view.
+
+**Not done in this stream.** Left turn (gate not valid: wall contact at 70 nominal with every source, no separation at 50 and 60). Traffic variant of the column (driving background vehicles with a column). Both need design work before a gate.
