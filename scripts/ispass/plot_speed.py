@@ -7,7 +7,7 @@ view, and camera and LiDAR perception at two image sizes.
 (a) runs with a collision out of the ten runs of each cell against the measured approach speed. (b) median brake
 start after the launch of the crossing car, with a bar from the earliest to the latest brake start of the cell.
 Input: paper_ispass/three_level_open_runs.csv (per-run table of the open junction sets: LiDAR at 2.4 m, rear camera
-at x=-2.5 m, cameras of 100 degrees; the 1280 by 960 arm has the cells from 60 km/h nominal on). Drawn at column
+at x=-2.5 m, cameras of 100 degrees, 200 runs). Drawn at column
 width with 7 pt text, included at scale 1."""
 import csv, os
 import numpy as np
