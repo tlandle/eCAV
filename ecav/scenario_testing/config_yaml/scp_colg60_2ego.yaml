@@ -319,7 +319,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav2
-          spawn_position: [-77.79, 27.27, 1.0, 0, 269.8, 0]  # column slot 1
+          spawn_position: [-85.0, -49.0, 1.0, 0, 89.8, 0]  # column slot 1
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
