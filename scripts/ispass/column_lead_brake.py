@@ -23,7 +23,9 @@ def main():
     ap.add_argument("--scenario", default="scp_colu"); ap.add_argument("--csv")
     ap.add_argument("--root", default=ROOT, help="checkout that holds experiment_results (default: the one of the script)")
     a = ap.parse_args()
-    coll = {(r["arm"], int(r["n"]), int(r["rep"])): int(r["lead"]) for r in csv.DictReader(open(a.runs_csv))}
+    # the runs table of a stem holds every speed: keep the rows of this speed
+    coll = {(r["arm"], int(r["n"]), int(r["rep"])): int(r["lead"]) for r in csv.DictReader(open(a.runs_csv))
+            if str(int(float(r["speed"]))) == str(int(float(a.speed)))}
     out = []
     print("arm N | decision s after launch: median [min, max] | first observation: median | collided / not collided")
     for arm in a.arms:
