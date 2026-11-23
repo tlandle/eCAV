@@ -9556,3 +9556,20 @@ Every follower collision is in a run in which the first vehicle collides. The fi
 **A10 node (edge-server), handed over 13:35.** Own tree ~/sec5_a10 (run code of d8bb6b12, scenario runner copied from atlas because ~/scenario_runner_atlas fails under Python 3.10 with getchildren; first gate run invalid for that reason and removed). Gate passed 13:52: 4 vehicles at 1280x960, 56 km/h, 1.0 s gap, valid, launch at step 130, gap 20.9 m and 1.01 s, 274 s per run, peak GPU memory 10.0 GB. Running since 13:52 (~/sec5_a10/tmp/a10_col.sh full, log logs/a10_col_full.log, "chain end"): 10 runs each of 4 and 8 vehicles at 56 km/h (ispass_cr10h60) and 4 vehicles at 56 and 65 km/h with the 1.5 s gap (ispass_cr15h60, ispass_cr15h70). To do when it ends: mirror results to atlas, az vm deallocate -g CARLA-SERVER_GROUP -n edge-server, verify with az vm list -d, by 23:00 at the latest.
 
 **Running.** cetus: occluded cut-in full set (tmp/cetus_cuto_full.sh).
+
+## 2026-11-23 17:15 Section V stream: 1280x960 column cells with 4 and 8 vehicles landed on the A10 node; edge-server deallocated
+
+**Set (edge-server, own tree ~/sec5_a10, run code d8bb6b12, 13:52 to 17:10, 40 runs, all valid).** Camera and LiDAR at 1280x960 with detector input 1280, drop-off 0.45 0.8 0.4, coasting rule, same leads as the 640 sets.
+
+| km/h | gap | vehicles | runs with a collision | collided vehicles | gap at the launch | lead decision, median (range) s |
+|---|---|---|---|---|---|---|
+| 56 | 1.0 s | 4 | 0 of 10 | 0 | 20.9 m, 1.01 s (min 0.95) | 1.70 (1.65 to 1.80) |
+| 56 | 1.0 s | 8 | 0 of 10 | 0 | 20.0 m, 0.99 s (min 0.96) | 1.70 (1.65 to 1.85) |
+| 56 | 1.5 s | 4 | 0 of 10 | 0 | 29.6 m, 1.60 s (min 1.58) | 1.73 (1.65 to 2.55) |
+| 65 | 1.5 s | 4 | 0 of 10 | 0 | 32.5 m, 1.52 s (min 1.45) | 1.95 (1.90 to 2.10) |
+
+With the cetus cells (1 and 2 vehicles, 60 runs) the 1280 arm of the column has 100 runs and one collision (the lead of a 2-vehicle run at 65 km/h). The lead decides with ground truth in view (1.75 s at 56 km/h, 1.98 to 2.05 s at 65 km/h) or 0.05 s before it. Cost on the A10: 243 to 258 s per run with 4 vehicles, 448 s with 8; peak GPU memory 10.9 GB. Files sec5_wt paper_ispass/column_gap1p0_1280_{cells,runs,pos}.csv and column_gap1p5_1280_* (1, 2, 4, 8 and 1, 2, 4 vehicles; sec5ext ee822813).
+
+**Azure.** Results mirrored to atlas before shutdown: run directories under sec5_run/experiment_results (1,320 files, 40 per-tick logs, 40 column traces, same count as on the node), logs and reduced tables under sec5_run/a10_mirror/. az vm deallocate -g CARLA-SERVER_GROUP -n edge-server issued 17:14, az vm list -d at 17:15: edge-server, carla-client1 to 4, carla-ndm, carla-gpu-client1 and 2, carla-server and ansible-vm all "VM deallocated". ~/sec5_a10 stays on the node's disk (about 0.5 GB with results); nothing under ~/scale_wt or ~/carla-0.9.15 was changed.
+
+**Still running.** cetus: occluded cut-in full set (tmp/cetus_cuto_full.sh).
