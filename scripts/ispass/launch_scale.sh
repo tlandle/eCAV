@@ -213,16 +213,22 @@ fi
 bg "$ORCH" orch "env SCENARIO_MAX_STEP=$STEPS ECAV_CARLA_TIMEOUT_S=${SCALE_CARLA_TIMEOUT:-60} python -u ecav.py -t scale_town06 -v 0.9.15 -d $ML"
 wait_log "$ORCH" orch "start [0-9]+ vehicle containers" 300 || fail "orchestrator did not come up"
 log "orchestrator up"
-# one edge process per entry of the scenario's edge_list (generator option --edges, passed with -g); edge k
-# listens on 50054+k and logs to edge_<k>.log, or to edge.log when there is one edge
+# one edge process per entry of the scenario's edge_list (generator option --edge-size, passed with -g or
+# SCALE_GEN_EXTRA). Edge 0 listens on 50054 and edge k on 50062+k: 50061 is the orchestrator's push port and
+# the vehicle push ports start at 50101, so up to 38 edges fit. Logs go to edge_<k>.log, or to edge.log when
+# there is one edge
 KE=$(grep -o '^EDGES=[0-9]*' "$OUT/launch.log" | tail -1 | cut -d= -f2); KE=${KE:-1}
+(( KE <= 38 )) || fail "$KE edges: the edge port range holds 38"
 edge_log() { (( KE > 1 )) && echo "edge_$1" || echo edge; }
+edge_port() { (( $1 == 0 )) && echo 50054 || echo $((50062 + $1)); }
 for e in $(seq 0 $((KE - 1))); do
-  EARGS="-e $e -P $((50054 + e))"; [[ $MULTI == 1 ]] && EARGS="$EARGS -O $ORCH_IP -o 50051"
+  EARGS="-e $e -P $(edge_port $e)"; [[ $MULTI == 1 ]] && EARGS="$EARGS -O $ORCH_IP -o 50051"
   bg "$EDGE" "$(edge_log $e)" "python -u ecav/ecav2/edge_process.py $EARGS"
 done
 for e in $(seq 0 $((KE - 1))); do
   wait_log "$EDGE" "$(edge_log $e)" "registered successfully" 180 || fail "edge $e did not register"
+  # an edge that cannot bind its port still registers with the orchestrator, and its actors then call the wrong server
+  $SSH "$EDGE" "cd $WT && ! grep -q 'Failed to add port' $L/$(edge_log $e).log" || fail "edge $e could not bind port $(edge_port $e)"
 done
 log "$KE edge process(es) registered"
 
