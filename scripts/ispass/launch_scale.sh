@@ -94,7 +94,7 @@ fi
 killall_hosts
 
 # host firewall rule used below: simulator ports (2000-2002, secondaries 3000-3999), client RPC and push ports
-NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 2000:2002,3000:3999,8000:8999,50051:51300 ! -s $NET -j DROP"
+NET=${SCALE_PRIVATE_NET:-10.0.0.0/8}; RULE="INPUT ! -i lo -p tcp -m multiport --dports 2000:2002,3000:3999,8000:9999,50051:51300 ! -s $NET -j DROP"
 # addresses: one host means localhost everywhere; several hosts means private IPs and a cloud_config rewrite
 ip_of() { $SSH "$1" "hostname -I | cut -d' ' -f1"; }
 if [[ $(wc -l <<< "$HOSTS") -eq 1 ]]; then CARLA_IP=localhost; MULTI=0
@@ -120,6 +120,9 @@ else
   # The rule is not persistent (gone after a restart of the VM).
   : # RULE is defined before this block
   for h in $HOSTS; do $SSH "$h" "sudo iptables -C $RULE 2>/dev/null || sudo iptables -I $RULE" || fail "port guard on $h"; done
+  # the orchestration, edge and push ports lie inside the range the kernel hands to outgoing connections; reserve
+  # them so that no connection takes the port of a server that starts later (traffic manager ports 8000+k are below it)
+  for h in $HOSTS; do $SSH "$h" "sudo sysctl -q -w net.ipv4.ip_local_reserved_ports=50051-51300" || fail "reserved ports on $h"; done
   # CARLA 0.9.15 in synchronous mode: a stream write that has not completed when the next frame's message is queued
   # for the same client makes a streaming worker spin forever (ServerSession::Write waits inside the strand that
   # must run the completion). On loopback a write completes at once. To a remote client it completes only when the
