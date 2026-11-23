@@ -901,8 +901,15 @@ class BehaviorAgent(object):
         vehicle_state = False
         min_distance = 1000
         target_vehicle = None
+        _fg_tracks = []       # (x, y, vx, vy) at the start of every forecast: an observed object carries no velocity
         if not adjacent_check:
             self._follow_lead = None
+            if self.follow_gap_s is not None:
+                for _p in self.generated_predictions:
+                    _t = _p.predicted_trajectory
+                    if _t and len(_t) >= 2:
+                        _a, _b = _t[0].location, _t[1].location
+                        _fg_tracks.append((_a.x, _a.y, (_b.x - _a.x) / 0.05, (_b.y - _a.y) / 0.05))
 
         #logger.debug(adjacent_check)
         #logger.debug("generated predictions: %s" %self.generated_predictions)
@@ -933,10 +940,13 @@ class BehaviorAgent(object):
 
             if not collision_free and self.follow_gap_s is not None and not adjacent_check:
                 # a lead that moves ahead in the ego's direction: no hazard at its current position
-                _lv = vehicle.get_velocity(); _ls = math.hypot(_lv.x, _lv.y)
                 _ey = math.radians(self._ego_pos.rotation.yaw); _el = self._ego_pos.location; _ll = vehicle.get_location()
+                _near = min(_fg_tracks, key=lambda t: (t[0] - _ll.x) ** 2 + (t[1] - _ll.y) ** 2) if _fg_tracks else None
+                if _near is not None and (_near[0] - _ll.x) ** 2 + (_near[1] - _ll.y) ** 2 > 9.0:
+                    _near = None
+                _lvx, _lvy = (_near[2], _near[3]) if _near is not None else (0.0, 0.0); _ls = math.hypot(_lvx, _lvy)
                 _ahead = (_ll.x - _el.x) * math.cos(_ey) + (_ll.y - _el.y) * math.sin(_ey)
-                if _ls >= 2.0 and _ahead > 0.0 and (_lv.x * math.cos(_ey) + _lv.y * math.sin(_ey)) / _ls > 0.9:
+                if _ls >= 2.0 and _ahead > 0.0 and (_lvx * math.cos(_ey) + _lvy * math.sin(_ey)) / _ls > 0.9:
                     _oh = float(vehicle.bounding_box.extent.x) if getattr(vehicle, 'bounding_box', None) is not None else 1.5
                     _gap = positive(dist(vehicle) - (float(self.vehicle.bounding_box.extent.x) + _oh))
                     if self._follow_lead is None or _gap < self._follow_lead[0]:
@@ -1057,6 +1067,15 @@ class BehaviorAgent(object):
                 obs_speed = ((p1.x - p0.x)**2 + (p1.y - p0.y)**2)**0.5 / time_step
             else:
                 obs_speed = 0.0
+
+            if self.follow_gap_s is not None and not adjacent_check and len(pred_traj) >= 2 and obs_speed >= 2.0:
+                # a vehicle behind the ego that drives in the ego's direction keeps its own gap: its forecast
+                # runs along the ego's path, and braking for it stops the ego in front of it
+                _ey = math.radians(self._ego_pos.rotation.yaw)
+                _behind = (p0.x - ego_loc.x) * math.cos(_ey) + (p0.y - ego_loc.y) * math.sin(_ey) < 0.0
+                _same = ((p1.x - p0.x) * math.cos(_ey) + (p1.y - p0.y) * math.sin(_ey)) / (obs_speed * time_step) > 0.9
+                if _behind and _same:
+                    continue
 
             # Candidate futures: multimodal predictors (MTR) attach all
             # modes + scores; check the top-K by score and act on the

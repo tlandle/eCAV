@@ -319,7 +319,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav2
-          spawn_position: [-84.95, -30.0, 1.0, 0, 89.8, 0]  # column slot 1
+          spawn_position: [-85.0, -50.0, 1.0, 0, 89.8, 0]  # column slot 1
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -355,7 +355,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav3
-          spawn_position: [-85.0, -50.0, 1.0, 0, 89.8, 0]  # column slot 2
+          spawn_position: [-85.06, -70.0, 1.0, 0, 89.8, 0]  # column slot 2
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -391,7 +391,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav4
-          spawn_position: [-85.06, -70.0, 1.0, 0, 89.8, 0]  # column slot 3
+          spawn_position: [-85.11, -90.0, 1.0, 0, 89.8, 0]  # column slot 3
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -427,7 +427,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav5
-          spawn_position: [-85.11, -90.0, 1.0, 0, 89.8, 0]  # column slot 4
+          spawn_position: [-85.16, -110.0, 1.0, 0, 89.8, 0]  # column slot 4
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -463,7 +463,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav6
-          spawn_position: [-85.16, -110.0, 1.0, 0, 89.8, 0]  # column slot 5
+          spawn_position: [-85.22, -130.0, 1.0, 0, 89.8, 0]  # column slot 5
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -499,7 +499,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav7
-          spawn_position: [-85.22, -130.0, 1.0, 0, 89.8, 0]  # column slot 6
+          spawn_position: [-85.0, -150.17, 1.0, 0, 91.7, 0]  # column slot 6
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -535,7 +535,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav8
-          spawn_position: [-85.0, -150.17, 1.0, 0, 91.7, 0]  # column slot 7
+          spawn_position: [-84.03, -170.29, 1.0, 0, 93.3, 0]  # column slot 7
           destination: [-85.1, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -571,7 +571,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav9
-          spawn_position: [-88.39, -9.99, 1.0, 0, 89.8, 0]  # column slot 8
+          spawn_position: [-88.45, -29.99, 1.0, 0, 89.8, 0]  # column slot 8
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -607,7 +607,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav10
-          spawn_position: [-88.45, -29.99, 1.0, 0, 89.8, 0]  # column slot 9
+          spawn_position: [-88.5, -49.99, 1.0, 0, 89.8, 0]  # column slot 9
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -643,7 +643,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav11
-          spawn_position: [-88.5, -49.99, 1.0, 0, 89.8, 0]  # column slot 10
+          spawn_position: [-88.56, -69.99, 1.0, 0, 89.8, 0]  # column slot 10
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -679,7 +679,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav12
-          spawn_position: [-88.56, -69.99, 1.0, 0, 89.8, 0]  # column slot 11
+          spawn_position: [-88.61, -89.99, 1.0, 0, 89.8, 0]  # column slot 11
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -715,7 +715,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav13
-          spawn_position: [-88.61, -89.99, 1.0, 0, 89.8, 0]  # column slot 12
+          spawn_position: [-88.66, -109.99, 1.0, 0, 89.8, 0]  # column slot 12
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -751,7 +751,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav14
-          spawn_position: [-88.66, -109.99, 1.0, 0, 89.8, 0]  # column slot 13
+          spawn_position: [-88.72, -129.97, 1.0, 0, 89.8, 0]  # column slot 13
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -787,7 +787,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav15
-          spawn_position: [-88.72, -129.96, 1.0, 0, 89.8, 0]  # column slot 14
+          spawn_position: [-88.5, -150.27, 1.0, 0, 91.7, 0]  # column slot 14
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
@@ -823,7 +823,7 @@ scenario:
               debug: false
         - <<: *vehicle_base
           name: cav16
-          spawn_position: [-88.5, -150.27, 1.0, 0, 91.7, 0]  # column slot 15
+          spawn_position: [-87.54, -170.34, 1.0, 0, 93.3, 0]  # column slot 15
           destination: [-88.6, 155.0, 0.5]
           sensing:
             <<: *base_sensing
