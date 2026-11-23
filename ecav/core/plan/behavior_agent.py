@@ -941,8 +941,10 @@ class BehaviorAgent(object):
             if not collision_free and self.follow_gap_s is not None and not adjacent_check:
                 # a lead that moves ahead in the ego's direction: no hazard at its current position
                 _ey = math.radians(self._ego_pos.rotation.yaw); _el = self._ego_pos.location; _ll = vehicle.get_location()
+                # the forecast starts where the track was when it was made, up to a few ticks ago, so the object is
+                # matched within 3 m plus half a second of the track's travel
                 _near = min(_fg_tracks, key=lambda t: (t[0] - _ll.x) ** 2 + (t[1] - _ll.y) ** 2) if _fg_tracks else None
-                if _near is not None and (_near[0] - _ll.x) ** 2 + (_near[1] - _ll.y) ** 2 > 9.0:
+                if _near is not None and math.hypot(_near[0] - _ll.x, _near[1] - _ll.y) > 3.0 + 0.5 * math.hypot(_near[2], _near[3]):
                     _near = None
                 _lvx, _lvy = (_near[2], _near[3]) if _near is not None else (0.0, 0.0); _ls = math.hypot(_lvx, _lvy)
                 _ahead = (_ll.x - _el.x) * math.cos(_ey) + (_ll.y - _el.y) * math.sin(_ey)
