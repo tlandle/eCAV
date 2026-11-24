@@ -1,0 +1,4 @@
+speed,n,arm,runs,valid,runs_with_collision,collided_vehicles,lead,followers,with_column,med_gap,med_time_gap,min_time_gap,lead_speed
+60,1,gt_all,10,10,0,0,0,0,0,nan,nan,nan,15.522
+60,1,gt_vis,10,10,0,0,0,0,0,nan,nan,nan,15.522
+60,1,onboard,10,10,8,8,8,0,0,nan,nan,nan,15.522
