@@ -36,6 +36,8 @@ HIDE=5946265674966002516,6337000252949488035,6180885027493966721,165378178391452
 # SYNC_LAUNCH=<speed_mps>: the main process launches the crossing car in simulation time, TTA seconds before the
 #      vehicle reaches the conflict point, at this constant speed (the scenario runner's wall-clock trigger is off).
 FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
+# BEHAVIOR_EXTRA: further planner settings as key=value pairs, e.g. footprint_offset_m=1.5 (the forecast conflict test
+#      covers the bodies of both vehicles, collision_check.py). The run directory carries the pairs.
 # GAP_JITTER=<m>: every follower starts up to this much farther behind its predecessor, drawn per repetition.
 GAP_JITTER="${GAP_JITTER:-}"
 # SCEN: scenario of the cell (scp_column: straight crossing; ltp_column: left turn at the same junction,
@@ -52,7 +54,7 @@ run_cell() {  # arm N reps
   local cmd=(test_runner.py -t "$SCEN" --ego-counts "$2" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --repetitions "$3" --per-tick-age-log --self-id-radius 1
              --carla-port "$PORT" --stamp "${STAMP}_$1_n$2" $(arm_args "$1") $(rig_args "$1") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
-             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0 $([[ -n "${FOLLOW_GAP:-}" ]] && echo "follow_gap_s=$FOLLOW_GAP")
+             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0 $([[ -n "${FOLLOW_GAP:-}" ]] && echo "follow_gap_s=$FOLLOW_GAP") ${BEHAVIOR_EXTRA:-}
              --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=$DRIVE_DIST SCENARIO_MAX_STEP=$MAX_STEP OCCLUDERS=0 $(variant_env))
   echo "$(date '+%F %T') arm=$1 N=$2 reps=$3"
   local t0=$(date +%s)

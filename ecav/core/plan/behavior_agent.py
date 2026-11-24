@@ -274,9 +274,13 @@ class BehaviorAgent(object):
         # (ecav/core/plan/forecast_age.py). Both default on for every arm.
         self.proximity_check_m = float(config_yaml.get('proximity_check_m', 2.5))
         self.forecast_age_reindex = bool(config_yaml.get('forecast_age_reindex', True))
+        # footprint_offset_m (unset: 0, centre points only): the forecast conflict test covers each vehicle with
+        # its centre and one point this far ahead and behind along its path (collision_check.py)
+        self.footprint_offset_m = float(config_yaml.get('footprint_offset_m', 0.0) or 0.0)
         self._collision_check = CollisionChecker(
             time_ahead=time_ahead,
-            proximity_check_m=self.proximity_check_m)
+            proximity_check_m=self.proximity_check_m,
+            footprint_offset_m=self.footprint_offset_m)
         # Separate TTC threshold for candidate lane-change-path safety checks
         # (overtake_management's dry-run/commit calls, lane_change_management,
         # the return-to-lane check — all call collision_manager with
