@@ -100,7 +100,9 @@ def linear_interp_trajectory(points):
     ds = 0.1
     total_length = s[-1]
     num_steps = int(total_length / ds)
-    sp = np.linspace(0, num_steps * ds, num_steps + 1)
+    # num_steps * ds can exceed total_length by one floating-point step (156 * 0.1 > 15.6), and interp1d then
+    # raises outside its range
+    sp = np.minimum(np.linspace(0, num_steps * ds, num_steps + 1), total_length)
 
     # get path
     rx = xs(sp)
