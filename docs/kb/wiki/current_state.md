@@ -9731,3 +9731,26 @@ Tables paper_ispass/column_gap1p0_{cells,runs,pos}.csv and column_gap1p5_{cells,
 **Full set launched 07:16 (atlas, ispass_fct1660, cfefbd34).** 1, 2, 4, 8 vehicles, three sources, ten scenes each, 120 runs. Waiter bgeeechz1. Expectation from the gate: few collisions with the crossing car. The set shows whether follower collisions appear with traffic.
 
 **sec5_run is at cfefbd34** (acf4a5ae plus EGO_SPAWN_X, scp_colabs60, keep-out. Planner unchanged from acf4a5ae).
+
+### ISPASS Section V, fixed planner: traffic column (10 scenes), cetus traffic / 1280 column / two abreast 1280 landed (2026-11-24 11:35 EST)
+
+**Traffic column, 10 scenes per cell (atlas sec5_run cfefbd34, stamp ispass_fct1660, 120 runs, none invalid, 07:16 to 11:24).** Column with a 1.0 s gap at 56 km/h, 16 driving road users, keep-out on the approach lanes. Collisions by partner (first contact, simulation_metrics collision_history; column_trace_reduce.py labels every non-column vehicle "crossing", so with traffic use scratchpad sec5/coll_partner.py or encounter_reduce.py hit_conflict / hit_other):
+
+| vehicles | unrestricted ground truth | ground truth in view | camera and LiDAR 640 |
+|---|---|---|---|
+| 1 | 1 other (scene 8) | 0 | 2 crossing car |
+| 2 | 0 | 0 | 0 |
+| 4 | 0 | 1 other (scene 8) | 2 other (scenes 8, 10) |
+| 8 | 0 | 0 | 2 other, followers at positions 8 and 4 (scenes 2, 9) |
+
+No growth with column length in 10 scenes per cell. Crossing-car collisions only with one vehicle (2 of 10, cetus one-vehicle traffic set at 56 km/h: 1 of 10). Detection and track start match the empty junction (first detection 44 to 47 m, track at about 1.95 s or about 2.7 s after the launch). **Why the late-track runs do not collide with traffic:** the first vehicle brakes for background vehicles that cross the same junction on the eastbound lane (y about 136) before or instead of the crossing car (HAZARD-P2 on tracks at 3.6 to 6.6 m/s, runs onboard n1 rep 2, 4, 8), so the vehicle arrives late and the closest approach to the crossing car is 12 to 16 m median against 4.0 m at the empty junction. **Scene 8 under ground truth:** the vehicle yields to the crossing car, accelerates again to 13.9 m/s, flags a background police car (accelerating 5.3 to 8.8 m/s from the left, signals off for all road users) at TTC 1.0 s, brakes, and is hit at 9.4 m/s inside the junction at y 134 to 136. Braking put the vehicle in the path of the accelerating car, a constant-velocity forecast underestimates that car. Same class as the collisions with a background vehicle in the one-vehicle traffic set (pre-fix 1 and 1 with unrestricted ground truth, fixed planner 0 of 30).
+
+**Extension launched 11:28 (scratchpad sec5/atlas_coltm_ext.sh, log sec5_run/logs/atlas_coltm_ext.log):** same stamp and settings with REPS=30, the stamp resume skips scenes 1 to 10 (run_11 started). About 8 h. Ends with "traffic column ext end", tables overwrite tmp/ispass_fct16_* and tmp/fct16_lead_n*.csv. Waiter blkheojhl.
+
+**Cetus, fixed planner (CODE_VERSION acf4a5ae), tables on sec5ext 15155278 (pushed):**
+- Traffic with one vehicle (ispass_fch16l60/70/80, ispass_fch16h60/70/80, 120 runs, none invalid) -> paper_ispass/three_level_congested_runs.csv (shared_scene = launch ticks of the four arms within 1 tick, reproduces the old flags, 19 of 30 scenes shared). Collisions with the crossing car of 10 scenes, unrestricted / in view / 1280 / 640: 56 km/h 0, 0, 0, 1. 65 km/h 0, 1, 0, 3. 77 km/h 0, 3, 5, 7. With another road user: in view 1 (77), 1280 1 (56), 640 2 (77), unrestricted 0.
+- Column at 1280 by 960, 1 and 2 vehicles (ispass_fr10h60 20 runs, ispass_fr15h60/70 40 runs): 0 collisions in 60 runs -> column_gap1p0_1280_*, column_gap1p5_1280_* (the 4 and 8 vehicle cells of the old tables are gone, they need the A10 host under the fixed planner, Tyler's call).
+- Two abreast at 1280 by 960 (ispass_fabh60/70, 20 runs): 56 km/h 0 of 10, 65 km/h the second-lane vehicle collides in 2 of 10 (brake start 3.25 s), first lane 0 -> abreast_1280_*.
+- Cut-in sets (fcuto, fcutoh) running, about 12 min per cell, expected mid afternoon. Waiter br9pj2rji.
+
+**Paper working tree ~/repos/ecav_ispass_overleaf (uncommitted, nine content pages):** Traffic paragraph (0, 3, 5, 7 at 77 km/h, 1 in view and 3 at 640 at 65 km/h, 1 at 640 at 56 km/h, "order of the arms is the same" removed because in view and 1280 swap order between sets), 1.5 s gap sentence (3 of 25), 1280 column sentence (no collision in 60 runs, 1 and 2 vehicles), new Side by side paragraph (3 and 8 of 10 at 56 km/h, 8 of 10 alone, all 10 at 65 km/h, 1280: 2 of 10 at 65 km/h second lane). Eight one-line trims for the page limit, each with a "Nov 24, page limit" comment: abstract ("simulated"), introduction ("limiting resource"), design (variation and effect of replay), Table caption (ms), Conductor sentence ("operating point"), discussion ("hardware specific"), ablation figure sentence ("per cell completed"), encounter lead sentence. Commit waits for the cut-in set so the pushed paper never mixes sets from before and after the fix.
