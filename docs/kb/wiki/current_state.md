@@ -9646,3 +9646,28 @@ With the cetus cells (1 and 2 vehicles, 60 runs) the 1280 arm of the column has 
 - **Fix (sec5ext fc166d1f, off by default):** behavior setting footprint_offset_m. Above 0, check_footprints_within_radius covers each vehicle with its centre and one point that far ahead and behind along its path and flags any pair within proximity_check_m. Unit check: a crossing car 3.5 to 5.5 m short of or past the centre is flagged, 7 m is not, two vehicles 3.5 m abreast are not, a column 20 m apart is not. column_sweep.sh passes BEHAVIOR_EXTRA to --behavior-kv. Not merged into develop.
 - **Running since 19:50 (footprint_offset_m=1.5):** atlas sec5_run at fc166d1f, two abreast, stamp ispass_cabf60/70, unrestricted ground truth, ground truth in view, camera and LiDAR at 640x480, 10 runs per cell (scratchpad sec5/atlas_abreast_f.sh, log sec5_run/logs/atlas_abreast_f.log). cetus ~/sec5_wt with the three files overlaid (CODE_VERSION fc166d1f), open junction at 56, 65, 77 km/h with the leads of ispass_spdq, stamp ispass_spdf60/70/80, same three arms, 10 runs per cell (tmp/cetus_spdf_gate.sh, log logs/cetus_spdf_gate.log).
 - **Open decision after the two sets:** the conflict test is part of the planner of every Section V set. If the open-junction numbers move with the fix, every Section V set is rerun with footprint_offset_m=1.5 (fix and rerun whole). If they do not move, the rule still calls for one planner setting in the section.
+
+## 2026-11-23 20:50 Two abreast valid with the footprint test; Section V rerun with the fixed planner launched on atlas and cetus
+
+**Two abreast with footprint_offset_m=1.5 (atlas sec5_run fc166d1f, ispass_cabf60/70, 60 runs, 59 valid).** Collided vehicles of 10 runs, first vehicle (lane of the earlier sets) and second vehicle:
+
+| km/h | source | first | second | brake start median, first / second |
+|---|---|---|---|---|
+| 56 | unrestricted ground truth | 0 of 9 | 0 of 9 | 0.65 / 0.80 s |
+| 56 | ground truth in view | 0 | 0 | 1.85 / 1.90 s |
+| 56 | camera and LiDAR 640 | 3 | 8 (7 crossing car, 1 the other vehicle) | 2.18 / 2.60 s |
+| 65 | unrestricted ground truth | 0 | 0 | 0.70 / 0.80 s |
+| 65 | ground truth in view | 0 | 0 | 2.10 / 2.15 s |
+| 65 | camera and LiDAR 640 | 10 | 10 (in 2 runs the two vehicles hit each other) | 2.85 / 2.80 s |
+
+- The cell passes the zero-age rule. Before the fix: 4 and 2 of 10 second-vehicle collisions with unrestricted ground truth, 6 runs with ground truth in view at 65 km/h.
+- Detection trace at 56 km/h (PERC-TRACE): both vehicles see the car with 3 or 4 of 5 sight lines open during the first 0.8 s in range, in the same pattern. The second vehicle has a run of 3 to 6 missed detections 0.5 to 0.7 s after the car enters the range in the runs in which it brakes late. The first vehicle is beside the second (bearing 90 degrees) and the car is about 49 degrees off the heading at 50 m, so the first vehicle is not on the sight line in that phase. Do not write that the first vehicle blocks the view. A control with the second vehicle alone was not run.
+- The one invalid run (56 km/h, unrestricted, repetition 2) had a ValueError in linear_interp_trajectory: 156 * 0.1 exceeds the path length 15.6 by one floating-point step and interp1d raises. Fixed in dd0f5c69 (samples clamped to the path length). Present before the footprint change.
+
+**Open junction with the fix, 56 km/h (cetus, ispass_spdf60, fc166d1f):** unrestricted 0 of 10, brake 0.60 s. In view 0 of 10, 1.75 s. Camera and LiDAR 640: 3 of 10, 2.10 s. Reported set (ispass_spdq60): 0, 0.60 s; 0, 1.75 s; 2 of 10, 2.15 s. The ground-truth arms are unchanged and the camera and LiDAR count moves by one run.
+
+**Decision.** The conflict test is part of the planner of every Section V set, so every set is rerun with footprint_offset_m=1.5 (fix and rerun whole). New stems carry an f. Code acf4a5ae (footprint test fc166d1f, clamp dd0f5c69, cutin_sweep.sh BEHAVIOR_EXTRA acf4a5ae), sec5ext pushed.
+- **atlas (sec5_run at acf4a5ae, since 20:49, scratchpad sec5/atlas_fix_chain.sh, log sec5_run/logs/atlas_fix_chain.log, ends with "all sets end"):** two abreast ispass_fab60/70; column set A ispass_fr10s60 (ground truth 10 runs, camera and LiDAR 30 runs per cell); column set B ispass_fr15s60/70.
+- **cetus (~/sec5_wt, tmp/cetus_fix_chain.sh, log logs/cetus_fix_chain.log, ends with "fix chain end"):** waits for the set ispass_spdf60/70/80 (fc166d1f), copies tmp/stage_acf4a5ae in, then open junction at 37 and 47 km/h (ispass_spdf40/50) and 1280x960 at five speeds (ispass_spdfh), 16 driving road users (ispass_fch16l/h), column at 1280x960 with 1 and 2 vehicles (ispass_fr10h60, ispass_fr15h60/70), two abreast at 1280x960 (ispass_fabh60/70), cut-in (ispass_fcuto, ispass_fcutoh).
+- **Not scheduled:** column at 1280x960 with 4 and 8 vehicles (40 runs). They need the 24 GB Azure GPU host. Tyler's call whether to start the VM again.
+- **Paper:** Section V unchanged until the rerun lands. The ispass_spdf cells at 56, 65, 77 km/h ran at fc166d1f, before the clamp. The clamp changes a run only where the exception occurred, and such a run is invalid in the reducer.
