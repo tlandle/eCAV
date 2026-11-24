@@ -9717,3 +9717,17 @@ Tables paper_ispass/column_gap1p0_{cells,runs,pos}.csv and column_gap1p5_{cells,
 **cetus chain.** Open junction ended 02:45. 16 driving road users in progress (3 of 6 sets done at 05:22). Then column and two abreast at 1280 with 1 and 2 vehicles, then cut-in. Waiter br9pj2rji.
 
 **Paper working tree (not committed).** ~/repos/ecav_ispass_overleaf holds the open-junction numbers (abstract, introduction, conclusion, Outcome, Cause), fig_speed.pdf and the 640 column sentences. Commit waits for the cetus sets so that the paper never mixes sets from before and after the fix. Still to update: Traffic, the 1.5 s gap and 1280 column sentences, Cut-in, two abreast.
+
+## 2026-11-24 07:16 Second-lane control landed; column with driving traffic: keep-out for spawn points, gate passed, full set running on atlas
+
+**Second-lane control (atlas, ispass_fabs60, a181cacc, 30 runs, all valid).** The second-lane vehicle of the two-abreast cell alone at 56 km/h: unrestricted ground truth 0 of 10, ground truth in view 0 of 10, camera and LiDAR 640 8 of 10 (brake start median 2.60 s). Abreast the same vehicle collides in 8 of 10. The first-lane vehicle collides in 3 of 10 abreast and 16 of 30 alone (ispass_fr10s60 with 1 vehicle). Conclusion: each vehicle behaves as alone. The neighbour does not explain the second vehicle's rate. Lane difference alone: missed detector calls median 6 (second lane) against 3 (first lane), track withdrawn for 0.5 to 0.6 s in 6 of 10 runs against 7 of 30. Tables paper_ispass/abreast_second_lane_alone_{cells,runs}.csv (sec5ext ae128b18).
+
+**Column with 16 driving road users, first gate (ispass_fct16g60, a181cacc, column of 4, 5 scenes per source): not valid.** In scenes 1 and 5 a background vehicle spawns inside the column and vehicles hit it with both ground truth sources. Cause: test_runner --tm-traffic spawns anywhere in x -205 to 35, y -60 to 250, which contains the start lane, and the column starts at 15.6 m/s with the speed held for 60 ticks.
+
+**Fix (sec5ext cfefbd34).** carla_traffic_manager.keep_out rectangles in sim_api.spawn_vehicle_by_range, test_runner --tm-keep-out, TM_KEEP_OUT in column_sweep.sh. Off by default.
+
+**Second gate (ispass_fct16k60, cfefbd34, TM_KEEP_OUT="-92 -81 -130 50").** 15 runs valid. Collisions 0 of 5 for unrestricted ground truth, ground truth in view, and camera and LiDAR 640. Without traffic the 640 cell has 20 of 30 first-vehicle collisions. With traffic the first vehicle's closest approach to the crossing car is 16 m median (3.5 m without). In 3 of 5 perception scenes and 2 of 5 in-view scenes no brake is attributed to the crossing car and the track of the car is interrupted for 2.3 to 3.7 s. Reading: traffic slows the column or hides the car before the encounter, so the encounter with the crossing car is weaker. Same direction as the one-vehicle set with traffic (1 and 3 of 10 at 56 and 65 km/h against 3 and 10 without).
+
+**Full set launched 07:16 (atlas, ispass_fct1660, cfefbd34).** 1, 2, 4, 8 vehicles, three sources, ten scenes each, 120 runs. Waiter bgeeechz1. Expectation from the gate: few collisions with the crossing car. The set shows whether follower collisions appear with traffic.
+
+**sec5_run is at cfefbd34** (acf4a5ae plus EGO_SPAWN_X, scp_colabs60, keep-out. Planner unchanged from acf4a5ae).
