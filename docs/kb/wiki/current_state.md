@@ -9689,3 +9689,31 @@ The table in the paper (sets before the fix) has 2 of 10 for camera and LiDAR at
 **Chains.** cetus fix chain started 22:01 at acf4a5ae (first cell ispass_spdf40). atlas chain finished two abreast at 21:44 and is on column set A (ispass_fr10s60). Waiters b2gdv03c7 (atlas) and br9pj2rji (cetus).
 
 **Open.** Column at 1280x960 with 4 and 8 vehicles needs the Azure GPU host (Tyler's call). Paper Section V unchanged until both chains land. sec5ext commits fc166d1f, dd0f5c69, acf4a5ae, 161ea1d2 are not merged into develop.
+
+## 2026-11-24 05:44 Fixed planner: atlas column sets landed, open junction complete (200 runs), second-lane control running
+
+All sets below use footprint_offset_m=1.5 at sec5ext acf4a5ae. No invalid run in any of them.
+
+**Open junction (cetus, ispass_spdf 150 runs and ispass_spdfh 50 runs).** Collisions of 10 and median brake start:
+
+| km/h | unrestricted | in view | 1280x960 | 640x480 |
+|---|---|---|---|---|
+| 37 | 0, 0.60 s | 0, 1.25 s | 0, 1.30 s | 0, 1.55 s |
+| 47 | 0, 0.55 | 0, 1.50 | 0, 1.48 | 0, 1.75 |
+| 56 | 0, 0.60 | 0, 1.75 | 0, 1.65 | 3, 2.10 |
+| 65 | 0, 1.00 | 0, 1.95 | 0, 1.90 | 10, 2.75 |
+| 77 | 0, 1.50 | 7, 2.25 | 4, 2.15 | 10, 2.83 |
+
+Against the sets before the fix: in view at 77 km/h 8 to 7, 1280 at 77 km/h 6 to 4, 640 at 56 km/h 2 to 3. Brake start differences between the arms keep their ranges (0.65 to 1.15 s, within 0.1 s, 0.25 to 0.8 s). First detection: 1280 at 47 to 50 m. 640 at 44 to 48 m up to 56 km/h, 30 to 35 m in 18 of 20 runs at 65 and 77 km/h. The three collisions at 56 km/h have a track gap of 11 ticks (0.55 s). Table paper_ispass/three_level_open_runs.csv and fig_speed.pdf rebuilt (sec5ext fb6cd496).
+
+**Column set A, 1.0 s gap, 56 km/h (atlas, ispass_fr10s60, 330 runs).** Both ground truth sources 0 collisions at 1, 2, 4, 8 vehicles. Camera and LiDAR 640, 30 runs per cell: first vehicle collides in 16, 8, 20, 20 runs. Following vehicles collide in 0, 2, 5 of these runs at 2, 4, 8 vehicles (2 and 7 vehicles, positions 2 and 3). Collided vehicles per 30 runs 16, 8, 22, 27. Before the fix: first vehicle 17, 13, 20, 17 and followers in 4, 6, 6 runs.
+
+**Column set B, 1.5 s gap (atlas, ispass_fr15s60/70, 180 runs).** Ground truth 0 collisions. 640 at 56 km/h: first vehicle 4, 3, 2 of 10 at 1, 2, 4 vehicles, no follower. At 65 km/h: first vehicle 10, 10, 10. A follower collides in 1 and 2 runs at 2 and 4 vehicles (position 2). Over columns of 2 and 4: follower collisions in 3 of the 25 runs with a first-vehicle collision.
+
+Tables paper_ispass/column_gap1p0_{cells,runs,pos}.csv and column_gap1p5_{cells,runs,pos}.csv replaced (fb6cd496). column_gap1p0_lead_brake.csv and the column_rerun files are still from before the fix.
+
+**Second-lane control (atlas, ispass_fabs60, code a181cacc = acf4a5ae plus scenario option EGO_SPAWN_X and scenario scp_colabs60).** The second-lane vehicle of the two-abreast cell alone at 56 km/h, three state sources, 10 runs each. Started 05:42. Waiter bkkzagvo6. Purpose: decide whether the 8 of 10 collisions of the second vehicle need the neighbouring vehicle.
+
+**cetus chain.** Open junction ended 02:45. 16 driving road users in progress (3 of 6 sets done at 05:22). Then column and two abreast at 1280 with 1 and 2 vehicles, then cut-in. Waiter br9pj2rji.
+
+**Paper working tree (not committed).** ~/repos/ecav_ispass_overleaf holds the open-junction numbers (abstract, introduction, conclusion, Outcome, Cause), fig_speed.pdf and the 640 column sentences. Commit waits for the cetus sets so that the paper never mixes sets from before and after the fix. Still to update: Traffic, the 1.5 s gap and 1280 column sentences, Cut-in, two abreast.
