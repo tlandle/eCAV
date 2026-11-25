@@ -1,0 +1,13 @@
+arm,n,scenes,runs_with_collision,collided_vehicles,first_crossing_car,first_background,first_column,runs_follower_collides,follower_crossing_car,follower_background,follower_column,follower_positions
+gt_all,1,30,1,1,0,1,0,0,0,0,0,
+gt_all,2,30,0,0,0,0,0,0,0,0,0,
+gt_all,4,30,1,1,0,1,0,0,0,0,0,
+gt_all,8,30,2,3,0,0,1,2,0,1,1,8 2
+gt_vis,1,30,0,0,0,0,0,0,0,0,0,
+gt_vis,2,30,0,0,0,0,0,0,0,0,0,
+gt_vis,4,30,1,1,0,1,0,0,0,0,0,
+gt_vis,8,30,2,2,0,0,0,2,1,1,0,2 8
+onboard_640,1,30,8,8,7,1,0,0,0,0,0,
+onboard_640,2,30,4,4,4,0,0,0,0,0,0,
+onboard_640,4,30,9,10,5,3,1,1,0,0,1,2
+onboard_640,8,30,7,10,4,0,1,4,0,2,2,8 4 5 6 2
