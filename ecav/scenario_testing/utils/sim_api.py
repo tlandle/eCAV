@@ -1252,6 +1252,9 @@ class ScenarioManager:
         spawn_ranges = traffic_config['range']
         spawn_set = set()
         spawn_num = 0
+        # carla_traffic_manager.keep_out: rectangles [x_min, x_max, y_min, y_max] without background spawn points
+        # (the start lane of a column that starts at speed)
+        _keep_out = [tuple(float(v) for v in k) for k in (traffic_config.get('keep_out', None) or [])]
 
         for spawn_range in spawn_ranges:
             spawn_num += spawn_range[6]
@@ -1263,6 +1266,8 @@ class ScenarioManager:
                 for y in range(y_min, y_max, int(spawn_range[5])):
                     location = carla.Location(x=x, y=y, z=0.3)
                     way_point = self.carla_map.get_waypoint(location).transform
+                    if any(k[0] <= way_point.location.x <= k[1] and k[2] <= way_point.location.y <= k[3] for k in _keep_out):
+                        continue
 
                     spawn_set.add((way_point.location.x,
                                    way_point.location.y,

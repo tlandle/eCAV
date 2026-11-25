@@ -357,8 +357,12 @@ class Scenario_3(BasicScenario):
                 _ego = ego_vehicles[0]
                 _tf = _ego.get_transform()
                 _tf.location.y = self._ego_spawn_y
+                # EGO_SPAWN_X: start x as well, for a start on the second northbound lane (x -88.45)
+                _esx = os.environ.get("EGO_SPAWN_X")
+                if _esx:
+                    _tf.location.x = float(_esx)
                 _ego.set_transform(_tf)
-                print(f"[SCENARIO_3] ego start moved to y={self._ego_spawn_y:.1f} (EGO_SPAWN_Y={_esy})", flush=True)
+                print(f"[SCENARIO_3] ego start moved to x={_tf.location.x:.2f} y={self._ego_spawn_y:.1f} (EGO_SPAWN_Y={_esy})", flush=True)
             except Exception as _e:  # the run goes on from the scenario file's start
                 print(f"[SCENARIO_3] EGO_SPAWN_Y not applied: {_e}", flush=True)
         # EGO_DRIVE_DISTANCE: the scenario ends when the ego has driven this

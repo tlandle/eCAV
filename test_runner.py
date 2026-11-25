@@ -152,6 +152,8 @@ ap.add_argument("--local-prediction-steps", type=int, default=None,
                      "(local_tracker.predictor.num_future_steps). The default is 10 steps, 0.5 s: the vehicle-side "
                      "stack is a short-horizon fallback beside edge forecasts of prediction_steps. A study of the "
                      "vehicle alone sets it to the edge's horizon. Recorded as config_local_prediction_steps.")
+ap.add_argument("--tm-keep-out", type=float, nargs=4, default=None, metavar=("X_MIN", "X_MAX", "Y_MIN", "Y_MAX"),
+                help="With --tm-traffic: rectangle without background spawn points (the start lane of a column).")
 ap.add_argument("--tm-traffic", type=int, default=None,
                 help="Number of background vehicles that drive under CARLA's traffic manager, spawned on lane waypoints "
                      "within 120 m of the vehicle's route (carla_traffic_manager.range, random models). Recorded as "
@@ -648,6 +650,8 @@ def patch_yaml(d, latency_ms, speed_kmh, packet_loss, anchoring,
         tmc["port"] = 8010     # 8000 is held by the scenario runner's traffic manager, which this process cannot step
         if args.tm_exclude:
             tmc["exclude_models"] = list(args.tm_exclude)
+        if args.tm_keep_out:
+            tmc["keep_out"] = [list(args.tm_keep_out)]
         print(f"    traffic manager background: {args.tm_traffic} driving vehicles, excluded models {args.tm_exclude}")
 
     if args.rear_camera_x is not None:

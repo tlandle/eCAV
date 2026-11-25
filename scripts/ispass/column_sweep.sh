@@ -36,12 +36,14 @@ HIDE=5946265674966002516,6337000252949488035,6180885027493966721,165378178391452
 # SYNC_LAUNCH=<speed_mps>: the main process launches the crossing car in simulation time, TTA seconds before the
 #      vehicle reaches the conflict point, at this constant speed (the scenario runner's wall-clock trigger is off).
 FOV="${FOV:-}"; GT_CAM="${GT_CAM:-0}"; SYNC_LAUNCH="${SYNC_LAUNCH:-}"
+# BEHAVIOR_EXTRA: further planner settings as key=value pairs, e.g. footprint_offset_m=1.5 (the forecast conflict test
+#      covers the bodies of both vehicles, collision_check.py). The run directory carries the pairs.
 # GAP_JITTER=<m>: every follower starts up to this much farther behind its predecessor, drawn per repetition.
 GAP_JITTER="${GAP_JITTER:-}"
 # SCEN: scenario of the cell (scp_column: straight crossing; ltp_column: left turn at the same junction,
 #       scripts/ispass/gen_left_turn_scenario.py). DRIVE_DIST: metres the vehicle drives before the scenario ends.
 SCEN="${SCEN:-scp_column}"; DRIVE_DIST="${DRIVE_DIST:-340}"
-rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$GAP_JITTER" ]] && echo -n "--spawn-gap-jitter $GAP_JITTER "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "${CAM_RES:-}" ]] && echo -n "--camera-resolution $CAM_RES "; [[ -n "${LIDAR_DROPOFF:-}" ]] && echo -n "--lidar-dropoff $LIDAR_DROPOFF "; [[ -n "${TM:-}" ]] && echo -n "--tm-traffic $TM --tm-exclude ${TM_EXCLUDE:-tesla} "; [[ -n "${DET_SIZE:-}" ]] && echo -n "--detector-input-size $DET_SIZE "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
+rig_args() { [[ -n "${LIDAR_Z:-}" ]] && echo -n "--lidar-z $LIDAR_Z "; [[ -n "${REAR_CAM_X:-}" ]] && echo -n "--rear-camera-x $REAR_CAM_X "; [[ -n "$GAP_JITTER" ]] && echo -n "--spawn-gap-jitter $GAP_JITTER "; [[ -n "$FOV" ]] && echo -n "--camera-fov $FOV "; [[ -n "${CAM_RES:-}" ]] && echo -n "--camera-resolution $CAM_RES "; [[ -n "${LIDAR_DROPOFF:-}" ]] && echo -n "--lidar-dropoff $LIDAR_DROPOFF "; [[ -n "${TM:-}" ]] && echo -n "--tm-traffic $TM --tm-exclude ${TM_EXCLUDE:-tesla} "; [[ -n "${TM_KEEP_OUT:-}" ]] && echo -n "--tm-keep-out $TM_KEEP_OUT "; [[ -n "${DET_SIZE:-}" ]] && echo -n "--detector-input-size $DET_SIZE "; [[ "$GT_CAM" == 1 && "$1" != onboard && "$1" != gt_all ]] && echo -n "--gt-camera-coverage"; }
 # LEAD_JITTER=<s>: with SYNC_LAUNCH, the lead of each repetition is drawn within plus or minus this value (seeded).
 launch_env() { if [[ -n "$SYNC_LAUNCH" ]]; then echo "CROSS_TRIGGER_TTA=$SPEED:0 CROSS_SYNC_LAUNCH=$TTA:$SYNC_LAUNCH CROSS_SYNC_JITTER=${LEAD_JITTER:-0}"; else echo "CROSS_TRIGGER_TTA=$SPEED:$TTA"; fi; }
 arm_args() { case "$1" in
@@ -52,7 +54,7 @@ run_cell() {  # arm N reps
   local cmd=(test_runner.py -t "$SCEN" --ego-counts "$2" --manager-types late_fusion --anchoring on --packet-loss 100 --latencies 0
              --latency-distribution fixed --speeds $SPEED --repetitions "$3" --per-tick-age-log --self-id-radius 1
              --carla-port "$PORT" --stamp "${STAMP}_$1_n$2" $(arm_args "$1") $(rig_args "$1") --lidar-noise-std "$LIDAR_NOISE" --local-prediction-steps "$LOCAL_STEPS"
-             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0 $([[ -n "${FOLLOW_GAP:-}" ]] && echo "follow_gap_s=$FOLLOW_GAP")
+             --edge-kv prediction_steps=60 --behavior-kv curv_lat_accel=8 self_exclusion_m=1.0 $([[ -n "${FOLLOW_GAP:-}" ]] && echo "follow_gap_s=$FOLLOW_GAP") ${BEHAVIOR_EXTRA:-}
              --scenario-env $(launch_env) HIDE_ENV_OBJECTS=$HIDE EGO_SPAWN_Y=$EGO_Y EGO_DRIVE_DISTANCE=$DRIVE_DIST SCENARIO_MAX_STEP=$MAX_STEP OCCLUDERS=0 $(variant_env))
   echo "$(date '+%F %T') arm=$1 N=$2 reps=$3"
   local t0=$(date +%s)

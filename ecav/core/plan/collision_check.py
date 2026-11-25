@@ -100,7 +100,9 @@ def linear_interp_trajectory(points):
     ds = 0.1
     total_length = s[-1]
     num_steps = int(total_length / ds)
-    sp = np.linspace(0, num_steps * ds, num_steps + 1)
+    # num_steps * ds can exceed total_length by one floating-point step (156 * 0.1 > 15.6), and interp1d then
+    # raises outside its range
+    sp = np.minimum(np.linspace(0, num_steps * ds, num_steps + 1), total_length)
 
     # get path
     rx = xs(sp)
@@ -134,6 +136,35 @@ def check_paths_within_radius(path_a, path_b, r=1, dt=0.05):
         ttc = None
 
     return is_collision, ttc
+
+def check_footprints_within_radius(path_a, path_b, r=2.5, offset=1.5, dt=0.05):
+    """Time-synchronised conflict test over the bodies of two vehicles.
+
+    check_paths_within_radius compares the two centre points. For a crossing geometry that misses contacts: the
+    front of a car reaches the side of another vehicle at about 3.4 m between the centres, outside a 2.5 m radius.
+    Here each vehicle is covered by three points, its centre and one point ``offset`` metres ahead and behind
+    along its path, and a conflict is any pair of points of the two vehicles within ``r`` at the same sample.
+    Two vehicles side by side in adjacent lanes (3.5 m between the centres) stay outside ``r``.
+    """
+    def _points(path):
+        tangent = np.gradient(path, axis=0) if len(path) > 1 else np.zeros_like(path)
+        norm = np.linalg.norm(tangent, axis=1, keepdims=True)
+        # a standing vehicle has no path tangent: keep the last direction of motion, else the centre alone
+        unit = np.divide(tangent, norm, out=np.zeros_like(tangent), where=norm > 1e-6)
+        for i in range(1, len(unit)):
+            if norm[i, 0] <= 1e-6:
+                unit[i] = unit[i - 1]
+        for i in range(len(unit) - 2, -1, -1):
+            if not unit[i].any():
+                unit[i] = unit[i + 1]
+        return [path - offset * unit, path, path + offset * unit]
+
+    dists = np.min([np.linalg.norm(a - b, axis=1) for a in _points(path_a) for b in _points(path_b)], axis=0)
+    collision_indices = np.where(dists < r)[0]
+    if len(collision_indices):
+        return True, collision_indices[0] * dt
+    return False, None
+
 
 def interpolate_positions_points(waypoints_deque, num_points=10, num_waypoints=10):
 
@@ -243,7 +274,7 @@ class CollisionChecker:
     """
 
     def __init__(self, time_ahead=1.2, circle_radius=1.0, circle_offsets=None,
-                 proximity_check_m=2.5):
+                 proximity_check_m=2.5, footprint_offset_m=0.0):
 
         self.time_ahead = time_ahead
         # Centre-to-centre distance below which two interpolated paths count
@@ -252,6 +283,9 @@ class CollisionChecker:
         # missed an exact-state forecast of a crossing car by 0.0 to 0.3 m
         # (SenSys j3 straight crossing, 70 km/h, 500 ms, 2026-10-24).
         self._proximity_check_m = float(proximity_check_m)
+        # 0 (default): the time-synchronised test compares centre points. Above 0: three points per vehicle,
+        # see check_footprints_within_radius.
+        self._footprint_offset_m = float(footprint_offset_m)
         self._circle_offsets = [-.8,
                                 0,
                                 .8] \
@@ -663,7 +697,11 @@ class CollisionChecker:
                 ego_path = np.stack((ego_x_points[:length], ego_y_points[:length]), axis=1)
                 obs_path = np.stack((obs_x_points[:length], obs_y_points[:length]), axis=1)
                 proximity_check = self._proximity_check_m
-                is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=proximity_check, dt=time_step)
+                if self._footprint_offset_m > 0:
+                    is_collision, ttc = check_footprints_within_radius(
+                        ego_path, obs_path, r=proximity_check, offset=self._footprint_offset_m, dt=time_step)
+                else:
+                    is_collision, ttc = check_paths_within_radius(ego_path, obs_path, r=proximity_check, dt=time_step)
                 if obstacle_speed > 3.0:
                     time_dists = np.linalg.norm(ego_path - obs_path, axis=1)
                     min_time_dist = float(np.min(time_dists))
